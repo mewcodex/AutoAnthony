@@ -1,0 +1,72 @@
+// Reference shape only. This file is intentionally not compiled and does not depend on Watcher.dll.
+using AutoAnthony;
+using ChaosCardGenerator;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.CardPools;
+using System.Security.Cryptography;
+using System.Text;
+
+internal static class WatcherAutoAnthonyAdapter
+{
+    internal const string ProfileId = "watcher:autoanthony";
+
+    // Call during the Watcher mod initializer, before ModelDb.InitIds and before any pool generation.
+    internal static void Register(IReadOnlyList<IroncladCardRecipe> reviewedWatcherRecipes,
+        IReadOnlyList<ComponentLocalizedText> localizedTexts,
+        IReadOnlyList<ComponentRuntimeRoute> runtimeRoutes)
+    {
+        // Regent is only the chosen balance/legality archetype here. ProfileId is the real identity.
+        var catalog = new ImmutableComponentCatalog(GeneratedCharacter.Regent, reviewedWatcherRecipes);
+        var request = new ComponentProfileRequest(ProfileId, GeneratedCharacter.Regent, false);
+        var profile = new ComponentGenerationProfile(
+            ProfileId + ":normal",
+            GeneratedCharacter.Regent,
+            false,
+            catalog,
+            catalog,
+            catalog,
+            () => ComponentApi.CreateNativeOccurrencePolicy(catalog),
+            ComponentApi.DefaultValuePolicy);
+
+        ComponentPackageApi.Register(new ComponentPackageRegistration(
+            "watcher:autoanthony:components", request, profile, localizedTexts,
+            Valuations: [new ComponentValuationRegistration(
+                "watcher_stance", "enter", new WatcherStanceValuation())]));
+        ComponentRuntimeApi.RegisterPackage("watcher:autoanthony:runtime", runtimeRoutes);
+        ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
+            ProfileId, GeneratedCharacter.Regent, "watcher"));
+    }
+
+    // The Watcher mod owns seed choice, rarity counts, portraits, fx and snapshot synchronization.
+    internal static IReadOnlyList<GeneratedCard> Generate(string seed, IReadOnlyList<GeneratedRarity> rarities)
+    {
+        var generator = new RandomCardGenerator(
+            new ComponentProfileRequest(ProfileId, GeneratedCharacter.Regent, false), StableSeed(seed));
+        return rarities.Select(generator.Generate).ToArray();
+    }
+
+    private static int StableSeed(string seed) =>
+        BitConverter.ToInt32(SHA256.HashData(Encoding.UTF8.GetBytes(ProfileId + "|" + seed)), 0);
+}
+
+internal sealed class WatcherStanceValuation : IComponentValuation
+{
+    public int Estimate(ComponentValuationContext context) => 900; // example value: 9 damage-equivalent
+}
+
+// The owning mod declares one concrete subclass per fixed slot so ModelDb can discover stable ModelIds.
+internal abstract class WatcherChaosCard : ExternalChaosCardModel
+{
+    protected sealed override string ComponentProfileId => WatcherAutoAnthonyAdapter.ProfileId;
+    public sealed override CardPoolModel Pool => ModelDb.CardPool<WatcherCardPool>();
+}
+
+internal sealed class WatcherChaosCard000 : WatcherChaosCard
+{
+    protected override int Slot => 0;
+}
+
+// At new-run or restore time, build full ChaosCardDefinition records (including RuntimeSpecs) and install them:
+// ExternalComponentCharacterApi.InstallDefinitions(WatcherAutoAnthonyAdapter.ProfileId, definitions);
+// On run cleanup:
+// ExternalComponentCharacterApi.ClearDefinitions(WatcherAutoAnthonyAdapter.ProfileId);

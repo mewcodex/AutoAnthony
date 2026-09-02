@@ -1,0 +1,21 @@
+{
+  "ARCHAIC_TOOTH_CHAOS.description": "Upon pickup, obtain [gold]{AncientCard}[/gold], then remove 1 card from your [gold]Deck[/gold].",
+  "ARCHAIC_TOOTH_CHAOS.eventDescription": "Obtain [gold]{AncientCard}[/gold], then remove 1 card from your [gold]Deck[/gold].",
+  "DUSTY_TOME_CHAOS.description": "Upon pickup, obtain [gold]{AncientCard}[/gold].",
+  "DUSTY_TOME_CHAOS.eventDescription": "Obtain [gold]{AncientCard}[/gold].",
+  "NEOWS_TALISMAN_CHAOS.description": "Upon pickup, [gold]Upgrade[/gold] [blue]2[/blue] cards in your [gold]Deck[/gold].",
+  "NEOWS_TALISMAN_CHAOS.eventDescription": "[gold]Upgrade[/gold] [blue]2[/blue] cards in your [gold]Deck[/gold].",
+  "LEAFY_POULTICE_CHAOS.description": "Upon pickup, [gold]Transform[/gold] [blue]2[/blue] cards in your [gold]Deck[/gold], then lose [blue]{MaxHp}[/blue] Max HP.",
+  "LEAFY_POULTICE_CHAOS.eventDescription": "[gold]Transform[/gold] [blue]2[/blue] cards in your [gold]Deck[/gold], then lose [red]{MaxHp}[/red] Max HP.",
+  "LARGE_CAPSULE_CHAOS.description": "Upon pickup, obtain [blue]{Relics}[/blue] random [gold]{Relics:plural:Relic|Relics}[/gold]. Add [blue]2[/blue] random [gold]Common cards[/gold] to your [gold]Deck[/gold].",
+  "LARGE_CAPSULE_CHAOS.eventDescription": "Obtain [blue]{Relics}[/blue] random [gold]{Relics:plural:Relic|Relics}[/gold]. Add [blue]2[/blue] random [gold]Common cards[/gold] to your [gold]Deck[/gold].",
+  "GHOST_SEED_CHAOS.description": "Upon pickup, choose any number of cards. They gain [gold]Ethereal[/gold].",
+  "GHOST_SEED_CHAOS.eventDescription": "Choose any number of cards. They gain [gold]Ethereal[/gold].",
+  "GHOST_SEED_CHAOS.selectionScreenPrompt": "Choose any number of cards to gain [gold]Ethereal[/gold].",
+  "PANDORAS_BOX_CHAOS.description": "Upon pickup, [gold]Transform[/gold] ALL cards.",
+  "PANDORAS_BOX_CHAOS.eventDescription": "[gold]Transform[/gold] ALL cards.",
+  "NUTRITIOUS_SOUP_CHAOS.description": "Upon pickup, [gold]Enchant[/gold] all [gold]Basic Attack cards[/gold] in your [gold]Deck[/gold] with [purple]Tezcatara's Ember[/purple].",
+  "NUTRITIOUS_SOUP_CHAOS.eventDescription": "[gold]Enchant[/gold] all [gold]Basic Attack cards[/gold] in your [gold]Deck[/gold] with [purple]Tezcatara's Ember[/purple].",
+  "PAELS_CLAW_CHAOS.description": "Upon pickup, choose any number of cards with [gold]Block[/gold] to [gold]Enchant[/gold] with [purple]Goopy[/purple].",
+  "PAELS_CLAW_CHAOS.eventDescription": "Choose any number of cards with [gold]Block[/gold] to [gold]Enchant[/gold] with [purple]Goopy[/purple]."
+}

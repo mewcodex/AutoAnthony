@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);AUTHORING_CATALOGS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\ironclad_unit_operations.md" Link="Data\ironclad_unit_operations.md" />
+    <EmbeddedResource Include="..\silent_unit_operations.md" Link="Data\silent_unit_operations.md" />
+    <EmbeddedResource Include="..\defect_unit_operations.md" Link="Data\defect_unit_operations.md" />
+    <EmbeddedResource Include="..\necrobinder_unit_operations.md" Link="Data\necrobinder_unit_operations.md" />
+    <EmbeddedResource Include="..\regent_unit_operations.md" Link="Data\regent_unit_operations.md" />
+    <EmbeddedResource Include="..\colorless_unit_operations.md" Link="Data\colorless_unit_operations.md" />
+    <EmbeddedResource Include="Data\catalog_runtime_specs.json" />
+    <EmbeddedResource Include="Data\catalog_recipes.json" />
+  </ItemGroup>
+</Project>

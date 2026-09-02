@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2LibDir Condition="'$(Sts2GameDir)' != ''">$(Sts2GameDir)\data_sts2_windows_x86_64</Sts2LibDir>
+  </PropertyGroup>
+  <Target Name="VerifyStsGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(Sts2GameDir)' == '' Or !Exists('$(Sts2LibDir)\sts2.dll')"
+           Text="STS2 install not found. Set STS2_GAME_DIR or pass /p:Sts2GameDir=..." />
+  </Target>
+  <ItemGroup>
+    <ProjectReference Include="..\ChaosMode\ChaosMode.csproj" />
+    <Reference Include="sts2"><HintPath>$(Sts2LibDir)\sts2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(Sts2LibDir)\GodotSharp.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

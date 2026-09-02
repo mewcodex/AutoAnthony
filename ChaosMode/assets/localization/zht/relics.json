@@ -1,0 +1,6 @@
+{
+  "ARCHAIC_TOOTH_CHAOS.description": "拾取時，獲得[gold]{AncientCard}[/gold]，然後從你的[gold]牌組[/gold]中移除1張牌。",
+  "ARCHAIC_TOOTH_CHAOS.eventDescription": "獲得[gold]{AncientCard}[/gold]，然後從你的[gold]牌組[/gold]中移除1張牌。",
+  "DUSTY_TOME_CHAOS.description": "拾取時，獲得[gold]{AncientCard}[/gold]。",
+  "DUSTY_TOME_CHAOS.eventDescription": "獲得[gold]{AncientCard}[/gold]。"
+}

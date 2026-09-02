@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="ChaosCardGenerator/ChaosCardGenerator.csproj" />
+  <Project Path="ChaosMode/ChaosMode.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="ApiContractSmoke/ApiContractSmoke.csproj" />
+  </Folder>
+</Solution>

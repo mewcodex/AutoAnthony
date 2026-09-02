@@ -1,0 +1,21 @@
+{
+  "ARCHAIC_TOOTH_CHAOS.description": "拾取时，获得[gold]{AncientCard}[/gold]，然后从你的[gold]牌组[/gold]中移除1张牌。",
+  "ARCHAIC_TOOTH_CHAOS.eventDescription": "获得[gold]{AncientCard}[/gold]，然后从你的[gold]牌组[/gold]中移除1张牌。",
+  "DUSTY_TOME_CHAOS.description": "拾取时，获得[gold]{AncientCard}[/gold]。",
+  "DUSTY_TOME_CHAOS.eventDescription": "获得[gold]{AncientCard}[/gold]。",
+  "NEOWS_TALISMAN_CHAOS.description": "拾起时，[gold]升级[/gold]你[gold]牌组[/gold]中的[blue]2[/blue]张牌。",
+  "NEOWS_TALISMAN_CHAOS.eventDescription": "[gold]升级[/gold]你[gold]牌组[/gold]中的[blue]2[/blue]张牌。",
+  "LEAFY_POULTICE_CHAOS.description": "拾起时，[gold]变化[/gold]你[gold]牌组[/gold]中的[blue]2[/blue]张牌，然后失去[blue]{MaxHp}[/blue]点最大生命值。",
+  "LEAFY_POULTICE_CHAOS.eventDescription": "[gold]变化[/gold]你[gold]牌组[/gold]中的[blue]2[/blue]张牌，然后失去[red]{MaxHp}[/red]点最大生命值。",
+  "LARGE_CAPSULE_CHAOS.description": "拾起时，获得[blue]{Relics}[/blue]件随机[gold]遗物[/gold]。将[blue]2[/blue]张随机[gold]普通牌[/gold]加入你的[gold]牌组[/gold]。",
+  "LARGE_CAPSULE_CHAOS.eventDescription": "获得[blue]{Relics}[/blue]件随机[gold]遗物[/gold]。将[blue]2[/blue]张随机[gold]普通牌[/gold]加入你的[gold]牌组[/gold]。",
+  "GHOST_SEED_CHAOS.description": "拾起时，选择任意数量的牌，使其获得[gold]虚无[/gold]。",
+  "GHOST_SEED_CHAOS.eventDescription": "选择任意数量的牌，使其获得[gold]虚无[/gold]。",
+  "GHOST_SEED_CHAOS.selectionScreenPrompt": "选择任意数量的牌，使其获得[gold]虚无[/gold]。",
+  "PANDORAS_BOX_CHAOS.description": "拾起时，[gold]变化[/gold]所有牌。",
+  "PANDORAS_BOX_CHAOS.eventDescription": "[gold]变化[/gold]所有牌。",
+  "NUTRITIOUS_SOUP_CHAOS.description": "拾起时，为你[gold]牌组[/gold]中的所有[gold]基础攻击牌[/gold][gold]附魔[/gold]：[purple]特兹卡塔拉的余烬[/purple]。",
+  "NUTRITIOUS_SOUP_CHAOS.eventDescription": "为你[gold]牌组[/gold]中的所有[gold]基础攻击牌[/gold][gold]附魔[/gold]：[purple]特兹卡塔拉的余烬[/purple]。",
+  "PAELS_CLAW_CHAOS.description": "拾起时，选择任意数量带有[gold]格挡[/gold]的牌[gold]附魔[/gold]：[purple]黏糊[/purple]。",
+  "PAELS_CLAW_CHAOS.eventDescription": "选择任意数量带有[gold]格挡[/gold]的牌[gold]附魔[/gold]：[purple]黏糊[/purple]。"
+}

@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>AutoAnthony</AssemblyName>
+    <RootNamespace>AutoAnthony</RootNamespace>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputPath>bin\$(Configuration)\net9.0\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2LibDir Condition="'$(Sts2GameDir)' != ''">$(Sts2GameDir)\data_sts2_windows_x86_64</Sts2LibDir>
+  </PropertyGroup>
+  <Target Name="VerifyStsGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(Sts2GameDir)' == '' Or !Exists('$(Sts2LibDir)\sts2.dll')"
+           Text="STS2 install not found. Set STS2_GAME_DIR or pass /p:Sts2GameDir=..." />
+  </Target>
+  <ItemGroup>
+    <Compile Remove="RuntimeCharacterCatalog.cs" />
+    <Compile Remove="DetailedCharacterDecomposer.cs" />
+    <Reference Include="sts2"><HintPath>$(Sts2LibDir)\sts2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(Sts2LibDir)\GodotSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Sts2LibDir)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\ChaosCardGenerator\RandomCardGenerator.cs" Link="Generator\RandomCardGenerator.cs" />
+    <Compile Include="..\ChaosCardGenerator\SpecialXCardConverter.cs" Link="Generator\SpecialXCardConverter.cs" />
+    <Compile Include="..\ChaosCardGenerator\SlyKeywordTuning.cs" Link="Generator\SlyKeywordTuning.cs" />
+    <Compile Include="..\ChaosCardGenerator\SlyPoolConstraintResolver.cs" Link="Generator\SlyPoolConstraintResolver.cs" />
+    <Compile Include="..\ChaosCardGenerator\StartingPoolConstraintResolver.cs" Link="Generator\StartingPoolConstraintResolver.cs" />
+    <Compile Include="..\ChaosCardGenerator\ComponentAssemblyGenerator.cs" Link="Generator\ComponentAssemblyGenerator.cs" />
+    <Compile Include="..\ChaosCardGenerator\ComponentApi.cs" Link="Generator\ComponentApi.cs" />
+    <Compile Include="..\ChaosCardGenerator\ComponentPackageApi.cs" Link="Generator\ComponentPackageApi.cs" />
+    <Compile Include="..\ChaosCardGenerator\ComponentValuationApi.cs" Link="Generator\ComponentValuationApi.cs" />
+    <Compile Include="..\ChaosCardGenerator\ImmutableComponentCatalog.cs" Link="Generator\ImmutableComponentCatalog.cs" />
+    <Compile Include="..\ChaosCardGenerator\ComponentPolicy.cs" Link="Generator\ComponentPolicy.cs" />
+    <Compile Include="..\ChaosCardGenerator\NativeComponentFrequencyTracker.cs" Link="Generator\NativeComponentFrequencyTracker.cs" />
+    <Compile Include="..\ChaosCardGenerator\GenerationTuning.cs" Link="Generator\GenerationTuning.cs" />
+    <Compile Include="..\ChaosCardGenerator\EffectBalanceModel.cs" Link="Generator\EffectBalanceModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\ResourceEconomyModel.cs" Link="Generator\ResourceEconomyModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\CardIdentityAndUpgradeGenerator.cs" Link="Generator\CardIdentityAndUpgradeGenerator.cs" />
+    <Compile Include="..\ChaosCardGenerator\NativeUpgradeValueModel.cs" Link="Generator\NativeUpgradeValueModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\NativeUpgradeStrengthModel.cs" Link="Generator\NativeUpgradeStrengthModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\ManualExternalNameParts.cs" Link="Generator\ManualExternalNameParts.cs" />
+    <Compile Include="..\ChaosCardGenerator\EnglishCardDescriptionRenderer.cs" Link="Generator\EnglishCardDescriptionRenderer.cs" />
+    <Compile Include="..\ChaosCardGenerator\CardTextStyle.cs" Link="Generator\CardTextStyle.cs" />
+    <Compile Include="..\ChaosCardGenerator\NumericTextSchema.cs" Link="Generator\NumericTextSchema.cs" />
+    <Compile Include="..\ChaosCardGenerator\OperationRuntimeSpec.cs" Link="Generator\OperationRuntimeSpec.cs" />
+    <Compile Include="..\ChaosCardGenerator\CatalogRuntimeSpecRegistry.cs" Link="Generator\CatalogRuntimeSpecRegistry.cs" />
+    <Compile Include="..\ChaosCardGenerator\StructuredComponentCatalogRegistry.cs" Link="Generator\StructuredComponentCatalogRegistry.cs" />
+    <Compile Include="..\ChaosCardGenerator\DerivativeSlotCatalog.cs" Link="Generator\DerivativeSlotCatalog.cs" />
+    <Compile Include="..\ChaosCardGenerator\DerivativePoolConstraintResolver.cs" Link="Generator\DerivativePoolConstraintResolver.cs" />
+    <Compile Include="..\ChaosCardGenerator\OstyPoolConstraintResolver.cs" Link="Generator\OstyPoolConstraintResolver.cs" />
+    <Compile Include="..\ChaosCardGenerator\OrbSlotCatalog.cs" Link="Generator\OrbSlotCatalog.cs" />
+    <Compile Include="..\ChaosCardGenerator\OfflineCharacterComponentCatalog.cs" Link="Generator\OfflineCharacterComponentCatalog.cs" />
+    <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_runtime_specs.json" Link="Data\catalog_runtime_specs.json" />
+    <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_recipes.json" Link="Data\catalog_recipes.json" />
+  </ItemGroup>
+</Project>

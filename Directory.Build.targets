@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    AutoAnthony's generated-card semantics must not depend on localized prose. The reviewed allowlist contains
+    only compiler-boundary, renderer, validation, logging, and legacy-migration reads. Any new read fails the
+    build until it is explicitly audited; never update the allowlist merely to silence this target.
+  -->
+  <Target Name="VerifyLocalizedTextBoundaries" BeforeTargets="CoreCompile">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)scripts\Verify-LocalizedTextBoundaries.ps1&quot; -SourceRoot &quot;$(MSBuildThisFileDirectory).&quot; -AllowlistPath &quot;$(MSBuildThisFileDirectory)audits\structured_operation_refactor\localized_text_boundary_allowlist.txt&quot;" />
+  </Target>
+</Project>

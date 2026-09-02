@@ -1,0 +1,57 @@
+# .NET build output
+**/bin/
+**/obj/
+ChaosMode/build/
+
+# Generated packages, logs, and local deployment metadata
+*.dll
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+*.pck
+*.log
+workshop.json
+
+# IDE and user-specific files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pfx
+*.snk
+
+# Generated analysis output. Keep only the reviewed refactor contract fixtures.
+audits/**
+!audits/structured_operation_refactor/
+!audits/structured_operation_refactor/**
+audits/structured_operation_refactor/superseded_*
+audits/structured_operation_refactor/numeric_slot_inventory_*.tsv
+audits/structured_operation_refactor/runtime_spec_*.tsv
+audits/structured_operation_refactor/schema_key_*.json.gz
+audits/structured_operation_refactor/schema_key_current2.json.gz
+audits/structured_operation_refactor/semantic_text_calls_*.txt
+audits/structured_operation_refactor/text_dependencies_*_current.tsv
+
+# Internal historical notes superseded by source, README, and Wiki documentation
+component_character_matrix.md
+derivative_value_estimates.md
+numeric_value_calibration.md
+remaining_characters_unit_operation_plan.md
+runtime_text_dependency_refactor.md
+STRUCTURED_OPERATION_REFACTOR.md
+
+# Local archives and retired installations
+artifacts/
+retired_installs/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

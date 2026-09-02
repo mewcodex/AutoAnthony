@@ -1,0 +1,12 @@
+{
+  "pck_name": "AutoAnthony",
+  "id": "AutoAnthony",
+  "name": "Auto-Anthonyology",
+  "author": "Alriph",
+  "description": "Randomly generates card effects for each run. Currently in open beta and supports all five characters.",
+  "version": "0.3.7",
+  "min_game_version": "0.111.0",
+  "has_pck": true,
+  "has_dll": true,
+  "affects_gameplay": true
+}
