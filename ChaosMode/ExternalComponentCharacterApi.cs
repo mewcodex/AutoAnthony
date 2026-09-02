@@ -1,4 +1,5 @@
 using ChaosCardGenerator;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
 
@@ -11,7 +12,20 @@ namespace AutoAnthony;
 public sealed record ExternalComponentCharacterRegistration(
     string ProfileId,
     GeneratedCharacter BalanceArchetype,
-    string EnergyIconPrefix);
+    string EnergyIconPrefix,
+    IExternalAncientRelicAdapter? AncientRelics = null);
+
+/// <summary>
+/// Optional bridge for Archaic Tooth and Dusty Tome. The character mod remains authoritative for deciding whether
+/// the current run replaces its cards and for returning its two canonical Ancient cards.
+/// </summary>
+public interface IExternalAncientRelicAdapter
+{
+    bool AppliesTo(Player player);
+    bool ShouldOverrideArchaicTooth(Player player);
+    bool ShouldOverrideDustyTome(Player player);
+    CardModel AncientCard(Player player, int index);
+}
 
 /// <summary>
 /// Run-scoped definition host for external character adapters. InstallDefinitions is deterministic replacement,
@@ -19,7 +33,7 @@ public sealed record ExternalComponentCharacterRegistration(
 /// </summary>
 public static class ExternalComponentCharacterApi
 {
-    public const int ApiVersion = 1;
+    public const int ApiVersion = 2;
     private static readonly object Sync = new();
     private static readonly Dictionary<string, ExternalComponentCharacterRegistration> Registrations =
         new(StringComparer.Ordinal);
@@ -128,6 +142,23 @@ public static class ExternalComponentCharacterApi
     internal static string EnergyIconPrefix(string profileId)
     {
         lock (Sync) return GetRegistrationLocked(profileId).EnergyIconPrefix;
+    }
+
+    public static bool TryGetAncientRelicAdapter(Player player, out IExternalAncientRelicAdapter adapter)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        IExternalAncientRelicAdapter[] candidates;
+        lock (Sync)
+            candidates = Registrations.Values.Select(registration => registration.AncientRelics)
+                .Where(candidate => candidate is not null).Cast<IExternalAncientRelicAdapter>().ToArray();
+        // Never invoke another mod while holding the registry lock. Character predicates may query their own
+        // model registries or call back into this API during startup diagnostics.
+        var matches = candidates.Where(candidate => candidate.AppliesTo(player)).ToArray();
+        if (matches.Length > 1)
+            throw new InvalidOperationException(
+                $"Multiple external component profiles claimed Ancient relic handling for {player.Character.Id}.");
+        adapter = matches.SingleOrDefault()!;
+        return adapter is not null;
     }
 
     private static ExternalComponentCharacterRegistration GetRegistrationLocked(string profileId) =>

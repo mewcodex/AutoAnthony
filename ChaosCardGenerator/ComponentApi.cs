@@ -68,6 +68,25 @@ public interface IComponentValuePolicy
 }
 
 /// <summary>
+/// Profile-local control over native card keywords. Null allow-lists mean all native keywords. External semantic
+/// keywords should be authored as standalone-keyword components with their own runtime/presentation route.
+/// </summary>
+public sealed record ComponentKeywordPolicy(
+    IReadOnlySet<CardTag>? AllowedBaseKeywords = null,
+    IReadOnlySet<CardTag>? AllowedUpgradeAdditions = null,
+    IReadOnlySet<CardTag>? AllowedUpgradeRemovals = null,
+    IReadOnlySet<CardTag>? GlobalUpgradeAdditions = null,
+    IReadOnlySet<CardTag>? GlobalUpgradeRemovals = null,
+    bool UseArchetypeUpgradeDefaults = true)
+{
+    public static ComponentKeywordPolicy Default { get; } = new();
+
+    public bool AllowsBase(CardTag tag) => AllowedBaseKeywords?.Contains(tag) != false;
+    public bool AllowsAddition(CardTag tag) => AllowedUpgradeAdditions?.Contains(tag) != false;
+    public bool AllowsRemoval(CardTag tag) => AllowedUpgradeRemovals?.Contains(tag) != false;
+}
+
+/// <summary>
 /// Complete read-only input package for card assembly. Catalogs own component implementation data; the two policy
 /// interfaces own occurrence and numeric control. Naming is deliberately scoped separately so Ultimate Chaos can
 /// share mechanics while retaining the current character's name corpus.
@@ -83,10 +102,12 @@ public sealed class ComponentGenerationProfile
     public IComponentCatalog ComponentCatalog { get; }
     public IComponentCatalog NameCatalog { get; }
     public IComponentValuePolicy ValuePolicy { get; }
+    public ComponentKeywordPolicy KeywordPolicy { get; }
 
     public ComponentGenerationProfile(string id, GeneratedCharacter character, bool unlockComponentRoles,
         IComponentCatalog shellCatalog, IComponentCatalog componentCatalog, IComponentCatalog nameCatalog,
-        Func<IComponentOccurrencePolicy> occurrenceFactory, IComponentValuePolicy valuePolicy)
+        Func<IComponentOccurrencePolicy> occurrenceFactory, IComponentValuePolicy valuePolicy,
+        ComponentKeywordPolicy? keywordPolicy = null)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Any(value => value > 0x7f))
             throw new ArgumentException("Component profile IDs must be non-empty ASCII strings.", nameof(id));
@@ -98,6 +119,7 @@ public sealed class ComponentGenerationProfile
         NameCatalog = nameCatalog ?? throw new ArgumentNullException(nameof(nameCatalog));
         _occurrenceFactory = occurrenceFactory ?? throw new ArgumentNullException(nameof(occurrenceFactory));
         ValuePolicy = valuePolicy ?? throw new ArgumentNullException(nameof(valuePolicy));
+        KeywordPolicy = keywordPolicy ?? ComponentKeywordPolicy.Default;
         if (ShellCatalog.Character != character || NameCatalog.Character != character)
             throw new ArgumentException("Shell and name catalogs must belong to the requested character.");
     }
@@ -118,11 +140,13 @@ public interface IComponentProfileProvider
 /// </summary>
 public static class ComponentApi
 {
-    public const int ApiVersion = 1;
+    public const int ApiVersion = 2;
     private static readonly object Sync = new();
     private static readonly List<IComponentProfileProvider> Providers = [new BuiltInComponentProfileProvider()];
     private static readonly Dictionary<ComponentProfileRequest, ComponentGenerationProfile> Registered = new();
     private static readonly Dictionary<ComponentProfileRequest, ComponentGenerationProfile> Resolved = new();
+    private static readonly Dictionary<string, IComponentCatalog> UltimateChaosContributions =
+        new(StringComparer.Ordinal);
     private static bool _frozen;
 
     /// <summary>The built-in numeric model, exposed for external profiles that only customize component content.</summary>
@@ -137,6 +161,39 @@ public static class ComponentApi
     {
         ArgumentNullException.ThrowIfNull(catalog);
         return new NativeComponentFrequencyTracker(catalog, unlockComponentRoles);
+    }
+
+    /// <summary>
+    /// Builds a catalog from complete source-pool recipes. Repeated recipes are intentionally retained: Ultimate
+    /// Chaos uses those occurrences as its pool-size-weighted prior, while structural atom indexes remain deduped.
+    /// </summary>
+    public static IComponentCatalog ComposeCatalog(GeneratedCharacter balanceArchetype,
+        params IComponentCatalog[] catalogs)
+    {
+        ArgumentNullException.ThrowIfNull(catalogs);
+        if (catalogs.Length == 0 || catalogs.Any(catalog => catalog is null))
+            throw new ArgumentException("At least one non-null component catalog is required.", nameof(catalogs));
+        return new ImmutableComponentCatalog(balanceArchetype,
+            catalogs.SelectMany(catalog => catalog.Recipes));
+    }
+
+    /// <summary>
+    /// Adds one external character's reviewed native pool to the shared Ultimate Chaos prior. Package IDs prevent
+    /// accidental double registration. Registration freezes with profiles so every peer sees one immutable set.
+    /// </summary>
+    public static void RegisterUltimateChaosContribution(string packageId, IComponentCatalog catalog)
+    {
+        ValidateApiId(packageId, nameof(packageId));
+        ArgumentNullException.ThrowIfNull(catalog);
+        lock (Sync)
+        {
+            if (_frozen)
+                throw new InvalidOperationException(
+                    "Ultimate Chaos contributions must be registered before the first profile resolves.");
+            if (!UltimateChaosContributions.TryAdd(packageId, catalog))
+                throw new InvalidOperationException(
+                    $"An Ultimate Chaos contribution is already registered for '{packageId}'.");
+        }
     }
 
     public static bool RegistrationsFrozen
@@ -192,9 +249,35 @@ public static class ComponentApi
             if (Resolved.TryGetValue(request, out var cached)) return cached;
             if (Registered.TryGetValue(request, out var registered))
             {
+                registered = AddUltimateChaosContributions(request, registered);
                 ComponentPolicy.FreezeRegistrations();
                 Resolved.Add(request, registered);
                 return registered;
+            }
+            // External characters normally register only their native profile. Derive the Ultimate profile from
+            // that shell/name identity and the shared weighted component inventory.
+            if (request.UnlockComponentRoles
+                && Registered.TryGetValue(new ComponentProfileRequest(request.ProfileId, request.Character, false),
+                    out var nativeExternal))
+            {
+                var builtInUltimate = CharacterComponentCatalogs.Get(request.Character,
+                    unlockComponentRoles: true);
+                var combined = ComposeCatalog(request.Character,
+                    new[] { builtInUltimate }.Concat(UltimateChaosContributions.Values).ToArray());
+                var derived = new ComponentGenerationProfile(
+                    nativeExternal.Id + ":ultimate",
+                    request.Character,
+                    true,
+                    combined,
+                    combined,
+                    nativeExternal.NameCatalog,
+                    () => CreateNativeOccurrencePolicy(combined, unlockComponentRoles: true),
+                    nativeExternal.ValuePolicy,
+                    nativeExternal.KeywordPolicy);
+                ComponentProfileValidator.Validate(derived);
+                ComponentPolicy.FreezeRegistrations();
+                Resolved.Add(request, derived);
+                return derived;
             }
             for (var index = Providers.Count - 1; index >= 0; index--)
             {
@@ -203,6 +286,7 @@ public static class ComponentApi
                     || profile.UnlockComponentRoles != request.UnlockComponentRoles)
                     throw new InvalidOperationException(
                         $"Component provider returned mismatched profile {profile.Id} for {request}.");
+                profile = AddUltimateChaosContributions(request, profile);
                 ComponentProfileValidator.Validate(profile);
                 ComponentPolicy.FreezeRegistrations();
                 Resolved.Add(request, profile);
@@ -210,6 +294,30 @@ public static class ComponentApi
             }
             throw new InvalidOperationException($"No component generation profile is registered for {request}.");
         }
+    }
+
+    private static ComponentGenerationProfile AddUltimateChaosContributions(ComponentProfileRequest request,
+        ComponentGenerationProfile profile)
+    {
+        if (!request.UnlockComponentRoles || UltimateChaosContributions.Count == 0) return profile;
+        var combined = ComposeCatalog(request.Character,
+            new[] { profile.ComponentCatalog }.Concat(UltimateChaosContributions.Values).ToArray());
+        return new ComponentGenerationProfile(
+            profile.Id + ":external-union",
+            profile.Character,
+            true,
+            combined,
+            combined,
+            profile.NameCatalog,
+            () => CreateNativeOccurrencePolicy(combined, unlockComponentRoles: true),
+            profile.ValuePolicy,
+            profile.KeywordPolicy);
+    }
+
+    private static void ValidateApiId(string value, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Any(character => character > 0x7f))
+            throw new ArgumentException("Component API IDs must be non-empty ASCII strings.", name);
     }
 }
 

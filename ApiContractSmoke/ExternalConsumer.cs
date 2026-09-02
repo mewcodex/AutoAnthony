@@ -2,6 +2,7 @@ using AutoAnthony;
 using ChaosCardGenerator;
 using Godot;
 using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
 
 namespace ApiContractSmoke;
@@ -15,16 +16,37 @@ public static class ExternalConsumer
         var request = new ComponentProfileRequest(profileId, GeneratedCharacter.Ironclad, false);
         var profile = new ComponentGenerationProfile(profileId + ":normal", GeneratedCharacter.Ironclad, false,
             catalog, catalog, catalog, () => ComponentApi.CreateNativeOccurrencePolicy(catalog),
-            ComponentApi.DefaultValuePolicy);
+            ComponentApi.DefaultValuePolicy,
+            new ComponentKeywordPolicy(
+                AllowedBaseKeywords: new HashSet<CardTag> { CardTag.Exhaust, CardTag.Innate },
+                AllowedUpgradeAdditions: new HashSet<CardTag> { CardTag.Innate },
+                AllowedUpgradeRemovals: new HashSet<CardTag> { CardTag.Exhaust },
+                GlobalUpgradeAdditions: new HashSet<CardTag> { CardTag.Innate },
+                UseArchetypeUpgradeDefaults: false));
         ComponentPackageApi.Register(new ComponentPackageRegistration("api_smoke:components", request, profile,
-            Valuations: [new ComponentValuationRegistration("api_smoke", "effect", new SmokeValuation())]));
+            KeywordUpgrades:
+            [
+                new ComponentKeywordUpgrade("api_smoke:operation", [CardTag.Innate], [CardTag.Exhaust])
+            ],
+            Valuations: [new ComponentValuationRegistration("api_smoke", "effect", new SmokeValuation())],
+            IncludeInUltimateChaos: true));
         ComponentRuntimeApi.RegisterPackage("api_smoke:runtime",
             [new ComponentRuntimeRoute("api_smoke", "effect", handler)]);
         ComponentPresentationApi.Register("api_smoke", "effect", tips);
         ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
-            profileId, GeneratedCharacter.Ironclad, "api_smoke"));
+            profileId, GeneratedCharacter.Ironclad, "api_smoke", new SmokeAncientRelicAdapter()));
         _ = new RandomCardGenerator(request, 12345, balancedValues: true);
+        _ = new RandomCardGenerator(new ComponentProfileRequest(profileId, GeneratedCharacter.Ironclad, true),
+            12345, balancedValues: true);
     }
+}
+
+public sealed class SmokeAncientRelicAdapter : IExternalAncientRelicAdapter
+{
+    public bool AppliesTo(Player player) => false;
+    public bool ShouldOverrideArchaicTooth(Player player) => false;
+    public bool ShouldOverrideDustyTome(Player player) => false;
+    public CardModel AncientCard(Player player, int index) => throw new NotSupportedException();
 }
 
 public sealed class SmokeValuation : IComponentValuation

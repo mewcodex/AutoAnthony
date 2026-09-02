@@ -26,12 +26,19 @@ internal static class WatcherAutoAnthonyAdapter
             catalog,
             catalog,
             () => ComponentApi.CreateNativeOccurrencePolicy(catalog),
-            ComponentApi.DefaultValuePolicy);
+            ComponentApi.DefaultValuePolicy,
+            new ComponentKeywordPolicy(
+                AllowedBaseKeywords: new HashSet<CardTag>
+                    { CardTag.Exhaust, CardTag.Innate, CardTag.Retain, CardTag.Ethereal },
+                AllowedUpgradeAdditions: new HashSet<CardTag> { CardTag.Innate, CardTag.Retain },
+                AllowedUpgradeRemovals: new HashSet<CardTag> { CardTag.Exhaust, CardTag.Ethereal },
+                UseArchetypeUpgradeDefaults: false));
 
         ComponentPackageApi.Register(new ComponentPackageRegistration(
             "watcher:autoanthony:components", request, profile, localizedTexts,
             Valuations: [new ComponentValuationRegistration(
-                "watcher_stance", "enter", new WatcherStanceValuation())]));
+                "watcher_stance", "enter", new WatcherStanceValuation())],
+            IncludeInUltimateChaos: true));
         ComponentRuntimeApi.RegisterPackage("watcher:autoanthony:runtime", runtimeRoutes);
         ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
             ProfileId, GeneratedCharacter.Regent, "watcher"));

@@ -317,7 +317,12 @@ internal static class EffectBalanceModel
         if (spec.Flags.Contains("draw_reference")) return EstimatedDrawValue(first);
         if (atom.Template == "NCR:GainEnergy") return first * NecrobinderEnergyValuePerPoint;
         if (CardEffectRules.IsEnergyGainOperation(atom)) return first * OrdinaryEnergyValuePerPoint;
-        if (spec.Flags.Contains("intangible_reference")) return first * 4_200;
+        // Wraith Form is the clean native joint anchor. At three Energy its two Intangible stacks must consume
+        // essentially an Ancient card's complete upper-band allowance after paying for the repeated Dexterity
+        // loss. Pricing Intangible at only 42 Damage-equivalent left standalone Intangible powers far too cheap.
+        // Keep this paired with NegativeEffectTuning's 11.5-Damage-equivalent Dexterity-loss payment: with the
+        // native 2 Intangible and 2.4 expected turn-start losses, Wraith Form evaluates to about 8,160.
+        if (spec.Flags.Contains("intangible_reference")) return first * 7_500;
         if (atom.Template == "D:GainOrbSlots") return first * OrbSlotValuePerSlot;
         if (CardEffectRules.IsEnemyStrengthReduction(atom))
         {

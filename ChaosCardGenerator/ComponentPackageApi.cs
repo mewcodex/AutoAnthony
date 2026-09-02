@@ -26,11 +26,12 @@ public sealed record ComponentPackageRegistration(
     IReadOnlyList<ComponentLocalizedText>? LocalizedTexts = null,
     IReadOnlyList<ComponentKeywordUpgrade>? KeywordUpgrades = null,
     IReadOnlyList<ComponentMultiplicityRegistration>? Multiplicities = null,
-    IReadOnlyList<ComponentValuationRegistration>? Valuations = null);
+    IReadOnlyList<ComponentValuationRegistration>? Valuations = null,
+    bool IncludeInUltimateChaos = true);
 
 public static class ComponentPackageApi
 {
-    public const int ApiVersion = 1;
+    public const int ApiVersion = 2;
     private static readonly object Sync = new();
     private static readonly HashSet<string> Packages = new(StringComparer.Ordinal);
 
@@ -88,9 +89,11 @@ public static class ComponentPackageApi
             foreach (var text in texts)
                 ExternalOperationTextRegistry.Register(text.Template, text.ChineseText, text.EnglishText);
             foreach (var upgrade in upgrades)
-                ExternalOperationUpgradeRegistry.Register(package.Request.Character, upgrade.Template,
+                ExternalOperationUpgradeRegistry.Register(package.Request.ProfileId, upgrade.Template,
                     upgrade.Added, upgrade.Removed);
             ComponentApi.RegisterProfile(package.Request, package.Profile);
+            if (package.IncludeInUltimateChaos && !package.Request.UnlockComponentRoles)
+                ComponentApi.RegisterUltimateChaosContribution(package.PackageId, package.Profile.ComponentCatalog);
         }
     }
 

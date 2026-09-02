@@ -679,7 +679,9 @@ internal static class NegativeEffectTuning
             // Temporary Focus can usually be sequenced after Orb use; permanent losses are substantially larger.
             "D:LoseTemporaryFocus" => 85d,
             "D:LoseFocus" => 1_900d,
-            "N:LoseDex" => 800d,
+            // Jointly reverse-fit with Intangible from Wraith Form. Repeated turn-start loss is multiplied by its
+            // expected 2.4 resolutions, so one printed Dexterity loss contributes 2,760 compensation there.
+            "N:LoseDex" => 1_150d,
             "D:LoseOrbSlots" => 1_800d,
             "NCR:LoseStrength" => 735d,
             "NCR:ApplySelfDoom" => 650d,

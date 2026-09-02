@@ -60,15 +60,15 @@ public sealed class RandomCardGenerator
             suppressDerivativeReferences: suppressDerivativeReferences, balancedValues: balancedValues,
             randomizeNumericValues: randomizeNumericValues, usedEffectSignatures: _usedEffectSignatures,
             frequencyTracker: frequencyTracker, usedPoolUniqueComponents: _usedPoolUniqueComponents,
-            profile: profile);
+            profile: profile, profileRegistrationId: request.ProfileId);
         _nonSpecialXAssembler = new ComponentAssemblyGenerator(random, _character, _usedChineseNames,
             _usedEnglishNames, _unlockComponentRoles, SpecialXGenerationMode.Disabled, ancientFuelActive,
             suppressDerivativeReferences, balancedValues, randomizeNumericValues, _usedEffectSignatures,
-            frequencyTracker, _usedPoolUniqueComponents, profile);
+            frequencyTracker, _usedPoolUniqueComponents, profile, request.ProfileId);
         _forcedSpecialXAssembler = new ComponentAssemblyGenerator(random, _character, _usedChineseNames,
             _usedEnglishNames, _unlockComponentRoles, SpecialXGenerationMode.Forced, ancientFuelActive,
             suppressDerivativeReferences, balancedValues, randomizeNumericValues, _usedEffectSignatures,
-            frequencyTracker, _usedPoolUniqueComponents, profile);
+            frequencyTracker, _usedPoolUniqueComponents, profile, request.ProfileId);
         _referenceFreeNonSpecialXAssembler = suppressDerivativeReferences
             ? _nonSpecialXAssembler
             : new ComponentAssemblyGenerator(random, _character, _usedChineseNames, _usedEnglishNames,
@@ -76,7 +76,7 @@ public sealed class RandomCardGenerator
                 suppressDerivativeReferences: true, balancedValues: balancedValues,
                 randomizeNumericValues: randomizeNumericValues, usedEffectSignatures: _usedEffectSignatures,
                 frequencyTracker: frequencyTracker, usedPoolUniqueComponents: _usedPoolUniqueComponents,
-                profile: profile);
+                profile: profile, profileRegistrationId: request.ProfileId);
         _referenceFreeForcedSpecialXAssembler = suppressDerivativeReferences
             ? _forcedSpecialXAssembler
             : new ComponentAssemblyGenerator(random, _character, _usedChineseNames, _usedEnglishNames,
@@ -84,7 +84,7 @@ public sealed class RandomCardGenerator
                 suppressDerivativeReferences: true, balancedValues: balancedValues,
                 randomizeNumericValues: randomizeNumericValues, usedEffectSignatures: _usedEffectSignatures,
                 frequencyTracker: frequencyTracker, usedPoolUniqueComponents: _usedPoolUniqueComponents,
-                profile: profile);
+                profile: profile, profileRegistrationId: request.ProfileId);
     }
 
     public GeneratedCard Generate()
@@ -989,12 +989,31 @@ public static class GeneratorSelfTest
             GeneratedCharacter.Ironclad, UnlockComponentRoles: false));
         var ultimateProfile = ComponentApi.Resolve(new ComponentProfileRequest(
             GeneratedCharacter.Ironclad, UnlockComponentRoles: true));
+        var builtInUltimateRecipeCount = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad,
+            unlockComponentRoles: true).Recipes.Count;
         if (nativeProfile.ShellCatalog != nativeProfile.ComponentCatalog
             || nativeProfile.NameCatalog.Character != GeneratedCharacter.Ironclad
             || ultimateProfile.ComponentCatalog.AtomKeys.Count <= nativeProfile.ComponentCatalog.AtomKeys.Count
+            || ultimateProfile.ComponentCatalog.Recipes.Count
+                != builtInUltimateRecipeCount + packageCatalog.Recipes.Count
             || ultimateProfile.NameCatalog != nativeProfile.NameCatalog
             || ReferenceEquals(ultimateProfile.CreateOccurrencePolicy(), ultimateProfile.CreateOccurrencePolicy()))
             throw new InvalidOperationException("组件 API 未保持原生/究极混沌 Profile 边界或池级出率状态隔离。");
+        var wraithRecipe = CharacterComponentCatalogs.Get(GeneratedCharacter.Silent).Recipes
+            .Single(recipe => recipe.Id == "WraithForm");
+        var wraithOperations = wraithRecipe.Atoms.Select((atom, index) => new GeneratorOperation(
+            atom.Template, atom.Scope, "test.",
+            wraithRecipe.TriggerOwners[index] >= 0
+                ? new Dictionary<string, int> { ["triggerIndex"] = wraithRecipe.TriggerOwners[index] }
+                : new Dictionary<string, int>(),
+            RequiresSingleTarget: atom.RequiresSingleTarget,
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom))).ToArray();
+        var wraithNormalized = (EffectBalanceModel.EstimatedPositiveCardValue(wraithOperations)
+                                - CardEffectRules.NegativeEffectLinearCompensationValue(wraithOperations))
+                               / ComponentAssemblyGenerator.PowerOneShotBudgetFactor(
+                                   wraithOperations, GeneratedCardType.Power);
+        if (Math.Abs(wraithNormalized - 8_160d) > 0.001d)
+            throw new InvalidOperationException($"幽魂形态联合估值应为8160，实际为{wraithNormalized:0.###}。");
         var componentApiDamage = nativeProfile.ComponentCatalog.Atoms.First(CardEffectRules.IsEnemyDamage);
         if (nativeProfile.ValuePolicy.IsScalableReward(componentApiDamage)
                 != EffectBalanceModel.IsScalableReward(componentApiDamage)
@@ -3410,7 +3429,7 @@ public static class GeneratorSelfTest
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, strengthLoss]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, orbSlotLoss]) != 100
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, loseFocus]) != 1_900d
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, dexterityLoss]) != 800d
+            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, dexterityLoss]) != 1_150d
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, strengthLoss]) != 1_470d
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, orbSlotLoss]) != 1_800d
             || strengthLossUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>

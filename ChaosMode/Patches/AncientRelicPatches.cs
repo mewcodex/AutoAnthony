@@ -27,12 +27,18 @@ internal static class ChaosAncientRelics
         AccessTools.Field(typeof(DustyTome), "_extraHoverTips");
 
     internal static bool IsSupportedCharacter(Player? player) => player is not null
-        && TryCharacter(player, out var character) && ChaosRunDefinitions.IsCharacterRunActive(character);
+        && (TryCharacter(player, out var character) && ChaosRunDefinitions.IsCharacterRunActive(character)
+            || ExternalComponentCharacterApi.TryGetAncientRelicAdapter(player, out _));
 
-    internal static bool ShouldOverrideArchaicTooth(Player? player) =>
-        IsSupportedCharacter(player) && ChaosRunDefinitions.ActiveReplaceStartingCards;
+    internal static bool ShouldOverrideArchaicTooth(Player? player) => player is not null
+        && (ExternalComponentCharacterApi.TryGetAncientRelicAdapter(player, out var external)
+            ? external.ShouldOverrideArchaicTooth(player)
+            : IsSupportedCharacter(player) && ChaosRunDefinitions.ActiveReplaceStartingCards);
 
-    internal static bool ShouldOverrideDustyTome(Player? player) => IsSupportedCharacter(player);
+    internal static bool ShouldOverrideDustyTome(Player? player) => player is not null
+        && (ExternalComponentCharacterApi.TryGetAncientRelicAdapter(player, out var external)
+            ? external.ShouldOverrideDustyTome(player)
+            : IsSupportedCharacter(player));
 
     internal static bool TryCharacter(Player player, out ChaosCardGenerator.GeneratedCharacter character)
     {
@@ -48,6 +54,12 @@ internal static class ChaosAncientRelics
 
     internal static CardModel AncientCanonical(Player player, int index)
     {
+        if (index is < 0 or >= ChaosRunDefinitions.AncientCount)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        if (ExternalComponentCharacterApi.TryGetAncientRelicAdapter(player, out var external))
+            return external.AncientCard(player, index)
+                ?? throw new InvalidOperationException(
+                    $"External Ancient adapter returned no card for {player.Character.Id}/{index}.");
         if (!TryCharacter(player, out var character))
             throw new InvalidOperationException($"Unsupported ancient-card owner {player.Character.Id}.");
         if (ChaosRunDefinitions.ActivePreserveOriginalCards)
@@ -109,7 +121,7 @@ internal static class ChaosAncientRelics
 
     internal static bool TryCreateStoredAncient(Player player, ModelId? id, int ancientIndex, out CardModel ancient)
     {
-        if (!TryCharacter(player, out _)
+        if (!IsSupportedCharacter(player)
             || id is not { } value
             || AncientCanonical(player, ancientIndex).Id != value)
         {

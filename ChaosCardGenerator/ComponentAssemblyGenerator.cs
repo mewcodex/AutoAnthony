@@ -45,6 +45,8 @@ public sealed class ComponentAssemblyGenerator
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, CardTag Tag), int> _tagCountsByRarity;
     private readonly IComponentOccurrencePolicy _frequencyTracker;
     private readonly IComponentValuePolicy _valuePolicy;
+    private readonly ComponentKeywordPolicy _keywordPolicy;
+    private readonly string _profileId;
     private readonly ISet<string>? _usedChineseNames;
     private readonly ISet<string>? _usedEnglishNames;
     private readonly ISet<string>? _usedEffectSignatures;
@@ -60,7 +62,8 @@ public sealed class ComponentAssemblyGenerator
         SpecialXGenerationMode specialXMode = SpecialXGenerationMode.Normal, bool ancientFuelActive = false,
         bool suppressDerivativeReferences = false, bool balancedValues = true, bool randomizeNumericValues = false,
         ISet<string>? usedEffectSignatures = null, IComponentOccurrencePolicy? frequencyTracker = null,
-        ISet<string>? usedPoolUniqueComponents = null, ComponentGenerationProfile? profile = null)
+        ISet<string>? usedPoolUniqueComponents = null, ComponentGenerationProfile? profile = null,
+        string? profileRegistrationId = null)
     {
         _random = random;
         _character = character;
@@ -80,6 +83,8 @@ public sealed class ComponentAssemblyGenerator
         _componentCatalog = profile.ComponentCatalog;
         _nameCatalog = profile.NameCatalog;
         _valuePolicy = profile.ValuePolicy;
+        _keywordPolicy = profile.KeywordPolicy;
+        _profileId = profileRegistrationId ?? profile.Id;
         var index = GetShellFrequencyIndex(profile.Id, _catalog);
         _recipeCountsByRarity = index.RecipeCountsByRarity;
         _tagCountsByRarity = index.TagCountsByRarity;
@@ -591,7 +596,8 @@ public sealed class ComponentAssemblyGenerator
         baseCard = SpecialXCardConverter.Convert(baseCard, _random, _specialXMode);
         if (_specialXMode == SpecialXGenerationMode.Forced && !SpecialXCardConverter.IsSpecial(baseCard))
             continue;
-        var upgrade = CardUpgradeGenerator.Generate(baseCard, _random, _unlockComponentRoles);
+        var upgrade = CardUpgradeGenerator.Generate(baseCard, _random, _unlockComponentRoles, _profileId,
+            _keywordPolicy);
         // Reject artificial assemblies for which none of the four supported upgrade families is legal.
         if (upgrade.Effects.Count == 0) continue;
         var card = baseCard with { Upgrade = upgrade };
@@ -1115,7 +1121,8 @@ public sealed class ComponentAssemblyGenerator
         string? lastUpgradeError = null;
         for (var upgradeAttempt = 0; upgradeAttempt < 64; upgradeAttempt++)
         {
-            var upgrade = CardUpgradeGenerator.Generate(card, _random, _unlockComponentRoles);
+            var upgrade = CardUpgradeGenerator.Generate(card, _random, _unlockComponentRoles, _profileId,
+                _keywordPolicy);
             var upgradedCard = card with { Upgrade = upgrade };
             try
             {
@@ -1963,6 +1970,7 @@ public sealed class ComponentAssemblyGenerator
         var forcedExhaust = operations.Any(CardEffectRules.IsRestrictedEffect) && recipe.Type != GeneratedCardType.Power;
         foreach (var tag in Enum.GetValues<CardTag>())
         {
+            if (!_keywordPolicy.AllowsBase(tag)) continue;
             var allowed = tag switch
             {
                 CardTag.Strike => recipe.Type == GeneratedCardType.Attack,
@@ -5893,6 +5901,8 @@ public static class ExternalOperationUpgradeRegistry
 {
     private static readonly Dictionary<(GeneratedCharacter Character, string Template),
         (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed)> Values = new();
+    private static readonly Dictionary<(string ProfileId, string Template),
+        (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed)> ProfileValues = new();
 
     public static void Register(GeneratedCharacter character, string template,
         IReadOnlyList<CardTag> added, IReadOnlyList<CardTag> removed)
@@ -5906,6 +5916,24 @@ public static class ExternalOperationUpgradeRegistry
         Values[key] = (added, removed);
     }
 
+    public static void Register(string profileId, string template,
+        IReadOnlyList<CardTag> added, IReadOnlyList<CardTag> removed)
+    {
+        if (string.IsNullOrWhiteSpace(profileId) || profileId.Any(character => character > 0x7f))
+            throw new ArgumentException("Profile IDs must be non-empty ASCII strings.", nameof(profileId));
+        var key = (profileId, template);
+        if (ProfileValues.TryGetValue(key, out var current))
+        {
+            added = current.Added.Concat(added).Distinct().ToArray();
+            removed = current.Removed.Concat(removed).Distinct().ToArray();
+        }
+        ProfileValues[key] = (added, removed);
+    }
+
+    public static bool TryGet(string profileId, string template,
+        out (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) value) =>
+        ProfileValues.TryGetValue((profileId, template), out value);
+
     public static bool TryGet(GeneratedCharacter character, string template,
         out (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) value) =>
         Values.TryGetValue((character, template), out value);
@@ -5913,7 +5941,9 @@ public static class ExternalOperationUpgradeRegistry
     public static bool TryGetUnified(string template,
         out (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) value)
     {
-        var matches = Values.Where(entry => entry.Key.Template == template).Select(entry => entry.Value).ToArray();
+        var matches = Values.Where(entry => entry.Key.Template == template).Select(entry => entry.Value)
+            .Concat(ProfileValues.Where(entry => entry.Key.Template == template).Select(entry => entry.Value))
+            .ToArray();
         if (matches.Length == 0)
         {
             value = default;

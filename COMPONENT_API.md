@@ -1,6 +1,6 @@
 # AutoAnthony component API
 
-Status: API v1. Component catalogs, occurrence control, numeric parameter control, runtime execution, presentation
+Status: API v2. Component catalogs, occurrence control, numeric parameter control, runtime execution, presentation
 and external-character definition hosting are public, localization-independent interfaces. The public contract is
 covered by an external-consumer compile test; built-in generation remains covered by the full generator self-test
 and a historical full-pool drift corpus.
@@ -10,8 +10,8 @@ and a historical full-pool drift corpus.
 - Components describe semantics with ASCII IDs and `OperationRuntimeSpec`; localized prose is output only.
 - Occurrence probability and effect value are separate systems.
 - A source card pool is both the component inventory and the default occurrence-frequency dataset.
-- Normal pools use their own native dataset. Ultimate Chaos uses the combined six-pool catalog, which produces a
-  pool-size-weighted average without a hand-authored seventh table.
+- Normal pools use their own native dataset. Ultimate Chaos uses the combined built-in and registered external
+  catalogs, producing a pool-size-weighted average without a hand-authored extra table.
 - External characters can provide the same inputs without editing the built-in generator. Their own mod remains
   responsible for character/card-pool registration and for deciding when a run creates/restores its definitions.
 
@@ -100,6 +100,18 @@ reuse `ComponentApi.CreateNativeOccurrencePolicy` and `ComponentApi.DefaultValue
 themselves. This keeps component probability independent from value fitting while avoiding copies of internal
 index-building code.
 
+`ComponentApi.ComposeCatalog` exposes the same recipe-preserving union used by Ultimate Chaos. An external profile
+can select any subset of public built-in catalogs, add its own reviewed recipes, and use the result as its component
+inventory. `ComponentPackageRegistration.IncludeInUltimateChaos` defaults to true. Each normal external package
+then contributes its complete native recipe dataset to Ultimate Chaos; repeated source occurrences remain present
+and supply the weighting, while structural atom indexes are deduplicated. Requesting the external profile ID with
+`UnlockComponentRoles=true` derives its Ultimate profile automatically when only a normal profile was registered.
+
+Native keyword permissions are profile-local through `ComponentKeywordPolicy`. A profile can independently limit
+base keyword availability, legal upgrade additions/removals, add global upgrade candidates, and disable built-in
+archetype defaults. Component-specific keyword upgrades are keyed by stable profile ID rather than by the borrowed
+balance archetype, so two mod characters that both reuse Regent cannot leak upgrade rules into each other.
+
 Every resolved package passes `ComponentProfileValidator` before it is cached. The validator rejects empty or
 cross-character catalogs, missing/non-ASCII semantic IDs, invalid RuntimeSpecs, duplicate semantic IDs, broken
 trigger-owner indices and shell components that the selectable catalog cannot supply. Multiplicity overrides freeze
@@ -152,7 +164,7 @@ During that mod's initializer it registers:
 2. custom opcode implementations through `ComponentRuntimeApi.RegisterPackage`;
 3. optional custom referenced-card/named-mechanic tips through `ComponentPresentationApi.Register`;
 4. one `ExternalComponentCharacterRegistration`, whose profile ID, balance archetype and energy-icon prefix are
-   stable across versions.
+   stable across versions; it may also include an `IExternalAncientRelicAdapter` for Archaic Tooth and Dusty Tome.
 
 The external mod declares fixed slot card classes derived from `ExternalChaosCardModel` and overrides only
 `ComponentProfileId`, `Slot` and `Pool`. At new-run/restore time it generates or deserializes complete
@@ -164,6 +176,10 @@ AutoAnthony carries the external profile ID into `ChaosCompositePower` saved pro
 so delayed/continuous effects resolve the same external definition after save/load or reconnect. The owning mod must
 still serialize and authoritatively synchronize its definition list; localized text must never be re-parsed on a
 client. See `examples/WatcherComponentAdapter.cs.txt` for the minimal shape.
+
+The Ancient adapter identifies its own players, decides independently whether each relic is overridden, and returns
+the two canonical Ancient card models. AutoAnthony then reuses its multiplayer-safe relic binding, hover-tip and
+obtain flows. This avoids hard-coding an external `CharacterModel` ID in AutoAnthony.
 
 ## Runtime handler API
 
@@ -193,6 +209,31 @@ as structured custom opcodes and executed by their owner; their localized projec
 live in `ComponentPackageRegistration`, while referenced-card and named-mechanic tips use
 `ComponentPresentationApi`. Built-in interchangeable derivative/orb slot catalogs remain intentionally closed
 because their budget conversion and concrete ModelDb resolution are AutoAnthony-owned semantics.
+
+## Audit boundary: what is and is not generic
+
+The external route is generic; the built-in implementation is not yet data-only. Native mechanics still have
+template/variant-specific implementations in `ChaosOperationExecutor`, `ChaosCardModel` and
+`ChaosCompositePower`. They are compatibility adapters for native hooks and existing snapshots. A new namespaced
+opcode does not require another branch there: it executes through `ComponentRuntimeApi`. External routes do not,
+however, override a built-in common opcode because built-in structured execution intentionally runs first.
+
+The game's `CardKeyword` and `CardTag` types are closed enums. API v2 fully controls the native keywords represented
+by those enums. A genuinely new semantic keyword is authored as a `standalone_keyword` component with a custom
+opcode, localized projection, runtime handler and hover-tip provider; the owning character mod supplies any card
+hook that cannot be represented by an existing structured trigger. AutoAnthony cannot manufacture a new enum member
+in the base game.
+
+External definition storage is run-scoped but does not replace the owning mod's save schema. The character mod must
+serialize its complete definition list and synchronize the host's list. AutoAnthony preserves the external profile
+ID for delayed powers after those definitions have been installed.
+
+Under the “Regent is external” acceptance test, an adapter can provide a completely external recipe/component
+catalog, reuse or exclude any built-in catalog, define custom opcodes and semantic keywords, choose native keyword
+and upgrade permissions, participate in weighted Ultimate Chaos, install generated card slots, and service the two
+Ancient relics. It must still own ordinary character/pool/model registration, portraits, starting-deck wiring, its
+save field and authoritative multiplayer transport. Custom token/orb/status resolution also remains with the owning
+mod unless it deliberately uses one of AutoAnthony's closed built-in slot catalogs.
 
 ## Compatibility reference: The Watcher 0.9.25
 

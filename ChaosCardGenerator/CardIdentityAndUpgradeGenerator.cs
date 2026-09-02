@@ -133,8 +133,10 @@ public static class CardUpgradeGenerator
         return operation with { ChineseText = projectedText, RuntimeSpec = updatedSpec };
     }
 
-    public static CardUpgradePlan Generate(GeneratedCard card, Random random, bool unifiedChaos = false)
+    public static CardUpgradePlan Generate(GeneratedCard card, Random random, bool unifiedChaos = false,
+        string? profileId = null, ComponentKeywordPolicy? keywordPolicy = null)
     {
+        keywordPolicy ??= ComponentKeywordPolicy.Default;
         var candidates = new List<Candidate>();
         for (var index = 0; index < card.Operations.Count; index++)
         {
@@ -318,34 +320,73 @@ public static class CardUpgradeGenerator
                     "生成的随机牌均已升级。", index)));
             }
 
-            var hasKeywordUpgrade = unifiedChaos
-                ? ExternalOperationUpgradeRegistry.TryGetUnified(operation.Template, out var keywordUpgrade)
-                : ExternalOperationUpgradeRegistry.TryGet(card.Character, operation.Template, out keywordUpgrade);
+            (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) keywordUpgrade = default;
+            var hasKeywordUpgrade = profileId is { Length: > 0 }
+                && ExternalOperationUpgradeRegistry.TryGet(profileId, operation.Template, out keywordUpgrade);
+            if (!hasKeywordUpgrade)
+                hasKeywordUpgrade = unifiedChaos
+                    ? ExternalOperationUpgradeRegistry.TryGetUnified(operation.Template, out keywordUpgrade)
+                    : ExternalOperationUpgradeRegistry.TryGet(card.Character, operation.Template,
+                        out keywordUpgrade);
             if (hasKeywordUpgrade)
             {
-                if (keywordUpgrade.Added.Contains(CardTag.Innate) && !card.Tags.Contains(CardTag.Innate))
+                var addedKeywords = keywordUpgrade.Added ?? Array.Empty<CardTag>();
+                var operationRemovedKeywords = keywordUpgrade.Removed ?? Array.Empty<CardTag>();
+                if (addedKeywords.Contains(CardTag.Innate)
+                    && keywordPolicy.AllowsAddition(CardTag.Innate)
+                    && !card.Tags.Contains(CardTag.Innate))
                     candidates.Add(new(new(CardUpgradeKind.GrantInnate, "获得固有。", index)));
-                if (keywordUpgrade.Added.Contains(CardTag.Retain) && !card.Tags.Contains(CardTag.Retain)
+                if (addedKeywords.Contains(CardTag.Retain)
+                    && keywordPolicy.AllowsAddition(CardTag.Retain)
+                    && !card.Tags.Contains(CardTag.Retain)
                     && !card.Tags.Contains(CardTag.Ethereal))
                     candidates.Add(new(new(CardUpgradeKind.GrantRetain, "获得保留。", index)));
-                if (keywordUpgrade.Removed.Contains(CardTag.Exhaust) && card.Tags.Contains(CardTag.Exhaust)
+                if (operationRemovedKeywords.Contains(CardTag.Exhaust)
+                    && keywordPolicy.AllowsRemoval(CardTag.Exhaust)
+                    && card.Tags.Contains(CardTag.Exhaust)
                     && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
                     candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, "不再消耗。", index)));
-                if (keywordUpgrade.Removed.Contains(CardTag.Ethereal) && card.Tags.Contains(CardTag.Ethereal))
+                if (operationRemovedKeywords.Contains(CardTag.Ethereal)
+                    && keywordPolicy.AllowsRemoval(CardTag.Ethereal)
+                    && card.Tags.Contains(CardTag.Ethereal))
                     candidates.Add(new(new(CardUpgradeKind.RemoveEthereal, "不再虚无。", index)));
             }
         }
 
-        if ((unifiedChaos || card.Character is GeneratedCharacter.Ironclad or GeneratedCharacter.Silent)
+        if (keywordPolicy.UseArchetypeUpgradeDefaults
+            && keywordPolicy.AllowsAddition(CardTag.Innate)
+            && (unifiedChaos || card.Character is GeneratedCharacter.Ironclad or GeneratedCharacter.Silent)
             && card.Type == GeneratedCardType.Power)
             candidates.Add(new(new(CardUpgradeKind.GrantInnate, "获得固有。")));
-        if ((unifiedChaos || card.Character == GeneratedCharacter.Silent)
+        if (keywordPolicy.UseArchetypeUpgradeDefaults
+            && keywordPolicy.AllowsAddition(CardTag.Retain)
+            && (unifiedChaos || card.Character == GeneratedCharacter.Silent)
             && !card.Tags.Contains(CardTag.Retain)
             && !card.Tags.Contains(CardTag.Ethereal))
             candidates.Add(new(new(CardUpgradeKind.GrantRetain, "获得保留。")));
-        if ((unifiedChaos || card.Character == GeneratedCharacter.Silent) && card.Tags.Contains(CardTag.Exhaust)
+        if (keywordPolicy.UseArchetypeUpgradeDefaults
+            && keywordPolicy.AllowsRemoval(CardTag.Exhaust)
+            && (unifiedChaos || card.Character == GeneratedCharacter.Silent)
+            && card.Tags.Contains(CardTag.Exhaust)
             && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
             candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, "不再消耗。")));
+
+        foreach (var tag in keywordPolicy.GlobalUpgradeAdditions ?? (IEnumerable<CardTag>)Array.Empty<CardTag>())
+        {
+            if (!keywordPolicy.AllowsAddition(tag) || card.Tags.Contains(tag)) continue;
+            if (tag == CardTag.Innate)
+                candidates.Add(new(new(CardUpgradeKind.GrantInnate, "获得固有。")));
+            else if (tag == CardTag.Retain && !card.Tags.Contains(CardTag.Ethereal))
+                candidates.Add(new(new(CardUpgradeKind.GrantRetain, "获得保留。")));
+        }
+        foreach (var tag in keywordPolicy.GlobalUpgradeRemovals ?? (IEnumerable<CardTag>)Array.Empty<CardTag>())
+        {
+            if (!keywordPolicy.AllowsRemoval(tag) || !card.Tags.Contains(tag)) continue;
+            if (tag == CardTag.Exhaust && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
+                candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, "不再消耗。")));
+            else if (tag == CardTag.Ethereal)
+                candidates.Add(new(new(CardUpgradeKind.RemoveEthereal, "不再虚无。")));
+        }
 
         // A 1-cost card whose own text already lowers its cost must not upgrade to 0: the resulting upgraded
         // card would carry a permanently dead self-cost-reduction clause. Higher costs may still upgrade by 1.
