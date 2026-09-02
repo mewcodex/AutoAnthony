@@ -20,6 +20,7 @@ var forceSpecialX = false;
 var suppressDerivativeReferences = false;
 var aggressiveValues = false;
 var numericRandomMode = false;
+var catalogOwnershipAudit = false;
 string? writeRefactorBaseline = null;
 string? compareRefactorBaseline = null;
 string? textDependencySourceRoot = null;
@@ -110,6 +111,9 @@ for (var i = 0; i < args.Length; i++)
             break;
         case "--numeric-random":
             numericRandomMode = true;
+            break;
+        case "--catalog-ownership-audit":
+            catalogOwnershipAudit = true;
             break;
         case "--write-refactor-baseline" when i + 1 < args.Length:
             writeRefactorBaseline = args[++i];
@@ -242,7 +246,7 @@ if (catalogRuntimeSpecsOutput is not null)
     Directory.CreateDirectory(Path.GetDirectoryName(output)
         ?? throw new InvalidOperationException($"Catalog RuntimeSpec path has no parent directory: {output}"));
     var entries = Enum.GetValues<GeneratedCharacter>()
-        .SelectMany(catalog => LegacyCatalogAuthoringSource.GetForRuntimeSpecExport(catalog).Recipes.SelectMany(recipe =>
+        .SelectMany(catalog => ReviewedAuthoringCatalogSource.GetForRuntimeSpecExport(catalog).Recipes.SelectMany(recipe =>
             recipe.Atoms.Select((atom, index) => new CatalogRuntimeSpecExport(
                 CatalogRuntimeSpecRegistry.SemanticId(catalog, recipe.Id, index),
                 OperationRuntimeSpecCompiler.CompileRequired(new GeneratorOperation(atom.Template, atom.Scope,
@@ -320,6 +324,12 @@ if (semanticEquivalenceAudit)
 {
     OperationRuntimeSpecCompiler.ValidateSemanticProjectionEquivalence();
     Console.WriteLine("RuntimeSpec semantic-equivalence audit passed.");
+    return;
+}
+
+if (catalogOwnershipAudit)
+{
+    Console.WriteLine(CatalogOwnershipAudit.Run());
     return;
 }
 

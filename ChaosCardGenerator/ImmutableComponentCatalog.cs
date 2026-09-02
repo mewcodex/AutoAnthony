@@ -18,6 +18,11 @@ public sealed class ImmutableComponentCatalog : IComponentCatalog
 
     public ImmutableComponentCatalog(GeneratedCharacter character,
         IEnumerable<IroncladCardRecipe> recipes)
+        : this(character, recipes, preserveComponentCountOrder: false) { }
+
+    internal ImmutableComponentCatalog(GeneratedCharacter character,
+        IEnumerable<IroncladCardRecipe> recipes,
+        bool preserveComponentCountOrder)
     {
         ArgumentNullException.ThrowIfNull(recipes);
         Character = character;
@@ -30,7 +35,8 @@ public sealed class ImmutableComponentCatalog : IComponentCatalog
 
         var allAtoms = Recipes.SelectMany(recipe => recipe.Atoms).ToArray();
         Atoms = allAtoms.DistinctBy(atom => atom.SchemaKey).ToArray();
-        ComponentCounts = Recipes.Select(recipe => recipe.Atoms.Count).Distinct().Order().ToArray();
+        var componentCounts = Recipes.Select(recipe => recipe.Atoms.Count).Distinct();
+        ComponentCounts = (preserveComponentCountOrder ? componentCounts : componentCounts.Order()).ToArray();
         AtomKeys = allAtoms.Select(atom => atom.Key).ToHashSet(StringComparer.Ordinal);
         AtomCounts = allAtoms.GroupBy(atom => atom.Key)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);

@@ -1,147 +1,91 @@
-# 混沌模式：战士（Ironclad）基础卡的 unit-operation 拆分
+# Ironclad v111 reviewed unit-operation catalog
 
-数据来自 `proj/111/MegaCrit.Sts2.Core.Models.CardPools/IroncladCardPool.cs` 及每张卡的 `OnPlay` / 事件钩子实现；数值为**未升级**基准值。排除了明确为 `MultiplayerOnly` 的：`Blaze`、`DemonicShield`、`Midnight`、`Outrage`、`Tank`。本表共 85 张单人卡。
+This is the reviewed offline authoring source. Each `⟦...⟧` stores: operation ID, scope, single-target requirement, card-reference slot, trigger-owner index, Chinese rendering text, and English rendering text. Numeric values are variable-slot samples, not separate component identities.
 
-## 表示法
-
-每张卡以 `费用 | 类型 | 选目标 | operations | keywords` 表示。
-
-- 类型：`攻击`、`技能`、`能力`。
-- 选目标：攻击和技能只有 `单敌`（玩家实际选择一个敌人）或 `其他`（自己、全体敌人、随机敌人）。能力固定为 `其他`。
-- `T:` 是只能装到“单敌”牌的取目标 operation；`N:` 是不选目标的常规 operation；`M:` 是依赖同牌其它 effect 的 modifier；`C:` 是条件/延迟/重复触发器；`A:` 是能力牌的持续触发条件；`K:` 是 keyword；`I:` 是目前保留为不可拆分的独立 operation。
-- `D(x)` 是受力量、易伤等正常伤害管线修正的单次伤害；`B(x)` 是从这张牌获得 x 格挡；`V(x)`、`W(x)` 是易伤/虚弱层数；`S(x)` 是力量；`HP-(x)` 是失去生命（不是伤害）；`E(x)` 是能量；`Draw(x)` 是抽牌。
-- `=>` 表示 modifier/trigger 所依附的 operation。`card` 表示这张卡；`exhausted(card)` 表示这张卡由于任意原因进入消耗堆；`Attack*`、`Skill*` 是卡类别过滤器。
-- `I:` 并不是忽略逻辑：其括号内是生成器必须整体实现的原始逻辑，作为后续继续细分前的原子槽位。这样每一行可完整复现原卡。
-
-## 可采样的 operation 词表
-
-### 普通取目标 / 非取目标 effect
-
-| ID | operation（参数槽） | 目标限制 |
-| --- | --- | --- |
-| `T_DAMAGE` | `T:D(x)` 对所选单敌伤害 | 单敌 |
-| `T_POWER` | `T:Apply(状态, x)`，如 `V`、`W`、敌方 `S`、临时力量下降 | 单敌 |
-| `N_ALL_DAMAGE` | `N:AllD(x, hits=n)`，对每名敌人伤害 | 其他 |
-| `N_RANDOM_DAMAGE` | `N:RandomD(x, hits=n)`，每段随机选存活敌人 | 其他 |
-| `N_BLOCK` | `N:B(x)` | 其他 |
-| `N_DRAW` | `N:Draw(x)` | 其他 |
-| `N_ENERGY` | `N:E(x)` | 其他 |
-| `N_HP_LOSS` / `N_HEAL` | `N:HP-(x)` / `N:Heal(x)` | 其他 |
-| `N_SELF_POWER` | `N:Self(状态, x)` | 其他 |
-| `N_EXHAUST` | `N:Exhaust(选择/随机/全部, 过滤器)` | 其他 |
-| `N_CREATE` | `N:Create(对象, 位置, 数量, 属性)` | 其他 |
-| `N_PILE_MOVE` | `N:Move(牌, 区域A→区域B, 规则)` | 其他 |
-
-### modifier、条件和能力触发
-
-| ID | operation（参数槽） | 依赖 / 说明 |
-| --- | --- | --- |
-| `M_REPEAT` | `M:repeat(n)` | 将同牌一个伤害 effect 重复 n 次 |
-| `M_SCALE` | `M:base + per × count(条件)` | 依附伤害或格挡数值 effect |
-| `M_REPLACE_VALUE` | `M:value = state(状态)` | 依附数值 effect，如“造成当前格挡值伤害” |
-| `C_IF` | `C:if(条件) => effect` | 单次出牌条件 |
-| `C_PER` | `C:forEach(事件/对象) => effect` | 一次结算内逐个触发 |
-| `C_AFTER` | `C:after(事件) => effect` | 延后结算 |
-| `A_TURN_START` / `A_TURN_END` | `A:turnStart/turnEnd => effect` | 能力牌持续触发 |
-| `A_WHEN` | `A:when(事件, 过滤器) => effect` | 能力牌事件触发 |
-| `A_RULE` | `A:rule(全局替换规则)` | 能力牌改变规则 |
-| `K` | `K:Exhaust`、`K:Innate` 等 | 卡牌 keyword |
-
-## 重建清单
-
-| 卡牌（ID） | 费用 / 类型 / 选目标 | operations（按结算顺序） | keyword |
-| --- | --- | --- | --- |
-| 好勇斗狠 `Aggression` | 1 / 能力 / 其他 | `A:turnStart => N:Move(random Attack, 弃牌堆→手牌) + I:UpgradeThatCard` | — |
-| 愤怒 `Anger` | 0 / 攻击 / 单敌 | `T:D(6)`；`N:Create(copy(card), 弃牌堆, 1)` | — |
-| 武装 `Armaments` | 1 / 技能 / 其他 | `N:B(5)`；`I:Upgrade(select 1 card in hand)` | — |
-| 灰烬打击 `AshenStrike` | 1 / 攻击 / 单敌 | `T:D(6) + M:base + 3 × count(消耗牌堆全部牌)` | `Tag:Strike` |
-| 壁垒 `Barricade` | 3 / 能力 / 其他 | `A:rule(你的格挡在回合开始时不移除)` | — |
-| 痛击 `Bash` | 2 / 攻击 / 单敌 | `T:D(8)`；`T:Apply(V,2)` | — |
-| 战斗专注 `BattleTrance` | 0 / 技能 / 其他 | `N:Draw(3)`；`I:本回合不能再抽牌` | — |
-| 血墙 `BloodWall` | 2 / 技能 / 其他 | `N:HP-(2)`；`N:B(16)` | — |
-| 放血 `Bloodletting` | 0 / 技能 / 其他 | `N:HP-(3)`；`N:E(2)` | — |
-| 重锤 `Bludgeon` | 3 / 攻击 / 单敌 | `T:D(32)` | — |
-| 全身撞击 `BodySlam` | 1 / 攻击 / 单敌 | `T:D(0) + M:value = state(当前格挡)` | — |
-| 烙印 `Brand` | 0 / 技能 / 其他 | `N:HP-(1)`；`N:Exhaust(选择1张, 手)`；`N:Self(S,1)` | — |
-| 破击 `Break` | 1 / 攻击 / 单敌 | `T:D(20)`；`T:Apply(V,5)` | — |
-| 突破 `Breakthrough` | 1 / 攻击 / 其他 | `N:HP-(1)`；`N:AllD(9, hits=1)` | — |
-| 欺凌 `Bully` | 0 / 攻击 / 单敌 | `T:D(4) + M:base + 2 × count(target.V)` | — |
-| 燃烧契约 `BurningPact` | 1 / 技能 / 其他 | `N:Exhaust(选择1张, 手)`；`N:Draw(2)` | — |
-| 倾泻 `Cascade` | X / 技能 / 其他 | `I:打出抽牌堆顶部X张牌（正常打出；不强制消耗）` | — |
-| 余烬 `Cinder` | 2 / 攻击 / 单敌 | `T:D(18)`；`N:Exhaust(随机1张, 手牌)` | — |
-| 巨像 `Colossus` | 1 / 技能 / 其他 | `N:B(4)`；`C:untilTurnEnd(if attacker has V, 受到攻击伤害 × 50%)` | — |
-| 焚烧 `Conflagration` | 1 / 攻击 / 其他 | `N:AllD(2, hits=4)` | — |
-| 腐化 `Corruption` | 3 / 能力 / 其他 | `A:rule(你的技能费用=0)`；`A:when(打出 Skill) => N:Exhaust(该技能)` | — |
-| 绯红披风 `CrimsonMantle` | 1 / 能力 / 其他 | `A:turnStart => N:HP-(1) + N:B(7)` | — |
-| 残酷 `Cruelty` | 1 / 能力 / 其他 | `A:rule(有V的敌人额外受到25%伤害)` | — |
-| 黑暗之拥 `DarkEmbrace` | 2 / 能力 / 其他 | `A:when(任意牌被消耗) => N:Draw(1)` | — |
-| 防御 `DefendIronclad` | 1 / 技能 / 其他 | `N:B(5)` | `Tag:Defend` |
-| 恶魔形态 `DemonForm` | 3 / 能力 / 其他 | `A:turnStart => N:Self(S,3)` | — |
-| 拆卸 `Dismantle` | 1 / 攻击 / 单敌 | `T:D(8) + C:if(target has V) => M:repeat(2), else hits=1` | — |
-| 主宰 `Dominate` | 1 / 技能 / 单敌 | `T:Apply(V,1)`；`N:Self(S, count(target.V) after applying)` | `K:Exhaust` |
-| 战鼓 `DrumOfBattle` | 1 / 技能 / 其他 | `N:Draw(2)`；`C:after(exhausted(card)) => N:E(2)` | — |
-| 邪眼 `EvilEye` | 1 / 技能 / 其他 | `N:B(8)`；`C:if(本回合曾消耗牌) => N:B(8)` | — |
-| 跃跃欲试 `ExpectAFight` | 3 / 技能 / 其他 | `N:B(15) + M:base + 5 × max(0, self.S)` | — |
-| 狂宴 `Feed` | 1 / 攻击 / 单敌 | `T:D(10)`；`C:if(此伤害斩杀) => I:永久最大生命+3` | `K:Exhaust` |
-| 无惧疼痛 `FeelNoPain` | 1 / 能力 / 其他 | `A:when(任意牌被消耗) => N:B(3)` | — |
-| 恶魔之焰 `FiendFire` | 2 / 攻击 / 单敌 | `N:Exhaust(全部, 手牌)`；`C:forEach(被此效果消耗的牌) => T:D(7)` | `K:Exhaust` |
-| 与我一战！ `FightMe` | 2 / 攻击 / 单敌 | `T:D(5) + M:repeat(2)`；`N:Self(S,3)`；`T:Apply(enemy S,1)` | — |
-| 火焰屏障 `FlameBarrier` | 2 / 技能 / 其他 | `N:B(12)`；`C:untilTurnEnd(forEach(你受到攻击)) => N:反伤攻击者D(4)` | — |
-| 被遗忘的仪式 `ForgottenRitual` | 1 / 技能 / 其他 | `N:E(3)` | `K:Exhaust` |
-| 破灭 `Havoc` | 1 / 技能 / 其他 | `I:打出抽牌堆顶牌，并强制消耗该牌` | — |
-| 头槌 `Headbutt` | 1 / 攻击 / 单敌 | `T:D(9)`；`N:Move(选择1张, 弃牌堆→抽牌堆顶)` | — |
-| 地狱狂徒 `Hellraiser` | 2 / 能力 / 其他 | `A:when(抽到名字中有“打击”的牌) => I:对一名随机敌人打出该牌` | — |
-| 御血术 `Hemokinesis` | 1 / 攻击 / 单敌 | `N:HP-(2)`；`T:D(15)` | — |
-| 彼岸咆哮 `HowlFromBeyond` | 3 / 攻击 / 其他 | `N:AllD(18, hits=1)`；`C:after(回合结束且card在消耗堆) => I:打出此牌` | — |
-| 岿然不动 `Impervious` | 2 / 技能 / 其他 | `N:B(30)` | `K:Exhaust` |
-| 地狱之刃 `InfernalBlade` | 1 / 技能 / 其他 | `I:Create(random Attack, 手牌, 1, 本回合费用0)` | `K:Exhaust` |
-| 狱火 `Inferno` | 1 / 能力 / 其他 | `A:turnStart => N:HP-(1)`；`A:when(你的回合内失去生命) => N:AllD(6, hits=1)` | — |
-| 燃烧 `Inflame` | 1 / 能力 / 其他 | `N:Self(S,2)` | — |
-| 铁斩波 `IronWave` | 1 / 攻击 / 单敌 | `N:B(5)`；`T:D(5)` | — |
-| 势不可当 `Juggernaut` | 2 / 能力 / 其他 | `A:when(你获得格挡) => N:RandomD(6, hits=1)` | — |
-| 杂耍 `Juggling` | 1 / 能力 / 其他 | `A:when(每回合第3张 Attack 被打出) => N:Create(copy(该攻击), 手牌, 1)` | — |
-| 凌虐 `Mangle` | 3 / 攻击 / 单敌 | `T:D(20)`；`T:Apply(本回合敌方S-10)` | — |
-| 熔融之拳 `MoltenFist` | 1 / 攻击 / 单敌 | `T:D(10)`；`T:Apply(V, count(target.V after damage))`（即把易伤层数翻倍） | `K:Exhaust` |
-| 时候未到 `NotYet` | 2 / 技能 / 其他 | `N:Heal(10)` | `K:Exhaust` |
-| 祭品 `Offering` | 0 / 技能 / 其他 | `N:HP-(6)`；`N:E(2)`；`N:Draw(3)` | `K:Exhaust` |
-| 连环拳 `OneTwoPunch` | 1 / 技能 / 其他 | `C:grantNextAttacksThisTurn(1) => I:额外打出一次该攻击` | — |
-| 契约终结 `PactsEnd` | 0 / 攻击 / 其他 | `C:if(count(消耗牌堆) >= 3) => N:AllD(18, hits=1)` | — |
-| 完美打击 `PerfectedStrike` | 2 / 攻击 / 单敌 | `T:D(6) + M:base + 2 × count(本场战斗所有区域中 Tag:Strike 卡)` | `Tag:Strike` |
-| 劫掠 `Pillage` | 1 / 攻击 / 单敌 | `T:D(6)`；`I:连续抽牌，直到抽到非攻击牌（该非攻击牌也抽到）` | — |
-| 剑柄打击 `PommelStrike` | 1 / 攻击 / 单敌 | `T:D(9)`；`N:Draw(1)` | `Tag:Strike` |
-| 原始力量 `PrimalForce` | 0 / 技能 / 其他 | `I:Transform(手牌全部可变形 Attack → 巨石)` | — |
-| 薪火之源 `Pyre` | 2 / 能力 / 其他 | `A:turnStart => N:E(1)` | — |
-| 狂怒 `Rage` | 0 / 技能 / 其他 | `C:untilTurnEnd(每当你打出 Attack) => N:B(3)` | — |
-| 暴走 `Rampage` | 1 / 攻击 / 单敌 | `T:D(10)`；`I:本场战斗中此卡的基础伤害+5` | — |
-| 撕裂 `Rupture` | 1 / 能力 / 其他 | `A:when(你的回合内失去生命) => N:Self(S,1)` | — |
-| 重振精神 `SecondWind` | 1 / 技能 / 其他 | `N:Exhaust(全部非Attack, 手牌)`；`C:forEach(手牌全部非Attack) => N:B(5)` | — |
-| 预备打击 `SetupStrike` | 1 / 攻击 / 单敌 | `T:D(7)`；`I:本回合获得S(2)` | `Tag:Strike` |
-| 耸肩无视 `ShrugItOff` | 1 / 技能 / 其他 | `N:B(8)`；`N:Draw(1)` | — |
-| 怨恨 `Spite` | 0 / 攻击 / 单敌 | `T:D(5)`；`C:if(你本回合失去过生命) => M:repeat(2)` | — |
-| 惊逃 `Stampede` | 2 / 能力 / 其他 | `A:turnEnd => I:从手牌随机自动打出1张Attack，目标随机敌人` | — |
-| 添柴 `Stoke` | 1 / 技能 / 其他 | `N:Exhaust(全部, 手牌)`；`C:forEach(被此效果消耗的牌) => N:Create(random card from own pool, 手牌, 1)` | — |
-| 踩踏 `Stomp` | 3 / 攻击 / 其他 | `N:AllD(12, hits=1)`；`C:whileInCombat(本回合每打出过1张Attack，此卡费用-1)` | — |
-| 岩石铠甲 `StoneArmor` | 1 / 能力 / 其他 | `N:Self(覆甲,4)` | — |
-| 打击 `StrikeIronclad` | 1 / 攻击 / 单敌 | `T:D(6)` | `Tag:Strike` |
-| 飞剑回旋镖 `SwordBoomerang` | 1 / 攻击 / 其他 | `N:RandomD(3, hits=3)` | — |
-| 挑衅 `Taunt` | 1 / 技能 / 单敌 | `N:B(6)`；`T:Apply(V,1)` | — |
-| 扯碎 `TearAsunder` | 2 / 攻击 / 单敌 | `T:D(5) + M:repeat(1 + count(本场战斗你失去生命的次数))` | — |
-| 痛殴 `Thrash` | 1 / 攻击 / 单敌 | `T:D(4) + M:repeat(2)`；`I:随机消耗手牌1张Attack`；`I:将该攻击牌的当前伤害永久加到此卡基础伤害` | — |
-| 闪电霹雳 `Thunderclap` | 1 / 攻击 / 其他 | `N:AllD(4, hits=1)`；`I:对每名敌人Apply(V,1)` | — |
-| 战栗 `Tremble` | 1 / 技能 / 单敌 | `T:Apply(V,3)` | `K:Exhaust` |
-| 坚毅 `TrueGrit` | 1 / 技能 / 其他 | `N:B(7)`；`N:Exhaust(随机1张, 手牌)` | — |
-| 双重打击 `TwinStrike` | 1 / 攻击 / 单敌 | `T:D(5) + M:repeat(2)` | `Tag:Strike` |
-| 坚定不移 `Unmovable` | 2 / 能力 / 其他 | `A:rule(每回合第一次从卡牌获得的格挡翻倍)` | — |
-| 无情猛攻 `Unrelenting` | 2 / 攻击 / 单敌 | `T:D(14)`；`C:grantNextAttack => I:费用变为0` | — |
-| 上勾拳 `Uppercut` | 2 / 攻击 / 单敌 | `T:D(13)`；`T:Apply(W,1)`；`T:Apply(V,1)` | — |
-| 凶恶 `Vicious` | 1 / 能力 / 其他 | `A:when(你施加V) => N:Draw(1)` | — |
-| 旋风斩 `Whirlwind` | X / 攻击 / 其他 | `N:AllD(5, hits=本次支付的X)` | — |
-
-## 拟合时应保留的结构约束
-
-1. `T:*` 只能和“攻击/技能 + 单敌”这个牌壳组合；`N_ALL_DAMAGE` / `N_RANDOM_DAMAGE` 会把牌壳固定为“其他”。
-2. `M_REPEAT`、`M_SCALE`、`M_REPLACE_VALUE` 至少要绑定一个同卡、同结算域的数值 effect。`M_REPEAT` 不能独立抽到。
-3. `C:*` 后接 1–2 个 effect；`A:*` 只能出现在能力牌上；`A_RULE` 通常单独占一张能力牌，以免生成不可读的全局规则叠加。
-4. `K:Exhaust` 是**牌本身**的 keyword；诸如“消耗一张牌”只是 `N_EXHAUST`，不能误把本牌也标为消耗。
-5. 产物槽位应显式建模为枚举，而不是文本：至少有 `巨石`、`复制自身`、`随机攻击`、`本角色卡池随机牌`。牌堆/区域、过滤器、是否免费、是否自动打出也都是 operation 参数。
-6. `I:` 共有 20 个左右的稀有/复杂原子；先以独立组件进入样本可保持 100% 复现。等基础生成器稳定后，再优先拆 `I:自动打出`、`I:抽牌至条件`、`I:变形`、`I:费用规则` 这四组，它们在其他角色中复用率最高。
+| Source card | Cost/Stars/Type/Target/Rarity | Unit operations | Keywords | English name |
+|---|---|---|---|---|
+| 好勇斗狠 `Aggression` | 1/-/Power/Other/Rare | ⟦A:turnStart¦AbilityTrigger¦false¦None¦-1¦在你的回合开始时。¦At the start of your turn.⟧；⟦N:Move¦NonTargeted¦false¦None¦0¦将弃牌堆中的一张随机攻击牌放入手牌。¦Put a random Attack from your discard pile into your hand.⟧；⟦I:UpgradeThatCard¦Independent¦false¦None¦0¦升级那张攻击牌。¦Upgrade that Attack.⟧ |  |  |
+| 愤怒 `Anger` | 0/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧；⟦N:Create¦NonTargeted¦false¦None¦-1¦将此牌的一张复制加入弃牌堆。¦Add a copy of this card to your discard pile.⟧ |  |  |
+| 武装 `Armaments` | 1/-/Skill/Other/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得5点格挡。¦Gain 5 Block.⟧；⟦I:Upgrade¦Independent¦false¦None¦-1¦升级手牌中的一张牌。¦Upgrade a card in your hand.⟧ |  |  |
+| 灰烬打击 `AshenStrike` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧；⟦M:DamagePerExhaustCard¦Modifier¦false¦None¦-1¦消耗牌堆每有一张牌，这张牌额外造成3点伤害。¦This card deals 3 additional damage for each card in your Exhaust pile.⟧ | Strike |  |
+| 壁垒 `Barricade` | 3/-/Power/Other/Rare | ⟦A:rule¦AbilityRule¦false¦None¦-1¦格挡不再在你的回合开始时消失。¦Block is not removed at the start of your turn.⟧ |  |  |
+| 痛击 `Bash` | 2/-/Attack/SingleEnemy/Basic | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成8点伤害。¦Deal 8 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予2层易伤。¦Apply 2 Vulnerable.⟧ |  |  |
+| 战斗专注 `BattleTrance` | 0/-/Skill/Other/Uncommon | ⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽3张牌。¦Draw 3 cards.⟧；⟦I:PreventDrawThisTurn¦Independent¦false¦None¦-1¦本回合不能再抽牌。¦You cannot draw cards this turn.⟧ |  |  |
+| 血墙 `BloodWall` | 2/-/Skill/Other/Common | ⟦N:HP-¦NonTargeted¦false¦None¦-1¦失去2点生命。¦Lose 2 HP.⟧；⟦N:B¦NonTargeted¦false¦None¦-1¦获得16点格挡。¦Gain 16 Block.⟧ |  |  |
+| 放血 `Bloodletting` | 0/-/Skill/Other/Uncommon | ⟦N:HP-¦NonTargeted¦false¦None¦-1¦失去3点生命。¦Lose 3 HP.⟧；⟦N:E¦NonTargeted¦false¦None¦-1¦获得2点能量。¦Gain 2 Energy.⟧ |  |  |
+| 重锤 `Bludgeon` | 3/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成32点伤害。¦Deal 32 damage.⟧ |  |  |
+| 全身撞击 `BodySlam` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成0点伤害。¦Deal 0 damage.⟧；⟦M:value¦Modifier¦false¦None¦-1¦这张牌造成等同于当前格挡的伤害。¦This card deals damage equal to your current Block.⟧ |  |  |
+| 烙印 `Brand` | 0/-/Skill/Other/Rare | ⟦N:HP-¦NonTargeted¦false¦None¦-1¦失去1点生命。¦Lose 1 HP.⟧；⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦消耗手牌中的一张牌。¦Exhaust a card in your hand.⟧；⟦N:Self¦NonTargeted¦false¦None¦-1¦获得1点力量。¦Gain 1 Strength.⟧ |  |  |
+| 破击 `Break` | 1/-/Attack/SingleEnemy/Ancient | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成20点伤害。¦Deal 20 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予5层易伤。¦Apply 5 Vulnerable.⟧ |  |  |
+| 突破 `Breakthrough` | 1/-/Attack/Other/Common | ⟦N:HP-¦NonTargeted¦false¦None¦-1¦失去1点生命。¦Lose 1 HP.⟧；⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成9点伤害。¦Deal 9 damage to ALL enemies.⟧ |  |  |
+| 欺凌 `Bully` | 0/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成4点伤害。¦Deal 4 damage.⟧；⟦M:base¦Modifier¦true¦None¦-1¦该敌人每有一层易伤，这张牌额外造成2点伤害。¦This card deals 2 additional damage for each Vulnerable on the enemy.⟧ |  |  |
+| 燃烧契约 `BurningPact` | 1/-/Skill/Other/Uncommon | ⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦消耗手牌中的一张牌。¦Exhaust a card in your hand.⟧；⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽2张牌。¦Draw 2 cards.⟧ |  |  |
+| 倾泻 `Cascade` | X/-/Skill/Other/Rare | ⟦I:PlayTopXCards¦Independent¦false¦None¦-1¦打出抽牌堆顶部的X张牌。¦Play the top X cards of your draw pile.⟧ |  |  |
+| 余烬 `Cinder` | 2/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成18点伤害。¦Deal 18 damage.⟧；⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦随机消耗手牌中的一张牌。¦Exhaust a random card in your hand.⟧ |  |  |
+| 巨像 `Colossus` | 1/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得4点格挡。¦Gain 4 Block.⟧；⟦C:untilTurnEnd¦ConditionalTrigger¦false¦None¦-1¦在本回合中，有易伤状态的敌人对你造成的伤害降低50%。¦You receive 50% less damage from Vulnerable enemies this turn.⟧ |  |  |
+| 焚烧 `Conflagration` | 1/-/Attack/Other/Rare | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成2点伤害4次。¦Deal 2 damage to ALL enemies 4 times.⟧ |  |  |
+| 腐化 `Corruption` | 3/-/Power/Other/Ancient | ⟦A:rule¦AbilityRule¦false¦None¦-1¦技能牌的耗能变为0。¦Your Skills cost 0.⟧；⟦A:whenSkillPlayed¦AbilityTrigger¦false¦None¦-1¦每当你打出一张技能牌时。¦Whenever you play a Skill.⟧；⟦N:Exhaust¦NonTargeted¦false¦None¦1¦消耗那张技能牌。¦Exhaust that Skill.⟧ |  |  |
+| 绯红披风 `CrimsonMantle` | 1/-/Power/Other/Rare | ⟦A:turnStart¦AbilityTrigger¦false¦None¦-1¦在你的回合开始时。¦At the start of your turn.⟧；⟦N:HP-¦NonTargeted¦false¦None¦0¦失去1点生命。¦Lose 1 HP.⟧；⟦N:B¦NonTargeted¦false¦None¦0¦获得7点格挡。¦Gain 7 Block.⟧ |  |  |
+| 残酷 `Cruelty` | 1/-/Power/Other/Uncommon | ⟦A:rule¦AbilityRule¦false¦None¦-1¦拥有易伤的敌人受到的伤害增加25%。¦Vulnerable enemies take 25% more damage.⟧ |  |  |
+| 黑暗之拥 `DarkEmbrace` | 2/-/Power/Other/Rare | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当有一张牌被消耗时。¦Whenever a card is Exhausted.⟧；⟦N:Draw¦NonTargeted¦false¦None¦0¦抽1张牌。¦Draw 1 card.⟧ |  |  |
+| 防御 `DefendIronclad` | 1/-/Skill/Other/Basic | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得5点格挡。¦Gain 5 Block.⟧ | Defend |  |
+| 恶魔形态 `DemonForm` | 3/-/Power/Other/Rare | ⟦A:turnStart¦AbilityTrigger¦false¦None¦-1¦在你的回合开始时。¦At the start of your turn.⟧；⟦N:Self¦NonTargeted¦false¦None¦0¦获得3点力量。¦Gain 3 Strength.⟧ |  |  |
+| 拆卸 `Dismantle` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成8点伤害。¦Deal 8 damage.⟧；⟦C:if¦ConditionalTrigger¦false¦None¦-1¦若该敌人拥有易伤。¦If the enemy is Vulnerable.⟧；⟦M:repeat¦Modifier¦false¦None¦1¦这张牌额外造成1次伤害。¦This card deals damage 1 additional time.⟧ |  |  |
+| 主宰 `Dominate` | 1/-/Skill/SingleEnemy/Rare | ⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予1层易伤。¦Apply 1 Vulnerable.⟧；⟦N:StrengthPerTargetVulnerable¦NonTargeted¦true¦None¦-1¦目标敌人身上每有一层易伤，就获得1点力量。¦Gain 1 Strength for each Vulnerable on the target enemy.⟧ | Exhaust |  |
+| 战鼓 `DrumOfBattle` | 1/-/Skill/Other/Uncommon | ⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽2张牌。¦Draw 2 cards.⟧；⟦C:after¦ConditionalTrigger¦false¦ThisCard¦-1¦这张牌被消耗时。¦When this card is Exhausted.⟧；⟦N:E¦NonTargeted¦false¦None¦1¦获得2点能量。¦Gain 2 Energy.⟧ |  |  |
+| 邪眼 `EvilEye` | 1/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得8点格挡。¦Gain 8 Block.⟧；⟦C:if¦ConditionalTrigger¦false¦None¦-1¦若本回合曾消耗过牌。¦If you Exhausted a card this turn.⟧；⟦N:B¦NonTargeted¦false¦None¦1¦获得8点格挡。¦Gain 8 Block.⟧ |  |  |
+| 跃跃欲试 `ExpectAFight` | 3/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得15点格挡。¦Gain 15 Block.⟧；⟦M:base¦Modifier¦false¦None¦-1¦你每有1点力量，这张牌额外获得5点格挡。¦This card gains 5 additional Block for each 1 Strength you have.⟧ |  |  |
+| 狂宴 `Feed` | 1/-/Attack/SingleEnemy/Rare | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成10点伤害。¦Deal 10 damage.⟧；⟦C:if¦ConditionalTrigger¦false¦None¦-1¦斩杀时。¦If this kills.⟧；⟦I:GainMaxHp¦Independent¦false¦None¦1¦永久获得3点最大生命。¦Permanently gain 3 Max HP.⟧ | Exhaust |  |
+| 无惧疼痛 `FeelNoPain` | 1/-/Power/Other/Uncommon | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当有一张牌被消耗时。¦Whenever a card is Exhausted.⟧；⟦N:B¦NonTargeted¦false¦None¦0¦获得3点格挡。¦Gain 3 Block.⟧ |  |  |
+| 恶魔之焰 `FiendFire` | 2/-/Attack/SingleEnemy/Rare | ⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦消耗所有手牌。¦Exhaust all cards in your hand.⟧；⟦C:forEach¦ConditionalTrigger¦false¦None¦-1¦每消耗一张牌。¦For each card Exhausted.⟧；⟦T:D¦SingleEnemyOnly¦false¦None¦1¦造成7点伤害。¦Deal 7 damage.⟧ | Exhaust |  |
+| 与我一战！ `FightMe` | 2/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧；⟦M:repeat¦Modifier¦false¦None¦-1¦这张牌额外造成1次伤害。¦This card deals damage 1 additional time.⟧；⟦N:Self¦NonTargeted¦false¦None¦-1¦获得3点力量。¦Gain 3 Strength.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦使该敌人获得1点力量。¦The enemy gains 1 Strength.⟧ |  |  |
+| 火焰屏障 `FlameBarrier` | 2/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得12点格挡。¦Gain 12 Block.⟧；⟦C:untilTurnEnd¦ConditionalTrigger¦false¦None¦-1¦本回合每当你受到一次攻击时。¦Whenever you are attacked this turn.⟧；⟦N:RetaliateDamage¦NonTargeted¦false¦None¦1¦本回合每当你受到一次攻击，对攻击者造成4点伤害。¦Whenever you are attacked this turn, deal 4 damage to the attacker.⟧ |  |  |
+| 被遗忘的仪式 `ForgottenRitual` | 1/-/Skill/Other/Uncommon | ⟦N:E¦NonTargeted¦false¦None¦-1¦获得3点能量。¦Gain 3 Energy.⟧ | Exhaust |  |
+| 破灭 `Havoc` | 1/-/Skill/Other/Common | ⟦I:PlayTopCardAndExhaust¦Independent¦false¦None¦-1¦打出抽牌堆顶部的牌并将其消耗。¦Play the top card of your draw pile. Exhaust it.⟧ |  |  |
+| 头槌 `Headbutt` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成9点伤害。¦Deal 9 damage.⟧；⟦N:Move¦NonTargeted¦false¦None¦-1¦将弃牌堆中的一张牌放到抽牌堆顶部。¦Put a card from your discard pile on top of your draw pile.⟧ |  |  |
+| 地狱狂徒 `Hellraiser` | 2/-/Power/Other/Rare | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当你抽到名字中有“打击”的牌时。¦Whenever you draw a card containing “Strike”.⟧；⟦I:PlayAtRandomEnemy¦Independent¦false¦None¦0¦对一名随机敌人打出这张牌。¦It is played against a random enemy.⟧ |  |  |
+| 御血术 `Hemokinesis` | 1/-/Attack/SingleEnemy/Uncommon | ⟦N:HP-¦NonTargeted¦false¦None¦-1¦失去2点生命。¦Lose 2 HP.⟧；⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成15点伤害。¦Deal 15 damage.⟧ |  |  |
+| 彼岸咆哮 `HowlFromBeyond` | 3/-/Attack/Other/Uncommon | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成18点伤害。¦Deal 18 damage to ALL enemies.⟧；⟦C:after¦ConditionalTrigger¦false¦ThisCard¦-1¦在你的回合结束时，如果这张牌在你的消耗牌堆中。¦At the end of your turn, if this is in your Exhaust Pile.⟧；⟦I:PlayThisCard¦Independent¦false¦ThisCard¦1¦则将其打出。¦Play it.⟧ |  |  |
+| 岿然不动 `Impervious` | 2/-/Skill/Other/Rare | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得30点格挡。¦Gain 30 Block.⟧ | Exhaust |  |
+| 地狱之刃 `InfernalBlade` | 1/-/Skill/Other/Uncommon | ⟦I:Create¦Independent¦false¦None¦-1¦将一张随机攻击牌加入手牌。其本回合费用为0。¦Add a random Attack to your hand. It can be played for free this turn.⟧ | Exhaust |  |
+| 狱火 `Inferno` | 1/-/Power/Other/Uncommon | ⟦A:turnStart¦AbilityTrigger¦false¦None¦-1¦在你的回合开始时。¦At the start of your turn.⟧；⟦N:HP-¦NonTargeted¦false¦None¦0¦失去1点生命。¦Lose 1 HP.⟧；⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当你在回合内失去生命时。¦Whenever you lose HP during your turn.⟧；⟦N:AllD¦NonTargeted¦false¦None¦2¦对所有敌人造成6点伤害。¦Deal 6 damage to ALL enemies.⟧ |  |  |
+| 燃烧 `Inflame` | 1/-/Power/Other/Uncommon | ⟦N:Self¦NonTargeted¦false¦None¦-1¦获得2点力量。¦Gain 2 Strength.⟧ |  |  |
+| 铁斩波 `IronWave` | 1/-/Attack/SingleEnemy/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得5点格挡。¦Gain 5 Block.⟧；⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧ |  |  |
+| 势不可当 `Juggernaut` | 2/-/Power/Other/Rare | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当你获得格挡时。¦Whenever you gain Block.⟧；⟦N:RandomD¦NonTargeted¦false¦None¦0¦随机对敌人造成6点伤害。¦Deal 6 damage to a random enemy.⟧ |  |  |
+| 杂耍 `Juggling` | 1/-/Power/Other/Uncommon | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每回合中，当你打出第3张攻击牌时。¦Whenever you play your third Attack each turn.⟧；⟦N:Create¦NonTargeted¦false¦None¦0¦将那张攻击牌的一张复制加入手牌。¦Add a copy of that Attack to your hand.⟧ |  |  |
+| 凌虐 `Mangle` | 3/-/Attack/SingleEnemy/Rare | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成20点伤害。¦Deal 20 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦使该敌人在本回合失去10点力量。¦The enemy loses 10 Strength this turn.⟧ |  |  |
+| 熔融之拳 `MoltenFist` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成10点伤害。¦Deal 10 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦true¦None¦-1¦将该敌人身上的易伤层数翻倍。¦Double the enemy's Vulnerable.⟧ | Exhaust |  |
+| 时候未到 `NotYet` | 2/-/Skill/Other/Rare | ⟦N:Heal¦NonTargeted¦false¦None¦-1¦回复10点生命。¦Heal 10 HP.⟧ | Exhaust |  |
+| 祭品 `Offering` | 0/-/Skill/Other/Rare | ⟦N:HP-¦NonTargeted¦false¦None¦-1¦失去6点生命。¦Lose 6 HP.⟧；⟦N:E¦NonTargeted¦false¦None¦-1¦获得2点能量。¦Gain 2 Energy.⟧；⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽3张牌。¦Draw 3 cards.⟧ | Exhaust |  |
+| 连环拳 `OneTwoPunch` | 1/-/Skill/Other/Rare | ⟦C:grantNextAttacksThisTurn¦ConditionalTrigger¦false¦None¦-1¦在这个回合，你打出的下1张攻击牌获得效果：¦This turn, your next 1 Attack gain:.⟧；⟦I:ReplayAttack¦Independent¦false¦None¦0¦将该攻击牌额外打出1次。¦Play that Attack 1 additional time.⟧ |  |  |
+| 契约终结 `PactsEnd` | 0/-/Attack/Other/Rare | ⟦C:if¦ConditionalTrigger¦false¦None¦-1¦若消耗牌堆中至少有3张牌。¦If you have at least 3 cards in your Exhaust pile.⟧；⟦N:AllD¦NonTargeted¦false¦None¦0¦对所有敌人造成18点伤害。¦Deal 18 damage to ALL enemies.⟧ |  |  |
+| 完美打击 `PerfectedStrike` | 2/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧；⟦M:base¦Modifier¦false¦None¦-1¦本场战斗中每有一张名称含“打击”的牌，这张牌额外造成2点伤害。¦This card deals 2 additional damage for each Strike card in combat.⟧ | Strike |  |
+| 劫掠 `Pillage` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧；⟦I:DrawUntilNonAttack¦Independent¦false¦None¦-1¦抽牌，直到抽到一张非攻击牌。¦Draw cards until you draw a non-Attack card.⟧ |  |  |
+| 剑柄打击 `PommelStrike` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成9点伤害。¦Deal 9 damage.⟧；⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽1张牌。¦Draw 1 card.⟧ | Strike |  |
+| 原始力量 `PrimalForce` | 0/-/Skill/Other/Rare | ⟦I:Transform¦Independent¦false¦None¦-1¦将手牌中的所有攻击牌变化为巨石。¦Transform all Attacks in your hand into Boulders.⟧ |  |  |
+| 薪火之源 `Pyre` | 2/-/Power/Other/Rare | ⟦A:turnStart¦AbilityTrigger¦false¦None¦-1¦在你的回合开始时。¦At the start of your turn.⟧；⟦N:E¦NonTargeted¦false¦None¦0¦获得1点能量。¦Gain 1 Energy.⟧ |  |  |
+| 狂怒 `Rage` | 0/-/Skill/Other/Uncommon | ⟦C:untilTurnEnd¦ConditionalTrigger¦false¦None¦-1¦本回合每当你打出一张攻击牌时。¦Whenever you play an Attack this turn.⟧；⟦N:B¦NonTargeted¦false¦None¦0¦获得3点格挡。¦Gain 3 Block.⟧ |  |  |
+| 暴走 `Rampage` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成10点伤害。¦Deal 10 damage.⟧；⟦I:IncreaseDamageThisCombat¦Independent¦false¦None¦-1¦在本场战斗中，此卡的基础伤害增加5点。¦Increase this card's damage by 5 this combat.⟧ |  |  |
+| 撕裂 `Rupture` | 1/-/Power/Other/Uncommon | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当你在回合内失去生命时。¦Whenever you lose HP during your turn.⟧；⟦N:Self¦NonTargeted¦false¦None¦0¦获得1点力量。¦Gain 1 Strength.⟧ |  |  |
+| 重振精神 `SecondWind` | 1/-/Skill/Other/Uncommon | ⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦消耗手牌中的所有非攻击牌。¦Exhaust all non-Attack cards in your hand.⟧；⟦C:forEach¦ConditionalTrigger¦false¦None¦-1¦每消耗一张手牌中的非攻击牌时。¦For each non-Attack card Exhausted from your hand.⟧；⟦N:B¦NonTargeted¦false¦None¦1¦获得5点格挡。¦Gain 5 Block.⟧ |  |  |
+| 预备打击 `SetupStrike` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成7点伤害。¦Deal 7 damage.⟧；⟦I:GainTemporaryStrength¦Independent¦false¦None¦-1¦本回合获得2点力量。¦Gain 2 Strength this turn.⟧ | Strike |  |
+| 耸肩无视 `ShrugItOff` | 1/-/Skill/Other/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得8点格挡。¦Gain 8 Block.⟧；⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽1张牌。¦Draw 1 card.⟧ |  |  |
+| 怨恨 `Spite` | 0/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧；⟦C:if¦ConditionalTrigger¦false¦None¦-1¦若你本回合失去过生命。¦If you lost HP this turn.⟧；⟦M:repeat¦Modifier¦false¦None¦1¦这张牌额外造成1次伤害。¦This card deals damage 1 additional time.⟧ |  |  |
+| 惊逃 `Stampede` | 2/-/Power/Other/Uncommon | ⟦A:turnEnd¦AbilityTrigger¦false¦None¦-1¦在你的回合结束时。¦At the end of your turn.⟧；⟦I:AutoPlayRandomAttackFromHand¦Independent¦false¦None¦0¦从手牌随机自动打出1张攻击牌，目标随机敌人。¦Play 1 random Attack from your Hand against a random enemy.⟧ |  |  |
+| 添柴 `Stoke` | 1/-/Skill/Other/Rare | ⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦消耗所有手牌。¦Exhaust all cards in your hand.⟧；⟦C:forEach¦ConditionalTrigger¦false¦None¦-1¦每消耗一张牌。¦For each card Exhausted.⟧；⟦N:CreateCurrentCharacterCardInHand¦NonTargeted¦false¦None¦1¦将一张当前角色的随机牌加入手牌。¦Add a random card for your current character to your hand.⟧ |  |  |
+| 踩踏 `Stomp` | 3/-/Attack/Other/Uncommon | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成12点伤害。¦Deal 12 damage to ALL enemies.⟧；⟦C:whileInCombat¦ConditionalTrigger¦false¦None¦-1¦你在本回合中每打出过一张攻击牌，其耗能减少1。¦Costs 1 less Energy for each Attack played this turn.⟧ |  |  |
+| 岩石铠甲 `StoneArmor` | 1/-/Power/Other/Uncommon | ⟦N:Self¦NonTargeted¦false¦None¦-1¦获得4层覆甲。¦Gain 4 Plating.⟧ |  |  |
+| 打击 `StrikeIronclad` | 1/-/Attack/SingleEnemy/Basic | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧ | Strike |  |
+| 飞剑回旋镖 `SwordBoomerang` | 1/-/Attack/Other/Common | ⟦N:RandomD¦NonTargeted¦false¦None¦-1¦随机对敌人造成3点伤害3次。¦Deal 3 damage to a random enemy 3 times.⟧ |  |  |
+| 挑衅 `Taunt` | 1/-/Skill/SingleEnemy/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得6点格挡。¦Gain 6 Block.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予1层易伤。¦Apply 1 Vulnerable.⟧ |  |  |
+| 扯碎 `TearAsunder` | 2/-/Attack/SingleEnemy/Rare | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧；⟦M:repeat¦Modifier¦false¦None¦-1¦本场战斗中你每失去过一次生命，这张牌额外造成1次伤害。¦This card deals damage 1 additional time for each time you lost HP this combat.⟧ |  |  |
+| 痛殴 `Thrash` | 1/-/Attack/SingleEnemy/Rare | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成4点伤害。¦Deal 4 damage.⟧；⟦M:repeat¦Modifier¦false¦None¦-1¦这张牌额外造成1次伤害。¦This card deals damage 1 additional time.⟧；⟦I:ExhaustRandomAttack¦Independent¦false¦None¦-1¦随机消耗手牌中的一张攻击牌。¦Exhaust a random Attack in your Hand.⟧；⟦I:AddExhaustedAttackDamage¦Independent¦false¦None¦-1¦将它的伤害添加给这张牌。¦Add its damage to this card.⟧ |  |  |
+| 闪电霹雳 `Thunderclap` | 1/-/Attack/Other/Common | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成4点伤害。¦Deal 4 damage to ALL enemies.⟧；⟦I:ApplyToAllEnemies¦Independent¦false¦None¦-1¦给予所有敌人1层易伤。¦Apply 1 Vulnerable to ALL enemies.⟧ |  |  |
+| 战栗 `Tremble` | 1/-/Skill/SingleEnemy/Common | ⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予3层易伤。¦Apply 3 Vulnerable.⟧ | Exhaust |  |
+| 坚毅 `TrueGrit` | 1/-/Skill/Other/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得7点格挡。¦Gain 7 Block.⟧；⟦N:Exhaust¦NonTargeted¦false¦None¦-1¦随机消耗手牌中的一张牌。¦Exhaust a random card in your hand.⟧ |  |  |
+| 双重打击 `TwinStrike` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧；⟦M:repeat¦Modifier¦false¦None¦-1¦这张牌额外造成1次伤害。¦This card deals damage 1 additional time.⟧ | Strike |  |
+| 坚定不移 `Unmovable` | 2/-/Power/Other/Rare | ⟦A:rule¦AbilityRule¦false¦None¦-1¦每回合第一次通过卡牌获得的格挡翻倍。¦The first Block you gain from a card each turn is doubled.⟧ |  |  |
+| 无情猛攻 `Unrelenting` | 2/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成14点伤害。¦Deal 14 damage.⟧；⟦C:grantNextAttack¦ConditionalTrigger¦false¦None¦-1¦你打出的下一张攻击牌获得效果：¦Your next Attack gains:.⟧；⟦I:SetCostZero¦Independent¦false¦None¦1¦费用变为0。¦Set its Cost to 0.⟧ |  |  |
+| 上勾拳 `Uppercut` | 2/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成13点伤害。¦Deal 13 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予1层虚弱。¦Apply 1 Weak.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予1层易伤。¦Apply 1 Vulnerable.⟧ |  |  |
+| 凶恶 `Vicious` | 1/-/Power/Other/Uncommon | ⟦A:when¦AbilityTrigger¦false¦None¦-1¦每当你施加易伤时。¦Whenever you apply Vulnerable.⟧；⟦N:Draw¦NonTargeted¦false¦None¦0¦抽1张牌。¦Draw 1 card.⟧ |  |  |
+| 旋风斩 `Whirlwind` | X/-/Attack/Other/Uncommon | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成5点伤害X次。¦Deal 5 damage to ALL enemies X times.⟧ |  |  |

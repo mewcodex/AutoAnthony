@@ -32,6 +32,20 @@ and a historical full-pool drift corpus.
 Every executable component must also provide English rendering, named numeric slots, upgrade semantics and an
 executor route for its `Opcode`/`Variant`. Any new ID, flag, slot or variant must remain ASCII.
 
+### Ownership and reuse
+
+Character ownership belongs to reviewed **source occurrences**, not to executor copies. Every operation occurrence
+on a native card has its own role-prefixed `SemanticId` (for example `ironclad/anger/0`). Catalog indexes then group
+numeric-value-independent equivalents by `SchemaKey`; equivalent atoms share one selectable structural schema and
+one opcode/variant execution route. Their separate source occurrences remain in `AtomCounts`, so each normal profile
+retains its own native frequency and numeric evidence. Ultimate Chaos retains occurrences from every contributed
+catalog for weighted fitting, then deduplicates the structural inventory.
+
+All five built-in characters and Colorless use this same path: reviewed structured Markdown -> materialized recipe
+and RuntimeSpec JSON -> `StructuredComponentCatalogRegistry` -> `ImmutableComponentCatalog`. No built-in catalog is
+decomposed from localized card prose at runtime. Run `--catalog-ownership-audit` in the standalone generator to
+inspect recipe, occurrence, schema, and cross-role sharing counts.
+
 ## Occurrence model
 
 For a requested rarity, card type and semantic role, `NativeComponentFrequencyTracker` computes a direct source

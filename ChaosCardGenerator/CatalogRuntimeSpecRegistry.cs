@@ -73,7 +73,7 @@ internal static class CatalogRuntimeSpecRegistry
         {
             var structuredRecipes = CharacterComponentCatalogs.Get(character).Recipes
                 .ToDictionary(recipe => recipe.Id, StringComparer.Ordinal);
-            foreach (var recipe in LegacyCatalogAuthoringSource.Get(character).Recipes)
+            foreach (var recipe in ReviewedAuthoringCatalogSource.Get(character).Recipes)
             {
                 if (!structuredRecipes.TryGetValue(recipe.Id, out var structuredRecipe)
                     || recipe.Atoms.Count != structuredRecipe.Atoms.Count)

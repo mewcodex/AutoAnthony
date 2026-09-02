@@ -51,7 +51,7 @@ internal static class StructuredComponentCatalogRegistry
         var entries = new List<RecipeEntry>();
         foreach (var character in Enum.GetValues<GeneratedCharacter>())
         {
-            foreach (var recipe in LegacyCatalogAuthoringSource.Get(character).Recipes)
+            foreach (var recipe in ReviewedAuthoringCatalogSource.Get(character).Recipes)
             {
                 if (recipe.Atoms.Count != recipe.TriggerOwners.Count)
                     throw new InvalidDataException($"{character}/{recipe.Id} atom/trigger-owner counts differ.");
@@ -112,19 +112,11 @@ internal static class StructuredComponentCatalogRegistry
 
     private static IComponentCatalog LoadCharacter(GeneratedCharacter character)
     {
-        var expectedCounts = new Dictionary<GeneratedCharacter, int>
-        {
-            [GeneratedCharacter.Ironclad] = 85,
-            [GeneratedCharacter.Silent] = 86,
-            [GeneratedCharacter.Defect] = 86,
-            [GeneratedCharacter.Necrobinder] = 86,
-            [GeneratedCharacter.Regent] = 86,
-            [GeneratedCharacter.Colorless] = 52
-        };
+        var expectedCount = BuiltInCatalogManifest.Get(character).ExpectedRecipes;
         var source = Entries.Value.Where(entry => entry.Character == character).ToArray();
-        if (source.Length != expectedCounts[character])
+        if (source.Length != expectedCount)
             throw new InvalidDataException($"Structured {character} catalog expected "
-                + $"{expectedCounts[character]} recipes, found {source.Length}.");
+                + $"{expectedCount} recipes, found {source.Length}.");
         var recipes = source.Select(entry =>
         {
             var atoms = entry.Atoms.Select(atom =>
@@ -144,61 +136,20 @@ internal static class StructuredComponentCatalogRegistry
                 entry.HasStarCostX, entry.EnglishTitle);
         }).ToArray();
         NativeKeywordUpgradeCatalog.Register(character, recipes);
-        return new MaterializedCatalog(character, recipes);
-    }
-
-    private sealed class MaterializedCatalog : IComponentCatalog
-    {
-        public GeneratedCharacter Character { get; }
-        public IReadOnlyList<IroncladCardRecipe> Recipes { get; }
-        public IReadOnlyList<ComponentAtom> Atoms { get; }
-        public IReadOnlyList<int> ComponentCounts { get; }
-        public IReadOnlySet<string> AtomKeys { get; }
-        public IReadOnlyDictionary<string, int> AtomCounts { get; }
-        public IReadOnlyDictionary<int, int> ComponentCountCounts { get; }
-        public IReadOnlyDictionary<CardTag, int> TagCounts { get; }
-
-        internal MaterializedCatalog(GeneratedCharacter character, IReadOnlyList<IroncladCardRecipe> recipes)
-        {
-            Character = character;
-            Recipes = recipes;
-            var allAtoms = recipes.SelectMany(recipe => recipe.Atoms).ToArray();
-            Atoms = allAtoms.DistinctBy(atom => atom.SchemaKey).ToArray();
-            // Preserve the reviewed catalogs' historical iteration order because this list is sampled by index.
-            // Ironclad/Silent kept first-seen order; the four offline catalogs explicitly sorted it.
-            var counts = recipes.Select(recipe => recipe.Atoms.Count).Distinct();
-            ComponentCounts = character is GeneratedCharacter.Ironclad
-                ? counts.ToArray()
-                : counts.Order().ToArray();
-            AtomKeys = allAtoms.Select(atom => atom.Key).ToHashSet(StringComparer.Ordinal);
-            AtomCounts = allAtoms.GroupBy(atom => atom.Key)
-                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
-            ComponentCountCounts = recipes.GroupBy(recipe => recipe.Atoms.Count)
-                .ToDictionary(group => group.Key, group => group.Count());
-            TagCounts = recipes.SelectMany(recipe => recipe.Tags).GroupBy(tag => tag)
-                .ToDictionary(group => group.Key, group => group.Count());
-        }
+        // Component-count order participates in deterministic sampling. Preserve the existing Ironclad order while
+        // all other reviewed catalogs retain their established sorted order.
+        return new ImmutableComponentCatalog(character, recipes,
+            preserveComponentCountOrder: character == GeneratedCharacter.Ironclad);
     }
 }
 
 #if AUTHORING_CATALOGS
 /// <summary>Authoring-only access to the reviewed Markdown catalogs.</summary>
-internal static class LegacyCatalogAuthoringSource
+internal static class ReviewedAuthoringCatalogSource
 {
-    internal static IComponentCatalog Get(GeneratedCharacter character) => character switch
-    {
-        GeneratedCharacter.Ironclad => IroncladComponentCatalog.Instance,
-        GeneratedCharacter.Silent => SilentComponentCatalog.Instance,
-        GeneratedCharacter.Defect or GeneratedCharacter.Necrobinder or GeneratedCharacter.Regent
-            or GeneratedCharacter.Colorless => OfflineCharacterComponentCatalog.Get(character),
-        _ => throw new ArgumentOutOfRangeException(nameof(character))
-    };
+    internal static IComponentCatalog Get(GeneratedCharacter character) => ReviewedComponentCatalog.Get(character);
 
-    internal static IComponentCatalog GetForRuntimeSpecExport(GeneratedCharacter character) => character switch
-    {
-        GeneratedCharacter.Defect or GeneratedCharacter.Necrobinder or GeneratedCharacter.Regent
-            or GeneratedCharacter.Colorless => OfflineCharacterComponentCatalog.GetUnstructuredAuthoring(character),
-        _ => Get(character)
-    };
+    internal static IComponentCatalog GetForRuntimeSpecExport(GeneratedCharacter character) =>
+        ReviewedComponentCatalog.GetUnstructuredAuthoring(character);
 }
 #endif

@@ -80,7 +80,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.8";
+    public const string ModVersion = "0.3.9";
     private const int SchemaVersion = 9;
     private const string PayloadProperty = "PoolSnapshot";
     private const string SurpriseKnowledgeProperty = "SurpriseKnowledge";

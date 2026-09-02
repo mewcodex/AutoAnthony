@@ -18,8 +18,6 @@
            Text="STS2 install not found. Set STS2_GAME_DIR or pass /p:Sts2GameDir=..." />
   </Target>
   <ItemGroup>
-    <Compile Remove="RuntimeCharacterCatalog.cs" />
-    <Compile Remove="DetailedCharacterDecomposer.cs" />
     <Reference Include="sts2"><HintPath>$(Sts2LibDir)\sts2.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="GodotSharp"><HintPath>$(Sts2LibDir)\GodotSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(Sts2LibDir)\0Harmony.dll</HintPath><Private>false</Private></Reference>
@@ -54,7 +52,7 @@
     <Compile Include="..\ChaosCardGenerator\DerivativePoolConstraintResolver.cs" Link="Generator\DerivativePoolConstraintResolver.cs" />
     <Compile Include="..\ChaosCardGenerator\OstyPoolConstraintResolver.cs" Link="Generator\OstyPoolConstraintResolver.cs" />
     <Compile Include="..\ChaosCardGenerator\OrbSlotCatalog.cs" Link="Generator\OrbSlotCatalog.cs" />
-    <Compile Include="..\ChaosCardGenerator\OfflineCharacterComponentCatalog.cs" Link="Generator\OfflineCharacterComponentCatalog.cs" />
+    <Compile Include="..\ChaosCardGenerator\CharacterComponentCatalogs.cs" Link="Generator\CharacterComponentCatalogs.cs" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_runtime_specs.json" Link="Data\catalog_runtime_specs.json" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_recipes.json" Link="Data\catalog_recipes.json" />
   </ItemGroup>
