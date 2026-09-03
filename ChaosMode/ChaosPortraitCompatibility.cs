@@ -18,6 +18,8 @@ internal static class ChaosPortraitCompatibility
     private const string VanillaPortraitRoot = "res://images/atlases/card_atlas.sprites/";
     private static readonly ConcurrentDictionary<string, CardModel> SourceCache =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, CardModel> StableSourceRegistry =
+        new(StringComparer.OrdinalIgnoreCase);
     // PortraitPath is queried repeatedly while cards animate, fan out in a pile, or refresh previews. Calling the
     // original source model on every query re-enters every installed portrait mod's getter patch; several of those
     // also probe ResourceLoader.Exists. Portrait resources and enabled mods are immutable for the process lifetime,
@@ -85,6 +87,11 @@ internal static class ChaosPortraitCompatibility
         if (source is null) return false;
         SourceCache.TryAdd(key, source);
         return true;
+    }
+
+    internal static void RegisterStableSource(string stablePath, CardModel source)
+    {
+        if (!string.IsNullOrWhiteSpace(stablePath)) StableSourceRegistry.TryAdd(stablePath, source);
     }
 
     private static string SourceKey(ChaosCardDefinition definition) =>
@@ -299,6 +306,7 @@ internal static class ChaosPortraitCompatibility
 
     private static CardModel? ResolveUncached(ChaosCardDefinition definition)
     {
+        if (StableSourceRegistry.TryGetValue(definition.PortraitPath, out var registered)) return registered;
         // The generated art catalog is made exclusively from cards compiled into sts2.dll. Restricting recovery to
         // that same set prevents an old path such as .../strike.tres from accidentally binding to an enabled mod's
         // unrelated card whose ModelId happens to reuse the entry "Strike".
@@ -316,8 +324,30 @@ internal static class ChaosPortraitCompatibility
         if (!TryParseStableIdentity(definition.PortraitPath, out var pool, out var entry)) return null;
         return cards.FirstOrDefault(card => string.Equals(card.Id.Entry, entry,
                 StringComparison.OrdinalIgnoreCase)
-            && (string.Equals(card.Pool?.Title, pool, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(card.VisualCardPool?.Title, pool, StringComparison.OrdinalIgnoreCase)));
+            && HasPoolTitle(card, pool));
+    }
+
+    private static bool HasPoolTitle(CardModel card, string expected)
+    {
+        // Base-game special/event cards and some loaded external cards are valid ModelDb entries without a card
+        // pool. CardModel.Pool deliberately throws for them, so wildcard portrait recovery must treat pool lookup as
+        // optional external metadata rather than letting one unrelated card abort all generated-card initialization.
+        try
+        {
+            if (string.Equals(card.Pool?.Title, expected, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        catch (InvalidProgramException)
+        {
+            // Not a pooled reward card.
+        }
+        try
+        {
+            return string.Equals(card.VisualCardPool?.Title, expected, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (InvalidProgramException)
+        {
+            return false;
+        }
     }
 
     internal static bool IsStableOriginalPath(string path) =>

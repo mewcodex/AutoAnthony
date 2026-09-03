@@ -6,19 +6,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoDir = $PSScriptRoot
+. (Join-Path $repoDir "scripts\Resolve-Sts2GameDir.ps1")
 
 & (Join-Path $repoDir "build.ps1") -Sts2GameDir $Sts2GameDir -Configuration $Configuration
 
-if ([string]::IsNullOrWhiteSpace($Sts2GameDir)) {
-    $candidates = @(
-        "F:\SteamLibrary\steamapps\common\Slay the Spire 2",
-        "D:\Steam\steamapps\common\Slay the Spire 2",
-        "C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2"
-    )
-    $Sts2GameDir = $candidates | Where-Object {
-        Test-Path -LiteralPath (Join-Path $_ "data_sts2_windows_x86_64\sts2.dll")
-    } | Select-Object -First 1
-}
+$Sts2GameDir = Resolve-Sts2GameDir -ExplicitPath $Sts2GameDir
 if ([string]::IsNullOrWhiteSpace($Sts2GameDir)) {
     throw "STS2 install not found. Pass -Sts2GameDir or set STS2_GAME_DIR."
 }

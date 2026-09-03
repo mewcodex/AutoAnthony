@@ -68,6 +68,22 @@ public static class ComponentValuationApi
         }
     }
 
+    internal static void EnsureCanRegister(IEnumerable<ComponentValuationRegistration> registrations)
+    {
+        ArgumentNullException.ThrowIfNull(registrations);
+        var values = registrations.ToArray();
+        lock (Sync)
+        {
+            if (_frozen)
+                throw new InvalidOperationException(
+                    "Component valuation registration must finish before the first generation profile resolves.");
+            var conflict = values.FirstOrDefault(value => Routes.ContainsKey((value.Opcode, value.Variant)));
+            if (conflict is not null)
+                throw new InvalidOperationException(
+                    $"A valuation is already registered for '{conflict.Opcode}'/'{conflict.Variant}'.");
+        }
+    }
+
     internal static void FreezeRegistrations()
     {
         lock (Sync) _frozen = true;
@@ -97,6 +113,10 @@ public static class ComponentValuationApi
     internal static bool IsNegative(OperationRuntimeSpec spec) =>
         TryGetRegistration(spec, out var registration)
         && (registration.NegativeLinearValuePerUnit > 0d || registration.NegativeMultiplier > 1d);
+
+    internal static bool IsRegisteredBenefit(OperationRuntimeSpec spec) =>
+        TryGetRegistration(spec, out var registration)
+        && registration.NegativeLinearValuePerUnit == 0d && registration.NegativeMultiplier <= 1d;
 
     internal static bool TryGetNegativePricing(OperationRuntimeSpec spec, out double linearValuePerUnit,
         out double multiplier)

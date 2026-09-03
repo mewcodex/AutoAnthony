@@ -62,6 +62,22 @@ public static class ComponentPolicy
         }
     }
 
+    internal static void EnsureCanRegister(IEnumerable<ComponentMultiplicityRegistration> registrations)
+    {
+        ArgumentNullException.ThrowIfNull(registrations);
+        var values = registrations.ToArray();
+        lock (RegistrationLock)
+        {
+            if (_registrationsFrozen)
+                throw new InvalidOperationException(
+                    "Component multiplicity registration must finish before the first generation profile resolves.");
+            var conflict = values.FirstOrDefault(value => Overrides.ContainsKey((value.Template, value.Variant)));
+            if (conflict is not null)
+                throw new InvalidOperationException(
+                    $"A multiplicity is already registered for '{conflict.Template}'/'{conflict.Variant}'.");
+        }
+    }
+
     internal static void FreezeRegistrations()
     {
         lock (RegistrationLock) _registrationsFrozen = true;

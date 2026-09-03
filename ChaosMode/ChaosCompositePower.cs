@@ -273,11 +273,8 @@ public sealed class ChaosCompositePower : PowerModel
             var index = CapturedOperationValues[offset];
             if ((uint)index >= (uint)effective.Length) continue;
             var operation = effective[index];
-            effective[index] = operation with
-            {
-                ChineseText = ChaosOperationVariables.ReplaceInitialValue(operation, operation.ChineseText,
-                    CapturedOperationValues[offset + 1])
-            };
+            effective[index] = ChaosOperationVariables.ReplaceInitialValue(operation,
+                CapturedOperationValues[offset + 1]);
         }
         return effective;
     }
@@ -386,8 +383,7 @@ public sealed class ChaosCompositePower : PowerModel
         or "CL:GainBlockEqualCurrent" or "CL:GainNextTurnBlockEqualCurrent";
 
     private static bool IsBlockOnlyModifier(GeneratorOperation operation) =>
-        OperationRuntimeSpecCompiler.TryCompile(operation, out var spec, out _)
-        && spec?.Opcode == "modify_block";
+        OperationRuntimeSpecCompiler.RequireStructured(operation).Opcode == "modify_block";
 
     public override Task AfterCardEnteredCombat(CardModel card)
     {
@@ -816,7 +812,7 @@ public sealed class ChaosCompositePower : PowerModel
                 continue;
             var value = Math.Max(1, EffectiveOperationAmount(operationIndex, 1));
             var modifierSpec = operation.Template == "M:base"
-                ? OperationRuntimeSpecCompiler.GetOrCompile(operation)
+                ? OperationRuntimeSpecCompiler.RequireStructured(operation)
                 : null;
             if (operation.Template == "M:DamagePerExhaustCard"
                 || modifierSpec?.Variant == "exhaust_pile_scaled")
@@ -843,7 +839,7 @@ public sealed class ChaosCompositePower : PowerModel
     {
         if (card.Owner.Creature == Owner && card.Type == CardType.Skill
             && DescriptionOperations(Definition.Card.Operations).Any(operation => operation.Template == "N:Exhaust"
-                && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant == "referenced"))
+                && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == "referenced"))
             location.pileType = PileType.Exhaust;
         return location;
     }
@@ -929,8 +925,7 @@ public sealed class ChaosCompositePower : PowerModel
 
     private bool HasRule(string variant) => DescriptionOperations(Definition.Card.Operations)
         .Any(operation => operation.Scope == OperationScope.AbilityRule
-            && OperationRuntimeSpecCompiler.TryCompile(operation, out var spec, out _)
-            && spec?.Variant == variant);
+            && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == variant);
 
     private bool HasCrossTurnNextAttackTrigger() => DescriptionOperations(Definition.Card.Operations)
         .Any(operation => operation.Template is "C:grantNextAttack" or "C:for"
@@ -940,15 +935,14 @@ public sealed class ChaosCompositePower : PowerModel
         TriggerKind(operation) == "nth_attack_played_this_turn";
 
     internal static int NthAttackPlayedThisTurnThreshold(GeneratorOperation operation) =>
-        Math.Max(1, OperationRuntimeSpecCompiler.GetOrCompile(operation).Values
+        Math.Max(1, OperationRuntimeSpecCompiler.RequireStructured(operation).Values
             .FirstOrDefault(value => value.Id == "threshold")?.BaseValue ?? 3);
 
     private decimal RuleAmount(string variant)
     {
         var operations = Definition.Card.Operations;
         var index = operations.ToList().FindIndex(operation => operation.Scope == OperationScope.AbilityRule
-            && OperationRuntimeSpecCompiler.TryCompile(operation, out var spec, out _)
-            && spec?.Variant == variant);
+            && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == variant);
         if (index < 0) return 0m;
         return EffectiveOperationAmount(index, 0);
     }
@@ -957,7 +951,7 @@ public sealed class ChaosCompositePower : PowerModel
     {
         if (TryGetCapturedOperationValue(operationIndex, out var captured)) return captured;
         var operation = Definition.Card.Operations[operationIndex];
-        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
         if (SourceUpgraded && Definition.Card.Upgrade is { } upgrade)
         {
             foreach (var effect in upgrade.Effects.Where(effect => effect.OperationIndex == operationIndex
@@ -1026,9 +1020,7 @@ public sealed class ChaosCompositePower : PowerModel
         || CardEffectRules.OperationNeedsChoiceContext(operation);
 
     private static string? TriggerKind(GeneratorOperation operation) =>
-        OperationRuntimeSpecCompiler.TryCompile(operation, out var spec, out _)
-            ? spec?.Trigger?.Kind
-            : null;
+        OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger?.Kind;
 
     private async Task FireTriggers(string kind, PlayerChoiceContext choiceContext, CardPlay? sourcePlay = null,
         CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0)
@@ -1066,7 +1058,7 @@ public sealed class ChaosCompositePower : PowerModel
             if (rollingIndex >= 0 && eventAmount == 0) eventAmount = _rollingDamage;
             Flash();
             if (ChaosDiagnostics.VerboseRuntime)
-                MegaCrit.Sts2.Core.Logging.Log.Info($"[AutoAnthony] Fired trigger for slot {Slot}: {operation.ChineseText}");
+                ChaosRuntimeDiagnostics.TriggerFired("composite", Slot, operation);
             await ChaosOperationExecutor.ExecuteTriggered(this, index, choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
             if (rollingIndex >= 0)
             {
@@ -1087,7 +1079,7 @@ public sealed class ChaosCompositePower : PowerModel
         OwnerTurnEffectsExpired = true;
         var nextAttack = Definition.Card.Operations.FirstOrDefault(CardEffectRules.IsNextAttackGrantTrigger);
         if (nextAttack is null
-            || OperationRuntimeSpecCompiler.GetOrCompile(nextAttack).Trigger?.Lifetime != "this_turn") return;
+            || OperationRuntimeSpecCompiler.RequireStructured(nextAttack).Trigger?.Lifetime != "this_turn") return;
         NextAttackTriggerAvailable = false;
         NextAttackTriggersRemaining = 0;
         NextAttackReplayAvailable = false;
@@ -1097,7 +1089,7 @@ public sealed class ChaosCompositePower : PowerModel
     internal static bool TurnLimitedTriggerExpired(GeneratorOperation operation, bool ownerTurnExpired,
         bool defensiveTurnExpired)
     {
-        var trigger = OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger;
+        var trigger = OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger;
         if (trigger?.Lifetime != "this_turn") return false;
         return trigger.Kind is "attack_received" or "vulnerable_enemy_damage_reduction"
             ? defensiveTurnExpired

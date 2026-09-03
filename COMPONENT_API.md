@@ -1,6 +1,6 @@
 # AutoAnthony component API
 
-Status: API v2. Component catalogs, occurrence control, numeric parameter control, runtime execution, presentation
+Status: API v3. Component catalogs, occurrence control, numeric parameter control, runtime execution, presentation
 and external-character definition hosting are public, localization-independent interfaces. The public contract is
 covered by an external-consumer compile test; built-in generation remains covered by the full generator self-test
 and a historical full-pool drift corpus.
@@ -24,10 +24,27 @@ and a historical full-pool drift corpus.
 | `Template` | Non-empty ASCII semantic identifier. It is not localized text. |
 | `Scope` | Targeting/trigger/modifier role used by assembly legality. |
 | `ChineseText` | Authoring projection and legacy migration aid; never the intended execution source. |
+| `LocalizedText` | Chinese/English templates whose placeholders name `RuntimeSpec` value slots. |
 | `RequiresSingleTarget` | Whether the completed card must select one enemy. |
 | `CardReference` | Required card-selection slot, if any. |
 | `RuntimeSpec` | Opcode, variant, target, zones, flags, named value slots, condition and trigger. |
 | `Multiplicity` | Computed component occurrence scope. |
+
+External Template names are never inspected to infer gameplay. Use the public `ComponentSemanticFlags` constants
+when a custom opcode needs generator-level composition behavior:
+
+| Flag | Meaning to the assembler |
+| --- | --- |
+| `Beneficial` | The operation can satisfy the card's required positive payoff. A registered non-negative valuation also implies this. |
+| `Negative` | The operation is a downside and participates in compensation. A valuation with downside pricing also implies this. |
+| `Restricted` | The operation must be on a Power or force Exhaust on a non-Power. |
+| `EnemyDamage` | The operation is enemy damage and may classify an ungated non-Power card as an Attack. |
+| `PowerFoundation` | The operation is sufficient persistent state for a Power card. |
+| `ScalableReward` | Its numeric value may be scaled to the whole-card budget. |
+| `SelfCardMovement` | It moves/replays the generated card itself and is rejected on Powers. |
+
+Use flags only for these cross-cutting legality facts. Targets, card zones, values, conditions and triggers belong in
+their dedicated `RuntimeSpec` fields, while actual execution and valuation belong in their registered routes.
 
 Every executable component must also provide English rendering, named numeric slots, upgrade semantics and an
 executor route for its `Opcode`/`Variant`. Any new ID, flag, slot or variant must remain ASCII.
@@ -121,14 +138,90 @@ then contributes its complete native recipe dataset to Ultimate Chaos; repeated 
 and supply the weighting, while structural atom indexes are deduplicated. Requesting the external profile ID with
 `UnlockComponentRoles=true` derives its Ultimate profile automatically when only a normal profile was registered.
 
-Native keyword permissions are profile-local through `ComponentKeywordPolicy`. A profile can independently limit
+Native keyword permissions are profile-local through `ComponentKeywordPolicy`. The stable legacy `CardTag` wire
+enum is explicitly partitioned: Exhaust/Innate/Retain/Sly/Ethereal/Eternal/Unplayable are native keywords, while
+Strike/Defend/OstyAttack are semantic mechanic tags. Keyword policies reject the latter instead of silently treating
+them as displayable keywords. A profile can independently limit
 base keyword availability, legal upgrade additions/removals, add global upgrade candidates, and disable built-in
 archetype defaults. Component-specific keyword upgrades are keyed by stable profile ID rather than by the borrowed
 balance archetype, so two mod characters that both reuse Regent cannot leak upgrade rules into each other.
 
+API v3 adds stable ASCII custom keyword IDs without extending either closed base-game enum. Register generator-side
+metadata in `ComponentPackageRegistration.Keywords`, put the ID on the relevant source recipes through
+`IroncladCardRecipe.CustomKeywords`, and register the game-side projection through
+`ComponentKeywordRuntimeApi.RegisterPackage`. `IComponentKeywordRuntimeAdapter` can expose existing base-game
+`CardKeyword` values, semantic `CardTag` values, hover tips, and an upgrade callback. The active ID set is derived
+from the base card plus `AddedCustomKeywords`/`RemovedCustomKeywords`, so upgrades, saves and reconnects use the
+same stable identity.
+
+Base native-keyword allow-lists are enforced for both ordinary keywords and Sly's delayed final-cost branch. For
+schema 5-9 live-save compatibility, runtime projection takes the union of structural upgrade effects and the legacy
+`AddedKeywords`/`RemovedKeywords` arrays; new and old save layouts therefore produce the same upgraded keyword set.
+
+A custom keyword is deliberately not a hidden effect container. Its executable behavior and balance value must be
+represented by a structured operation in the same recipe, with an `IComponentRuntimeHandler` and
+`IComponentValuation`. The keyword ID supplies classification/presentation and lets the owning mod attach native
+hooks. This keeps card strength and behavior auditable even when the word shown to the player changes.
+
+```csharp
+var keyword = new ComponentKeywordDefinition("my_mod:stance_locked", new StanceKeywordRule());
+var upgrade = new ComponentKeywordUpgrade(
+    "my_mod:enter_stance", [], [], AddedCustomKeywords: [keyword.KeywordId]);
+
+ComponentPackageApi.Register(new ComponentPackageRegistration(
+    "my_mod:components", request, profile,
+    KeywordUpgrades: [upgrade],
+    Keywords: [keyword]));
+
+ComponentKeywordRuntimeApi.RegisterPackage("my_mod:keyword_runtime",
+[
+    new ComponentKeywordRuntimeRegistration(keyword.KeywordId, new StanceKeywordAdapter())
+]);
+```
+
+`ComponentKeywordPolicy` has separate allow-lists for base custom keywords, upgrade additions/removals and global
+upgrade candidates. `IComponentKeywordRule` can reject a base attachment or an add/remove upgrade from the complete
+structured card context. These checks are deterministic generator policy; runtime adapters must not make random
+generation decisions.
+
+Upgrade candidates are behavioral data only: `Kind`, `OperationIndex`, `ValueSlotId`, and `Delta`. New snapshots do
+not write the old bilingual candidate labels. Those legacy JSON properties remain read-only migration sinks, and
+the player-facing upgraded description is always rendered from the upgraded operation list.
+
+New upgrade plans also express keyword changes only through `CardUpgradeEffect.Kind` and `KeywordId`. The old
+`AddedKeywords`, `RemovedKeywords`, `AddedCustomKeywords` and `RemovedCustomKeywords` arrays remain constructor and
+save-migration inputs for API v2/schema 5-9; schema 10 uses structural effects as the authoritative form, while
+projection helpers merge both forms and new generation does not write
+the fact twice.
+
+`OperationLocalizedText` is a runtime presentation cache and is not serialized into every operation. Live and
+history snapshots already preserve card text plus the authoritative RuntimeSpec; the load boundary reconstructs
+named templates from those fields and falls back to the legacy renderer only when an older phrase is not
+unambiguously compilable. This avoids multiplying snapshot size while template storage moves toward stable IDs.
+
+New external packages can register stable templates with `ComponentLocalizationRegistration`. Its `SemanticId`
+must match a component atom and both templates use named RuntimeSpec slots such as `[[damage]]`, `[[hits]]`,
+`[[amount:cardinal]]`, `[[amount:ordinal]]`, `[[energy:energy]]` or `[[stars:stars]]`. The registration is validated
+against the component RuntimeSpec and must reproduce the component's base Chinese projection. Generated operations
+persist only the small localization ID; the compiled template itself remains a runtime cache. The older
+`ComponentLocalizedText` exact-sentence registry remains available for API v2 source compatibility and legacy
+snapshot rendering, but new packages should not use it.
+
+Non-numeric names are explicit too. Add `OperationTextSlot` values to the registration and reference them with the
+same placeholder syntax, for example `Create [[token]].` / `生成[[token]]。`. Derivative, status, enchantment and
+Orb identities use this path internally; rebinding changes the slot value rather than replacing arbitrary words in
+the rendered sentence.
+
+Live game code calls `OperationRuntimeSpecCompiler.RequireStructured`; it cannot silently recompile a translated
+sentence. `CompileLegacy` is intentionally limited to old-save hydration and startup/offline probes. A package with
+a missing RuntimeSpec or named localization is rejected before its profile can generate cards.
+
 Every resolved package passes `ComponentProfileValidator` before it is cached. The validator rejects empty or
 cross-character catalogs, missing/non-ASCII semantic IDs, invalid RuntimeSpecs, duplicate semantic IDs, broken
-trigger-owner indices and shell components that the selectable catalog cannot supply. Multiplicity overrides freeze
+or forward trigger-owner indices, missing named localization templates, unstructured shell atoms, unknown custom
+keywords and shell components that the selectable catalog cannot supply. `ComponentPackageApi.Register` preflights
+every generator-side registry before committing anything, so a conflict cannot leave a partially installed package.
+Multiplicity overrides freeze
 at the same boundary; register them before the first profile is resolved.
 
 The built-in adapter maps normal pools to their native catalog and Ultimate Chaos to the same combined six-pool
@@ -176,7 +269,7 @@ During that mod's initializer it registers:
 1. a `ComponentPackageRegistration`, containing native recipes, component atoms, localized projections, keyword
    upgrades, multiplicity metadata and custom structured valuations;
 2. custom opcode implementations through `ComponentRuntimeApi.RegisterPackage`;
-3. optional custom referenced-card/named-mechanic tips through `ComponentPresentationApi.Register`;
+3. optional custom referenced-card/named-mechanic tips through `ComponentPresentationApi.RegisterPackage`;
 4. one `ExternalComponentCharacterRegistration`, whose profile ID, balance archetype and energy-icon prefix are
    stable across versions; it may also include an `IExternalAncientRelicAdapter` for Archaic Tooth and Dusty Tome.
 
@@ -205,6 +298,9 @@ generated operation executes.
 `RegisterPackage` validates a package's complete route set and commits it atomically. `HasRoute`,
 `RegisteredRoutes`, `RegistrationsFrozen` and the API version are available for startup compatibility audits.
 
+Presentation and custom-keyword runtime adapters also have atomic package registration. Prefer the package methods
+over registering routes individually so a duplicate route cannot leave half of an integration active.
+
 Handlers receive `ComponentRuntimeContext`, not localized text. It contains the `GeneratorOperation`, validated
 `OperationRuntimeSpec`, resolved amount after X/dependency scaling, resolved target, card play/choice context,
 trigger event information and read-only selected-card slots. Controlled methods record damage/drawn cards, add a
@@ -232,11 +328,16 @@ template/variant-specific implementations in `ChaosOperationExecutor`, `ChaosCar
 opcode does not require another branch there: it executes through `ComponentRuntimeApi`. External routes do not,
 however, override a built-in common opcode because built-in structured execution intentionally runs first.
 
-The game's `CardKeyword` and `CardTag` types are closed enums. API v2 fully controls the native keywords represented
-by those enums. A genuinely new semantic keyword is authored as a `standalone_keyword` component with a custom
-opcode, localized projection, runtime handler and hover-tip provider; the owning character mod supplies any card
-hook that cannot be represented by an existing structured trigger. AutoAnthony cannot manufacture a new enum member
-in the base game.
+If bounded ordinary generation exhausts its retries, the emergency path selects a simple positive component from
+the resolved profile's own catalog. It does not reference Ironclad RuntimeSpecs. A profile therefore needs at least
+one standalone, upgradable positive component for every card type present in its shell catalog; a forced Special-X
+quota additionally needs a fixed numeric Attack or Skill component that can be converted.
+
+The game's `CardKeyword` and `CardTag` types are closed enums. API v3 therefore stores genuinely new keyword
+identity as an ASCII string and projects it through `IComponentKeywordRuntimeAdapter`; it never manufactures an
+enum member. The keyword's operation supplies its custom opcode, localized projection, valuation and runtime
+handler. The owning character mod supplies any card hook that cannot be represented by an existing structured
+trigger.
 
 External definition storage is run-scoped but does not replace the owning mod's save schema. The character mod must
 serialize its complete definition list and synchronize the host's list. AutoAnthony preserves the external profile
@@ -249,6 +350,12 @@ Ancient relics. It must still own ordinary character/pool/model registration, po
 save field and authoritative multiplayer transport. Custom token/orb/status resolution also remains with the owning
 mod unless it deliberately uses one of AutoAnthony's closed built-in slot catalogs.
 
+An integration is complete when its generator package, runtime routes, optional presentation routes and custom
+keyword adapters all register before the first profile/card query; its definitions round-trip through the owning
+mod's save and host-authoritative multiplayer payload; and every shell has a structured, localized, executable
+fallback component. AutoAnthony can verify these contracts, but it cannot supply the owning mod's character models,
+art, concrete generated-card classes or network field.
+
 ## Compatibility reference: The Watcher 0.9.25
 
 The subscribed Watcher character demonstrates the common framework-free v111 pattern: a direct `CharacterModel`, a
@@ -259,6 +366,10 @@ than framework objects. A Watcher integration can retain its existing model and 
 adds the component package, fixed generated slots and authoritative definition snapshot described above.
 
 ## Compatibility rules
+
+Schema 5 is the oldest live run that current builds resume in place. Schema 1-4 records remain readable by the
+history viewer, but a still-active run from those pre-all-pool layouts regenerates its generated pools. Schema 5-9
+live saves are migrated card-by-card; schema 10 is the current structured format.
 
 - Snapshot serialization stores runtime specs and operation IDs, not an interpretation of localized text.
 - Removing or changing a component must preserve a migration route for supported current-run snapshots.

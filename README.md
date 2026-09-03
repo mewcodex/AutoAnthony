@@ -18,8 +18,8 @@ Slay the Spire 2 `0.111.x`.
 - Offers Ultimate Chaos, balanced/aggressive values, numeric randomization, original-pool preservation, starting-card
   replacement, random card art, and three Surprise display modes.
 - Keeps generated operations independent from localized prose through versioned `OperationRuntimeSpec` records.
-- Provides Component API v2 for external character mods to register catalogs, occurrence/value/keyword policies, runtime
-  handlers, hover tips, and generated-card slots.
+- Provides Component API v3 for external character mods to register catalogs, occurrence/value/keyword policies,
+  semantic flags, stable localization IDs, runtime handlers, hover tips, and generated-card slots.
 
 ## Installation
 

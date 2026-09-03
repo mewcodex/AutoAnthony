@@ -10,7 +10,8 @@ namespace ApiContractSmoke;
 public static class ExternalConsumer
 {
     public static void CompileRegistration(IComponentCatalog catalog,
-        IComponentRuntimeHandler handler, IComponentHoverTipProvider tips)
+        IComponentRuntimeHandler handler, IComponentHoverTipProvider tips,
+        IReadOnlyList<ComponentLocalizationRegistration> localizations)
     {
         const string profileId = "api_smoke:character";
         var request = new ComponentProfileRequest(profileId, GeneratedCharacter.Ironclad, false);
@@ -26,19 +27,34 @@ public static class ExternalConsumer
         ComponentPackageApi.Register(new ComponentPackageRegistration("api_smoke:components", request, profile,
             KeywordUpgrades:
             [
-                new ComponentKeywordUpgrade("api_smoke:operation", [CardTag.Innate], [CardTag.Exhaust])
+                new ComponentKeywordUpgrade("api_smoke:operation", [CardTag.Innate], [CardTag.Exhaust],
+                    AddedCustomKeywords: ["api_smoke:charged"])
             ],
             Valuations: [new ComponentValuationRegistration("api_smoke", "effect", new SmokeValuation())],
-            IncludeInUltimateChaos: true));
+            IncludeInUltimateChaos: true,
+            Keywords: [new ComponentKeywordDefinition("api_smoke:charged")],
+            Localizations: localizations));
         ComponentRuntimeApi.RegisterPackage("api_smoke:runtime",
             [new ComponentRuntimeRoute("api_smoke", "effect", handler)]);
-        ComponentPresentationApi.Register("api_smoke", "effect", tips);
+        ComponentPresentationApi.RegisterPackage("api_smoke:presentation",
+            [new ComponentPresentationRoute("api_smoke", "effect", tips)]);
+        ComponentKeywordRuntimeApi.RegisterPackage("api_smoke:keywords",
+            [new ComponentKeywordRuntimeRegistration("api_smoke:charged", new SmokeKeywordAdapter())]);
         ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
             profileId, GeneratedCharacter.Ironclad, "api_smoke", new SmokeAncientRelicAdapter()));
+        _ = ComponentPresentationApi.RegisteredRoutes;
+        _ = ComponentPresentationApi.RegisteredPackages;
+        _ = ComponentKeywordRuntimeApi.RegisteredKeywordIds;
+        _ = ComponentKeywordRuntimeApi.RegisteredPackages;
         _ = new RandomCardGenerator(request, 12345, balancedValues: true);
         _ = new RandomCardGenerator(new ComponentProfileRequest(profileId, GeneratedCharacter.Ironclad, true),
             12345, balancedValues: true);
     }
+}
+
+public sealed class SmokeKeywordAdapter : IComponentKeywordRuntimeAdapter
+{
+    public IEnumerable<IHoverTip> BuildHoverTips(ChaosCardModel card) => [];
 }
 
 public sealed class SmokeAncientRelicAdapter : IExternalAncientRelicAdapter

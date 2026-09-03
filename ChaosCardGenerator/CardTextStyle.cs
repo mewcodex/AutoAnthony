@@ -12,19 +12,28 @@ public static class CardTextStyle
 
     public static string Chinese(GeneratorOperation operation, string effectiveText)
     {
+        var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         var text = operation.Template switch
         {
             "C:playableIfDrawPileEmpty" => Regex.Replace(effectiveText,
                 @"^只有当(?:你的)?抽牌堆中没有牌时。?$", "只有当你的抽牌堆中没有牌时才能打出。"),
             "A:ruleRetainHand" => effectiveText.Replace("在你的回合结束时，不再丢弃你的手牌",
                 "在你的回合结束时，你不再丢弃你的手牌", StringComparison.Ordinal),
-            "C:untilTurnEnd" when effectiveText.Contains("当你打出下一张攻击牌时", StringComparison.Ordinal) => effectiveText
+            "C:untilTurnEnd" when runtimeSpec.Trigger?.Kind == "next_attack_played"
+                || operation.RuntimeSpec is null
+                && effectiveText.Contains("当你打出下一张攻击牌时", StringComparison.Ordinal) => effectiveText
                 .Replace("当你打出下一张攻击牌时", "在本回合中，当你打出下一张攻击牌时", StringComparison.Ordinal),
-            "C:untilTurnEnd" when effectiveText.Contains("打出一张攻击牌", StringComparison.Ordinal) => effectiveText
+            "C:untilTurnEnd" when runtimeSpec.Trigger?.Kind == "attack_played"
+                || operation.RuntimeSpec is null
+                && effectiveText.Contains("打出一张攻击牌", StringComparison.Ordinal) => effectiveText
                 .Replace("本回合每当你打出一张攻击牌时", "打出此牌后，你在这个回合内每打出一张攻击牌", StringComparison.Ordinal),
-            "C:untilTurnEnd" when effectiveText.Contains("受到一次攻击", StringComparison.Ordinal) => effectiveText
+            "C:untilTurnEnd" when runtimeSpec.Trigger?.Kind == "attack_received"
+                || operation.RuntimeSpec is null
+                && effectiveText.Contains("受到一次攻击", StringComparison.Ordinal) => effectiveText
                 .Replace("本回合每当你受到一次攻击时", "你在这个回合每受到一次攻击", StringComparison.Ordinal),
-            "C:untilTurnEnd" when effectiveText.Contains("打出一张牌", StringComparison.Ordinal) => effectiveText
+            "C:untilTurnEnd" when runtimeSpec.Trigger?.Kind == "card_played"
+                || operation.RuntimeSpec is null
+                && effectiveText.Contains("打出一张牌", StringComparison.Ordinal) => effectiveText
                 .Replace("本回合每当你打出一张牌时", "打出此牌后，你在本回合内每打出一张牌", StringComparison.Ordinal),
             "C:untilTurnEndCardDrawn" => effectiveText.Replace("本回合每当你抽到一张牌时",
                 "打出此牌后，你在本回合每抽到一张牌", StringComparison.Ordinal),

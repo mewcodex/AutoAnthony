@@ -1067,7 +1067,8 @@ internal static class EffectBalanceModel
 
     internal static bool IsScalableReward(ComponentAtom atom)
     {
-        if (OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("api_scalable_reward")) return true;
+        if (OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags
+            .Contains(ComponentSemanticFlags.ScalableReward)) return true;
         if (atom.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger or OperationScope.AbilityRule)
             return false;
         var operation = new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,

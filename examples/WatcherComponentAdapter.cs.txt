@@ -12,8 +12,10 @@ internal static class WatcherAutoAnthonyAdapter
 
     // Call during the Watcher mod initializer, before ModelDb.InitIds and before any pool generation.
     internal static void Register(IReadOnlyList<IroncladCardRecipe> reviewedWatcherRecipes,
-        IReadOnlyList<ComponentLocalizedText> localizedTexts,
-        IReadOnlyList<ComponentRuntimeRoute> runtimeRoutes)
+        IReadOnlyList<ComponentLocalizationRegistration> localizations,
+        IReadOnlyList<ComponentRuntimeRoute> runtimeRoutes,
+        IReadOnlyList<ComponentKeywordDefinition> customKeywords,
+        IReadOnlyList<ComponentKeywordRuntimeRegistration> keywordRuntime)
     {
         // Regent is only the chosen balance/legality archetype here. ProfileId is the real identity.
         var catalog = new ImmutableComponentCatalog(GeneratedCharacter.Regent, reviewedWatcherRecipes);
@@ -35,11 +37,15 @@ internal static class WatcherAutoAnthonyAdapter
                 UseArchetypeUpgradeDefaults: false));
 
         ComponentPackageApi.Register(new ComponentPackageRegistration(
-            "watcher:autoanthony:components", request, profile, localizedTexts,
+            "watcher:autoanthony:components", request, profile,
             Valuations: [new ComponentValuationRegistration(
                 "watcher_stance", "enter", new WatcherStanceValuation())],
-            IncludeInUltimateChaos: true));
+            IncludeInUltimateChaos: true,
+            Keywords: customKeywords,
+            Localizations: localizations));
         ComponentRuntimeApi.RegisterPackage("watcher:autoanthony:runtime", runtimeRoutes);
+        if (keywordRuntime.Count > 0)
+            ComponentKeywordRuntimeApi.RegisterPackage("watcher:autoanthony:keywords", keywordRuntime);
         ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
             ProfileId, GeneratedCharacter.Regent, "watcher"));
     }

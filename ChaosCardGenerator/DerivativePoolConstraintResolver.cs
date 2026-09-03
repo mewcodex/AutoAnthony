@@ -349,39 +349,50 @@ public static class DerivativePoolConstraintResolver
             ?? throw new InvalidOperationException($"Cannot rebind {operation.Template} without a source derivative.");
         if (previous.Id == selected.Id) return card;
 
-        var chinese = operation.ChineseText.Replace(previous.ChineseName, selected.ChineseName,
-            StringComparison.Ordinal);
-        var english = DerivativeSlotCatalog.ReplaceEnglishName(
-            EnglishCardDescriptionRenderer.OperationText(operation), previous, selected,
-            DerivativeSlotCatalog.ReferenceUsesPlural(operation.Template));
+        var reboundSpec = OperationRuntimeSpecCompiler.WithDerivativeReference(
+            OperationRuntimeSpecCompiler.GetOrCompile(operation), selected.Id);
+        var currentEnglish = EnglishCardDescriptionRenderer.OperationText(operation);
+        var localizedText = operation.LocalizedText;
+        if (localizedText is null)
+        {
+            if (!OperationLocalizedText.TryCompile(operation.ChineseText, currentEnglish,
+                    OperationRuntimeSpecCompiler.GetOrCompile(operation), out localizedText)
+                || localizedText is null)
+                throw new InvalidOperationException($"Cannot compile derivative localization for "
+                                                    + $"{operation.Template}/{previous.Id}.");
+        }
+        localizedText = DerivativeSlotCatalog.BindLocalizedText(operation, localizedText, currentEnglish);
+        var plural = DerivativeSlotCatalog.EnglishTextUsesPlural(currentEnglish, operation.Template);
+        localizedText = DerivativeSlotCatalog.SetDerivativeText(localizedText, selected, null, plural);
+        localizedText.Validate(reboundSpec);
+        var chinese = localizedText.RenderChinese(reboundSpec);
+        var english = localizedText.RenderEnglish(reboundSpec)
+            ?? throw new InvalidOperationException($"Derivative slot {operation.Template} has no English template.");
         ExternalOperationTextRegistry.Register(operation.Template, chinese, english);
         operations[operationIndex] = operation with
         {
             ChineseText = chinese,
             DerivativeId = selected.Id,
             DerivativeEnchantmentId = null,
-            DerivativeEnchantmentAmount = null
+            DerivativeEnchantmentAmount = null,
+            RuntimeSpec = reboundSpec,
+            LocalizedText = localizedText
         };
 
         CardUpgradePlan? upgrade = card.Upgrade;
         if (upgrade is not null)
         {
-            var effects = upgrade.Effects.Select(effect => effect.OperationIndex == operationIndex
-                ? effect with
-                {
-                    ChineseDescription = effect.ChineseDescription.Replace(previous.ChineseName,
-                        selected.ChineseName, StringComparison.Ordinal),
-                    EnglishDescription = DerivativeSlotCatalog.ReplaceEnglishName(effect.EnglishDescription,
-                        previous, selected, plural: false)
-                }
-                : effect).ToArray();
+            // Upgrade effects bind to the operation index and structured derivative identity. Their behavior does
+            // not contain localized derivative names, so rebinding the operation requires no upgrade-label rewrite.
+            var effects = upgrade.Effects;
             if (effects.Any(effect => effect.Kind == CardUpgradeKind.UpgradeDerivative
                 && effect.OperationIndex == operationIndex))
             {
-                var upgradedOperationText = chinese.Replace(selected.ChineseName,
-                    selected.ChineseName + "+", StringComparison.Ordinal);
-                ExternalOperationTextRegistry.Register(operation.Template, upgradedOperationText,
-                    DerivativeSlotCatalog.MarkEnglishUpgrade(english, selected));
+                var upgradedLocalized = DerivativeSlotCatalog.SetDerivativeText(localizedText, selected, null,
+                    plural, upgraded: true);
+                ExternalOperationTextRegistry.Register(operation.Template,
+                    upgradedLocalized.RenderChinese(reboundSpec),
+                    upgradedLocalized.RenderEnglish(reboundSpec) ?? english);
             }
             var upgradedOperations = CardUpgradeGenerator.ApplyEffectsToOperations(operations, effects);
             upgrade = upgrade with

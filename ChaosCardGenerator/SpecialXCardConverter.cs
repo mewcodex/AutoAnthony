@@ -193,24 +193,6 @@ public static class SpecialXCardConverter
         if (replacements.Length == 0) return operation;
         // Text mutation is now a rendering projection only. Slot eligibility and the persisted mask above are
         // determined entirely by RuntimeSpec; the legacy compiler guarantees the same slot/numeric ordering.
-        var chineseNumbers = Regex.Matches(operation.ChineseText, @"\d+");
-        var chinese = operation.ChineseText;
-        foreach (var item in replacements.OrderByDescending(item => item.NumericIndex))
-        {
-            if (item.NumericIndex >= chineseNumbers.Count) continue;
-            var number = chineseNumbers[item.NumericIndex];
-            chinese = chinese[..number.Index] + "X" + chinese[(number.Index + number.Length)..];
-        }
-        var english = EnglishCardDescriptionRenderer.OperationText(operation);
-        var englishNumbers = Regex.Matches(english, @"\d+");
-        foreach (var item in replacements.OrderByDescending(item => item.NumericIndex))
-        {
-            if (item.NumericIndex >= englishNumbers.Count) continue;
-            var englishNumber = englishNumbers[item.NumericIndex];
-            english = english[..englishNumber.Index] + "X"
-                + english[(englishNumber.Index + englishNumber.Length)..];
-        }
-        ExternalOperationTextRegistry.Register(operation.Template, chinese, english);
         var parameters = operation.Parameters.ToDictionary(entry => entry.Key, entry => entry.Value,
             StringComparer.Ordinal);
         parameters[Parameter] = resource;
@@ -218,7 +200,54 @@ public static class SpecialXCardConverter
         var runtimeSpec = OperationRuntimeSpecCompiler.ConvertFixedValuesToSpecialX(
             OperationRuntimeSpecCompiler.GetOrCompile(operation),
             replacements.Select(item => item.Slot.Id).ToArray());
-        return operation with { ChineseText = chinese, Parameters = parameters, RuntimeSpec = runtimeSpec };
+        string chinese;
+        string english;
+        if (operation.LocalizedText is { } localized)
+        {
+            chinese = localized.RenderChinese(runtimeSpec);
+            english = localized.RenderEnglish(runtimeSpec)
+                ?? ConvertLegacyEnglish(operation, replacements);
+        }
+        else
+        {
+            chinese = ConvertLegacyChinese(operation, replacements);
+            english = ConvertLegacyEnglish(operation, replacements);
+        }
+        ExternalOperationTextRegistry.Register(operation.Template, chinese, english);
+        return operation with
+        {
+            ChineseText = chinese,
+            Parameters = parameters,
+            RuntimeSpec = runtimeSpec
+        };
+    }
+
+    private static string ConvertLegacyChinese(GeneratorOperation operation,
+        IReadOnlyList<(RuntimeValueSlot Slot, int NumericIndex)> replacements)
+    {
+        var matches = Regex.Matches(operation.ChineseText, @"\d+");
+        var text = operation.ChineseText;
+        foreach (var item in replacements.OrderByDescending(item => item.NumericIndex))
+        {
+            if (item.NumericIndex >= matches.Count) continue;
+            var match = matches[item.NumericIndex];
+            text = text[..match.Index] + "X" + text[(match.Index + match.Length)..];
+        }
+        return text;
+    }
+
+    private static string ConvertLegacyEnglish(GeneratorOperation operation,
+        IReadOnlyList<(RuntimeValueSlot Slot, int NumericIndex)> replacements)
+    {
+        var text = EnglishCardDescriptionRenderer.OperationText(operation);
+        var matches = Regex.Matches(text, @"\d+");
+        foreach (var item in replacements.OrderByDescending(item => item.NumericIndex))
+        {
+            if (item.NumericIndex >= matches.Count) continue;
+            var match = matches[item.NumericIndex];
+            text = text[..match.Index] + "X" + text[(match.Index + match.Length)..];
+        }
+        return text;
     }
 
     private static IReadOnlyList<(RuntimeValueSlot Slot, int NumericIndex)> ConvertibleSlots(

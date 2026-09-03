@@ -80,8 +80,12 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.9";
-    private const int SchemaVersion = 9;
+    public const string ModVersion = "0.3.10";
+    private const int SchemaVersion = 10;
+    // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
+    // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay
+    // migration branches. Schema 5 is the oldest live-save contract maintained by current releases.
+    private const int MinimumLiveSchemaVersion = 5;
     private const string PayloadProperty = "PoolSnapshot";
     private const string SurpriseKnowledgeProperty = "SurpriseKnowledge";
     private const string Prefix = "AA1:";
@@ -98,10 +102,6 @@ public static class ChaosPoolSnapshot
         bool NumericBalanceOptimization,
         bool NumericRandomMode,
         bool PreserveOriginalCards,
-        IReadOnlyList<PoolEnvelope> Pools);
-    // Schema 4 did not store the run mode explicitly. Keep its exact shape for migration audits.
-    private sealed record LegacyEnvelopeV4(int Schema, string ModVersion,
-        IReadOnlyList<GeneratedCharacter> ActiveCharacters, string Seed, bool AncientFuel,
         IReadOnlyList<PoolEnvelope> Pools);
     private sealed record CachedRunPayload(IReadOnlyList<GeneratedCharacter> ActiveCharacters, string Seed,
         bool AncientFuel, bool UltimateChaos, bool ReplaceStartingCards,
@@ -452,24 +452,7 @@ public static class ChaosPoolSnapshot
             var restoredPools = fallbacks.ToDictionary(pair => pair.Key, pair => pair.Value);
             var restored = 0;
             var rejected = 0;
-            if (schema == 1)
-            {
-                var savedCharacter = root.GetProperty("character").Deserialize<GeneratedCharacter>(JsonOptions);
-                EnsureLegacyCharacterMatches(savedCharacter, normalizedCharacters);
-                var result = RestorePool(root.GetProperty("cards"), savedCharacter,
-                    fallbacks[savedCharacter], logFailures, schema, allowRandomizedNumericValues);
-                restoredPools[savedCharacter] = result.Cards;
-                restored += result.Accepted;
-                rejected += result.Rejected;
-            }
-            else if (schema == 2)
-            {
-                var savedActive = root.GetProperty("activeCharacter").Deserialize<GeneratedCharacter>(JsonOptions);
-                EnsureLegacyCharacterMatches(savedActive, normalizedCharacters);
-                RestorePools(root, fallbacks, restoredPools, ref restored, ref rejected, logFailures, schema,
-                    allowRandomizedNumericValues);
-            }
-            else if (schema is 3 or 4 or 5 or 6 or 7 or 8 or SchemaVersion)
+            if (schema >= MinimumLiveSchemaVersion && schema <= SchemaVersion)
             {
                 var savedActive = root.GetProperty("activeCharacters")
                     .Deserialize<GeneratedCharacter[]>(JsonOptions) ?? [];
@@ -510,7 +493,7 @@ public static class ChaosPoolSnapshot
             using var document = Decode(payload);
             var root = document.RootElement;
             var schema = root.GetProperty("schema").GetInt32();
-            if (schema is not (5 or 6 or 7 or 8 or SchemaVersion)
+            if (schema is not (5 or 6 or 7 or 8 or 9 or SchemaVersion)
                 || !string.Equals(root.GetProperty("seed").GetString(), seed, StringComparison.Ordinal))
                 return false;
             var normalizedCharacters = NormalizeCharacters(activeCharacters);
@@ -596,7 +579,7 @@ public static class ChaosPoolSnapshot
                 var savedCharacter = root.GetProperty("activeCharacter").Deserialize<GeneratedCharacter>(JsonOptions);
                 EnsureLegacyCharacterMatches(savedCharacter, normalizedCharacters);
             }
-            else if (schema is 3 or 4 or 5 or 6 or 7 or 8 or SchemaVersion)
+            else if (schema is 3 or 4 or 5 or 6 or 7 or 8 or 9 or SchemaVersion)
             {
                 var savedActive = root.GetProperty("activeCharacters")
                     .Deserialize<GeneratedCharacter[]>(JsonOptions) ?? [];
@@ -717,10 +700,11 @@ public static class ChaosPoolSnapshot
         {
             using var document = Decode(payload);
             var root = document.RootElement;
-            if (!string.Equals(root.GetProperty("seed").GetString(), seed, StringComparison.Ordinal))
+            var schema = root.GetProperty("schema").GetInt32();
+            if (schema < MinimumLiveSchemaVersion || schema > SchemaVersion
+                || !string.Equals(root.GetProperty("seed").GetString(), seed, StringComparison.Ordinal))
                 return ChaosRunDefinitions.ShouldUseAncientFuel(seed);
-            return root.GetProperty("schema").GetInt32() >= 4
-                && root.TryGetProperty("ancientFuel", out var flag)
+            return root.TryGetProperty("ancientFuel", out var flag)
                 ? flag.GetBoolean()
                 : ChaosRunDefinitions.ShouldUseAncientFuel(seed);
         }
@@ -739,14 +723,13 @@ public static class ChaosPoolSnapshot
         {
             using var document = Decode(payload);
             var root = document.RootElement;
-            if (!string.Equals(root.GetProperty("seed").GetString(), seed, StringComparison.Ordinal)) return false;
+            var schema = root.GetProperty("schema").GetInt32();
+            if (schema < MinimumLiveSchemaVersion || schema > SchemaVersion
+                || !string.Equals(root.GetProperty("seed").GetString(), seed, StringComparison.Ordinal)) return false;
             if (root.TryGetProperty("ultimateChaos", out var explicitFlag)
                 && explicitFlag.ValueKind is JsonValueKind.True or JsonValueKind.False)
                 return explicitFlag.GetBoolean();
-
-            // Schema 4 already serialized this flag on every generated card. Infer the run mode so those
-            // saves remain stable after upgrading to schema 5.
-            return ContainsUltimateChaosCard(root);
+            return false;
         }
         catch
         {
@@ -868,21 +851,21 @@ public static class ChaosPoolSnapshot
         IDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> restoredPools,
         ref int restored, ref int rejected, bool logFailures, int schema, bool allowRandomizedNumericValues)
     {
-                var seen = new HashSet<GeneratedCharacter>();
-                foreach (var poolElement in root.GetProperty("pools").EnumerateArray())
-                {
-                    var character = poolElement.GetProperty("character").Deserialize<GeneratedCharacter>(JsonOptions);
-                    if (!fallbacks.ContainsKey(character) || !seen.Add(character))
-                    {
-                        rejected++;
-                        continue;
-                    }
-                    var result = RestorePool(poolElement.GetProperty("cards"), character,
-                        fallbacks[character], logFailures, schema, allowRandomizedNumericValues);
-                    restoredPools[character] = result.Cards;
-                    restored += result.Accepted;
-                    rejected += result.Rejected;
-                }
+        var seen = new HashSet<GeneratedCharacter>();
+        foreach (var poolElement in root.GetProperty("pools").EnumerateArray())
+        {
+            var character = poolElement.GetProperty("character").Deserialize<GeneratedCharacter>(JsonOptions);
+            if (!fallbacks.ContainsKey(character) || !seen.Add(character))
+            {
+                rejected++;
+                continue;
+            }
+            var result = RestorePool(poolElement.GetProperty("cards"), character,
+                fallbacks[character], logFailures, schema, allowRandomizedNumericValues);
+            restoredPools[character] = result.Cards;
+            restored += result.Accepted;
+            rejected += result.Rejected;
+        }
     }
 
     private static GeneratedCharacter[] NormalizeCharacters(IEnumerable<GeneratedCharacter> characters) =>
@@ -974,11 +957,47 @@ public static class ChaosPoolSnapshot
         {
             if (requirePersisted)
                 throw new InvalidDataException($"Slot {definition.Slot} is missing persisted RuntimeSpecs.");
-            specs = definition.Card.Operations.Select(OperationRuntimeSpecCompiler.CompileRequired).ToArray();
+            specs = definition.Card.Operations.Select(OperationRuntimeSpecCompiler.CompileLegacy).ToArray();
         }
 
         var operations = definition.Card.Operations.Select((operation, index) =>
-            operation with { RuntimeSpec = specs[index] }).ToArray();
+        {
+            var hydrated = operation with { RuntimeSpec = specs[index] };
+            if (hydrated.LocalizedText is not null) return hydrated;
+            if (ComponentLocalizationApi.TryGet(hydrated.LocalizationId, out var registeredLocalization))
+            {
+                var localized = registeredLocalization;
+                var registeredEnglish = localized.RenderEnglish(specs[index])
+                    ?? EnglishCardDescriptionRenderer.OperationText(hydrated);
+                if (hydrated.DerivativeId is not null)
+                    localized = DerivativeSlotCatalog.BindSourceLocalizedText(hydrated, localized,
+                        registeredEnglish, specs[index]);
+                if (hydrated.OrbSourceId is not null || hydrated.OrbOutputId is not null)
+                    localized = OrbSlotCatalog.BindResolvedLocalizedText(hydrated, localized, registeredEnglish,
+                        specs[index]);
+                return hydrated with { LocalizedText = localized };
+            }
+            // Named localization templates are deliberately not persisted per operation: doing so would duplicate
+            // the already stored card text throughout every live/history snapshot. Rebuild this presentation-only
+            // cache only for schema 5-9 operations without a stable ID. Schema 10 takes the registry path above and
+            // therefore does not recompile hundreds of localized sentences while a run is loading.
+            try
+            {
+                var english = EnglishCardDescriptionRenderer.OperationText(hydrated);
+                if (!OperationLocalizedText.TryCompile(hydrated.ChineseText, english, specs[index],
+                        out var localized) || localized is null)
+                    return hydrated;
+                if (hydrated.DerivativeId is not null)
+                    localized = DerivativeSlotCatalog.BindLocalizedText(hydrated, localized, english);
+                if (hydrated.OrbSourceId is not null || hydrated.OrbOutputId is not null)
+                    localized = OrbSlotCatalog.BindResolvedLocalizedText(hydrated, localized, english, specs[index]);
+                return hydrated with { LocalizedText = localized };
+            }
+            catch (InvalidOperationException)
+            {
+                return hydrated;
+            }
+        }).ToArray();
         var effects = definition.Card.Upgrade?.Effects ?? [];
         IReadOnlyList<string?> upgradeSlots;
         if (definition.UpgradeValueSlots is { } persistedUpgradeSlots)
@@ -1082,9 +1101,14 @@ public static class ChaosPoolSnapshot
                     || !OrbSlotCatalog.CanUseOutput(operation.Template, OrbSlotCatalog.Resolve(outputId)!))))
             throw new InvalidDataException($"Slot {definition.Slot} contains an invalid Orb slot.");
         if (definition.Card.Tags.Any(tag => !Enum.IsDefined(tag))
-            || definition.Card.Upgrade?.AddedKeywords.Any(tag => !Enum.IsDefined(tag)) == true
-            || definition.Card.Upgrade?.RemovedKeywords?.Any(tag => !Enum.IsDefined(tag)) == true)
+            || GeneratedCardTagPolicy.AddedKeywords(definition.Card.Upgrade).Any(tag => !Enum.IsDefined(tag))
+            || GeneratedCardTagPolicy.RemovedKeywords(definition.Card.Upgrade).Any(tag => !Enum.IsDefined(tag)))
             throw new InvalidDataException($"Slot {definition.Slot} contains an unknown keyword.");
+        if ((definition.Card.CustomKeywords ?? [])
+                .Concat(GeneratedCardTagPolicy.AddedCustomKeywords(definition.Card.Upgrade))
+                .Concat(GeneratedCardTagPolicy.RemovedCustomKeywords(definition.Card.Upgrade))
+                .Any(keywordId => !ComponentKeywordApi.IsRegistered(keywordId)))
+            throw new InvalidDataException($"Slot {definition.Slot} contains an unknown custom keyword.");
         if (definition.Card.Upgrade?.Effects.Any(effect => !Enum.IsDefined(effect.Kind)
                 || effect.OperationIndex is { } operationIndex
                     && (operationIndex < 0 || operationIndex >= definition.Card.Operations.Count)) == true)
@@ -1184,11 +1208,14 @@ public static class ChaosPoolSnapshot
             || packetSave.Modifiers.Any(modifier => modifier.Id == marker.Id))
             throw new InvalidOperationException("Pool snapshot multiplayer packet round-trip failed.");
 
-        var restored = RestoreAll(payload, activeCharacters, seed, pools, out var report, logFailures: false);
+        var restored = RestoreAll(payload, activeCharacters, seed, pools, out var report, logFailures: true);
+        var roundTripMismatch = FirstDefinitionMismatch(pools, restored);
         if (report.RegeneratedCards != 0 || report.RestoredCards != pools.Values.Sum(cards => cards.Count)
-            || ChaosRunDefinitions.SupportedPools.Any(character =>
-                JsonSerializer.Serialize(restored[character], JsonOptions) != JsonSerializer.Serialize(pools[character], JsonOptions)))
-            throw new InvalidOperationException("All-pool snapshot round-trip audit failed.");
+            || roundTripMismatch is not null)
+            throw new InvalidOperationException("All-pool snapshot round-trip audit failed: "
+                                                + $"restored={report.RestoredCards}, regenerated={report.RegeneratedCards}, "
+                                                + $"expected={pools.Values.Sum(cards => cards.Count)}"
+                                                + (roundTripMismatch is null ? "." : $"; {roundTripMismatch}"));
         if (!TryRestoreComplete(payload, activeCharacters, seed, out var fastRestored, out var fastReport)
             || fastReport.RegeneratedCards != 0
             || fastReport.RestoredCards != pools.Values.Sum(cards => cards.Count)
@@ -1289,13 +1316,25 @@ public static class ChaosPoolSnapshot
             ChaosRunDefinitions.ActivePreserveOriginalCards, orderedPools));
         if (!RestoreAncientFuelFlag(forcedAncientPayload, seed))
             throw new InvalidOperationException("Ancient Fuel true snapshot flag was not restored.");
-        var legacyV3Payload = Encode(new LegacyEnvelopeV4(3, ModVersion, savedActive, seed, false, orderedPools));
-        _ = RestoreAll(legacyV3Payload, activeCharacters, seed, pools, out var legacyReport, logFailures: false);
-        if (legacyReport.RegeneratedCards != 0
-            || RestoreAncientFuelFlag(legacyV3Payload, seed) != ChaosRunDefinitions.ShouldUseAncientFuel(seed)
-            || !RestoreNumericBalanceOptimizationFlag(legacyV3Payload, seed))
-            throw new InvalidOperationException("Version 3 pool snapshot migration audit failed.");
-
+        var retiredLivePayload = Encode(new
+        {
+            Schema = 4,
+            ModVersion = "0.1.0",
+            ActiveCharacters = savedActive,
+            Seed = seed,
+            AncientFuel = false,
+            Pools = orderedPools
+        });
+        _ = RestoreAll(retiredLivePayload, activeCharacters, seed, pools,
+            out var retiredLiveReport, logFailures: false);
+        if (retiredLiveReport.RestoredCards != 0
+            || retiredLiveReport.RegeneratedCards != pools.Values.Sum(cards => cards.Count)
+            || !TryRestoreForHistory(retiredLivePayload, activeCharacters, seed,
+                out var retiredHistory, out var retiredHistoryFailure)
+            || retiredHistoryFailure is not null
+            || retiredHistory.Cards.Values.Sum(cards => cards.Count) != pools.Values.Sum(cards => cards.Count))
+            throw new InvalidOperationException(
+                "Retired schema live-regeneration/history-read compatibility audit failed.");
         var legacyV7Pools = orderedPools.Select(pool => new PoolEnvelope(pool.Character,
             pool.Cards.Select(definition => definition with
             {
@@ -1314,24 +1353,18 @@ public static class ChaosPoolSnapshot
                 || definition.Card.Operations.Any(operation => operation.RuntimeSpec is null)))
             throw new InvalidOperationException("Version 7 RuntimeSpec migration audit failed.");
 
-        var legacyUltimatePools = orderedPools.Select(pool => new PoolEnvelope(pool.Character,
-            pool.Cards.Select(definition => definition with
-            {
-                Card = definition.Card with { UnifiedChaos = true }
-            }).ToArray())).ToArray();
-        var legacyUltimatePayload = Encode(new LegacyEnvelopeV4(4, ModVersion, savedActive, seed, false,
-            legacyUltimatePools));
-        if (!RestoreUltimateChaosFlag(legacyUltimatePayload, seed))
-            throw new InvalidOperationException("Version 4 Ultimate Chaos mode inference audit failed.");
-        var legacyNormalPools = orderedPools.Select(pool => new PoolEnvelope(pool.Character,
-            pool.Cards.Select(definition => definition with
-            {
-                Card = definition.Card with { UnifiedChaos = false }
-            }).ToArray())).ToArray();
-        var legacyNormalPayload = Encode(new LegacyEnvelopeV4(4, ModVersion, savedActive, seed, false,
-            legacyNormalPools));
-        if (RestoreUltimateChaosFlag(legacyNormalPayload, seed))
-            throw new InvalidOperationException("Version 4 normal-mode snapshot was mistaken for Ultimate Chaos.");
+        var legacyV9Payload = Encode(new Envelope(9, "0.3.8", savedActive, seed,
+            ChaosRunDefinitions.AncientFuelActive, ChaosRunDefinitions.ActiveUltimateChaos,
+            ChaosRunDefinitions.ActiveReplaceStartingCards,
+            ChaosRunDefinitions.ActiveNumericBalanceOptimization, ChaosRunDefinitions.ActiveNumericRandomMode,
+            ChaosRunDefinitions.ActivePreserveOriginalCards, orderedPools));
+        var legacyV9Restored = RestoreAll(legacyV9Payload, activeCharacters, seed, pools,
+            out var legacyV9Report, logFailures: false);
+        if (legacyV9Report.RegeneratedCards != 0
+            || legacyV9Restored.Values.SelectMany(cards => cards).Any(definition =>
+                definition.RuntimeSpecs is null || definition.UpgradeValueSlots is null
+                || definition.Card.Operations.Any(operation => operation.RuntimeSpec is null)))
+            throw new InvalidOperationException("Version 9 structured snapshot migration audit failed.");
 
         var invalidPools = pools.ToDictionary(pair => pair.Key,
             pair => (IReadOnlyList<ChaosCardDefinition>)pair.Value.ToArray());
@@ -1362,6 +1395,34 @@ public static class ChaosPoolSnapshot
             || incompatibleHistory.RejectedCards != 0
             || incompatibleHistory.Cards[invalidCharacter][0].Card.Operations[0].Template != "REMOVED:Operation")
             throw new InvalidOperationException("Run history applied live gameplay validation or regenerated an old card.");
+    }
+
+    private static string? FirstDefinitionMismatch(
+        IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> expected,
+        IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> actual)
+    {
+        foreach (var character in ChaosRunDefinitions.SupportedPools)
+        {
+            var expectedCards = expected[character];
+            var actualCards = actual[character];
+            if (expectedCards.Count != actualCards.Count)
+                return $"{character} count {actualCards.Count}, expected {expectedCards.Count}";
+            for (var index = 0; index < expectedCards.Count; index++)
+            {
+                var expectedJson = JsonSerializer.Serialize(expectedCards[index], JsonOptions);
+                var actualJson = JsonSerializer.Serialize(actualCards[index], JsonOptions);
+                if (string.Equals(expectedJson, actualJson, StringComparison.Ordinal)) continue;
+                var offset = 0;
+                var shared = Math.Min(expectedJson.Length, actualJson.Length);
+                while (offset < shared && expectedJson[offset] == actualJson[offset]) offset++;
+                var expectedTail = expectedJson.Substring(Math.Max(0, offset - 48),
+                    Math.Min(160, expectedJson.Length - Math.Max(0, offset - 48)));
+                var actualTail = actualJson.Substring(Math.Max(0, offset - 48),
+                    Math.Min(160, actualJson.Length - Math.Max(0, offset - 48)));
+                return $"{character} slot {index}, offset {offset}; expected `{expectedTail}`; actual `{actualTail}`";
+            }
+        }
+        return null;
     }
 
     internal static void AuditAuthoritativeMultiplayerRoundTrip(

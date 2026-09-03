@@ -498,12 +498,19 @@ internal static class ChaosModelDbReadyPatch
 
     private static void AuditPowerDescriptionProjection()
     {
+        static GeneratorOperation Structured(GeneratorOperation operation) => operation with
+        {
+            RuntimeSpec = OperationRuntimeSpecCompiler.CompileLegacy(operation)
+        };
+
         var descriptionProbe = new GeneratorOperation[]
         {
-            new("N:B", OperationScope.NonTargeted, "获得8点格挡。", new Dictionary<string, int> { ["block"] = 8 }),
-            new("A:turnStart", OperationScope.AbilityTrigger, "在你的回合开始时，", new Dictionary<string, int>()),
-            new("N:RandomD", OperationScope.NonTargeted, "对一名随机敌人造成X+1点伤害。",
-                new Dictionary<string, int> { ["damage"] = 1, ["triggerIndex"] = 1 })
+            Structured(new("N:B", OperationScope.NonTargeted, "获得8点格挡。",
+                new Dictionary<string, int> { ["block"] = 8 })),
+            Structured(new("A:turnStart", OperationScope.AbilityTrigger, "在你的回合开始时，",
+                new Dictionary<string, int>())),
+            Structured(new("N:RandomD", OperationScope.NonTargeted, "对一名随机敌人造成X+1点伤害。",
+                new Dictionary<string, int> { ["damage"] = 1, ["triggerIndex"] = 1 }))
         };
         var filteredProbe = ChaosCompositePower.DescriptionOperations(descriptionProbe);
         if (filteredProbe.Count != 2 || filteredProbe.Any(operation => operation.Template == "N:B")
@@ -511,17 +518,17 @@ internal static class ChaosModelDbReadyPatch
             throw new InvalidOperationException("AutoAnthony Power operation filtering audit failed.");
         if (ChaosCompositePower.ResolvePrintedX("X点伤害；X+1次。", 3) != "3点伤害；4次。")
             throw new InvalidOperationException("AutoAnthony resolved Power X-value audit failed.");
-        if (ChaosOperationVariables.ReplaceInitialValue(descriptionProbe[0], descriptionProbe[0].ChineseText, 13)
+        if (ChaosOperationVariables.ReplaceInitialValue(descriptionProbe[0], 13).ChineseText
                 != "获得13点格挡。")
             throw new InvalidOperationException("AutoAnthony captured Power value replacement audit failed.");
-        var drawAndBlock = new GeneratorOperation("I:DrawAndBlockIfSkill", OperationScope.NonTargeted,
-            "抽2张牌。如果抽到的是技能牌，获得7点格挡。", new Dictionary<string, int>());
-        if (ChaosOperationVariables.ReplaceInitialValue(drawAndBlock, drawAndBlock.ChineseText, 11)
+        var drawAndBlock = Structured(new GeneratorOperation("I:DrawAndBlockIfSkill", OperationScope.NonTargeted,
+            "抽2张牌。如果抽到的是技能牌，获得7点格挡。", new Dictionary<string, int>()));
+        if (ChaosOperationVariables.ReplaceInitialValue(drawAndBlock, 11).ChineseText
                 != "抽2张牌。如果抽到的是技能牌，获得11点格挡。")
             throw new InvalidOperationException("AutoAnthony secondary captured Power value replacement audit failed.");
-        var enchantedShiv = new GeneratorOperation("N:CreateInkShiv", OperationScope.NonTargeted,
+        var enchantedShiv = Structured(new GeneratorOperation("N:CreateInkShiv", OperationScope.NonTargeted,
             "将2张墨影小刀加入手牌。", new Dictionary<string, int>(), DerivativeId: "shiv",
-            DerivativeEnchantmentId: "inky");
+            DerivativeEnchantmentId: "inky"));
         var styledChinese = ChaosTextFormatter.Format(ChaosDerivativeTextStyle.Apply(
             enchantedShiv.ChineseText, [enchantedShiv], chinese: true), chinese: true);
         var styledEnglish = ChaosTextFormatter.Format(ChaosDerivativeTextStyle.Apply(
@@ -531,12 +538,12 @@ internal static class ChaosModelDbReadyPatch
             || styledChinese.Contains("[gold][gold]", StringComparison.Ordinal)
             || styledEnglish.Contains("[gold][gold]", StringComparison.Ordinal))
             throw new InvalidOperationException("AutoAnthony derivative/enchantment description colors are invalid.");
-        var currentTurnAttack = new GeneratorOperation("C:untilTurnEnd", OperationScope.ConditionalTrigger,
-            "本回合每当你打出一张攻击牌时，", new Dictionary<string, int>());
-        var currentTurnDefense = new GeneratorOperation("C:untilTurnEnd", OperationScope.ConditionalTrigger,
-            "本回合每当你受到一次攻击时，", new Dictionary<string, int>());
-        var combatLongTrigger = new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
-            "在你的回合开始时，", new Dictionary<string, int>());
+        var currentTurnAttack = Structured(new GeneratorOperation("C:untilTurnEnd", OperationScope.ConditionalTrigger,
+            "本回合每当你打出一张攻击牌时，", new Dictionary<string, int>()));
+        var currentTurnDefense = Structured(new GeneratorOperation("C:untilTurnEnd", OperationScope.ConditionalTrigger,
+            "本回合每当你受到一次攻击时，", new Dictionary<string, int>()));
+        var combatLongTrigger = Structured(new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
+            "在你的回合开始时，", new Dictionary<string, int>()));
         if (ChaosCompositePower.TurnLimitedTriggerExpired(currentTurnAttack, false, false)
             || !ChaosCompositePower.TurnLimitedTriggerExpired(currentTurnAttack, true, false)
             || ChaosCompositePower.TurnLimitedTriggerExpired(currentTurnDefense, true, false)
@@ -554,13 +561,13 @@ internal static class ChaosModelDbReadyPatch
             throw new InvalidOperationException("AutoAnthony Power Strength/Dexterity capture routing audit failed.");
         var choiceProbe = new GeneratorOperation[]
         {
-            new("NCR:WheneverCardPlayedThisTurn", OperationScope.AbilityTrigger,
-                "本回合每当你打出一张牌时，", new Dictionary<string, int>()),
-            new("N_SELECT_HAND_CARD", OperationScope.NonTargeted, "选择手牌中的一张牌。",
-                new Dictionary<string, int> { ["slotIndex"] = 1 }),
-            new("R:PlaySelectedSkillMultipleTimes", OperationScope.NonTargeted,
+            Structured(new("NCR:WheneverCardPlayedThisTurn", OperationScope.AbilityTrigger,
+                "本回合每当你打出一张牌时，", new Dictionary<string, int>())),
+            Structured(new("N_SELECT_HAND_CARD", OperationScope.NonTargeted, "选择手牌中的一张牌。",
+                new Dictionary<string, int> { ["slotIndex"] = 1 })),
+            Structured(new("R:PlaySelectedSkillMultipleTimes", OperationScope.NonTargeted,
                 "选择手牌中的一张技能牌，将其打出5次。",
-                new Dictionary<string, int> { ["triggerIndex"] = 0 }, "card1")
+                new Dictionary<string, int> { ["triggerIndex"] = 0 }, "card1"))
         };
         if (ChaosOperationExecutor.CardSelectorForSlot(choiceProbe, "card1")?.Template != "N_SELECT_HAND_CARD"
             || ChaosOperationExecutor.CardSelectorForSlot(choiceProbe, "eventCard") is not null)
@@ -643,6 +650,11 @@ internal static class ChaosModelDbReadyPatch
 
     private static void AuditEnergyIconTemplates()
     {
+        static GeneratorOperation Structured(GeneratorOperation operation) => operation with
+        {
+            RuntimeSpec = OperationRuntimeSpecCompiler.CompileLegacy(operation)
+        };
+
         var templates = new[]
         {
             "N:E", "N:NextTurnEnergy", "D:GainEnergy", "D:NextTurnEnergy",
@@ -650,11 +662,11 @@ internal static class ChaosModelDbReadyPatch
         };
         foreach (var template in templates)
         {
-            var operation = new GeneratorOperation(template, OperationScope.NonTargeted,
+            var operation = Structured(new GeneratorOperation(template, OperationScope.NonTargeted,
                 template.Contains("NextTurn", StringComparison.Ordinal)
                     ? "在下个回合获得2点能量。"
                     : "获得2点能量。",
-                new Dictionary<string, int>());
+                new Dictionary<string, int>()));
             var chinese = ChaosOperationVariables.InsertToken(operation, 0, operation.ChineseText, chinese: true);
             var englishSource = template.Contains("NextTurn", StringComparison.Ordinal)
                 ? "Next turn, gain 2 Energy."
@@ -666,8 +678,8 @@ internal static class ChaosModelDbReadyPatch
                 throw new InvalidOperationException($"AutoAnthony energy icon formatter audit failed for {template}.");
         }
 
-        var spent = new GeneratorOperation("A:whenEnergySpent", OperationScope.AbilityTrigger,
-            "你每花费4点能量。", new Dictionary<string, int>());
+        var spent = Structured(new GeneratorOperation("A:whenEnergySpent", OperationScope.AbilityTrigger,
+            "你每花费4点能量。", new Dictionary<string, int>()));
         var spentChinese = ChaosOperationVariables.InsertToken(spent, 0, spent.ChineseText, chinese: true);
         var spentEnglish = ChaosOperationVariables.InsertToken(spent, 0, "Every 4 Energy you spend.", chinese: false);
         if (!spentChinese.Contains("{energyPrefix:energyIcons(4)}", StringComparison.Ordinal)
@@ -676,8 +688,9 @@ internal static class ChaosModelDbReadyPatch
             || spentEnglish.Contains(" Energy", StringComparison.Ordinal))
             throw new InvalidOperationException("Orbit Energy-spent trigger icon formatter audit failed.");
 
-        var helixSpent = new GeneratorOperation("D:ForEachEnergySpentThisTurn", OperationScope.ConditionalTrigger,
-            "在本回合中，此牌以外每使用了1点能量，", new Dictionary<string, int>());
+        var helixSpent = Structured(new GeneratorOperation("D:ForEachEnergySpentThisTurn",
+            OperationScope.ConditionalTrigger, "在本回合中，此牌以外每使用了1点能量，",
+            new Dictionary<string, int>()));
         var helixChinese = ChaosOperationVariables.InsertToken(helixSpent, 0,
             helixSpent.ChineseText, chinese: true);
         var helixEnglish = ChaosOperationVariables.InsertToken(helixSpent, 0,
@@ -691,11 +704,24 @@ internal static class ChaosModelDbReadyPatch
 
     private static void AuditExecutionRouting()
     {
+        static GeneratorOperation Structured(GeneratorOperation probe) => probe with
+        {
+            RuntimeSpec = OperationRuntimeSpecCompiler.CompileLegacy(probe)
+        };
+
+        static GeneratorOperation StructuredProbe(string template, OperationScope scope, string chinese,
+            IReadOnlyDictionary<string, int>? parameters = null)
+        {
+            var probe = new GeneratorOperation(template, scope, chinese,
+                parameters ?? new Dictionary<string, int>());
+            return Structured(probe);
+        }
+
         AuditRuntimeSpecs();
-        var fatalUnblockedDamage = new GeneratorOperation("CL:DieOnUnblockedAttack",
-            OperationScope.AbilityRule, "受到未被格挡的攻击伤害时，立即死亡。", new Dictionary<string, int>());
-        var immediateAbilityRule = new GeneratorOperation("A:ProxyAtomic_Buffer",
-            OperationScope.AbilityRule, "阻止下一次生命损伤。", new Dictionary<string, int>());
+        var fatalUnblockedDamage = Structured(new GeneratorOperation("CL:DieOnUnblockedAttack",
+            OperationScope.AbilityRule, "受到未被格挡的攻击伤害时，立即死亡。", new Dictionary<string, int>()));
+        var immediateAbilityRule = Structured(new GeneratorOperation("A:ProxyAtomic_Buffer",
+            OperationScope.AbilityRule, "阻止下一次生命损伤。", new Dictionary<string, int>()));
         if (!ChaosOperationExecutor.RequiresCompositePower(fatalUnblockedDamage)
             || ChaosOperationExecutor.RequiresCompositePower(immediateAbilityRule))
             throw new InvalidOperationException(
@@ -719,7 +745,8 @@ internal static class ChaosModelDbReadyPatch
         if (orbit.Atoms.Count != 2 || orbit.Atoms[0].Template != "A:whenEnergySpent"
             || orbit.Atoms[1].Template != "R:GainEnergy" || orbit.TriggerOwners[1] != 0
             || CardEffectRules.TriggerSupportsChoiceContext(new GeneratorOperation(orbit.Atoms[0].Template,
-                orbit.Atoms[0].Scope, orbit.Atoms[0].ChineseText, new Dictionary<string, int>())))
+                orbit.Atoms[0].Scope, orbit.Atoms[0].ChineseText, new Dictionary<string, int>(),
+                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(orbit.Atoms[0]))))
             throw new InvalidOperationException("Orbit component decomposition/routing audit failed.");
 
         var dominate = RequireSingle(CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes,
@@ -731,26 +758,28 @@ internal static class ChaosModelDbReadyPatch
         if (strength.Template != "N:StrengthPerTargetVulnerable" || !strength.RequiresSingleTarget
             || !ChaosOperationExecutor.IsTargetVulnerableStrength(
                 new GeneratorOperation(strength.Template, strength.Scope, strength.ChineseText,
-                    new Dictionary<string, int>(), RequiresSingleTarget: true)))
+                    new Dictionary<string, int>(), RequiresSingleTarget: true,
+                    RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(strength))))
             throw new InvalidOperationException("Dominate target-scaled Strength routing audit failed.");
 
         var ashenStrike = RequireSingle(CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes,
             recipe => recipe.Id == "AshenStrike", "Ironclad/AshenStrike recipe");
         var exhaustModifier = RequireSingle(ashenStrike.Atoms,
             atom => atom.Scope == OperationScope.Modifier, "Ironclad/AshenStrike modifier atom");
-        var legacyStyledModifier = new GeneratorOperation("M:base", OperationScope.Modifier,
-            "你的消耗牌堆中每有1张牌，伤害增加3点。", new Dictionary<string, int>());
+        var legacyStyledModifier = Structured(new GeneratorOperation("M:base", OperationScope.Modifier,
+            "你的消耗牌堆中每有1张牌，伤害增加3点。", new Dictionary<string, int>()));
         if (exhaustModifier.Template != "M:DamagePerExhaustCard"
             || !ChaosOperationExecutor.IsExhaustPileDamageModifier(
                 new GeneratorOperation(exhaustModifier.Template, exhaustModifier.Scope, exhaustModifier.ChineseText,
-                    new Dictionary<string, int>()))
+                    new Dictionary<string, int>(),
+                    RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(exhaustModifier)))
             || !ChaosOperationExecutor.IsExhaustPileDamageModifier(legacyStyledModifier)
             || !ChaosOperationVariables.TryGetInitialValue(legacyStyledModifier, out var modifierAmount)
             || modifierAmount != 3)
             throw new InvalidOperationException("Exhaust-pile damage modifier routing audit failed.");
 
-        var currentCharacterCard = new GeneratorOperation("N:CreateCurrentCharacterCardInHand",
-            OperationScope.NonTargeted, "将一张当前角色的随机牌加入手牌。", new Dictionary<string, int>());
+        var currentCharacterCard = Structured(new GeneratorOperation("N:CreateCurrentCharacterCardInHand",
+            OperationScope.NonTargeted, "将一张当前角色的随机牌加入手牌。", new Dictionary<string, int>()));
         var upgradedCurrentCharacterCard = currentCharacterCard with
         {
             ChineseText = CardUpgradeGenerator.UpgradeRandomGenerationChinese(currentCharacterCard.ChineseText)
@@ -761,8 +790,8 @@ internal static class ChaosModelDbReadyPatch
             || !ChaosOperationExecutor.IsCurrentCharacterRandomCardGeneration(legacyCurrentCharacterCard))
             throw new InvalidOperationException("Current-character random-card generation routing audit failed.");
 
-        var autoplay = new GeneratorOperation("I:PlayTopCardAndExhaust", OperationScope.Independent,
-            "打出抽牌堆顶部的牌并将其消耗。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var autoplay = Structured(new GeneratorOperation("I:PlayTopCardAndExhaust", OperationScope.Independent,
+            "打出抽牌堆顶部的牌并将其消耗。", new Dictionary<string, int> { ["triggerIndex"] = 0 }));
         if (!ChaosCompositePower.TurnStartOperationNeedsChoiceContext(autoplay))
             throw new InvalidOperationException("Turn-start autoplay choice-context audit failed.");
         if (ChaosOperationExecutor.RandomDrawAutoplayLimit(2) != 2
@@ -784,14 +813,14 @@ internal static class ChaosModelDbReadyPatch
             || !ChaosOperationExecutor.ExhaustedCardMatchesTrigger("for_each_exhausted_non_attack", CardType.Status)
             || !ChaosOperationExecutor.ExhaustedCardMatchesTrigger("for_each_exhausted_card", CardType.Attack))
             throw new InvalidOperationException("Exhaust-count triggers no longer filter their actual exhausted card types.");
-        var dazedDiscard = new GeneratorOperation("D:CreateDazedInDiscard", OperationScope.NonTargeted,
-            "将一张晕眩加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "dazed");
-        var woundDiscard = new GeneratorOperation("D:CreateTwoWoundsInDiscard", OperationScope.NonTargeted,
-            "将2张伤口加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "wound");
-        var slimeDiscard = new GeneratorOperation("D:CreateSlimeInDiscard", OperationScope.NonTargeted,
-            "将一张黏液加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "slimed");
-        var burnDiscard = new GeneratorOperation("D:CreateBurnInDiscard", OperationScope.NonTargeted,
-            "将一张灼伤加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "burn");
+        var dazedDiscard = Structured(new GeneratorOperation("D:CreateDazedInDiscard", OperationScope.NonTargeted,
+            "将一张晕眩加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "dazed"));
+        var woundDiscard = Structured(new GeneratorOperation("D:CreateTwoWoundsInDiscard", OperationScope.NonTargeted,
+            "将2张伤口加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "wound"));
+        var slimeDiscard = Structured(new GeneratorOperation("D:CreateSlimeInDiscard", OperationScope.NonTargeted,
+            "将一张黏液加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "slimed"));
+        var burnDiscard = Structured(new GeneratorOperation("D:CreateBurnInDiscard", OperationScope.NonTargeted,
+            "将一张灼伤加入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "burn"));
         if (ChaosOperationExecutor.ExecutableDerivativeDiscardCount(dazedDiscard, 0) != 1
             || ChaosOperationExecutor.ExecutableDerivativeDiscardCount(woundDiscard, 0) != 2
             || ChaosOperationExecutor.ExecutableDerivativeDiscardCount(slimeDiscard, 0) != 1
@@ -805,21 +834,21 @@ internal static class ChaosModelDbReadyPatch
             || !ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(2, 2))
             throw new InvalidOperationException(
                 "Generated-card counts or empty generated-choice guards failed their runtime audit.");
-        var firstCardTrigger = new GeneratorOperation("A:firstCardPlayedEachTurn", OperationScope.AbilityTrigger,
-            "每回合中，当你打出第一张牌时，", new Dictionary<string, int>());
-        var replayPayoff = new GeneratorOperation("D:ReplayEventCard", OperationScope.NonTargeted,
+        var firstCardTrigger = StructuredProbe("A:firstCardPlayedEachTurn", OperationScope.AbilityTrigger,
+            "每回合中，当你打出第一张牌时，");
+        var replayPayoff = StructuredProbe("D:ReplayEventCard", OperationScope.NonTargeted,
             "重放该牌。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
-        var orbPayoff = new GeneratorOperation("D:ChannelRandom", OperationScope.NonTargeted,
+        var orbPayoff = StructuredProbe("D:ChannelRandom", OperationScope.NonTargeted,
             "生成3个随机充能球。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
         if (!ChaosCompositePower.HasTriggerWithLinkedEffect([firstCardTrigger, replayPayoff],
                 "first_card_played_each_turn", "D:ReplayEventCard")
             || ChaosCompositePower.HasTriggerWithLinkedEffect([firstCardTrigger, orbPayoff],
                 "first_card_played_each_turn", "D:ReplayEventCard"))
             throw new InvalidOperationException("First-card trigger incorrectly inherits Echo Form replay without its linked payoff.");
-        var triggeredSelectedExhaust = new GeneratorOperation("N:Exhaust", OperationScope.NonTargeted,
-            "消耗手牌中的2张牌。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
-        var turnStartTrigger = new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
-            "在你的回合开始时，", new Dictionary<string, int>());
+        var triggeredSelectedExhaust = Structured(new GeneratorOperation("N:Exhaust", OperationScope.NonTargeted,
+            "消耗手牌中的2张牌。", new Dictionary<string, int> { ["triggerIndex"] = 0 }));
+        var turnStartTrigger = Structured(new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
+            "在你的回合开始时，", new Dictionary<string, int>()));
         if (!CardEffectRules.OperationNeedsChoiceContext(triggeredSelectedExhaust)
             || !CardEffectRules.TriggerSupportsChoiceContext(turnStartTrigger))
             throw new InvalidOperationException(
@@ -834,9 +863,9 @@ internal static class ChaosModelDbReadyPatch
                 .Where(atom => atom.Template == template)
                 .Any(atom => OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(atom).Count == 0)))
             throw new InvalidOperationException("Generated-value lifecycle routing audit lost an explicit numeric slot.");
-        var plainX = OperationRuntimeSpecCompiler.CompileRequired(new GeneratorOperation("I:ProxyAtomic_MultiCast",
+        var plainX = OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation("I:ProxyAtomic_MultiCast",
             OperationScope.Independent, "激发你最右侧的充能球X次。", new Dictionary<string, int>()));
-        var plusOneX = OperationRuntimeSpecCompiler.CompileRequired(new GeneratorOperation("I:ProxyAtomic_MultiCast",
+        var plusOneX = OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation("I:ProxyAtomic_MultiCast",
             OperationScope.Independent, "激发你最右侧的充能球X+1次。", new Dictionary<string, int>()));
         var plainXValue = RequireSingle(plainX.Values, _ => true, "MultiCast X value slot");
         var plusOneXValue = RequireSingle(plusOneX.Values, _ => true, "MultiCast X+1 value slot");
@@ -866,7 +895,7 @@ internal static class ChaosModelDbReadyPatch
         GhostSeedEtherealPersistence.WriteMarker(ghostSeedMarkerProbe);
         if (!GhostSeedEtherealPersistence.HasMarker(ghostSeedMarkerProbe))
             throw new InvalidOperationException("Ghost Seed Ethereal marker does not survive card serialization.");
-        var selfStrengthLoss = OperationRuntimeSpecCompiler.GetOrCompile(new GeneratorOperation(
+        var selfStrengthLoss = OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation(
             "NCR:LoseStrength", OperationScope.NonTargeted, "失去2点力量。", new Dictionary<string, int>()));
         if (ChaosOperationExecutor.StructuredSelfPowerRoute(selfStrengthLoss) != "strength_loss")
             throw new InvalidOperationException(
@@ -888,8 +917,8 @@ internal static class ChaosModelDbReadyPatch
         if (unroutedSelfPowers.Length > 0)
             throw new InvalidOperationException(
                 $"Structured self Power routes are missing: {string.Join(", ", unroutedSelfPowers)}.");
-        var firstAttackTrigger = new GeneratorOperation("A:when", OperationScope.AbilityTrigger,
-            "每回合中，当你打出第1张攻击牌时。", new Dictionary<string, int>());
+        var firstAttackTrigger = StructuredProbe("A:when", OperationScope.AbilityTrigger,
+            "每回合中，当你打出第1张攻击牌时。");
         if (!ChaosCompositePower.IsNthAttackPlayedThisTurnTrigger(firstAttackTrigger)
             || ChaosCompositePower.NthAttackPlayedThisTurnThreshold(firstAttackTrigger) != 1)
             throw new InvalidOperationException("Nth-Attack trigger ignores its generated threshold.");
@@ -1295,7 +1324,8 @@ internal static class ChaosModelDbReadyPatch
         foreach (var canonical in cards)
         {
             var mutable = (ChaosCardModel)canonical.ToMutable();
-            CardTemplateValidator.Validate(mutable.Generated);
+            CardTemplateValidator.Validate(mutable.Generated,
+                allowRandomizedNumericValues: ChaosRunDefinitions.ActiveNumericRandomMode);
             if (mutable.Generated.Operations.Any(operation => operation.Template.Any(character => character > 127)))
                 throw new InvalidOperationException($"AutoAnthony operation ID is not ASCII-only for {canonical.Id}.");
             // Validate the actual SmartFormat template without calling GetDescriptionForPile: at this point custom
@@ -1363,6 +1393,7 @@ internal static class ChaosModelDbReadyPatch
             formatProbe.Add(new IfUpgradedVar(UpgradeDisplay.Normal));
             var energyPrefix = character.ToString().ToLowerInvariant();
             formatProbe.Add("energyPrefix", energyPrefix);
+            formatProbe.Add("singleStarIcon", "[img]res://images/packed/sprite_fonts/star_icon.png[/img]");
             foreach (var energyVar in mutable.DynamicVars.Values.OfType<EnergyVar>())
                 energyVar.ColorPrefix = energyPrefix;
             var formattedProbe = formatProbe.GetFormattedText();

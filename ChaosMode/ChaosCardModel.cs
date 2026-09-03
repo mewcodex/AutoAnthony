@@ -125,7 +125,7 @@ public abstract class ChaosCardModel : CardModel
         bool TemplateStarts(string value) => operations.Any(operation => operation.Template.StartsWith(value, StringComparison.Ordinal));
         bool HasAtomicReference(string flag) => operations
             .Where(operation => !DerivativeSlotCatalog.IsSlotOperation(operation.Template))
-            .Any(operation => OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains(flag));
+            .Any(operation => OperationRuntimeSpecCompiler.RequireStructured(operation).Flags.Contains(flag));
 
         // These words can be introduced by an operation without becoming a keyword on the generated card.
         if (HasTag("ethereal")) yield return HoverTipFactory.FromKeyword(CardKeyword.Ethereal);
@@ -142,7 +142,7 @@ public abstract class ChaosCardModel : CardModel
         if (HasTag("strength")) yield return HoverTipFactory.FromPower<StrengthPower>();
         if (HasTag("dexterity")) yield return HoverTipFactory.FromPower<DexterityPower>();
         if (HasTag("thorns")) yield return HoverTipFactory.FromPower<ThornsPower>();
-        if (operations.Any(operation => OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags
+        if (operations.Any(operation => OperationRuntimeSpecCompiler.RequireStructured(operation).Flags
                 .Contains("block_reference")))
             yield return HoverTipFactory.Static(StaticHoverTip.Block);
         if (HasTag("intangible")) yield return HoverTipFactory.FromPower<IntangiblePower>();
@@ -153,7 +153,7 @@ public abstract class ChaosCardModel : CardModel
 
         if (operations.Any(operation => operation.Template is "N:E" or "N:NextTurnEnergy" or "D:GainEnergy" or "D:NextTurnEnergy"
                 or "NCR:GainEnergy" or "NCR:NextTurnEnergy" or "R:GainEnergy"
-                || OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("cost_wording")))
+                || OperationRuntimeSpecCompiler.RequireStructured(operation).Flags.Contains("cost_wording")))
             // ChaosCardModel.Pool resolves directly to the character's dedicated replacement pool. Do not borrow
             // an arbitrary component-source card here: some valid source cards are intentionally outside reward
             // pools, and EnergyIconHelper rejects those cards while building hover tips.
@@ -201,6 +201,7 @@ public abstract class ChaosCardModel : CardModel
         for (var index = 0; index < operations.Count; index++)
             foreach (var tip in ComponentPresentationApi.BuildHoverTips(this, index, operations[index]))
                 yield return tip;
+        foreach (var tip in ComponentKeywordRuntimeApi.HoverTips(this)) yield return tip;
 
         // Atomic proxy tips are projected above from RuntimeSpec flags and typed derivative/orb slots. Do not
         // enumerate the source card's HoverTips here: during a chaos run its vanilla reward pool may be replaced,
@@ -210,7 +211,7 @@ public abstract class ChaosCardModel : CardModel
     private bool AtomicDerivativeIsUpgraded(string referenceFlag) => IsUpgraded
         && Generated.Upgrade?.Effects.Any(effect => effect.Kind == CardUpgradeKind.UpgradeDerivative
             && effect.OperationIndex is { } index && (uint)index < (uint)Generated.Operations.Count
-            && OperationRuntimeSpecCompiler.GetOrCompile(Generated.Operations[index]).Flags
+            && OperationRuntimeSpecCompiler.RequireStructured(Generated.Operations[index]).Flags
                 .Contains(referenceFlag)) == true;
 
     protected override IEnumerable<DynamicVar> CanonicalVars
@@ -264,14 +265,9 @@ public abstract class ChaosCardModel : CardModel
         {
             foreach (var tag in Generated.Tags)
             {
-                if (tag == ChaosCardGenerator.CardTag.Exhaust) yield return CardKeyword.Exhaust;
-                if (tag == ChaosCardGenerator.CardTag.Innate) yield return CardKeyword.Innate;
-                if (tag == ChaosCardGenerator.CardTag.Retain) yield return CardKeyword.Retain;
-                if (tag == ChaosCardGenerator.CardTag.Sly) yield return CardKeyword.Sly;
-                if (tag == ChaosCardGenerator.CardTag.Ethereal) yield return CardKeyword.Ethereal;
-                if (tag == ChaosCardGenerator.CardTag.Eternal) yield return CardKeyword.Eternal;
-                if (tag == ChaosCardGenerator.CardTag.Unplayable) yield return CardKeyword.Unplayable;
+                if (ChaosCardTagAdapter.TryKeyword(tag, out var keyword)) yield return keyword;
             }
+            foreach (var keyword in ComponentKeywordRuntimeApi.CanonicalKeywords(this)) yield return keyword;
         }
     }
 
@@ -283,12 +279,9 @@ public abstract class ChaosCardModel : CardModel
     {
         get
         {
-            if (Generated.Tags.Contains(ChaosCardGenerator.CardTag.Strike))
-                yield return MegaCrit.Sts2.Core.Entities.Cards.CardTag.Strike;
-            if (Generated.Tags.Contains(ChaosCardGenerator.CardTag.Defend))
-                yield return MegaCrit.Sts2.Core.Entities.Cards.CardTag.Defend;
-            if (Generated.Tags.Contains(ChaosCardGenerator.CardTag.OstyAttack))
-                yield return MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack;
+            foreach (var tag in Generated.Tags)
+                if (ChaosCardTagAdapter.TrySemanticTag(tag, out var gameTag)) yield return gameTag;
+            foreach (var gameTag in ComponentKeywordRuntimeApi.SemanticTags(this)) yield return gameTag;
         }
     }
 
@@ -300,6 +293,7 @@ public abstract class ChaosCardModel : CardModel
         // the active localization table so {EffectN:diff()} and energyIcons() are evaluated in the normal card pass.
         ChaosRuntimeDescriptionCache.InstallIfChanged(
             LocManager.Instance!.GetTable("cards"), Id.Entry + ".description", rawTemplate);
+        description.Add("singleStarIcon", "[img]res://images/packed/sprite_fonts/star_icon.png[/img]");
     }
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
@@ -338,7 +332,7 @@ public abstract class ChaosCardModel : CardModel
             // but must not fire at the moment the card enters the Exhaust pile.
             if (!CardEffectRules.IsSelfExhaustEventTrigger(operation)) continue;
             if (ChaosDiagnostics.VerboseRuntime)
-                MegaCrit.Sts2.Core.Logging.Log.Info($"[AutoAnthony] Fired self-exhaust trigger for slot {Definition.Slot}: {operation.ChineseText}");
+                ChaosRuntimeDiagnostics.TriggerFired("self-exhaust", Definition.Slot, operation);
             await ChaosOperationExecutor.ExecuteTriggered(this, index, choiceContext, eventCard: this);
         }
     }
@@ -573,16 +567,18 @@ public abstract class ChaosCardModel : CardModel
         var upgradedStarCost = upgrade.UpgradedStarCost ?? Generated.StarCost;
         if (!HasStarCostX && Generated.StarCost >= 0 && upgradedStarCost != Generated.StarCost)
             UpgradeStarCostBy(upgradedStarCost - Generated.StarCost);
-        foreach (var keyword in upgrade.AddedKeywords)
+        foreach (var keyword in GeneratedCardTagPolicy.AddedKeywords(upgrade))
         {
-            if (keyword == ChaosCardGenerator.CardTag.Innate) AddKeyword(CardKeyword.Innate);
-            if (keyword == ChaosCardGenerator.CardTag.Retain) AddKeyword(CardKeyword.Retain);
+            if (ChaosCardTagAdapter.TryKeyword(keyword, out var gameKeyword)) AddKeyword(gameKeyword);
         }
-        foreach (var keyword in upgrade.RemovedKeywords ?? Array.Empty<ChaosCardGenerator.CardTag>())
+        foreach (var keyword in GeneratedCardTagPolicy.RemovedKeywords(upgrade))
         {
-            if (keyword == ChaosCardGenerator.CardTag.Exhaust) RemoveKeyword(CardKeyword.Exhaust);
-            if (keyword == ChaosCardGenerator.CardTag.Ethereal) RemoveKeyword(CardKeyword.Ethereal);
+            if (ChaosCardTagAdapter.TryKeyword(keyword, out var gameKeyword)) RemoveKeyword(gameKeyword);
         }
+        foreach (var keywordId in GeneratedCardTagPolicy.AddedCustomKeywords(upgrade))
+            ComponentKeywordRuntimeApi.ApplyUpgrade(this, keywordId, added: true);
+        foreach (var keywordId in GeneratedCardTagPolicy.RemovedCustomKeywords(upgrade))
+            ComponentKeywordRuntimeApi.ApplyUpgrade(this, keywordId, added: false);
         foreach (var effect in upgrade.Effects)
         {
             if (effect.OperationIndex is not { } index || effect.Delta is not { } delta) continue;
@@ -861,7 +857,7 @@ internal static class ChaosStatPreview
             or "CL:GainNextTurnBlockEqualCurrent" or "NCR:BlockTripleOstyMaxHp" or "NCR:DoomScaledDamage"
             or "N:StrengthPerTargetVulnerable" or "I:ProxyAtomic_Voltaic") return true;
         if (operation.Template == "N:Self"
-            && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
+            && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant
                 == "strength_per_target_vulnerable")
         {
             kind = ChaosStatPreviewKind.Strength;
@@ -872,7 +868,7 @@ internal static class ChaosStatPreview
         {
             OperationRuntimeSpec? modifierSpec = null;
             if (operation.Template is "M:base" or "M:repeat")
-                OperationRuntimeSpecCompiler.TryCompile(operation, out modifierSpec, out _);
+                modifierSpec = OperationRuntimeSpecCompiler.RequireStructured(operation);
             if (RepeatModifiers.Contains(operation.Template)
                 || modifierSpec?.Opcode == "modify_hits")
             {
@@ -903,7 +899,7 @@ internal static class ChaosStatPreview
 
         if (CardEffectRules.IsMultiplicativeDependencyPrefix(prefix))
         {
-            var payoffSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+            var payoffSpec = OperationRuntimeSpecCompiler.RequireStructured(operation);
             if (CardEffectRules.IsEnemyDamage(operation)) kind = ChaosStatPreviewKind.Damage;
             else if (payoffSpec.Opcode == "gain_block") kind = ChaosStatPreviewKind.Block;
             else if (payoffSpec.Opcode == "draw_cards") kind = ChaosStatPreviewKind.Cards;
@@ -954,7 +950,7 @@ internal static class ChaosStatPreview
             case "NCR:DoomScaledDamage":
                 return target?.GetPower<DoomPower>()?.Amount ?? 0;
             case "N:StrengthPerTargetVulnerable":
-            case "N:Self" when OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
+            case "N:Self" when OperationRuntimeSpecCompiler.RequireStructured(operation).Variant
                 == "strength_per_target_vulnerable":
                 return (target?.GetPower<VulnerablePower>()?.Amount ?? 0)
                     * Math.Max(1, card.OperationAmount(index));
@@ -991,8 +987,11 @@ internal static class ChaosStatPreview
 
     internal static void Audit()
     {
-        static GeneratorOperation Op(string template, OperationScope scope, string text) =>
-            new(template, scope, text, new Dictionary<string, int>());
+        static GeneratorOperation Op(string template, OperationScope scope, string text)
+        {
+            var operation = new GeneratorOperation(template, scope, text, new Dictionary<string, int>());
+            return operation with { RuntimeSpec = OperationRuntimeSpecCompiler.CompileLegacy(operation) };
+        }
         var poison = new[] { Op("N:BlockEqualAllPoison", OperationScope.NonTargeted, "获得等同于所有敌人中毒层数总和的格挡") };
         if (!TryGetKind(poison, 0, out var poisonKind) || poisonKind != ChaosStatPreviewKind.Block
             || !Description(poisonKind, 0, true).Contains("{InCombat:", StringComparison.Ordinal)
@@ -1113,7 +1112,7 @@ internal static class ChaosOperationVariables
             value = 0;
             return false;
         }
-        var slot = OperationRuntimeSpecCompiler.GetOrCompile(operation).Values
+        var slot = OperationRuntimeSpecCompiler.RequireStructured(operation).Values
             .First(candidate => candidate.Id == slotId);
         value = slot.BaseValue + slot.Offset;
         return slot.Source == "fixed";
@@ -1121,13 +1120,21 @@ internal static class ChaosOperationVariables
 
     internal static bool TryGetInitialSlot(GeneratorOperation operation, out string slotId)
     {
-        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
-        // Preserve the documented schema1-7 M:base display-variable anomaly until its dedicated behavior
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+        // Preserve the documented schema5-7 M:base display-variable anomaly until its dedicated behavior
         // migration: the first printed interval was historically the DynamicVar even though the payoff is the
         // upgradable block_per_interval slot.
         if (operation.Template == "M:base" && spec.Variant == "strength_scaled")
         {
             slotId = "strength_interval";
+            return true;
+        }
+        // This operation prints Draw first and Block second, but only Block is a live preview variable. Older
+        // display code found the second localized number; keep that behavior structurally by naming the slot.
+        if (operation.Template == "I:DrawAndBlockIfSkill"
+            && spec.Values.Any(value => value.Id == "block" && value.Source == "fixed"))
+        {
+            slotId = "block";
             return true;
         }
         var slot = spec.Values
@@ -1136,21 +1143,42 @@ internal static class ChaosOperationVariables
         return slot is not null;
     }
 
-    internal static string ReplaceInitialValue(GeneratorOperation operation, string text, int value)
+    internal static GeneratorOperation ReplaceInitialValue(GeneratorOperation operation, int value)
     {
+        if (operation.LocalizedText is { } localized && TryGetInitialSlot(operation, out var slotId))
+        {
+            var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+            var updatedSpec = OperationRuntimeSpecCompiler.ReplaceFixedValueInSpec(spec, slotId,
+                Math.Max(0, value));
+            return operation with
+            {
+                ChineseText = localized.RenderChinese(updatedSpec),
+                RuntimeSpec = updatedSpec
+            };
+        }
+        var text = operation.ChineseText;
         if (!OperationRuntimeSpecCompiler.TryProjectLegacyDynamicValue(operation, text, out var projection)
             || projection is null)
-            return text;
-        return projection.Length == 0
+            return operation;
+        var projected = projection.Length == 0
             ? text
             : text[..projection.Start] + Math.Max(0, value).ToString(System.Globalization.CultureInfo.InvariantCulture)
                 + text[(projection.Start + projection.Length)..];
+        return operation with { ChineseText = projected };
     }
 
     internal static string InsertToken(GeneratorOperation operation, int operationIndex, string text, bool chinese)
     {
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
         if (operation.Template is "A:whenEnergySpent" or "D:ForEachEnergySpentThisTurn")
         {
+            var threshold = spec.Values.FirstOrDefault(value => value.Id == "threshold")
+                ?? spec.Values.FirstOrDefault(value => value.Source == "fixed" && value.Explicit);
+            if (threshold is not null && operation.LocalizedText?.TryReplaceRenderedSlot(text, spec,
+                    threshold.Id, $"{{energyPrefix:energyIcons({Math.Max(0, threshold.BaseValue + threshold.Offset)})}}",
+                    chinese, out var structuredEnergy) == true)
+                return structuredEnergy;
+            // Schema1-9 compatibility only. New operations always take the named-slot path above.
             var match = Number.Match(text);
             if (!match.Success) return text;
             var icon = $"{{energyPrefix:energyIcons({match.Value})}}";
@@ -1162,6 +1190,10 @@ internal static class ChaosOperationVariables
         if (operation.Template is "N:E" or "N:NextTurnEnergy" or "D:GainEnergy" or "D:NextTurnEnergy" or "NCR:GainEnergy"
             or "NCR:NextTurnEnergy" or "R:GainEnergy")
         {
+            if (TryGetInitialSlot(operation, out var energySlot)
+                && operation.LocalizedText?.TryReplaceRenderedSlot(text, spec, energySlot,
+                    $"{{{name}:energyIcons()}}", chinese, out var structuredEnergy) == true)
+                return structuredEnergy;
             var pattern = chinese ? @"获得\d+点能量" : @"(?:Gain|gain) \d+ Energy";
             return new System.Text.RegularExpressions.Regex(pattern).Replace(text, match => chinese
                 ? $"获得{{{name}:energyIcons()}}"
@@ -1169,6 +1201,17 @@ internal static class ChaosOperationVariables
         }
         if (operation.Template == "R:GainStars")
         {
+            if (TryGetInitialSlot(operation, out var starSlot))
+            {
+                var slot = spec.Values.First(value => value.Id == starSlot);
+                var useCompactStars = slot.BaseValue + slot.Offset > 5;
+                var structuredReplacement = useCompactStars
+                    ? $"{{{name}:diff()}}{{singleStarIcon}}"
+                    : $"{{{name}:starIcons()}}";
+                if (operation.LocalizedText?.TryReplaceRenderedSlot(text, spec, starSlot, structuredReplacement,
+                        chinese, out var structuredStars) == true)
+                    return structuredStars;
+            }
             var pattern = chinese ? @"获得\d+颗蓝星" : @"Gain \d+ Stars?";
             var match = new System.Text.RegularExpressions.Regex(pattern).Match(text);
             if (!match.Success) return text;
@@ -1179,6 +1222,10 @@ internal static class ChaosOperationVariables
                 : chinese ? $"获得{{{name}:starIcons()}}" : $"Gain {{{name}:starIcons()}}";
             return new System.Text.RegularExpressions.Regex(pattern).Replace(text, replacement, 1);
         }
+        if (TryGetInitialSlot(operation, out var initialSlot)
+            && operation.LocalizedText?.TryReplaceRenderedSlot(text, spec, initialSlot,
+                $"{{{name}:diff()}}", chinese, out var structured) == true)
+            return AddEnglishPluralSelectors(operation, structured, name, chinese);
         if (operation.Template == "I:DrawAndBlockIfSkill")
         {
             var matches = Number.Matches(text);
@@ -1187,6 +1234,12 @@ internal static class ChaosOperationVariables
             return text[..match.Index] + $"{{{name}:diff()}}" + text[(match.Index + match.Length)..];
         }
         var result = Number.Replace(text, $"{{{name}:diff()}}", 1);
+        return AddEnglishPluralSelectors(operation, result, name, chinese);
+    }
+
+    private static string AddEnglishPluralSelectors(GeneratorOperation operation, string result, string name,
+        bool chinese)
+    {
         if (!chinese)
         {
             var token = $"{{{name}:diff()}}";
@@ -1215,7 +1268,8 @@ internal static class ChaosOperationVariables
 
 internal static class ChaosRuntimeDescriptionRenderer
 {
-    private static string RenderEffects(ChaosCardModel card, IReadOnlyList<int> effectIndices, bool chinese)
+    private static string RenderEffects(ChaosCardModel card, IReadOnlyList<GeneratorOperation> effectiveOperations,
+        IReadOnlyList<int> effectIndices, bool chinese)
     {
         var pieces = new List<string>();
         for (var cursor = 0; cursor < effectIndices.Count; cursor++)
@@ -1227,12 +1281,12 @@ internal static class ChaosRuntimeDescriptionRenderer
             if (CardEffectRules.IsDependencyPrefix(operation) && cursor + 1 < effectIndices.Count
                 && CardEffectRules.IsLegalDependencyPayoff(operation, card.Generated.Operations[effectIndices[cursor + 1]]))
             {
-                var prefix = Text(card, index, chinese).TrimEnd('.', '。');
-                var payoff = Text(card, effectIndices[++cursor], chinese);
+                var prefix = Text(card, effectiveOperations, index, chinese).TrimEnd('.', '。');
+                var payoff = Text(card, effectiveOperations, effectIndices[++cursor], chinese);
                 pieces.Add(chinese ? prefix + payoff : prefix + " " + LowerFirst(payoff));
                 continue;
             }
-            pieces.Add(Text(card, index, chinese));
+            pieces.Add(Text(card, effectiveOperations, index, chinese));
         }
         return chinese ? string.Join(string.Empty, pieces) : string.Join(" ", pieces);
     }
@@ -1240,6 +1294,9 @@ internal static class ChaosRuntimeDescriptionRenderer
     internal static string Render(ChaosCardModel card, bool chinese)
     {
         var operations = card.Generated.Operations;
+        var effectiveOperations = card.IsUpgraded && card.Generated.Upgrade is { } upgrade
+            ? CardUpgradeGenerator.ApplyEffectsToOperations(operations, upgrade.Effects)
+            : operations;
         var lines = new List<string>();
         for (var index = 0; index < operations.Count; index++)
         {
@@ -1268,16 +1325,19 @@ internal static class ChaosRuntimeDescriptionRenderer
                     .ToArray();
                 if (CardEffectRules.IsNextAttackGrantTrigger(operation))
                 {
-                    var effectiveTrigger = operation with { ChineseText = Text(card, index, chinese) };
+                    var effectiveTrigger = operation with
+                    {
+                        ChineseText = Text(card, effectiveOperations, index, chinese)
+                    };
                     var effectiveEffects = effects.Select(effectIndex => operations[effectIndex] with
                     {
-                        ChineseText = Text(card, effectIndex, chinese)
+                        ChineseText = Text(card, effectiveOperations, effectIndex, chinese)
                     }).ToArray();
                     lines.Add(CardDescriptionRenderer.RenderNextAttackGrant(effectiveTrigger, effectiveEffects,
                         effect => effect.ChineseText, chinese));
                     continue;
                 }
-                var trigger = Text(card, index, chinese).TrimEnd('.', '。', '，', '；');
+                var trigger = Text(card, effectiveOperations, index, chinese).TrimEnd('.', '。', '，', '；');
                 if (effects.Length == 0)
                 {
                     lines.Add(trigger + (chinese ? "。" : "."));
@@ -1287,7 +1347,7 @@ internal static class ChaosRuntimeDescriptionRenderer
                 // runtime rendering necessary, but must not reintroduce full stops between effects owned by one
                 // condition or trigger.
                 var renderedEffects = CardDescriptionRenderer.JoinTriggeredEffects(
-                    RenderEffects(card, effects, chinese), chinese);
+                    RenderEffects(card, effectiveOperations, effects, chinese), chinese);
                 if (chinese)
                 {
                     if (operation.Scope == OperationScope.AbilityTrigger
@@ -1312,45 +1372,42 @@ internal static class ChaosRuntimeDescriptionRenderer
                     && !operations[index + 1].Parameters.ContainsKey("triggerIndex")
                     && CardEffectRules.IsLegalDependencyPayoff(operation, operations[index + 1]))
                 {
-                    lines.Add(RenderEffects(card, new[] { index, ++index }, chinese));
+                    lines.Add(RenderEffects(card, effectiveOperations, new[] { index, ++index }, chinese));
                     continue;
                 }
-                lines.Add(Text(card, index, chinese));
+                lines.Add(Text(card, effectiveOperations, index, chinese));
             }
         }
 
         return string.Join('\n', lines);
     }
 
-    private static string Text(ChaosCardModel card, int index, bool chinese)
+    private static string Text(ChaosCardModel card, IReadOnlyList<GeneratorOperation> effectiveOperations,
+        int index, bool chinese)
     {
         var operation = card.Generated.Operations[index];
-        var text = RenderOperationVariant(card, index, chinese,
-            ChaosOperationExecutor.EffectiveText(card, index));
+        var text = RenderOperationVariant(card, index, chinese, effectiveOperations[index]);
         if (card.Generated.Upgrade?.Effects.Any(effect =>
                 effect.Kind == CardUpgradeKind.UpgradeDerivative && effect.OperationIndex == index) == true
             && DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId)
-            && DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template) is { } derivative)
+            && DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template) is not null)
         {
             // Upgrade previews are formatted while the card itself is still unupgraded. Put both derivative names
             // in the localization template so the built-in IfUpgraded variable selects “Shiv+” for both previews
             // and upgraded instances, while ordinary copies continue to show “Shiv”.
-            var derivativeName = DerivativeSlotCatalog.ChineseCardName(operation);
-            var upgradedEffective = operation.ChineseText.Replace(derivativeName,
-                derivativeName + "+", StringComparison.Ordinal);
-            var normalText = RenderOperationVariant(card, index, chinese, operation.ChineseText);
-            var upgradedText = RenderOperationVariant(card, index, chinese, upgradedEffective);
+            var normalText = RenderOperationVariant(card, index, chinese, operation);
+            var upgradedOperation = CardUpgradeGenerator.ApplyEffectsToOperations(card.Generated.Operations,
+                card.Generated.Upgrade.Effects)[index];
+            var upgradedText = RenderOperationVariant(card, index, chinese, upgradedOperation);
             text = UpgradeConditional(upgradedText, normalText, chinese);
         }
         else if (card.Generated.Upgrade?.Effects.Any(effect =>
                      effect.Kind == CardUpgradeKind.UpgradeGeneratedCards && effect.OperationIndex == index) == true)
         {
-            var upgradedEffective = CardUpgradeGenerator.UpgradeRandomGenerationChinese(operation.ChineseText);
-            ExternalOperationTextRegistry.Register(operation.Template, upgradedEffective,
-                CardUpgradeGenerator.UpgradeRandomGenerationEnglish(
-                    EnglishCardDescriptionRenderer.OperationText(operation)));
-            var normalText = RenderOperationVariant(card, index, chinese, operation.ChineseText);
-            var upgradedText = RenderOperationVariant(card, index, chinese, upgradedEffective);
+            var normalText = RenderOperationVariant(card, index, chinese, operation);
+            var upgradedOperation = CardUpgradeGenerator.ApplyEffectsToOperations(card.Generated.Operations,
+                card.Generated.Upgrade.Effects)[index];
+            var upgradedText = RenderOperationVariant(card, index, chinese, upgradedOperation);
             text = UpgradeConditional(upgradedText, normalText, chinese);
         }
         if (!ChaosStatPreview.TryGetKind(card.Generated.Operations, index, out var previewKind))
@@ -1361,16 +1418,16 @@ internal static class ChaosRuntimeDescriptionRenderer
         return text + preview;
     }
 
-    private static string RenderOperationVariant(ChaosCardModel card, int index, bool chinese, string effective)
+    private static string RenderOperationVariant(ChaosCardModel card, int index, bool chinese,
+        GeneratorOperation effective)
     {
-        var operation = card.Generated.Operations[index];
         var text = chinese
-            ? CardTextStyle.Chinese(operation, effective)
-            : EnglishCardDescriptionRenderer.OperationText(operation with { ChineseText = effective });
-        if (DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template)?.Id == "fuel")
+            ? CardTextStyle.Chinese(effective, effective.ChineseText)
+            : EnglishCardDescriptionRenderer.OperationText(effective);
+        if (DerivativeSlotCatalog.Resolve(effective.DerivativeId, effective.Template)?.Id == "fuel")
             text = ChaosRunDefinitions.ReplaceFuelDisplay(text, chinese);
-        text = ChaosDerivativeTextStyle.Apply(text, [operation], chinese);
-        return ChaosOperationVariables.InsertToken(operation, index, text, chinese);
+        text = ChaosDerivativeTextStyle.Apply(text, [effective], chinese);
+        return ChaosOperationVariables.InsertToken(effective, index, text, chinese);
     }
 
     private static string UpgradeConditional(string upgraded, string normal, bool chinese)

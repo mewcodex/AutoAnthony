@@ -507,6 +507,71 @@ public static class DerivativeSlotCatalog
             : DerivativeEnchantmentCatalog.ChineseCardName(derivative, enchantment);
     }
 
+    public static OperationLocalizedText BindLocalizedText(GeneratorOperation operation,
+        OperationLocalizedText localized, string renderedEnglish)
+    {
+        var derivative = Resolve(operation.DerivativeId, operation.Template)
+            ?? throw new InvalidOperationException($"Cannot bind derivative text for {operation.Template}.");
+        var enchantment = ResolveEnchantment(operation.DerivativeId, operation.DerivativeEnchantmentId,
+            operation.Template);
+        var plural = EnglishTextUsesPlural(renderedEnglish, operation.Template);
+        var chinese = DerivativeEnchantmentCatalog.ChineseCardName(derivative, enchantment);
+        var english = plural
+            ? DerivativeEnchantmentCatalog.EnglishPlural(derivative, enchantment)
+            : DerivativeEnchantmentCatalog.EnglishSingular(derivative, enchantment);
+        return (localized.TextSlots ?? []).Any(slot => slot.Id == "derivative")
+            ? localized.WithTextSlotValue("derivative", chinese, english)
+            : localized.BindTextSlot("derivative", chinese, english);
+    }
+
+    /// <summary>
+    /// Rehydrates a registered component-localization template. Unlike <see cref="BindLocalizedText"/>, whose
+    /// unbound input is expected to already mention the operation's current derivative, registry templates still
+    /// contain the component's authored source derivative and must bind that source before applying the saved slot.
+    /// </summary>
+    public static OperationLocalizedText BindSourceLocalizedText(GeneratorOperation operation,
+        OperationLocalizedText localized, string renderedSourceEnglish, OperationRuntimeSpec spec)
+    {
+        var selected = Resolve(operation.DerivativeId, operation.Template)
+            ?? throw new InvalidOperationException($"Cannot bind derivative text for {operation.Template}.");
+        var selectedEnchantment = ResolveEnchantment(operation.DerivativeId,
+            operation.DerivativeEnchantmentId, operation.Template);
+        var source = Source(operation.Template)
+            ?? throw new InvalidOperationException($"Derivative slot {operation.Template} has no source definition.");
+        var sourceEnchantment = ResolveEnchantment(null, null, operation.Template);
+        var sourceChinese = DerivativeEnchantmentCatalog.ChineseCardName(source, sourceEnchantment);
+        var sourceEnglishSingular = SourceEnglishName(operation.Template, plural: false);
+        var sourceEnglishPlural = SourceEnglishName(operation.Template, plural: true);
+        var sourceEnglish = sourceEnglishPlural != sourceEnglishSingular
+                            && localized.EnglishTemplate?.Contains(sourceEnglishPlural,
+                                StringComparison.OrdinalIgnoreCase) == true
+            ? sourceEnglishPlural
+            : sourceEnglishSingular;
+        var plural = EnglishTextUsesPlural(renderedSourceEnglish, operation.Template);
+        var selectedChinese = DerivativeEnchantmentCatalog.ChineseCardName(selected, selectedEnchantment);
+        var selectedEnglish = plural
+            ? DerivativeEnchantmentCatalog.EnglishPlural(selected, selectedEnchantment)
+            : DerivativeEnchantmentCatalog.EnglishSingular(selected, selectedEnchantment);
+        var result = (localized.TextSlots ?? []).Any(slot => slot.Id == "derivative")
+            ? localized.WithTextSlotValue("derivative", selectedChinese, selectedEnglish)
+            : localized.BindTextSlot("derivative", sourceChinese, sourceEnglish)
+                .WithTextSlotValue("derivative", selectedChinese, selectedEnglish);
+        result.Validate(spec);
+        return result;
+    }
+
+    public static OperationLocalizedText SetDerivativeText(OperationLocalizedText localized,
+        DerivativeSlotDefinition derivative, DerivativeEnchantmentDefinition? enchantment, bool plural,
+        bool upgraded = false)
+    {
+        var suffix = upgraded ? "+" : string.Empty;
+        var chinese = DerivativeEnchantmentCatalog.ChineseCardName(derivative, enchantment) + suffix;
+        var english = (plural
+            ? DerivativeEnchantmentCatalog.EnglishPlural(derivative, enchantment)
+            : DerivativeEnchantmentCatalog.EnglishSingular(derivative, enchantment)) + suffix;
+        return localized.WithTextSlotValue("derivative", chinese, english);
+    }
+
     private static string ReplaceEnglishLiteral(string text, string from, string to) =>
         text.Replace(from, to, StringComparison.OrdinalIgnoreCase);
 
@@ -537,7 +602,18 @@ public static class DerivativeSlotCatalog
     public static bool ReferenceUsesPlural(string template) => template is
         "I:PlayExhaustedShivsAtTarget" or "NCR:ForEachExhaustedSoul";
 
-    private static bool EnglishTextUsesPlural(string text, string template)
+    public static string SourceEnglishName(string template, bool plural)
+    {
+        if (template == "N:CreateInkShiv") return plural ? "Ink Shivs" : "Ink Shiv";
+        var source = Source(template)
+            ?? throw new InvalidOperationException($"Derivative slot {template} has no source definition.");
+        var enchantment = ResolveEnchantment(null, null, template);
+        return plural
+            ? DerivativeEnchantmentCatalog.EnglishPlural(source, enchantment)
+            : DerivativeEnchantmentCatalog.EnglishSingular(source, enchantment);
+    }
+
+    public static bool EnglishTextUsesPlural(string text, string template)
     {
         if (ReferenceUsesPlural(template) || template == "R:FillHandWithDebris") return true;
         var amount = System.Text.RegularExpressions.Regex.Match(text, @"\b(?:Add|Transform)\s+(\d+|X)\b",

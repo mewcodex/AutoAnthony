@@ -155,7 +155,8 @@ public static class GeneratorDistributionAudit
                 Percent(generated.Count(card => card.StarCost > 0 || card.HasStarCostX), generated.Length),
                 Percent(source.Count(recipe => recipe.StarCost >= 4), source.Length),
                 Percent(generated.Count(card => card.StarCost >= 4), generated.Length),
-                Percent(generated.Count(card => card.Upgrade?.AddedKeywords.Contains(CardTag.Innate) == true), generated.Length),
+                Percent(generated.Count(card => GeneratedCardTagPolicy.AddedKeywords(card.Upgrade)
+                    .Contains(CardTag.Innate)), generated.Length),
                 generated.Count(card => card.Cost > 0 && !card.Operations.Any(CardEffectRules.IsBeneficialEffect)),
                 generated.Count(IsCommonOneCostPureDrawTwo),
                 generated.Count(card => card.Operations.Any(CardAcceptanceTuning.IsTinyImmediateReward))));

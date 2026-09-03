@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\ChaosCardGenerator\RandomCardGenerator.cs" Link="Generator\RandomCardGenerator.cs" />
+    <Compile Include="..\ChaosCardGenerator\GeneratedCardTagPolicy.cs" Link="Generator\GeneratedCardTagPolicy.cs" />
     <Compile Include="..\ChaosCardGenerator\SpecialXCardConverter.cs" Link="Generator\SpecialXCardConverter.cs" />
     <Compile Include="..\ChaosCardGenerator\SlyKeywordTuning.cs" Link="Generator\SlyKeywordTuning.cs" />
     <Compile Include="..\ChaosCardGenerator\SlyPoolConstraintResolver.cs" Link="Generator\SlyPoolConstraintResolver.cs" />
@@ -46,6 +47,7 @@
     <Compile Include="..\ChaosCardGenerator\CardTextStyle.cs" Link="Generator\CardTextStyle.cs" />
     <Compile Include="..\ChaosCardGenerator\NumericTextSchema.cs" Link="Generator\NumericTextSchema.cs" />
     <Compile Include="..\ChaosCardGenerator\OperationRuntimeSpec.cs" Link="Generator\OperationRuntimeSpec.cs" />
+    <Compile Include="..\ChaosCardGenerator\OperationLocalizedText.cs" Link="Generator\OperationLocalizedText.cs" />
     <Compile Include="..\ChaosCardGenerator\CatalogRuntimeSpecRegistry.cs" Link="Generator\CatalogRuntimeSpecRegistry.cs" />
     <Compile Include="..\ChaosCardGenerator\StructuredComponentCatalogRegistry.cs" Link="Generator\StructuredComponentCatalogRegistry.cs" />
     <Compile Include="..\ChaosCardGenerator\DerivativeSlotCatalog.cs" Link="Generator\DerivativeSlotCatalog.cs" />

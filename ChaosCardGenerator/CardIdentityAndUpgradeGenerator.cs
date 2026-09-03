@@ -23,6 +23,7 @@ public static class CardUpgradeGenerator
             var operation = operations[index];
             var text = operation.ChineseText;
             var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+            var localizedText = operation.LocalizedText;
             if (operation.Template == "N:Discard" && effect.Kind == CardUpgradeKind.ReduceNegativeNumber)
             {
                 // Legacy plans may have reduced mandatory discard. New discard upgrades are Silent-only +1 riders;
@@ -40,8 +41,19 @@ public static class CardUpgradeGenerator
                 var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
                 if (derivative is not null)
                 {
-                    var derivativeName = DerivativeSlotCatalog.ChineseCardName(operation);
-                    text = text.Replace(derivativeName, derivativeName + "+", StringComparison.Ordinal);
+                    var english = EnglishCardDescriptionRenderer.OperationText(operation);
+                    localizedText ??= CompileLocalizedProjection(text, english, runtimeSpec);
+                    if (localizedText is null)
+                        throw new InvalidOperationException($"Cannot compile derivative upgrade text for "
+                                                            + operation.Template + ".");
+                    localizedText = DerivativeSlotCatalog.BindLocalizedText(operation, localizedText, english);
+                    var enchantment = DerivativeSlotCatalog.ResolveEnchantment(operation.DerivativeId,
+                        operation.DerivativeEnchantmentId, operation.Template);
+                    localizedText = DerivativeSlotCatalog.SetDerivativeText(localizedText, derivative,
+                        enchantment, DerivativeSlotCatalog.EnglishTextUsesPlural(english, operation.Template),
+                        upgraded: true);
+                    localizedText.Validate(runtimeSpec);
+                    text = localizedText.RenderChinese(runtimeSpec);
                 }
             }
             else if (effect.Kind == CardUpgradeKind.UpgradeGeneratedCards)
@@ -50,6 +62,7 @@ public static class CardUpgradeGenerator
                     EnglishCardDescriptionRenderer.OperationText(operation));
                 text = UpgradeRandomGenerationChinese(text);
                 ExternalOperationTextRegistry.Register(operation.Template, text, english);
+                localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
             }
             else if (effect.Kind == CardUpgradeKind.ChooseExhaust)
             {
@@ -62,6 +75,7 @@ public static class CardUpgradeGenerator
                     : "Choose a card in your Hand to Exhaust.";
                 runtimeSpec = OperationRuntimeSpecCompiler.AsSelectedExhaust(runtimeSpec);
                 ExternalOperationTextRegistry.Register(operation.Template, text, english);
+                localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
             }
             else if (effect.Kind == CardUpgradeKind.IncreaseNumber
                      && CardEffectRules.IsNonUpgradeableNumericMarker(operation))
@@ -101,11 +115,23 @@ public static class CardUpgradeGenerator
                 operation = ApplyNumericDelta(operation, slotId, semanticDelta);
                 text = operation.ChineseText;
                 runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+                localizedText = operation.LocalizedText;
             }
-            operations[index] = operation with { ChineseText = text, RuntimeSpec = runtimeSpec };
+            operations[index] = operation with
+            {
+                ChineseText = text,
+                RuntimeSpec = runtimeSpec,
+                LocalizedText = localizedText
+            };
         }
         return operations;
     }
+
+    private static OperationLocalizedText? CompileLocalizedProjection(string chinese, string english,
+        OperationRuntimeSpec spec) =>
+        OperationLocalizedText.TryCompile(chinese, english, spec, out var localized)
+            ? localized
+            : null;
 
     /// <summary>
     /// Applies a numeric upgrade from its stable slot identity. Localized text is updated only as the final
@@ -129,7 +155,8 @@ public static class CardUpgradeGenerator
         }
 
         var updatedSpec = OperationRuntimeSpecCompiler.ApplyUpgradeDelta(spec, slotId, delta);
-        var projectedText = OperationRuntimeSpecCompiler.IncreaseLegacyXValue(operation.ChineseText);
+        var projectedText = operation.LocalizedText?.RenderChinese(updatedSpec)
+            ?? OperationRuntimeSpecCompiler.IncreaseLegacyXValue(operation.ChineseText);
         return operation with { ChineseText = projectedText, RuntimeSpec = updatedSpec };
     }
 
@@ -147,8 +174,7 @@ public static class CardUpgradeGenerator
                     || operation.Template == "I:ExhaustRandomAttack"))
             {
                 var attackOnly = exhaustSpec.CardFilter == "attack" || operation.Template == "I:ExhaustRandomAttack";
-                candidates.Add(new(new(CardUpgradeKind.ChooseExhaust,
-                    attackOnly ? "改为选择一张攻击牌消耗。" : "改为选择一张牌消耗。", index)));
+                candidates.Add(new(new(CardUpgradeKind.ChooseExhaust, index)));
             }
             if (operation.Template == "N:HP-"
                 && OperationRuntimeSpecCompiler.TryGetFixedUpgradeValue(operation, out var selfDamageSlot,
@@ -156,8 +182,8 @@ public static class CardUpgradeGenerator
                 && selfDamageSlot is not null && selfDamageValue > 1)
             {
                 var delta = Math.Min(SelfDamageReduction(selfDamageValue), selfDamageValue - 1);
-                candidates.Add(new(new(CardUpgradeKind.ReduceSelfDamage,
-                    $"自身失去的生命减少{delta}点。", index, -delta, ValueSlotId: selfDamageSlot)));
+                candidates.Add(new(new(CardUpgradeKind.ReduceSelfDamage, index, -delta,
+                    ValueSlotId: selfDamageSlot)));
                 continue;
             }
 
@@ -177,8 +203,7 @@ public static class CardUpgradeGenerator
                         out var paymentValue)
                     && paymentSlot is not null && paymentValue > 1)
                 {
-                    candidates.Add(new(new(CardUpgradeKind.ReduceNegativeNumber,
-                        $"“{operation.ChineseText.TrimEnd('。')}”的负面数值减少1。", index, -1,
+                    candidates.Add(new(new(CardUpgradeKind.ReduceNegativeNumber, index, -1,
                         ValueSlotId: paymentSlot)));
                 }
                 continue;
@@ -193,13 +218,8 @@ public static class CardUpgradeGenerator
                         out var thresholdValue)
                     && thresholdSlot is not null && thresholdValue > (operation.Template == "R:ReturnAfterSkillsPlayed" ? 2 : 1))
                 {
-                    var stars = operation.Template == "A:whenOneStarSpent";
-                    var skills = operation.Template == "R:ReturnAfterSkillsPlayed";
-                    candidates.Add(new(new(CardUpgradeKind.ReduceThreshold,
-                        stars ? "触发所需的蓝星减少1颗。"
-                            : skills ? "触发所需的技能牌减少1张。"
-                            : "触发所需的能量减少1点。",
-                        index, -1, ValueSlotId: thresholdSlot)));
+                    candidates.Add(new(new(CardUpgradeKind.ReduceThreshold, index, -1,
+                        ValueSlotId: thresholdSlot)));
                 }
                 continue;
             }
@@ -217,7 +237,7 @@ public static class CardUpgradeGenerator
                     || operation.Parameters.ContainsKey("triggerIndex"));
             if (!skipNumericUpgrade && OperationRuntimeSpecCompiler.ValueUsesX(operation))
             {
-                candidates.Add(new(new(CardUpgradeKind.IncreaseNumber, "X的数值增加1。", index, 1,
+                candidates.Add(new(new(CardUpgradeKind.IncreaseNumber, index, 1,
                     ValueSlotId: OperationRuntimeSpecCompiler.UpgradeValueSlot(operation))));
                 continue;
             }
@@ -230,8 +250,8 @@ public static class CardUpgradeGenerator
                 {
                     var delta = NativeUpgradeValueModel.SampleIncrease(operation, blockValue, random,
                         NativeUpgradeValueModel.Family.Block);
-                    candidates.Add(new(new(CardUpgradeKind.IncreaseNumber,
-                        $"获得的格挡增加{delta}点。", index, delta, ValueSlotId: slotId)));
+                    candidates.Add(new(new(CardUpgradeKind.IncreaseNumber, index, delta,
+                        ValueSlotId: slotId)));
                 }
                 continue;
             }
@@ -292,8 +312,7 @@ public static class CardUpgradeGenerator
                         if (SlyKeywordTuning.IsPureImmediateSelfRefund(card.Cost, prospectiveOperations))
                             continue;
                     }
-                    candidates.Add(new(new(CardUpgradeKind.IncreaseNumber,
-                        $"“{operation.ChineseText.TrimEnd('。')}”的数值增加{delta}。", index, delta,
+                    candidates.Add(new(new(CardUpgradeKind.IncreaseNumber, index, delta,
                         ValueSlotId: valueSlotId)));
                 }
             }
@@ -301,14 +320,7 @@ public static class CardUpgradeGenerator
             var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
             if (derivative is not null && DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId))
             {
-                var derivativeName = DerivativeSlotCatalog.ChineseCardName(operation);
-                var upgradedText = operation.ChineseText.Replace(derivativeName,
-                    derivativeName + "+", StringComparison.Ordinal);
-                var upgradedEnglish = DerivativeSlotCatalog.MarkEnglishUpgrade(
-                    EnglishCardDescriptionRenderer.OperationText(operation), derivative);
-                ExternalOperationTextRegistry.Register(operation.Template, upgradedText, upgradedEnglish);
-                candidates.Add(new(new(CardUpgradeKind.UpgradeDerivative,
-                    $"此效果中的{derivativeName}升级为{derivativeName}+。", index)));
+                candidates.Add(new(new(CardUpgradeKind.UpgradeDerivative, index)));
             }
 
             if (CardEffectRules.IsRandomCardGeneration(operation))
@@ -316,8 +328,7 @@ public static class CardUpgradeGenerator
                 var upgradedText = UpgradeRandomGenerationChinese(operation.ChineseText);
                 ExternalOperationTextRegistry.Register(operation.Template, upgradedText,
                     UpgradeRandomGenerationEnglish(EnglishCardDescriptionRenderer.OperationText(operation)));
-                candidates.Add(new(new(CardUpgradeKind.UpgradeGeneratedCards,
-                    "生成的随机牌均已升级。", index)));
+                candidates.Add(new(new(CardUpgradeKind.UpgradeGeneratedCards, index)));
             }
 
             (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) keywordUpgrade = default;
@@ -335,21 +346,44 @@ public static class CardUpgradeGenerator
                 if (addedKeywords.Contains(CardTag.Innate)
                     && keywordPolicy.AllowsAddition(CardTag.Innate)
                     && !card.Tags.Contains(CardTag.Innate))
-                    candidates.Add(new(new(CardUpgradeKind.GrantInnate, "获得固有。", index)));
+                    candidates.Add(new(new(CardUpgradeKind.GrantInnate, index)));
                 if (addedKeywords.Contains(CardTag.Retain)
                     && keywordPolicy.AllowsAddition(CardTag.Retain)
                     && !card.Tags.Contains(CardTag.Retain)
                     && !card.Tags.Contains(CardTag.Ethereal))
-                    candidates.Add(new(new(CardUpgradeKind.GrantRetain, "获得保留。", index)));
+                    candidates.Add(new(new(CardUpgradeKind.GrantRetain, index)));
                 if (operationRemovedKeywords.Contains(CardTag.Exhaust)
                     && keywordPolicy.AllowsRemoval(CardTag.Exhaust)
                     && card.Tags.Contains(CardTag.Exhaust)
                     && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
-                    candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, "不再消耗。", index)));
+                    candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, index)));
                 if (operationRemovedKeywords.Contains(CardTag.Ethereal)
                     && keywordPolicy.AllowsRemoval(CardTag.Ethereal)
                     && card.Tags.Contains(CardTag.Ethereal))
-                    candidates.Add(new(new(CardUpgradeKind.RemoveEthereal, "不再虚无。", index)));
+                    candidates.Add(new(new(CardUpgradeKind.RemoveEthereal, index)));
+            }
+
+            (IReadOnlyList<string> Added, IReadOnlyList<string> Removed) customKeywordUpgrade = default;
+            var hasCustomKeywordUpgrade = profileId is { Length: > 0 }
+                && ExternalCustomKeywordUpgradeRegistry.TryGet(profileId, operation.Template,
+                    out customKeywordUpgrade);
+            if (!hasCustomKeywordUpgrade && unifiedChaos)
+                hasCustomKeywordUpgrade = ExternalCustomKeywordUpgradeRegistry.TryGetUnified(operation.Template,
+                    out customKeywordUpgrade);
+            if (hasCustomKeywordUpgrade)
+            {
+                foreach (var keywordId in customKeywordUpgrade.Added ?? [])
+                    if (keywordPolicy.AllowsCustomAddition(keywordId)
+                        && !(card.CustomKeywords ?? []).Contains(keywordId, StringComparer.Ordinal)
+                        && ComponentKeywordApi.CanUpgradeAdd(keywordId, card))
+                        candidates.Add(new(new(CardUpgradeKind.AddCustomKeyword, index,
+                            KeywordId: keywordId)));
+                foreach (var keywordId in customKeywordUpgrade.Removed ?? [])
+                    if (keywordPolicy.AllowsCustomRemoval(keywordId)
+                        && (card.CustomKeywords ?? []).Contains(keywordId, StringComparer.Ordinal)
+                        && ComponentKeywordApi.CanUpgradeRemove(keywordId, card))
+                        candidates.Add(new(new(CardUpgradeKind.RemoveCustomKeyword, index,
+                            KeywordId: keywordId)));
             }
         }
 
@@ -357,36 +391,48 @@ public static class CardUpgradeGenerator
             && keywordPolicy.AllowsAddition(CardTag.Innate)
             && (unifiedChaos || card.Character is GeneratedCharacter.Ironclad or GeneratedCharacter.Silent)
             && card.Type == GeneratedCardType.Power)
-            candidates.Add(new(new(CardUpgradeKind.GrantInnate, "获得固有。")));
+            candidates.Add(new(new(CardUpgradeKind.GrantInnate)));
         if (keywordPolicy.UseArchetypeUpgradeDefaults
             && keywordPolicy.AllowsAddition(CardTag.Retain)
             && (unifiedChaos || card.Character == GeneratedCharacter.Silent)
             && !card.Tags.Contains(CardTag.Retain)
             && !card.Tags.Contains(CardTag.Ethereal))
-            candidates.Add(new(new(CardUpgradeKind.GrantRetain, "获得保留。")));
+            candidates.Add(new(new(CardUpgradeKind.GrantRetain)));
         if (keywordPolicy.UseArchetypeUpgradeDefaults
             && keywordPolicy.AllowsRemoval(CardTag.Exhaust)
             && (unifiedChaos || card.Character == GeneratedCharacter.Silent)
             && card.Tags.Contains(CardTag.Exhaust)
             && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
-            candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, "不再消耗。")));
+            candidates.Add(new(new(CardUpgradeKind.RemoveExhaust)));
 
         foreach (var tag in keywordPolicy.GlobalUpgradeAdditions ?? (IEnumerable<CardTag>)Array.Empty<CardTag>())
         {
             if (!keywordPolicy.AllowsAddition(tag) || card.Tags.Contains(tag)) continue;
             if (tag == CardTag.Innate)
-                candidates.Add(new(new(CardUpgradeKind.GrantInnate, "获得固有。")));
+                candidates.Add(new(new(CardUpgradeKind.GrantInnate)));
             else if (tag == CardTag.Retain && !card.Tags.Contains(CardTag.Ethereal))
-                candidates.Add(new(new(CardUpgradeKind.GrantRetain, "获得保留。")));
+                candidates.Add(new(new(CardUpgradeKind.GrantRetain)));
         }
         foreach (var tag in keywordPolicy.GlobalUpgradeRemovals ?? (IEnumerable<CardTag>)Array.Empty<CardTag>())
         {
             if (!keywordPolicy.AllowsRemoval(tag) || !card.Tags.Contains(tag)) continue;
             if (tag == CardTag.Exhaust && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
-                candidates.Add(new(new(CardUpgradeKind.RemoveExhaust, "不再消耗。")));
+                candidates.Add(new(new(CardUpgradeKind.RemoveExhaust)));
             else if (tag == CardTag.Ethereal)
-                candidates.Add(new(new(CardUpgradeKind.RemoveEthereal, "不再虚无。")));
+                candidates.Add(new(new(CardUpgradeKind.RemoveEthereal)));
         }
+        foreach (var keywordId in keywordPolicy.GlobalCustomUpgradeAdditions
+                 ?? (IEnumerable<string>)Array.Empty<string>())
+            if (keywordPolicy.AllowsCustomAddition(keywordId)
+                && !(card.CustomKeywords ?? []).Contains(keywordId, StringComparer.Ordinal)
+                && ComponentKeywordApi.CanUpgradeAdd(keywordId, card))
+                candidates.Add(new(new(CardUpgradeKind.AddCustomKeyword, KeywordId: keywordId)));
+        foreach (var keywordId in keywordPolicy.GlobalCustomUpgradeRemovals
+                 ?? (IEnumerable<string>)Array.Empty<string>())
+            if (keywordPolicy.AllowsCustomRemoval(keywordId)
+                && (card.CustomKeywords ?? []).Contains(keywordId, StringComparer.Ordinal)
+                && ComponentKeywordApi.CanUpgradeRemove(keywordId, card))
+                candidates.Add(new(new(CardUpgradeKind.RemoveCustomKeyword, KeywordId: keywordId)));
 
         // A 1-cost card whose own text already lowers its cost must not upgrade to 0: the resulting upgraded
         // card would carry a permanently dead self-cost-reduction clause. Higher costs may still upgrade by 1.
@@ -397,13 +443,13 @@ public static class CardUpgradeGenerator
             && CardEffectRules.HasValidNumericSelfCostReductionAmounts(card.Cost - 1, card.Operations)
             && CardEffectRules.HasValidReturnThisToHandCost(card.Cost - 1, card.StarCost,
                 card.HasStarCostX, card.Operations)
-            ? new Candidate(new(CardUpgradeKind.ReduceCost, "费用减少1。", Delta: -1))
+            ? new Candidate(new(CardUpgradeKind.ReduceCost, Delta: -1))
             : null;
         var starCostCandidate = (unifiedChaos || card.Character == GeneratedCharacter.Regent) && card.StarCost > 0
             && !card.Tags.Contains(CardTag.Sly)
             && CardEffectRules.HasValidReturnThisToHandCost(card.Cost, card.StarCost - 1,
                 card.HasStarCostX, card.Operations)
-            ? new Candidate(new(CardUpgradeKind.ReduceStarCost, "蓝星费用减少1。", Delta: -1))
+            ? new Candidate(new(CardUpgradeKind.ReduceStarCost, Delta: -1))
             : null;
         // This should not be empty; pure X effects still support an X-to-X+1 numeric upgrade.
         if (candidates.Count == 0 && costCandidate is null && starCostCandidate is null)
@@ -448,7 +494,7 @@ public static class CardUpgradeGenerator
             .ToList();
         var keywordCandidates = candidates
             .Where(candidate => IsKeywordChange(candidate.Effect.Kind))
-            .DistinctBy(candidate => candidate.Effect.Kind)
+            .DistinctBy(candidate => (candidate.Effect.Kind, candidate.Effect.KeywordId))
             .ToList();
         while (selected.Count < count)
         {
@@ -510,7 +556,7 @@ public static class CardUpgradeGenerator
             {
                 var discardIndex = discardIndexes[random.Next(discardIndexes.Length)];
                 selected.Add(new Candidate(new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber,
-                    "弃牌数量增加1张。", discardIndex, 1,
+                    discardIndex, 1,
                     ValueSlotId: OperationRuntimeSpecCompiler.UpgradeValueSlot(card.Operations[discardIndex]))));
             }
         }
@@ -519,7 +565,6 @@ public static class CardUpgradeGenerator
         // After text would make the later one silently erase the earlier one.
         var effects = selected.Select(candidate => candidate.Effect with
         {
-            EnglishDescription = UpgradeEnglish(card, candidate.Effect),
             ValueSlotId = candidate.Effect.ValueSlotId ?? (candidate.Effect.OperationIndex is { } operationIndex
                            && (uint)operationIndex < (uint)card.Operations.Count
                 ? OperationRuntimeSpecCompiler.UpgradeValueSlot(card.Operations[operationIndex])
@@ -534,29 +579,11 @@ public static class CardUpgradeGenerator
         var upgradedStarCost = selected.Any(candidate => candidate.Effect.Kind == CardUpgradeKind.ReduceStarCost)
             ? card.StarCost - 1
             : (int?)null;
-        var keywords = selected
-            .Select(candidate => candidate.Effect.Kind switch
-            {
-                CardUpgradeKind.GrantInnate => (CardTag?)CardTag.Innate,
-                CardUpgradeKind.GrantRetain => CardTag.Retain,
-                _ => null
-            })
-            .Where(tag => tag.HasValue)
-            .Select(tag => tag!.Value)
-            .Distinct()
-            .ToArray();
-        var removedKeywords = selected.Select(candidate => candidate.Effect.Kind switch
-            {
-                CardUpgradeKind.RemoveExhaust => (CardTag?)CardTag.Exhaust,
-                CardUpgradeKind.RemoveEthereal => CardTag.Ethereal,
-                _ => null
-            })
-            .Where(tag => tag.HasValue)
-            .Select(tag => tag!.Value)
-            .Distinct()
-            .ToArray();
-        return new CardUpgradePlan(cost, effects, upgradedDescription, keywords,
-            EnglishCardDescriptionRenderer.Render(upgradedOperations), removedKeywords, upgradedStarCost);
+        // Structural effects are authoritative in API v3. The four projected arrays remain read-only migration
+        // inputs for schema 5-9 live snapshots, older history records, and API v2 callers; do not duplicate newly
+        // generated keyword changes.
+        return new CardUpgradePlan(cost, effects, upgradedDescription, [],
+            EnglishCardDescriptionRenderer.Render(upgradedOperations), [], upgradedStarCost);
     }
 
     internal static bool ShouldAddLowNumericSecondary(CardUpgradeKind soleKind, int percentileRoll) =>
@@ -585,11 +612,7 @@ public static class CardUpgradeGenerator
         var bestDistance = double.MaxValue;
         for (var magnitude = 1; magnitude <= maximumMagnitude; magnitude++)
         {
-            var trial = new Candidate(effect with
-            {
-                ChineseDescription = SupplementalNumericDescription(operation, effect.Kind, magnitude),
-                Delta = sign * magnitude
-            });
+            var trial = new Candidate(effect with { Delta = sign * magnitude });
             var distance = Math.Abs(EstimatedMarginalGain(card, selected, trial)
                 - SupplementalNumericUpgradeBudget);
             if (distance + 0.001d >= bestDistance) continue;
@@ -622,28 +645,6 @@ public static class CardUpgradeGenerator
             || CardEffectRules.IsEnergyGainOperation(operation))
             maximum = Math.Min(maximum, Math.Abs(effect.Delta ?? 1));
         return Math.Clamp(maximum, 1, 100);
-    }
-
-    private static string SupplementalNumericDescription(GeneratorOperation operation, CardUpgradeKind kind,
-        int magnitude)
-    {
-        var description = kind switch
-        {
-            CardUpgradeKind.IncreaseNumber when OperationRuntimeSpecCompiler.ValueUsesX(operation) =>
-                $"X的数值增加{magnitude}。",
-            CardUpgradeKind.IncreaseNumber =>
-                $"“{operation.ChineseText.TrimEnd('。')}”的数值增加{magnitude}。",
-            CardUpgradeKind.ReduceSelfDamage => $"自身失去的生命减少{magnitude}点。",
-            CardUpgradeKind.ReduceThreshold when operation.Template == "A:whenOneStarSpent" =>
-                $"触发所需的蓝星减少{magnitude}颗。",
-            CardUpgradeKind.ReduceThreshold when operation.Template == "R:ReturnAfterSkillsPlayed" =>
-                $"触发所需的技能牌减少{magnitude}张。",
-            CardUpgradeKind.ReduceThreshold => $"触发所需的能量减少{magnitude}点。",
-            CardUpgradeKind.ReduceNegativeNumber =>
-                $"“{operation.ChineseText.TrimEnd('。')}”的负面数值减少{magnitude}。",
-            _ => throw new InvalidOperationException($"Unsupported supplemental numeric upgrade kind: {kind}.")
-        };
-        return description;
     }
 
     private static Candidate PickCandidateByMarginalValue(GeneratedCard card,
@@ -695,11 +696,7 @@ public static class CardUpgradeGenerator
         var bestDistance = double.MaxValue;
         for (var magnitude = 1; magnitude <= maximumMagnitude; magnitude++)
         {
-            var trial = new Candidate(effect with
-            {
-                ChineseDescription = SupplementalNumericDescription(operation, effect.Kind, magnitude),
-                Delta = sign * magnitude
-            });
+            var trial = new Candidate(effect with { Delta = sign * magnitude });
             var distance = Math.Abs(EstimatedMarginalGain(card, selected, trial) - desiredGain);
             // Equal distance deliberately keeps the smaller integer change.
             if (distance + 0.001d >= bestDistance) continue;
@@ -730,7 +727,7 @@ public static class CardUpgradeGenerator
     internal static double EstimatedNumericUpgradeGainForAudit(GeneratedCard card, int operationIndex, int delta)
     {
         var operation = card.Operations[operationIndex];
-        var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "audit", operationIndex, delta,
+        var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, operationIndex, delta,
             ValueSlotId: OperationRuntimeSpecCompiler.UpgradeValueSlot(operation));
         return EstimatedMarginalGain(card, Array.Empty<Candidate>(), new Candidate(effect));
     }
@@ -738,7 +735,7 @@ public static class CardUpgradeGenerator
     internal static CardUpgradeEffect? SupplementalNumericEffectForAudit(GeneratedCard card, int operationIndex)
     {
         var operation = card.Operations[operationIndex];
-        var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "audit", operationIndex, 1,
+        var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, operationIndex, 1,
             ValueSlotId: OperationRuntimeSpecCompiler.UpgradeValueSlot(operation));
         return ToBudgetedNumericCandidate(card, Array.Empty<Candidate>(), new Candidate(effect))?.Effect;
     }
@@ -747,7 +744,7 @@ public static class CardUpgradeGenerator
         int nativeDelta, double desiredGain)
     {
         var operation = card.Operations[operationIndex];
-        var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "audit", operationIndex, nativeDelta,
+        var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, operationIndex, nativeDelta,
             ValueSlotId: OperationRuntimeSpecCompiler.UpgradeValueSlot(operation));
         return FitNumericCandidateToBudget(card, Array.Empty<Candidate>(), new Candidate(effect), desiredGain).Effect;
     }
@@ -777,17 +774,9 @@ public static class CardUpgradeGenerator
             return false;
         var operation = card.Operations[index];
         var slotId = effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
-        var structured = slotId is not null
+        return slotId is not null
             && OperationRuntimeSpecCompiler.GetOrCompile(operation).Values.Any(value =>
                 value.Id == slotId && value.Source is "energy_x" or "star_x" or "special_x");
-        if (OperationRuntimeSpecCompiler.EnableLegacyEquivalenceAssertions)
-        {
-            var legacy = effect.ChineseDescription.StartsWith("X", StringComparison.Ordinal);
-            if (legacy != structured)
-                throw new InvalidOperationException($"X-upgrade classification changed for {operation.Template}: "
-                    + $"slot={slotId ?? "<none>"}; legacy={legacy}; structured={structured}.");
-        }
-        return structured;
     }
 
     private static int CostReductionChance(GeneratedCharacter character, int cost, bool unifiedChaos) => cost switch
@@ -823,7 +812,9 @@ public static class CardUpgradeGenerator
         CardUpgradeKind.GrantInnate or
         CardUpgradeKind.GrantRetain or
         CardUpgradeKind.RemoveExhaust or
-        CardUpgradeKind.RemoveEthereal;
+        CardUpgradeKind.RemoveEthereal or
+        CardUpgradeKind.AddCustomKeyword or
+        CardUpgradeKind.RemoveCustomKeyword;
 
     private static int KeywordUpgradeChance(GeneratedRarity rarity) => rarity switch
     {
@@ -880,34 +871,6 @@ public static class CardUpgradeGenerator
         _ => 1
     };
 
-    private static string UpgradeEnglish(GeneratedCard card, CardUpgradeEffect effect) => effect.Kind switch
-    {
-        CardUpgradeKind.IncreaseNumber when UpgradeOperation(card, effect) is { } xOperation
-            && OperationRuntimeSpecCompiler.ValueUsesX(xOperation) => "X +1.",
-        CardUpgradeKind.IncreaseNumber => $"Increase that value by {effect.Delta}.",
-        CardUpgradeKind.ReduceSelfDamage => $"Reduce HP loss by {-effect.Delta!.Value}.",
-        CardUpgradeKind.ReduceNegativeNumber => $"Reduce that negative value by {-effect.Delta!.Value}.",
-        CardUpgradeKind.ReduceCost => "Cost -1.",
-        CardUpgradeKind.ReduceStarCost => "Star cost -1.",
-        CardUpgradeKind.ReduceThreshold => UpgradeOperation(card, effect)?.Template == "A:whenOneStarSpent"
-            ? $"Star threshold {-effect.Delta!.Value}."
-            : UpgradeOperation(card, effect)?.Template == "R:ReturnAfterSkillsPlayed"
-                ? $"Required Skills {-effect.Delta!.Value}."
-                : $"Energy threshold {-effect.Delta!.Value}.",
-        CardUpgradeKind.GrantInnate => "Innate.",
-        CardUpgradeKind.GrantRetain => "Retain.",
-        CardUpgradeKind.RemoveExhaust => "No longer Exhausts.",
-        CardUpgradeKind.RemoveEthereal => "No longer Ethereal.",
-        CardUpgradeKind.UpgradeDerivative => DerivativeUpgradeEnglish(card, effect),
-        CardUpgradeKind.UpgradeGeneratedCards => "Generated random cards are upgraded.",
-        CardUpgradeKind.ChooseExhaust => UpgradeOperation(card, effect) is { } exhaustOperation
-            && (OperationRuntimeSpecCompiler.GetOrCompile(exhaustOperation).CardFilter == "attack"
-                || exhaustOperation.Template == "I:ExhaustRandomAttack")
-                ? "Choose the Attack to Exhaust."
-                : "Choose the card to Exhaust.",
-        _ => throw new InvalidOperationException()
-    };
-
     internal static string UpgradeRandomGenerationChinese(string text) =>
         text.Contains("升级过的随机", StringComparison.Ordinal)
             ? text
@@ -922,21 +885,6 @@ public static class CardUpgradeGenerator
             : Regex.Replace(text, @"\brandom\b", "random upgraded", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
                 TimeSpan.FromMilliseconds(100));
 
-    private static GeneratorOperation? UpgradeOperation(GeneratedCard card, CardUpgradeEffect effect) =>
-        effect.OperationIndex is { } index && (uint)index < (uint)card.Operations.Count
-            ? card.Operations[index]
-            : null;
-
-    private static string DerivativeUpgradeEnglish(GeneratedCard card, CardUpgradeEffect effect)
-    {
-        var operation = UpgradeOperation(card, effect);
-        var derivative = operation is null
-            ? null
-            : DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
-        return derivative is null
-            ? "Upgrade that derivative."
-            : $"Upgrade {derivative.EnglishSingular}.";
-    }
 }
 
 internal sealed record NameParts(string Id, IReadOnlyList<string> ChineseParts, string EnglishPrefix, string EnglishMiddle, string EnglishSuffix);

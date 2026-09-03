@@ -1,7 +1,7 @@
 <Project>
   <!--
-    AutoAnthony's generated-card semantics must not depend on localized prose. The reviewed allowlist contains
-    only compiler-boundary, renderer, validation, logging, and legacy-migration reads. Any new read fails the
+    AutoAnthony's generated-card semantics must not depend on localized prose. Every reviewed entry is explicitly
+    categorized as renderer, legacy migration, or validation/logging. Any new read or category change fails the
     build until it is explicitly audited; never update the allowlist merely to silence this target.
   -->
   <Target Name="VerifyLocalizedTextBoundaries" BeforeTargets="CoreCompile">

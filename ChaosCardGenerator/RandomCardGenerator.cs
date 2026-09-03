@@ -135,7 +135,7 @@ public enum OperationScope { SingleEnemyOnly, NonTargeted, Modifier, AbilityTrig
 public enum ComponentMultiplicity { Repeatable, SinglePerCard, UniquePerPool }
 // New values must be appended: pool snapshots serialize enums numerically, so reordering older members would
 // silently reinterpret upgrades when loading a save made by an earlier mod version.
-public enum CardUpgradeKind { IncreaseNumber, ReduceSelfDamage, ReduceCost, GrantInnate, GrantRetain, RemoveExhaust, RemoveEthereal, UpgradeDerivative, ReduceStarCost, ReduceThreshold, ReduceNegativeNumber, UpgradeGeneratedCards, ChooseExhaust }
+public enum CardUpgradeKind { IncreaseNumber, ReduceSelfDamage, ReduceCost, GrantInnate, GrantRetain, RemoveExhaust, RemoveEthereal, UpgradeDerivative, ReduceStarCost, ReduceThreshold, ReduceNegativeNumber, UpgradeGeneratedCards, ChooseExhaust, AddCustomKeyword, RemoveCustomKeyword }
 
 public sealed record GeneratorOperation(
     string Template,
@@ -150,21 +150,60 @@ public sealed record GeneratorOperation(
     string? OrbOutputId = null,
     int? DerivativeEnchantmentAmount = null,
     [property: System.Text.Json.Serialization.JsonIgnore]
-    OperationRuntimeSpec? RuntimeSpec = null);
+    OperationRuntimeSpec? RuntimeSpec = null,
+    [property: System.Text.Json.Serialization.JsonIgnore]
+    OperationLocalizedText? LocalizedText = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? LocalizationId = null);
 
 public sealed record GeneratedCardName(
     string Chinese,
     string English,
     IReadOnlyList<string> SourceCardIds);
 
+/// <summary>
+/// Localization-independent change applied when a generated card upgrades. The structural fields are the complete
+/// upgrade contract; user-facing upgraded text is rendered from the resulting operation list.
+/// </summary>
+[method: System.Text.Json.Serialization.JsonConstructor]
 public sealed record CardUpgradeEffect(
     CardUpgradeKind Kind,
-    string ChineseDescription,
     int? OperationIndex = null,
     int? Delta = null,
-    string EnglishDescription = "",
     [property: System.Text.Json.Serialization.JsonIgnore]
-    string? ValueSlotId = null);
+    string? ValueSlotId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? KeywordId = null)
+{
+    // Schema 5-9 live snapshots and older history records persisted developer-only bilingual candidate labels.
+    // Keep migration sinks for those JSON
+    // properties, but never write or inspect them for newly generated cards.
+    [System.Text.Json.Serialization.JsonPropertyName("chineseDescription")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyChineseDescription { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("englishDescription")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? LegacyEnglishDescription { get; init; }
+
+    [Obsolete("Upgrade labels are not behavioral or player-facing data.")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ChineseDescription => LegacyChineseDescription ?? string.Empty;
+
+    [Obsolete("Upgrade labels are not behavioral or player-facing data.")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string EnglishDescription => LegacyEnglishDescription ?? string.Empty;
+
+    /// <summary>Source-compatibility constructor for API v2 consumers. Labels never affect behavior.</summary>
+    [Obsolete("Upgrade descriptions are diagnostic-only. Use Kind, OperationIndex, Delta and ValueSlotId.")]
+    public CardUpgradeEffect(CardUpgradeKind kind, string chineseDescription, int? operationIndex = null,
+        int? delta = null, string englishDescription = "", string? valueSlotId = null)
+        : this(kind, operationIndex, delta, valueSlotId)
+    {
+        LegacyChineseDescription = chineseDescription;
+        LegacyEnglishDescription = englishDescription;
+    }
+}
 
 public sealed record CardUpgradePlan(
     int UpgradedCost,
@@ -173,7 +212,11 @@ public sealed record CardUpgradePlan(
     IReadOnlyList<CardTag> AddedKeywords,
     string UpgradedEnglishDescription,
     IReadOnlyList<CardTag>? RemovedKeywords = null,
-    int? UpgradedStarCost = null);
+    int? UpgradedStarCost = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<string>? AddedCustomKeywords = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<string>? RemovedCustomKeywords = null);
 
 public sealed record GeneratedCard(
     int Cost,
@@ -189,7 +232,9 @@ public sealed record GeneratedCard(
     GeneratedCharacter Character = GeneratedCharacter.Ironclad,
     int StarCost = -1,
     bool HasStarCostX = false,
-    bool UnifiedChaos = false);
+    bool UnifiedChaos = false,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<string>? CustomKeywords = null);
 
 public static class GeneratedCardEffectIdentity
 {
@@ -200,7 +245,8 @@ public static class GeneratedCardEffectIdentity
     /// </summary>
     public static string Signature(GeneratedCard card)
     {
-        var tags = string.Join(',', card.Tags.OrderBy(tag => tag));
+        var tags = string.Join(',', card.Tags.OrderBy(tag => tag)) + ";custom="
+            + string.Join(',', (card.CustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal));
         var operations = string.Join("||", card.Operations.Select(operation =>
             string.Join('|',
                 operation.Template,
@@ -226,7 +272,8 @@ public static class GeneratedCardEffectIdentity
     /// </summary>
     public static string TemplateSignature(GeneratedCard card)
     {
-        var tags = string.Join(',', card.Tags.OrderBy(tag => tag));
+        var tags = string.Join(',', card.Tags.OrderBy(tag => tag)) + ";custom="
+            + string.Join(',', (card.CustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal));
         var operations = string.Join("||", card.Operations.Select(operation =>
             string.Join('|',
                 operation.Scope,
@@ -267,6 +314,17 @@ public static class CardTemplateValidator
 {
     public static void Validate(GeneratedCard card, bool allowRandomizedNumericValues = false)
     {
+        foreach (var keywordId in (card.CustomKeywords ?? [])
+                     .Concat(GeneratedCardTagPolicy.AddedCustomKeywords(card.Upgrade))
+                     .Concat(GeneratedCardTagPolicy.RemovedCustomKeywords(card.Upgrade)))
+        {
+            if (!ComponentKeywordApi.IsRegistered(keywordId))
+                throw new InvalidOperationException($"Generated card references unknown keyword '{keywordId}'.");
+        }
+        if (card.Upgrade?.Effects.Any(effect =>
+                effect.Kind is (CardUpgradeKind.AddCustomKeyword or CardUpgradeKind.RemoveCustomKeyword)
+                && (effect.KeywordId is null || !ComponentKeywordApi.IsRegistered(effect.KeywordId))) == true)
+            throw new InvalidOperationException("Generated card contains an invalid custom-keyword upgrade.");
         if (card.Cost >= 5)
             throw new InvalidOperationException("生成卡的固定普通费用不能大于等于5；蓝星费用不受此限制。 ");
         if (card.Tags.Contains(CardTag.Sly)
@@ -300,6 +358,11 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("虚无必须作为关键词，不能作为独立operation文本。");
         foreach (var operation in card.Operations)
         {
+            if (operation.LocalizationId is { } localizationId
+                && (localizationId.Any(character => character > 0x7f)
+                    || !ComponentLocalizationApi.TryGet(localizationId, out _)))
+                throw new InvalidOperationException(
+                    $"Operation {operation.Template} references unknown localization '{localizationId}'.");
             if (operation.Template == "R:ReturnAfterSkillsPlayed"
                 && OperationRuntimeSpecCompiler.FixedValue(operation, "amount") < 2)
                 throw new InvalidOperationException("每打出若干张技能牌后回手的门槛不能低于2。 ");
@@ -541,6 +604,9 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("任何费用的卡牌都必须至少包含一项实际正面效果。");
         if (card.Tags.Distinct().Count() != card.Tags.Count)
             throw new InvalidOperationException("卡牌 tag 不能重复。");
+        if ((card.CustomKeywords ?? []).Distinct(StringComparer.Ordinal).Count()
+            != (card.CustomKeywords?.Count ?? 0))
+            throw new InvalidOperationException("Custom keyword IDs cannot repeat on one card.");
         foreach (var operation in card.Operations)
         {
             if (CardEffectRules.NeedsExternalCardSlot(operation) && string.IsNullOrWhiteSpace(operation.CardTargetSlot))
@@ -612,7 +678,7 @@ public static class CardTemplateValidator
                 && OperationRuntimeSpecCompiler.FixedValue(card.Operations[i], "amount") > 2)
                 throw new InvalidOperationException("单次失去的充能球栏位不能超过2个。 ");
             if (!allowRandomizedNumericValues
-                && card.Operations[i].Template is "N:AllD" or "N:RandomD" or "N:RandomPoison"
+                && (card.Operations[i].Template is "N:AllD" or "N:RandomD" or "N:RandomPoison")
                 && (OperationRuntimeSpecCompiler.FixedValue(card.Operations[i], "hits") is > 5
                     || OperationRuntimeSpecCompiler.FixedValue(card.Operations[i], "repeat_count") is > 5))
                 throw new InvalidOperationException("多段伤害或多次中毒 operation 的基础重复次数不能超过5。 ");
@@ -663,6 +729,10 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("打击牌名称必须锁定“打击 / Strike”后缀。");
         if (card.Upgrade is { } upgrade)
         {
+            var addedKeywords = GeneratedCardTagPolicy.AddedKeywords(upgrade);
+            var removedKeywords = GeneratedCardTagPolicy.RemovedKeywords(upgrade);
+            var addedCustomKeywords = GeneratedCardTagPolicy.AddedCustomKeywords(upgrade);
+            var removedCustomKeywords = GeneratedCardTagPolicy.RemovedCustomKeywords(upgrade);
             if (upgrade.Effects.Count is < 1 or > 2)
                 throw new InvalidOperationException("一张卡必须有一至两个升级效果。");
             if (upgrade.UpgradedCost != card.Cost && upgrade.UpgradedCost != card.Cost - 1)
@@ -681,34 +751,36 @@ public static class CardTemplateValidator
                     || upgradedStarCost != card.StarCost - 1 || upgradedStarCost < 0
                     || !upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceStarCost)))
                 throw new InvalidOperationException("蓝星费用升级只能将固定蓝星费用减少1。");
-            if (upgrade.AddedKeywords.Contains(CardTag.Innate)
+            if (addedKeywords.Contains(CardTag.Innate)
                 && !card.UnifiedChaos
                 && card.Character is GeneratedCharacter.Ironclad or GeneratedCharacter.Silent
                 && card.Type != GeneratedCardType.Power)
                 throw new InvalidOperationException("固有 keyword 只能由能力牌升级获得。");
-            if (upgrade.AddedKeywords.Contains(CardTag.Retain)
+            if (addedKeywords.Contains(CardTag.Retain)
                 && !card.UnifiedChaos
                 && card.Character is GeneratedCharacter.Ironclad or GeneratedCharacter.Defect)
                 throw new InvalidOperationException("该角色不能通过升级获得保留。");
-            if (upgrade.AddedKeywords.Contains(CardTag.Retain)
+            if (addedKeywords.Contains(CardTag.Retain)
                 && CardKeywordTuning.RetainWeightPercent(card.Cost, card.StarCost, card.HasStarCostX) == 0)
                 throw new InvalidOperationException("折合0费的卡不能通过升级获得保留。 ");
-            if ((upgrade.RemovedKeywords ?? Array.Empty<CardTag>()).Contains(CardTag.Exhaust)
+            if (removedKeywords.Contains(CardTag.Exhaust)
                 && !card.UnifiedChaos
                 && (card.Character == GeneratedCharacter.Ironclad || !card.Tags.Contains(CardTag.Exhaust)))
                 throw new InvalidOperationException("去除消耗升级只能用于拥有相应原版升级路径的消耗牌。");
-            if ((upgrade.RemovedKeywords ?? Array.Empty<CardTag>()).Contains(CardTag.Exhaust)
+            if (removedKeywords.Contains(CardTag.Exhaust)
                 && card.Operations.Any(CardEffectRules.IsRestrictedEffect))
                 throw new InvalidOperationException("限制效果不能通过升级去除消耗。");
-            if ((upgrade.RemovedKeywords ?? Array.Empty<CardTag>()).Contains(CardTag.Ethereal)
+            if (removedKeywords.Contains(CardTag.Ethereal)
                 && !card.Tags.Contains(CardTag.Ethereal))
                 throw new InvalidOperationException("去除虚无升级只能用于原本带虚无的牌。");
             var upgradedHasRetain = card.Tags.Contains(CardTag.Retain)
-                || upgrade.AddedKeywords.Contains(CardTag.Retain);
+                || addedKeywords.Contains(CardTag.Retain);
             var upgradedHasEthereal = card.Tags.Contains(CardTag.Ethereal)
-                && !(upgrade.RemovedKeywords ?? Array.Empty<CardTag>()).Contains(CardTag.Ethereal);
+                && !removedKeywords.Contains(CardTag.Ethereal);
             if (upgradedHasRetain && upgradedHasEthereal)
                 throw new InvalidOperationException("升级后的卡面不能同时具有保留与虚无。 ");
+            if (addedCustomKeywords.Overlaps(removedCustomKeywords))
+                throw new InvalidOperationException("同一次升级不能同时添加和移除同一个自定义关键词。 ");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceSelfDamage && effect.Delta is not (>= -4 and <= -1)))
                 throw new InvalidOperationException("自伤升级只能减少1至4点生命。");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.IncreaseNumber
@@ -968,14 +1040,105 @@ public static class GeneratorSelfTest
         var packageProfile = new ComponentGenerationProfile("selftest:ironclad:normal",
             GeneratedCharacter.Ironclad, false, packageCatalog, packageCatalog, packageCatalog,
             () => ComponentApi.CreateNativeOccurrencePolicy(packageCatalog), ComponentApi.DefaultValuePolicy);
+        var forwardOwnerSource = packageSourceCatalog.Recipes.First(recipe => recipe.Atoms.Count >= 2);
+        var forwardOwners = forwardOwnerSource.TriggerOwners.ToArray();
+        forwardOwners[0] = 1;
+        var forwardOwnerCatalog = new ImmutableComponentCatalog(GeneratedCharacter.Ironclad,
+            [forwardOwnerSource with { TriggerOwners = forwardOwners }]);
+        ExpectInvalidProfile(new ComponentGenerationProfile("selftest:forward_trigger",
+            GeneratedCharacter.Ironclad, false, forwardOwnerCatalog, packageCatalog, packageCatalog,
+            () => ComponentApi.CreateNativeOccurrencePolicy(packageCatalog), ComponentApi.DefaultValuePolicy),
+            "invalid trigger owner");
+        var unstructuredSource = packageSourceCatalog.Recipes.First();
+        var unstructuredAtoms = unstructuredSource.Atoms.ToArray();
+        unstructuredAtoms[0] = unstructuredAtoms[0] with { RuntimeSpec = null };
+        var unstructuredCatalog = new ImmutableComponentCatalog(GeneratedCharacter.Ironclad,
+            [unstructuredSource with { Atoms = unstructuredAtoms }]);
+        ExpectInvalidProfile(new ComponentGenerationProfile("selftest:unstructured_shell",
+            GeneratedCharacter.Ironclad, false, unstructuredCatalog, packageCatalog, packageCatalog,
+            () => ComponentApi.CreateNativeOccurrencePolicy(packageCatalog), ComponentApi.DefaultValuePolicy),
+            "unstructured shell component");
+        var unknownKeywordCatalog = new ImmutableComponentCatalog(GeneratedCharacter.Ironclad,
+            [unstructuredSource with { CustomKeywords = ["selftest:missing_keyword"] }]);
+        ExpectInvalidProfile(new ComponentGenerationProfile("selftest:unknown_keyword",
+            GeneratedCharacter.Ironclad, false, unknownKeywordCatalog, unknownKeywordCatalog,
+            unknownKeywordCatalog, () => ComponentApi.CreateNativeOccurrencePolicy(unknownKeywordCatalog),
+            ComponentApi.DefaultValuePolicy), "unregistered custom keyword");
+        var packageLocalizationAtom = packageCatalog.Atoms.First(atom => atom.LocalizedText?.EnglishTemplate is not null);
         ComponentPackageApi.Register(new ComponentPackageRegistration("selftest:package", packageRequest,
             packageProfile, Valuations:
             [new ComponentValuationRegistration("api_test", "fixed", new SelfTestComponentValuation(),
-                NegativeLinearValuePerUnit: 250d)]));
+                NegativeLinearValuePerUnit: 250d)],
+            KeywordUpgrades:
+            [new ComponentKeywordUpgrade("API:Test", [], [], ["selftest:charged"], [])],
+            Keywords: [new ComponentKeywordDefinition("selftest:charged")],
+            Localizations:
+            [new ComponentLocalizationRegistration(packageLocalizationAtom.SemanticId!,
+                packageLocalizationAtom.LocalizedText!.ChineseTemplate,
+                packageLocalizationAtom.LocalizedText.EnglishTemplate!)]));
         if (!ReferenceEquals(ComponentApi.Resolve(packageRequest), packageProfile)
             || !ComponentApi.RegisteredProfiles.Contains(packageRequest)
-            || !ComponentPackageApi.RegisteredPackages.Contains("selftest:package", StringComparer.Ordinal))
+            || !ComponentPackageApi.RegisteredPackages.Contains("selftest:package", StringComparer.Ordinal)
+            || !ComponentKeywordApi.IsRegistered("selftest:charged")
+            || !ComponentLocalizationApi.TryGet(packageLocalizationAtom.SemanticId,
+                out var registeredLocalization)
+            || registeredLocalization != packageLocalizationAtom.LocalizedText
+            || !ExternalCustomKeywordUpgradeRegistry.TryGet(packageRequest.ProfileId, "API:Test",
+                out var registeredCustomUpgrade)
+            || !registeredCustomUpgrade.Added.Contains("selftest:charged", StringComparer.Ordinal))
             throw new InvalidOperationException("外部组件包的一次性注册、解析或不可变目录索引失败。");
+        var customKeywordPlan = new CardUpgradePlan(1,
+            [new CardUpgradeEffect(CardUpgradeKind.AddCustomKeyword, KeywordId: "selftest:charged")],
+            "测试。", [], "Test.", AddedCustomKeywords: ["selftest:charged"]);
+        var customKeywordCard = new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other,
+            GeneratedRarity.Common, "测试。", [], [], Upgrade: customKeywordPlan,
+            EnglishDescription: "Test.", CustomKeywords: ["selftest:charged"]);
+        var customKeywordRoundTrip = System.Text.Json.JsonSerializer.Deserialize<GeneratedCard>(
+            System.Text.Json.JsonSerializer.Serialize(customKeywordCard));
+        if (customKeywordRoundTrip?.CustomKeywords?.Single() != "selftest:charged"
+            || customKeywordRoundTrip.Upgrade?.AddedCustomKeywords?.Single() != "selftest:charged"
+            || customKeywordRoundTrip.Upgrade.Effects.Single().KeywordId != "selftest:charged")
+            throw new InvalidOperationException("自定义关键词ID没有稳定通过卡牌/升级快照往返。");
+        if (ComponentApi.ApiVersion != 3 || ComponentPackageApi.ApiVersion != 3
+            || !GeneratedCardTagPolicy.AddedKeywords(new CardUpgradePlan(1,
+                    [new CardUpgradeEffect(CardUpgradeKind.GrantInnate)], "测试。", [], "Test."))
+                .Contains(CardTag.Innate)
+            || !GeneratedCardTagPolicy.RemovedCustomKeywords(new CardUpgradePlan(1,
+                    [new CardUpgradeEffect(CardUpgradeKind.RemoveCustomKeyword,
+                        KeywordId: "selftest:charged")], "测试。", [], "Test."))
+                .Contains("selftest:charged"))
+            throw new InvalidOperationException("API v3关键词升级迁移投影不完整。");
+
+        // Emergency generation must consume the active package's own structured component, never an Ironclad
+        // Strike/Defend/Inflame fallback hidden in the shared assembler.
+        var sourceFallbackAtom = packageSourceCatalog.Recipes
+            .Single(recipe => recipe.Id == "StrikeIronclad").Atoms.Single();
+        var apiFallbackAtom = sourceFallbackAtom with
+        {
+            Template = "API:FallbackDamage",
+            SemanticId = "selftest/fallback_damage",
+            RuntimeSpec = sourceFallbackAtom.RuntimeSpec! with
+            {
+                Flags = sourceFallbackAtom.RuntimeSpec.Flags
+                    .Append(ComponentSemanticFlags.EnemyDamage).ToArray()
+            }
+        };
+        var apiFallbackRecipe = new IroncladCardRecipe("ApiFallback", "接口打击", 1,
+            GeneratedCardType.Attack, TargetMode.SingleEnemy, GeneratedRarity.Common, [],
+            [apiFallbackAtom], [-1], EnglishTitle: "API Strike");
+        var apiFallbackCatalog = new ImmutableComponentCatalog(GeneratedCharacter.Ironclad,
+            [apiFallbackRecipe]);
+        var apiFallbackProfile = new ComponentGenerationProfile("selftest:fallback",
+            GeneratedCharacter.Ironclad, false, apiFallbackCatalog, apiFallbackCatalog,
+            apiFallbackCatalog, () => ComponentApi.CreateNativeOccurrencePolicy(apiFallbackCatalog),
+            ComponentApi.DefaultValuePolicy);
+        ComponentProfileValidator.Validate(apiFallbackProfile);
+        var apiFallbackCard = new ComponentAssemblyGenerator(new Random(9341),
+            GeneratedCharacter.Ironclad, profile: apiFallbackProfile,
+            profileRegistrationId: "selftest:fallback").GenerateEmergencyFallback(
+            GeneratedRarity.Common, apiFallbackRecipe);
+        if (apiFallbackCard.Operations.Single().Template != "API:FallbackDamage")
+            throw new InvalidOperationException("外部角色紧急生成错误地使用了内置角色组件。");
         var valuationSpec = new OperationRuntimeSpec(OperationRuntimeSpec.CurrentSchemaVersion,
             "api_test", "fixed", "self", "none", "none", "any", [],
             [new RuntimeValueSlot("amount", 2)]);
@@ -1169,7 +1332,7 @@ public static class GeneratorSelfTest
             || CardEffectRules.HasValidCurrentBlockDamageAssembly([currentBlockDamageProbe]))
             throw new InvalidOperationException("当前格挡伤害没有只绑定最近的同触发单体伤害锚点。 ");
         var staleCurrentBlockUpgrade = CardUpgradeGenerator.ApplyEffectsToOperations(oldCurrentBlockAssembly,
-            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "旧版错误升级", 0, 3)]);
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 3)]);
         if (staleCurrentBlockUpgrade[0].ChineseText != oldCurrentBlockAssembly[0].ChineseText)
             throw new InvalidOperationException("旧快照仍能升级当前格挡伤害的隐藏数值锚点。 ");
         var lowZeroCostConditional = new List<GeneratorOperation>
@@ -1352,7 +1515,7 @@ public static class GeneratorSelfTest
         AssertInvalid(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Common,
             "获得5点格挡。本场战斗中，这张牌的耗能减少1。", Array.Empty<CardTag>(),
             [ordinaryBlock, selfCostOnly], Upgrade: new CardUpgradePlan(0,
-                [new CardUpgradeEffect(CardUpgradeKind.ReduceCost, "费用减少1。", Delta: -1)],
+                [new CardUpgradeEffect(CardUpgradeKind.ReduceCost, Delta: -1)],
                 "获得5点格挡。本场战斗中，这张牌的耗能减少1。", Array.Empty<CardTag>(),
                 "Gain 5 Block. This card costs 1 less this combat.")));
         var delayedTurnTrigger = new GeneratorOperation("D:NextTurnsStart", OperationScope.ConditionalTrigger,
@@ -1433,7 +1596,7 @@ public static class GeneratorSelfTest
             || markerUpgrades.Any(upgrade => upgrade.UpgradedChineseDescription.Contains("所有1费牌", StringComparison.Ordinal)))
             throw new InvalidOperationException("0费牌筛选标记被错误地作为普通数值升级。");
         var legacyMarkerUpgrade = CardUpgradeGenerator.ApplyEffectsToOperations([zeroCostFilter],
-            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "旧版错误升级", 0, 1)]);
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 1)]);
         if (legacyMarkerUpgrade[0].ChineseText != zeroCostFilter.ChineseText)
             throw new InvalidOperationException("旧版0费筛选升级没有被兼容层忽略。");
 
@@ -1783,7 +1946,7 @@ public static class GeneratorSelfTest
             OperationScope.SingleEnemyOnly, "将消耗牌堆中的所有小刀对该敌人打出。",
             new Dictionary<string, int>(), RequiresSingleTarget: true, DerivativeId: "shiv");
         var legacyShivReferenceUpgrade = CardUpgradeGenerator.ApplyEffectsToOperations([exhaustedShivReference],
-            [new CardUpgradeEffect(CardUpgradeKind.UpgradeDerivative, "旧版错误升级", 0)]);
+            [new CardUpgradeEffect(CardUpgradeKind.UpgradeDerivative, 0)]);
         if (legacyShivReferenceUpgrade[0].ChineseText != exhaustedShivReference.ChineseText)
             throw new InvalidOperationException("旧版消耗牌堆小刀类别引用仍被错误地显示为小刀+。");
         foreach (var template in DerivativeSlotCatalog.SlotTemplates.Where(DerivativeSlotCatalog.IsExhaustPileReference))
@@ -2474,8 +2637,7 @@ public static class GeneratorSelfTest
             "将一张随机攻击牌加入手牌。", new Dictionary<string, int>());
         ExternalOperationTextRegistry.Register(randomGeneration.Template, randomGeneration.ChineseText,
             "Add a random Attack to your hand.");
-        var randomGenerationUpgrade = new CardUpgradeEffect(CardUpgradeKind.UpgradeGeneratedCards,
-            "生成的随机牌均已升级。", 0);
+        var randomGenerationUpgrade = new CardUpgradeEffect(CardUpgradeKind.UpgradeGeneratedCards, 0);
         var upgradedRandomGeneration = CardUpgradeGenerator.ApplyEffectsToOperations(
             [randomGeneration], [randomGenerationUpgrade])[0];
         if (!upgradedRandomGeneration.ChineseText.Contains("升级过的随机攻击牌", StringComparison.Ordinal)
@@ -2761,10 +2923,10 @@ public static class GeneratorSelfTest
             GeneratedRarity.Rare, CardDescriptionRenderer.Render(retainPowerOperations), [],
             retainPowerOperations, Character: GeneratedCharacter.Silent);
         var freeSilentPower = paidSilentPower with { Cost = 0 };
-        if (!Enumerable.Range(0, 500).Any(seed => CardUpgradeGenerator.Generate(paidSilentPower,
-                    new Random(seed)).AddedKeywords.Contains(CardTag.Retain))
-            || Enumerable.Range(0, 500).Any(seed => CardUpgradeGenerator.Generate(freeSilentPower,
-                    new Random(seed)).AddedKeywords.Contains(CardTag.Retain)))
+        if (!Enumerable.Range(0, 500).Any(seed => GeneratedCardTagPolicy.AddedKeywords(
+                    CardUpgradeGenerator.Generate(paidSilentPower, new Random(seed))).Contains(CardTag.Retain))
+            || Enumerable.Range(0, 500).Any(seed => GeneratedCardTagPolicy.AddedKeywords(
+                    CardUpgradeGenerator.Generate(freeSilentPower, new Random(seed))).Contains(CardTag.Retain)))
             throw new InvalidOperationException("能力牌获得保留的路径未开放，或折合0费牌仍能升级获得保留。 ");
         var upgradeDamage = new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
             "造成8点伤害。", new Dictionary<string, int>());
@@ -2894,7 +3056,7 @@ public static class GeneratorSelfTest
                 && effect.Kind == CardUpgradeKind.ReduceNegativeNumber)))
             throw new InvalidOperationException("固定数量的强制消耗没有保持或减少其升级数值。 ");
         var legacyBadExhaustUpgrade = CardUpgradeGenerator.ApplyEffectsToOperations(mandatoryExhaustOperations,
-            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "旧版错误升级", 1, 1)]);
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 1, 1)]);
         if (legacyBadExhaustUpgrade[1].ChineseText != mandatoryExhaustOperations[1].ChineseText)
             throw new InvalidOperationException("旧快照仍会把强制消耗数量升级得更高。 ");
         var randomExhaustOperations = new[]
@@ -2929,7 +3091,7 @@ public static class GeneratorSelfTest
             "将它的伤害添加给这张牌。", new Dictionary<string, int>());
         var chosenAttackAssembly = CardUpgradeGenerator.ApplyEffectsToOperations(
             [randomAttackExhaust, addExhaustedDamage],
-            [new CardUpgradeEffect(CardUpgradeKind.ChooseExhaust, "改为选择一张攻击牌消耗。", 0)]);
+            [new CardUpgradeEffect(CardUpgradeKind.ChooseExhaust, 0)]);
         if (OperationRuntimeSpecCompiler.GetOrCompile(chosenAttackAssembly[0]).Variant != "i_exhaustselectedattack"
             || CardDescriptionRenderer.Render(chosenAttackAssembly)
                 != "选择你手牌中的一张攻击牌，将其消耗，并将它的伤害添加给这张牌。"
@@ -2976,11 +3138,11 @@ public static class GeneratorSelfTest
                     is CardUpgradeKind.ReduceCost or CardUpgradeKind.ReduceStarCost)))
             throw new InvalidOperationException("带有奇巧的牌仍会选择普通费用或蓝星费用减少升级。 ");
         var illegalSlyCostUpgrade = new CardUpgradePlan(0,
-            [new CardUpgradeEffect(CardUpgradeKind.ReduceCost, "费用减少1。", Delta: -1)],
+            [new CardUpgradeEffect(CardUpgradeKind.ReduceCost, Delta: -1)],
             slyUpgradeChinese, Array.Empty<CardTag>(), slyUpgradeEnglish);
         AssertInvalid(slyUpgradeCard with { Upgrade = illegalSlyCostUpgrade });
         var illegalSlyStarUpgrade = new CardUpgradePlan(slyStarUpgradeCard.Cost,
-            [new CardUpgradeEffect(CardUpgradeKind.ReduceStarCost, "蓝星费用减少1。", Delta: -1)],
+            [new CardUpgradeEffect(CardUpgradeKind.ReduceStarCost, Delta: -1)],
             slyUpgradeChinese, Array.Empty<CardTag>(), slyUpgradeEnglish,
             UpgradedStarCost: 1);
         AssertInvalid(slyStarUpgradeCard with { Upgrade = illegalSlyStarUpgrade });
@@ -4558,7 +4720,7 @@ public static class GeneratorSelfTest
             var upgradeProbe = new GeneratedCard(recipe.Cost, recipe.Type, recipe.Target, recipe.OriginalRarity,
                 atom.ChineseText, recipe.Tags, [operation], Character: character);
             if (!Enumerable.Range(0, 500).Select(seed => CardUpgradeGenerator.Generate(upgradeProbe, new Random(seed)))
-                    .Any(upgrade => upgrade.AddedKeywords.Contains(CardTag.Innate)))
+                    .Any(upgrade => GeneratedCardTagPolicy.AddedKeywords(upgrade).Contains(CardTag.Innate)))
                 throw new InvalidOperationException($"{character} 的原版固有升级路径未进入共享升级生成器：{cardId}。");
         }
 
@@ -4688,6 +4850,118 @@ public static class GeneratorSelfTest
         var second = System.Text.Json.JsonSerializer.Serialize(new RandomCardGenerator(7).Generate());
         if (first != second)
             throw new InvalidOperationException("相同 seed 的生成结果不稳定。");
+
+        var upgradeJsonOptions = new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        };
+        var structuredUpgradeJson = System.Text.Json.JsonSerializer.Serialize(
+            new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 2, 3, "damage"), upgradeJsonOptions);
+        if (structuredUpgradeJson.Contains("Description", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("新升级效果仍在持久化开发者调试文本。");
+        var legacyUpgrade = System.Text.Json.JsonSerializer.Deserialize<CardUpgradeEffect>(
+            "{\"kind\":0,\"chineseDescription\":\"旧升级标签\",\"englishDescription\":\"legacy label\","
+            + "\"operationIndex\":2,\"delta\":3}", upgradeJsonOptions);
+        if (legacyUpgrade is not { Kind: CardUpgradeKind.IncreaseNumber, OperationIndex: 2, Delta: 3 }
+            || legacyUpgrade.LegacyChineseDescription != "旧升级标签"
+            || legacyUpgrade.LegacyEnglishDescription != "legacy label")
+            throw new InvalidOperationException("旧快照升级调试文本兼容读取失败。");
+
+        foreach (var tag in Enum.GetValues<CardTag>())
+        {
+            if (GeneratedCardTagPolicy.IsNativeKeyword(tag) == GeneratedCardTagPolicy.IsSemanticTag(tag))
+                throw new InvalidOperationException($"卡牌标签没有被唯一分类：{tag}。");
+        }
+        if (GeneratedCardTagPolicy.AddedBy(CardUpgradeKind.GrantInnate) != CardTag.Innate
+            || GeneratedCardTagPolicy.AddedBy(CardUpgradeKind.GrantRetain) != CardTag.Retain
+            || GeneratedCardTagPolicy.RemovedBy(CardUpgradeKind.RemoveExhaust) != CardTag.Exhaust
+            || GeneratedCardTagPolicy.RemovedBy(CardUpgradeKind.RemoveEthereal) != CardTag.Ethereal)
+            throw new InvalidOperationException("结构化关键词升级映射不完整。");
+        try
+        {
+            new ComponentKeywordPolicy(AllowedBaseKeywords: new HashSet<CardTag> { CardTag.Strike }).Validate();
+            throw new InvalidOperationException("关键词策略错误地接受了机制标签。");
+        }
+        catch (ArgumentException)
+        {
+            // Expected: Strike is a semantic tag, not a native card keyword.
+        }
+        var exhaustOnlyKeywordPolicy = new ComponentKeywordPolicy(
+            AllowedBaseKeywords: new HashSet<CardTag> { CardTag.Exhaust });
+        if (!exhaustOnlyKeywordPolicy.AllowsBase(CardTag.Strike)
+            || !exhaustOnlyKeywordPolicy.AllowsBase(CardTag.Exhaust)
+            || exhaustOnlyKeywordPolicy.AllowsBase(CardTag.Innate))
+            throw new InvalidOperationException("关键词许可错误地改变了机制标签可达性。");
+
+        var quasarAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Regent).Recipes
+            .Single(recipe => recipe.Id == "Quasar").Atoms.Single();
+        var quasarOperation = new GeneratorOperation(quasarAtom.Template, quasarAtom.Scope,
+            quasarAtom.ChineseText, new Dictionary<string, int>(), RuntimeSpec: quasarAtom.RuntimeSpec,
+            LocalizedText: quasarAtom.LocalizedText);
+        if (System.Text.Json.JsonSerializer.Serialize(quasarOperation)
+            .Contains("localizedText", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("运行时本地化模板被重复写入卡池快照。");
+        if (!OperationRuntimeSpecCompiler.TryReplaceFixedValue(quasarOperation, "choices", 4,
+                out var upgradedQuasar)
+            || upgradedQuasar.ChineseText != "从4张随机无色牌中选择1张加入你的手牌。"
+            || EnglishCardDescriptionRenderer.OperationText(upgradedQuasar)
+                != "Choose 1 of 4 random Colorless cards to add into your Hand.")
+            throw new InvalidOperationException("具名本地化槽没有保持中英文不同的数值顺序。");
+
+        var perturbedLocalization = new OperationLocalizedText(
+            "测试：候选[[choices]]，选择[[picks]]。", "Test: [[choices]] candidates, pick [[picks]].");
+        perturbedLocalization.Validate(OperationRuntimeSpecCompiler.GetOrCompile(quasarOperation));
+        var perturbedQuasar = quasarOperation with
+        {
+            ChineseText = perturbedLocalization.RenderChinese(OperationRuntimeSpecCompiler.GetOrCompile(quasarOperation)),
+            LocalizedText = perturbedLocalization
+        };
+        if (OperationRuntimeSpecCompiler.GetOrCompile(perturbedQuasar).StableSignature()
+                != OperationRuntimeSpecCompiler.GetOrCompile(quasarOperation).StableSignature()
+            || EffectBalanceModel.EstimatedPositiveCardValue([perturbedQuasar], false,
+                    GeneratedCardType.Skill, [])
+                != EffectBalanceModel.EstimatedPositiveCardValue([quasarOperation], false,
+                    GeneratedCardType.Skill, []))
+            throw new InvalidOperationException("修改本地化模板意外改变了结构语义或估值。");
+
+        var energyLocalizationSpec = new OperationRuntimeSpec(OperationRuntimeSpec.CurrentSchemaVersion,
+            "gain_resource", "energy", "self", "none", "none", "any", [],
+            [new RuntimeValueSlot("amount", 2)]);
+        if (!OperationLocalizedText.TryCompile("获得2点能量。", "Gain 2 Energy.", energyLocalizationSpec,
+                out var energyLocalization)
+            || energyLocalization is null
+            || energyLocalization.RenderChinese(energyLocalizationSpec) != "获得2点能量。"
+            || energyLocalization.RenderEnglish(energyLocalizationSpec) != "Gain 2 Energy."
+            || !energyLocalization.TryReplaceRenderedSlot("获得2点能量。", energyLocalizationSpec, "amount",
+                "{Energy0:energyIcons()}", chinese: true, out var dynamicEnergy)
+            || dynamicEnergy != "获得{Energy0:energyIcons()}。")
+            throw new InvalidOperationException("具名资源槽没有稳定渲染能量文本或动态图标。");
+
+        var entityLocalization = new OperationLocalizedText(
+            "生成[[amount]]个[[orb_output]]。", "Channel [[amount]] [[orb_output]].",
+            [new OperationTextSlot("orb_output", "闪电充能球", "Lightning Orbs")]);
+        entityLocalization.Validate(energyLocalizationSpec);
+        var reboundEntityLocalization = entityLocalization.WithTextSlotValue(
+            "orb_output", "冰霜充能球", "Frost Orbs");
+        if (entityLocalization.RenderChinese(energyLocalizationSpec) != "生成2个闪电充能球。"
+            || reboundEntityLocalization.RenderChinese(energyLocalizationSpec) != "生成2个冰霜充能球。"
+            || reboundEntityLocalization.RenderEnglish(energyLocalizationSpec) != "Channel 2 Frost Orbs.")
+            throw new InvalidOperationException("具名实体槽没有与数值槽独立渲染或重绑定。");
+    }
+
+    private static void ExpectInvalidProfile(ComponentGenerationProfile profile, string expectedMessage)
+    {
+        try
+        {
+            ComponentProfileValidator.Validate(profile);
+        }
+        catch (InvalidDataException exception) when (exception.Message.Contains(expectedMessage,
+                   StringComparison.Ordinal))
+        {
+            return;
+        }
+        throw new InvalidOperationException(
+            $"Expected profile validation failure containing '{expectedMessage}'.");
     }
 
     private static void AssertInvalid(GeneratedCard card)

@@ -15,6 +15,7 @@ public sealed class ImmutableComponentCatalog : IComponentCatalog
     public IReadOnlyDictionary<string, int> AtomCounts { get; }
     public IReadOnlyDictionary<int, int> ComponentCountCounts { get; }
     public IReadOnlyDictionary<CardTag, int> TagCounts { get; }
+    public IReadOnlyDictionary<string, int> CustomKeywordCounts { get; }
 
     public ImmutableComponentCatalog(GeneratedCharacter character,
         IEnumerable<IroncladCardRecipe> recipes)
@@ -44,5 +45,8 @@ public sealed class ImmutableComponentCatalog : IComponentCatalog
             .ToDictionary(group => group.Key, group => group.Count());
         TagCounts = Recipes.SelectMany(recipe => recipe.Tags).GroupBy(tag => tag)
             .ToDictionary(group => group.Key, group => group.Count());
+        CustomKeywordCounts = Recipes.SelectMany(recipe => recipe.CustomKeywords ?? [])
+            .GroupBy(keywordId => keywordId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
     }
 }

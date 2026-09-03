@@ -871,7 +871,7 @@ public static class ChaosRunDefinitions
                 card.Type == GeneratedCardType.Attack && random.Next(4) == 0 ? "heavyAttack" : card.Type == GeneratedCardType.Attack ? "Attack" : "Cast",
                 $"res://images/atlases/power_atlas.sprites/{powerIcon}.tres",
                 $"res://images/powers/{powerIcon}.png",
-                card.Operations.Select(OperationRuntimeSpecCompiler.GetOrCompile).ToArray(),
+                card.Operations.Select(OperationRuntimeSpecCompiler.RequireStructured).ToArray(),
                 card.Upgrade?.Effects.Select(effect => effect.ValueSlotId).ToArray() ?? [],
                 art.Source.Card.Id.ToString(),
                 art.VariantId,
@@ -962,6 +962,9 @@ public static class ChaosRunDefinitions
     private static ArtSource CreateArtSource(GeneratedCharacter owner, CardModel card, IroncladCardRecipe? recipe)
     {
         var atoms = recipe?.Atoms ?? [];
+        ChaosPortraitCompatibility.RegisterStableSource(
+            $"res://images/atlases/card_atlas.sprites/{owner.ToString().ToLowerInvariant()}/{card.Id.Entry.ToLowerInvariant()}.tres",
+            card);
         return new ArtSource(owner, card,
             atoms.Select(CardNameGenerator.RelationSchema).ToHashSet(StringComparer.Ordinal),
             atoms.Select(atom => atom.Template).ToHashSet(StringComparer.Ordinal),

@@ -50,10 +50,16 @@ public sealed record OperationRuntimeSpec(
         ValidateId(SourceZone, nameof(SourceZone), required: true);
         ValidateId(DestinationZone, nameof(DestinationZone), required: true);
         ValidateId(CardFilter, nameof(CardFilter), required: true);
+        if (Flags is null) throw new InvalidOperationException("RuntimeSpec flags cannot be null.");
+        if (Values is null) throw new InvalidOperationException("RuntimeSpec value slots cannot be null.");
         foreach (var flag in Flags) ValidateId(flag, "flag", required: true);
         if (Flags.Distinct(StringComparer.Ordinal).Count() != Flags.Count)
             throw new InvalidOperationException("RuntimeSpec flags must be unique.");
-        foreach (var value in Values) value.Validate();
+        foreach (var value in Values)
+        {
+            if (value is null) throw new InvalidOperationException("RuntimeSpec value slots cannot contain null.");
+            value.Validate();
+        }
         if (Values.Select(value => value.Id).Distinct(StringComparer.Ordinal).Count() != Values.Count)
             throw new InvalidOperationException("RuntimeSpec value-slot IDs must be unique.");
         Condition?.Validate();
@@ -327,6 +333,17 @@ public static class OperationRuntimeSpecCompiler
     public static OperationRuntimeSpec GetOrCompile(GeneratorOperation operation) =>
         operation.RuntimeSpec ?? OperationSpecs.GetValue(operation, static value => CompileRequired(value));
 
+    /// <summary>
+    /// Runtime boundary for live generated cards. Unlike GetOrCompile this never infers behavior from localized
+    /// prose: old snapshots must be migrated and hydrated before a card reaches combat, rendering or valuation.
+    /// </summary>
+    public static OperationRuntimeSpec RequireStructured(GeneratorOperation operation) =>
+        operation.RuntimeSpec ?? throw new InvalidDataException(
+            $"Live operation {operation.Template} reached runtime without a persisted RuntimeSpec.");
+
+    /// <summary>Explicit legacy snapshot/authoring migration entry point.</summary>
+    public static OperationRuntimeSpec CompileLegacy(GeneratorOperation operation) => CompileRequired(operation);
+
     public static OperationRuntimeSpec GetOrCompile(ComponentAtom atom) => atom.RuntimeSpec
         ?? AtomSpecs.GetValue(atom, static value =>
             CompileRequired(new GeneratorOperation(value.Template, value.Scope, value.ChineseText,
@@ -529,7 +546,7 @@ public static class OperationRuntimeSpecCompiler
         };
     }
 
-    private static OperationRuntimeSpec ReplaceFixedValueInSpec(OperationRuntimeSpec spec, string slotId,
+    internal static OperationRuntimeSpec ReplaceFixedValueInSpec(OperationRuntimeSpec spec, string slotId,
         int newValue)
     {
         var slotIndex = spec.Values.ToList().FindIndex(value => value.Id == slotId);
@@ -1101,6 +1118,12 @@ public static class OperationRuntimeSpecCompiler
         {
             text = operation.ChineseText;
             return false;
+        }
+        if (operation.LocalizedText is { } localized)
+        {
+            var renderedSpec = ReplaceFixedValueInSpec(spec, slotId, newValue);
+            text = localized.RenderChinese(renderedSpec);
+            return true;
         }
         var numericIndex = spec.Values.Take(slotIndex).Count(value => value.Explicit
             && (value.Source == "fixed" || value.Offset != 0));

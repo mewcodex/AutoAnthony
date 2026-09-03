@@ -356,6 +356,7 @@ internal static class ChaosDerivativeResolver
             : MutableCanonicalCard(id);
         ApplyEnchantment(card, operation);
         if (upgraded && card.IsUpgradable) CardCmd.Upgrade(card);
+        DetachedPreviews.Add(card, new DetachedPreviewMarker());
         return card;
     }
 

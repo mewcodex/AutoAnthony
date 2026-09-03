@@ -116,13 +116,18 @@ public static class EnglishCardDescriptionRenderer
         if (operation.Template == "NCR:WheneverOstyAttacksTargetThisTurn")
             return "Whenever Osty hits this enemy this turn,";
         if (operation.Template == "NCR:ApplyPower_SicEmPower")
-            return $"Summon {(Regex.Match(operation.ChineseText, @"\d+") is { Success: true } summon ? summon.Value : "3")}.";
+            return $"Summon {OperationRuntimeSpecCompiler.StaticLiteralValue(operation, "amount", 3)}.";
         string text;
         // Derivative identity is part of the operation, whereas the external text registry is shared process-wide
         // and keyed only by template/text. Resolve derivatives first so one Ultimate-Chaos character cannot
         // overwrite singular/plural wording later rendered for another character using the same source template.
         // Orb X variants still consult the registry first because SpecialXCardConverter registers their X wording.
-        if (SpecialXCardConverter.IsSpecial(operation)
+        if (operation.LocalizedText?.RenderEnglish(OperationRuntimeSpecCompiler.GetOrCompile(operation))
+            is { Length: > 0 } localizedEnglish)
+        {
+            text = localizedEnglish;
+        }
+        else if (SpecialXCardConverter.IsSpecial(operation)
             && ExternalOperationTextRegistry.TryGet(operation.Template, operation.ChineseText,
                 out var specialXRegistered))
         {
@@ -157,24 +162,25 @@ public static class EnglishCardDescriptionRenderer
             text = OrbSlotCatalog.EnglishText(operation);
         else
             text = ToEnglish(operation.ChineseText);
+        var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         text = operation.Template switch
         {
-            "A:when" when Regex.Match(operation.ChineseText, @"第(\d+)张攻击牌") is { Success: true } attackOrdinal
-                => $"Whenever you play your {OrdinalWord(int.Parse(attackOrdinal.Groups[1].Value))} Attack each turn.",
-            "I:ReplayNextSkills" when Regex.Match(operation.ChineseText, @"下(\d+)张技能牌") is { Success: true } replayCount
-                => int.Parse(replayCount.Groups[1].Value) == 1
+            "A:when" when TrySpecValue(runtimeSpec, "threshold", out var attackOrdinal)
+                => $"Whenever you play your {OrdinalWord(attackOrdinal)} Attack each turn.",
+            "I:ReplayNextSkills" when TrySpecValue(runtimeSpec, "amount", out var replayCount)
+                => replayCount == 1
                     ? "The next Skill you play this turn is played twice."
-                    : $"The next {replayCount.Groups[1].Value} Skills you play this turn are played twice.",
-            "I:AutoPlayRandomAttackFromHand" when Regex.Match(operation.ChineseText, @"(\d+)张攻击牌") is { Success: true } attackCount
-                => int.Parse(attackCount.Groups[1].Value) == 1
+                    : $"The next {replayCount} Skills you play this turn are played twice.",
+            "I:AutoPlayRandomAttackFromHand" when TrySpecValue(runtimeSpec, "amount", out var attackCount)
+                => attackCount == 1
                     ? "Play 1 random Attack from your Hand against a random enemy."
-                    : $"Play {attackCount.Groups[1].Value} random Attacks from your Hand against random enemies.",
+                    : $"Play {attackCount} random Attacks from your Hand against random enemies.",
             "D:CreateZeroCostCopyInDiscard" =>
                 "Add a 0{energyPrefix:energyIcons(1)} copy of this card into your Discard Pile.",
-            "I:IncreaseDamageThisCombat" when Regex.Match(operation.ChineseText, @"(\d+)点") is { Success: true } increase
-                => $"Increase this card's damage by {increase.Groups[1].Value} this combat.",
-            "CL:ChooseFromRandomDrawCards" when Regex.Match(operation.ChineseText, @"随机(\d+)张牌") is { Success: true } options
-                => $"Choose 1 of {options.Groups[1].Value} cards in your Draw Pile to add into your Hand.",
+            "I:IncreaseDamageThisCombat" when TrySpecValue(runtimeSpec, "amount", out var increase)
+                => $"Increase this card's damage by {increase} this combat.",
+            "CL:ChooseFromRandomDrawCards" when TrySpecValue(runtimeSpec, "amount", out var options)
+                => $"Choose 1 of {options} cards in your Draw Pile to add into your Hand.",
             "D:GainTemporaryFocus" when !text.Contains("this turn", StringComparison.OrdinalIgnoreCase)
                 => text.TrimEnd('.') + " this turn.",
             "C:untilTurnEndCardDrawn" => "After you play this card, whenever you draw a card this turn.",
@@ -199,6 +205,18 @@ public static class EnglishCardDescriptionRenderer
         return UpperFirst(ExternalOperationTextRegistry.NormalizeNumberAgreement(text));
     }
 
+    private static bool TrySpecValue(OperationRuntimeSpec spec, string slotId, out int value)
+    {
+        var slot = spec.Values.FirstOrDefault(candidate => candidate.Id == slotId);
+        if (slot is null)
+        {
+            value = 0;
+            return false;
+        }
+        value = Math.Max(0, slot.BaseValue + slot.Offset);
+        return true;
+    }
+
     private static string OrdinalWord(int value) => value switch
     {
         1 => "first",
@@ -215,7 +233,7 @@ public static class EnglishCardDescriptionRenderer
         }
     };
 
-    internal static string TranslateLiteral(string chineseText) => ToEnglish(chineseText);
+    internal static string TranslateLegacyLiteral(string chineseText) => ToEnglish(chineseText);
 
     private static string LowerFirst(string text)
     {
@@ -428,6 +446,17 @@ public static class ExternalOperationTextRegistry
     public static void Register(string template, string englishText) => TextByTemplate[template] = englishText;
     public static void Register(string template, string chineseText, string englishText) =>
         TextByExactOperation[$"{template}|{chineseText}"] = englishText;
+    internal static void EnsureCanRegister(IEnumerable<ComponentLocalizedText> registrations)
+    {
+        foreach (var registration in registrations)
+        {
+            var key = $"{registration.Template}|{registration.ChineseText}";
+            if (TextByExactOperation.TryGetValue(key, out var existing)
+                && !string.Equals(existing, registration.EnglishText, StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    $"Operation text '{registration.Template}'/'{registration.ChineseText}' is already registered with different English text.");
+        }
+    }
     public static void RegisterNumericVariant(string template, string sourceChinese, string newChinese)
     {
         // Prefer the canonical literal renderer whenever it understands the resulting text. Mapping by numeric
@@ -436,7 +465,7 @@ public static class ExternalOperationTextRegistry
         // final English description and broke Ultimate Chaos peer determinism.
         try
         {
-            Register(template, newChinese, EnglishCardDescriptionRenderer.TranslateLiteral(newChinese));
+            Register(template, newChinese, EnglishCardDescriptionRenderer.TranslateLegacyLiteral(newChinese));
             return;
         }
         catch (InvalidOperationException)
@@ -444,7 +473,7 @@ public static class ExternalOperationTextRegistry
             // Dynamic derivatives/orbs may only have an externally registered source translation.
         }
         if (!TryGet(template, sourceChinese, out var english))
-            english = EnglishCardDescriptionRenderer.TranslateLiteral(sourceChinese);
+            english = EnglishCardDescriptionRenderer.TranslateLegacyLiteral(sourceChinese);
         var sourceValues = Regex.Matches(sourceChinese, @"\d+").Cast<Match>().Select(match => match.Value).ToArray();
         var newValues = Regex.Matches(newChinese, @"\d+").Cast<Match>().Select(match => match.Value).ToArray();
         if (sourceValues.Length == 0 && newValues.Length > 0 && sourceChinese.Contains("一张", StringComparison.Ordinal))

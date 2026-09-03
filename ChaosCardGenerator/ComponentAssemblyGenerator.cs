@@ -19,7 +19,8 @@ public sealed class ComponentAssemblyGenerator
     private const int MaximumAdaptiveEffectCount = 8;
     private sealed record ShellFrequencyIndex(
         IReadOnlyDictionary<GeneratedRarity, int> RecipeCountsByRarity,
-        IReadOnlyDictionary<(GeneratedRarity Rarity, CardTag Tag), int> TagCountsByRarity);
+        IReadOnlyDictionary<(GeneratedRarity Rarity, CardTag Tag), int> TagCountsByRarity,
+        IReadOnlyDictionary<(GeneratedRarity Rarity, string KeywordId), int> CustomKeywordCountsByRarity);
     private readonly record struct ResolvedSlot(
         string? DerivativeId,
         string? DerivativeEnchantmentId,
@@ -43,6 +44,7 @@ public sealed class ComponentAssemblyGenerator
     private readonly bool _randomizeNumericValues;
     private readonly IReadOnlyDictionary<GeneratedRarity, int> _recipeCountsByRarity;
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, CardTag Tag), int> _tagCountsByRarity;
+    private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, string KeywordId), int> _customKeywordCountsByRarity;
     private readonly IComponentOccurrencePolicy _frequencyTracker;
     private readonly IComponentValuePolicy _valuePolicy;
     private readonly ComponentKeywordPolicy _keywordPolicy;
@@ -88,6 +90,7 @@ public sealed class ComponentAssemblyGenerator
         var index = GetShellFrequencyIndex(profile.Id, _catalog);
         _recipeCountsByRarity = index.RecipeCountsByRarity;
         _tagCountsByRarity = index.TagCountsByRarity;
+        _customKeywordCountsByRarity = index.CustomKeywordCountsByRarity;
         _frequencyTracker = frequencyTracker
             ?? profile.CreateOccurrencePolicy();
         _usedChineseNames = usedChineseNames;
@@ -107,6 +110,10 @@ public sealed class ComponentAssemblyGenerator
                     .ToDictionary(group => group.Key, group => group.Count()),
                 catalog.Recipes.SelectMany(recipe => recipe.Tags.Select(tag =>
                         (recipe.OriginalRarity, Tag: tag)))
+                    .GroupBy(item => item)
+                    .ToDictionary(group => group.Key, group => group.Count()),
+                catalog.Recipes.SelectMany(recipe => (recipe.CustomKeywords ?? []).Select(keywordId =>
+                        (recipe.OriginalRarity, KeywordId: keywordId)))
                     .GroupBy(item => item)
                     .ToDictionary(group => group.Key, group => group.Count()));
             ShellFrequencyIndexes[profileId] = created;
@@ -313,7 +320,9 @@ public sealed class ComponentAssemblyGenerator
                 parameters, cardTargetSlot, atom.RequiresSingleTarget && !nextAttackPayload,
                 resolvedSlot.DerivativeId, resolvedSlot.DerivativeEnchantmentId,
                 resolvedSlot.OrbSourceId, resolvedSlot.OrbOutputId, resolvedSlot.DerivativeEnchantmentAmount,
-                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom),
+                LocalizedText: LocalizedText(atom),
+                LocalizationId: ComponentLocalizationApi.TryGet(atom.SemanticId, out _) ? atom.SemanticId : null);
             operations.Add(generatedOperation);
             if (CardEffectRules.IsCurrentBlockDamageModifier(generatedOperation))
                 NormalizeCurrentBlockDamageAnchor(operations, operations.Count - 1);
@@ -416,6 +425,8 @@ public sealed class ComponentAssemblyGenerator
         // Sly is deliberately sampled later. It must not participate in downside compensation, numeric scaling,
         // whole-card envelopes or any other budget multiplier.
         var tags = SampleTags(finalType, operations, rarity, finalCost, starCost, hasStarCostX);
+        var customKeywords = SampleCustomKeywords(finalType, operations, rarity, finalCost, starCost,
+            hasStarCostX, tags);
         if (hasRestrictedEffect && finalType != GeneratedCardType.Power && !tags.Contains(CardTag.Exhaust))
             tags = tags.Append(CardTag.Exhaust).ToArray();
         // Some useful effects (for example exhausting Statuses) have no scalable printed number. If an explicit
@@ -446,6 +457,7 @@ public sealed class ComponentAssemblyGenerator
             ? starCost - 1
             : starCost;
         var hasSly = SlyKeywordTuning.CanAttach(finalCost, _specialXMode, hasExtremeLifecycleDownside)
+            && _keywordPolicy.AllowsBase(CardTag.Sly)
             && SampleTag(CardTag.Sly, rarity, finalCost, finalStarCost, hasStarCostX, finalType,
                 tags.Contains(CardTag.Exhaust));
         // Sly is decided after explicit-downside compensation. Its ordinary template is therefore the compensated
@@ -592,7 +604,8 @@ public sealed class ComponentAssemblyGenerator
             Character: _character,
             StarCost: finalStarCost,
             HasStarCostX: hasStarCostX,
-            UnifiedChaos: _unlockComponentRoles);
+            UnifiedChaos: _unlockComponentRoles,
+            CustomKeywords: customKeywords.Count == 0 ? null : customKeywords);
         baseCard = SpecialXCardConverter.Convert(baseCard, _random, _specialXMode);
         if (_specialXMode == SpecialXGenerationMode.Forced && !SpecialXCardConverter.IsSpecial(baseCard))
             continue;
@@ -713,6 +726,10 @@ public sealed class ComponentAssemblyGenerator
             var operation = operations[operationIndex];
             foreach (var slot in OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(operation))
             {
+                // Non-upgradable fixed slots are semantic markers (for example the native X>=4 doubling gate),
+                // not scalable card output. Numeric Random mode varies gameplay magnitudes but must preserve those
+                // routing thresholds just as ordinary upgrades do.
+                if (!slot.Upgradable) continue;
                 var original = slot.BaseValue + slot.Offset;
                 if (original <= 0) continue;
                 var hash = SHA256.HashData(Encoding.UTF8.GetBytes(
@@ -731,7 +748,13 @@ public sealed class ComponentAssemblyGenerator
                     && OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("plating_reference"))
                     randomized = Math.Max(3, randomized);
                 if (operation.Template == "R:ReturnAfterSkillsPlayed")
-                    randomized = Math.Max(2, randomized);
+                {
+                    var upgradeDelta = card.Upgrade?.Effects.Where(effect =>
+                            effect.OperationIndex == operationIndex
+                            && effect.Kind == CardUpgradeKind.ReduceThreshold)
+                        .Sum(effect => effect.Delta ?? 0) ?? 0;
+                    randomized = Math.Max(2 - Math.Min(0, upgradeDelta), randomized);
+                }
                 if (operation.Template == "R:IfEnergyXAtLeast" && slot.Id == "threshold")
                     randomized = Math.Clamp(randomized, 1, 4);
                 if (slot.Id == "duration"
@@ -739,7 +762,10 @@ public sealed class ComponentAssemblyGenerator
                         _unlockComponentRoles) is { } durationCap)
                     randomized = Math.Min(randomized, durationCap);
                 if (CardEffectRules.IsNumericSelfCostReduction(operation) && slot.Id == "amount")
-                    randomized = Math.Clamp(randomized, 1, Math.Max(1, card.Cost));
+                {
+                    var minimumCost = Math.Min(card.Cost, card.Upgrade?.UpgradedCost ?? card.Cost);
+                    randomized = Math.Clamp(randomized, 1, Math.Max(1, minimumCost));
+                }
                 if (OperationRuntimeSpecCompiler.TryReplaceFixedValue(operation, slot.Id, randomized,
                         out var updated))
                     operation = updated;
@@ -1032,48 +1058,9 @@ public sealed class ComponentAssemblyGenerator
     {
         var type = shell.Type;
         var target = shell.Target;
-        var cost = 1;
-        GeneratorOperation operation;
-        if (_specialXMode == SpecialXGenerationMode.Forced)
-        {
-            // Special-X quotas only replace non-Basic cards. A 2-cost/2-Block seed is guaranteed convertible and
-            // avoids Draw, self-cost changes, derivatives, targets, and every other cross-component dependency.
-            type = GeneratedCardType.Skill;
-            target = TargetMode.Other;
-            cost = 2;
-            operation = new GeneratorOperation("N:B", OperationScope.NonTargeted, "获得2点格挡。",
-                new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.WithFixedValue(
-                    CatalogRuntimeSpecRegistry.Get("ironclad/defendironclad/0"), "block", 2));
-        }
-        else if (type == GeneratedCardType.Power)
-        {
-            target = TargetMode.Other;
-            operation = new GeneratorOperation("N:Self", OperationScope.NonTargeted, "获得1点力量。",
-                new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.WithFixedValue(
-                    CatalogRuntimeSpecRegistry.Get("ironclad/inflame/0"), "amount", 1));
-        }
-        else if (type == GeneratedCardType.Attack)
-        {
-            operation = target == TargetMode.SingleEnemy
-                ? new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly, "造成6点伤害。",
-                    new Dictionary<string, int>(), RequiresSingleTarget: true,
-                    RuntimeSpec: CatalogRuntimeSpecRegistry.Get("ironclad/strikeironclad/0"))
-                : new GeneratorOperation("N:AllD", OperationScope.NonTargeted, "对所有敌人造成5点伤害。",
-                    new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.WithFixedValue(
-                        CatalogRuntimeSpecRegistry.Get("ironclad/thunderclap/0"), "damage", 5));
-        }
-        else if (target == TargetMode.SingleEnemy)
-        {
-            operation = new GeneratorOperation("T:Apply", OperationScope.SingleEnemyOnly, "给予2层易伤。",
-                new Dictionary<string, int>(), RequiresSingleTarget: true,
-                RuntimeSpec: CatalogRuntimeSpecRegistry.Get("ironclad/bash/1"));
-        }
-        else
-        {
-            operation = new GeneratorOperation("N:B", OperationScope.NonTargeted, "获得6点格挡。",
-                new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.WithFixedValue(
-                    CatalogRuntimeSpecRegistry.Get("ironclad/defendironclad/0"), "block", 6));
-        }
+        var cost = _specialXMode == SpecialXGenerationMode.Forced ? 2 : 1;
+        var operation = CreateCatalogEmergencyOperation(ref type, ref target, cost,
+            requireSpecialXConvertible: _specialXMode == SpecialXGenerationMode.Forced);
 
         if (_specialXMode != SpecialXGenerationMode.Forced)
             operation = RaiseEmergencyFallbackToRarityFloor(operation, rarity, cost);
@@ -1091,22 +1078,16 @@ public sealed class ComponentAssemblyGenerator
         var fallbackOperations = new List<GeneratorOperation> { operation };
         if (raiseAggressiveEffectFloor)
         {
-            // Preserve the card-level 30% lower-bound roll even on the emergency path. Pick a complementary
-            // operation rather than duplicating the first field so fallback cards obey the ordinary field rules.
-            fallbackOperations.Add(operation.Template == "N:B"
-                ? new GeneratorOperation("N:Self", OperationScope.NonTargeted, "获得1点力量。",
-                    new Dictionary<string, int>(), RuntimeSpec: CatalogRuntimeSpecRegistry.Get("ironclad/inflame/0"))
-                : new GeneratorOperation("N:B", OperationScope.NonTargeted, "获得3点格挡。",
-                    new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.WithFixedValue(
-                        CatalogRuntimeSpecRegistry.Get("ironclad/defendironclad/0"), "block", 3)));
+            // Preserve the card-level lower-bound roll on the emergency path, while keeping external profiles
+            // independent from built-in component IDs.
+            if (TryCreateCatalogComplement(type, target, cost, fallbackOperations, 3) is { } complement)
+                fallbackOperations.Add(complement);
         }
         if (_specialXMode == SpecialXGenerationMode.Forced && uniquenessBoost > 0)
         {
-            var fixedBlock = 2 + uniquenessBoost;
-            fallbackOperations.Add(new GeneratorOperation("N:B", OperationScope.NonTargeted,
-                $"获得{fixedBlock}点格挡。", new Dictionary<string, int>(),
-                RuntimeSpec: OperationRuntimeSpecCompiler.WithFixedValue(
-                    CatalogRuntimeSpecRegistry.Get("ironclad/defendironclad/0"), "block", fixedBlock)));
+            if (TryCreateCatalogComplement(type, target, cost, fallbackOperations,
+                    2 + uniquenessBoost) is { } complement)
+                fallbackOperations.Add(complement);
         }
         GeneratedCard card = new(cost, type, target, rarity,
             CardDescriptionRenderer.Render(fallbackOperations), Array.Empty<CardTag>(), fallbackOperations,
@@ -1143,8 +1124,8 @@ public sealed class ComponentAssemblyGenerator
                 || !OperationRuntimeSpecCompiler.TryGetFixedUpgradeValue(fallbackOperation, out var slotId, out _)
                 || slotId is null)
                 continue;
-            var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, "数值增加1。",
-                operationIndex, 1, "Value +1.", slotId);
+            var effect = new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber,
+                operationIndex, 1, slotId);
             var upgradedOperations = CardUpgradeGenerator.ApplyEffectsToOperations(card.Operations, [effect]);
             var minimalUpgrade = new CardUpgradePlan(card.Cost, [effect],
                 CardDescriptionRenderer.Render(upgradedOperations), Array.Empty<CardTag>(),
@@ -1164,6 +1145,133 @@ public sealed class ComponentAssemblyGenerator
                                             + CardDescriptionRenderer.Render(fallbackOperations) + " / "
                                             + lastUpgradeError);
     }
+
+    /// <summary>
+    /// Builds the bounded last-resort card from the active profile itself. Older code used Ironclad's Strike,
+    /// Defend and Inflame RuntimeSpecs here, which made an otherwise complete external character package depend on
+    /// another character's catalog when ordinary assembly exhausted its retry budget.
+    /// </summary>
+    private GeneratorOperation CreateCatalogEmergencyOperation(ref GeneratedCardType type, ref TargetMode target,
+        int cost, bool requireSpecialXConvertible)
+    {
+        IEnumerable<ComponentAtom> candidates = EmergencyCandidates();
+
+        bool FitsType(ComponentAtom atom, GeneratedCardType candidateType) => candidateType switch
+        {
+            GeneratedCardType.Attack => CardEffectRules.HasAttackClassifyingDamage(
+                [CreateCatalogOperation(atom)]),
+            GeneratedCardType.Skill => !CardEffectRules.HasAttackClassifyingDamage(
+                    [CreateCatalogOperation(atom)])
+                && atom.Scope is not (OperationScope.AbilityTrigger or OperationScope.AbilityRule),
+            GeneratedCardType.Power => CardEffectRules.IsPersistentPowerFoundation(atom)
+                && atom.Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger),
+            _ => false
+        };
+
+        var requestedType = type;
+        var selected = candidates
+            .Where(atom => FitsType(atom, requestedType))
+            .Where(atom => HasValidOperationAssembly([CreateCatalogOperation(atom)]))
+            .OrderBy(atom => atom.SemanticId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (selected is null && requireSpecialXConvertible)
+        {
+            // Special-X is a quota mechanism, not part of an external profile's required authoring surface. If the
+            // sampled shell cannot expose a convertible field, use the profile's simplest legal Skill/Attack field
+            // and derive the printed type and target from that operation.
+            selected = candidates
+                .Where(atom => FitsType(atom, GeneratedCardType.Skill)
+                    || FitsType(atom, GeneratedCardType.Attack))
+                .Where(atom => HasValidOperationAssembly([CreateCatalogOperation(atom)]))
+                .OrderBy(atom => atom.SemanticId, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (selected is not null)
+                type = FitsType(selected, GeneratedCardType.Attack)
+                    ? GeneratedCardType.Attack : GeneratedCardType.Skill;
+        }
+        if (selected is null)
+            throw new InvalidOperationException($"Profile {_profileId} has no standalone positive {type} "
+                                                + "component suitable for emergency generation.");
+
+        target = type == GeneratedCardType.Power || !CardEffectRules.RequiresSingleEnemyTarget(selected)
+            ? TargetMode.Other : TargetMode.SingleEnemy;
+        var operation = CreateCatalogOperation(selected);
+        if (requireSpecialXConvertible)
+        {
+            if (!OperationRuntimeSpecCompiler.TryGetPrimaryExplicitFixedValue(operation, out var slotId,
+                    out _)
+                || slotId is null
+                || !OperationRuntimeSpecCompiler.TryReplaceFixedValue(operation, slotId, cost,
+                    out operation))
+                throw new InvalidOperationException($"Profile {_profileId} has no Special-X convertible fallback.");
+        }
+        return operation;
+    }
+
+    private IEnumerable<ComponentAtom> EmergencyCandidates() => _componentCatalog.Atoms
+            .Where(atom => atom.CardReference == CardReferenceRequirement.None
+                && atom.Scope is OperationScope.SingleEnemyOnly or OperationScope.NonTargeted
+                && (atom.LocalizedText is not null || ComponentLocalizationApi.TryGet(atom.SemanticId, out _))
+                && !DerivativeSlotCatalog.IsSlotOperation(atom.Template)
+                && !OrbSlotCatalog.IsSlotOperation(atom.Template)
+                && !CardEffectRules.IsNegativeEffect(atom)
+                && !CardEffectRules.IsRestrictedEffect(atom)
+                && !CardEffectRules.IsSelfCardMovementOrReplay(atom)
+                && !CardEffectRules.TriggerNeedsLinkedEffect(atom)
+                && !CardEffectRules.IsDependencyPrefix(atom)
+                && !CardEffectRules.RequiresDependencyPrefix(atom)
+                && !CardEffectRules.RequiresSpecificTriggerPayload(atom)
+                && !CardEffectRules.IsHitEnemyDamageVariant(atom)
+                && CardEffectRules.XRequirement(atom) == XResourceRequirement.None
+                && CardEffectRules.IsBeneficialEffect(atom)
+                && OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(atom).Any(slot => slot.Upgradable));
+
+    private GeneratorOperation? TryCreateCatalogComplement(GeneratedCardType type, TargetMode target, int cost,
+        IReadOnlyList<GeneratorOperation> existing, int preferredValue)
+    {
+        var candidates = EmergencyCandidates()
+            .Where(atom => type != GeneratedCardType.Skill
+                || !CardEffectRules.HasAttackClassifyingDamage([CreateCatalogOperation(atom)]))
+            .Where(atom => type != GeneratedCardType.Power
+                || atom.Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger))
+            .Where(atom => target == TargetMode.SingleEnemy
+                || !CardEffectRules.RequiresSingleEnemyTarget(atom))
+            .Where(atom => !existing.Any(operation => OperationRuntimeSpecCompiler.StructuralFieldKey(operation)
+                == OperationRuntimeSpecCompiler.StructuralFieldKey(atom)))
+            .Select(CreateCatalogOperation)
+            .Where(operation => HasValidOperationAssembly(existing.Append(operation).ToArray()))
+            .OrderBy(operation => OperationRuntimeSpecCompiler.StructuralFieldKey(operation),
+                StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (candidates is null) return null;
+        return OperationRuntimeSpecCompiler.TryGetPrimaryExplicitFixedValue(candidates, out var slotId, out _)
+               && slotId is not null
+               && OperationRuntimeSpecCompiler.TryReplaceFixedValue(candidates, slotId, preferredValue,
+                   out var adjusted)
+            ? adjusted
+            : candidates;
+    }
+
+    private static GeneratorOperation CreateCatalogOperation(ComponentAtom atom)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        var localized = LocalizedText(atom);
+        return new GeneratorOperation(
+            atom.Template,
+            atom.Scope,
+            localized.RenderChinese(spec),
+            new Dictionary<string, int>(),
+            RequiresSingleTarget: atom.RequiresSingleTarget,
+            RuntimeSpec: spec,
+            LocalizedText: localized,
+            LocalizationId: ComponentLocalizationApi.TryGet(atom.SemanticId, out _) ? atom.SemanticId : null);
+    }
+
+    private static OperationLocalizedText LocalizedText(ComponentAtom atom) =>
+        atom.LocalizedText
+        ?? (ComponentLocalizationApi.TryGet(atom.SemanticId, out var registered)
+            ? registered
+            : throw new InvalidOperationException($"Component {atom.SemanticId} has no localization template."));
 
     private static GeneratorOperation RaiseEmergencyFallbackToRarityFloor(GeneratorOperation operation,
         GeneratedRarity rarity, int effectiveCost)
@@ -1881,7 +1989,7 @@ public sealed class ComponentAssemblyGenerator
                 parameters,
                 cardTargetSlot,
                 atom.RequiresSingleTarget && !nextAttackPayload,
-                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom)));
+                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: LocalizedText(atom)));
         }
 
         var finalType = recipe.Type == GeneratedCardType.Power
@@ -2109,20 +2217,81 @@ public sealed class ComponentAssemblyGenerator
                 ExternalOperationTextRegistry.RegisterNumericVariant(atom.Template, sourceChinese,
                     atom.ChineseText);
             sourceChinese = atom.ChineseText;
+            var sourceSpec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+            var sourceLocalized = LocalizedText(atom);
+            try
+            {
+                sourceLocalized.Validate(sourceSpec);
+                if (!string.Equals(sourceLocalized.RenderChinese(sourceSpec), sourceChinese,
+                        StringComparison.Ordinal))
+                    throw new InvalidOperationException("The cached localization projects an earlier value shape.");
+            }
+            catch (InvalidOperationException)
+            {
+                var migratedEnglish = ExternalOperationTextRegistry.TryGet(atom.Template, sourceChinese,
+                    out var registeredEnglish)
+                    ? registeredEnglish
+                    : EnglishCardDescriptionRenderer.TranslateLegacyLiteral(sourceChinese);
+                if (!OperationLocalizedText.TryCompile(sourceChinese, migratedEnglish, sourceSpec,
+                        out sourceLocalized) || sourceLocalized is null)
+                    throw new InvalidOperationException($"Cannot refresh derivative localization for "
+                                                        + $"{atom.SemanticId}/{atom.Template}.");
+            }
             var sourceOperation = new GeneratorOperation(atom.Template, atom.Scope, sourceChinese,
                 new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
-                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+                RuntimeSpec: sourceSpec, LocalizedText: sourceLocalized);
             var sourceEnglish = EnglishCardDescriptionRenderer.OperationText(sourceOperation);
-            var derivativeChinese = DerivativeSlotCatalog.ReplaceChinese(sourceChinese, atom.Template, derivative,
-                enchantment);
-            var derivativeEnglish = DerivativeSlotCatalog.ReplaceEnglish(sourceEnglish, atom.Template, derivative,
-                enchantment);
+            var derivativeSpec = OperationRuntimeSpecCompiler.WithDerivativeReference(
+                OperationRuntimeSpecCompiler.GetOrCompile(atom), derivative.Id);
+            var sourceDerivative = DerivativeSlotCatalog.Source(atom.Template)
+                ?? throw new InvalidOperationException($"Derivative slot {atom.Template} has no source definition.");
+            var sourceEnchantment = DerivativeSlotCatalog.ResolveEnchantment(null, null, atom.Template);
+            var sourceChineseName = DerivativeEnchantmentCatalog.ChineseCardName(sourceDerivative,
+                sourceEnchantment);
+            var selectedChineseName = DerivativeEnchantmentCatalog.ChineseCardName(derivative, enchantment);
+            var usePlural = DerivativeSlotCatalog.EnglishTextUsesPlural(sourceEnglish, atom.Template);
+            var sourceEnglishSingular = DerivativeSlotCatalog.SourceEnglishName(atom.Template, plural: false);
+            var sourceEnglishPlural = DerivativeSlotCatalog.SourceEnglishName(atom.Template, plural: true);
+            var sourceEnglishName = sourceEnglishPlural != sourceEnglishSingular
+                && sourceLocalized.EnglishTemplate?.Contains(sourceEnglishPlural,
+                    StringComparison.OrdinalIgnoreCase) == true
+                    ? sourceEnglishPlural
+                    : sourceEnglishSingular;
+            var selectedEnglishName = usePlural
+                ? DerivativeEnchantmentCatalog.EnglishPlural(derivative, enchantment)
+                : DerivativeEnchantmentCatalog.EnglishSingular(derivative, enchantment);
+            OperationLocalizedText derivativeLocalized;
+            try
+            {
+                derivativeLocalized = sourceLocalized
+                    .BindTextSlot("derivative", sourceChineseName, sourceEnglishName)
+                    .WithTextSlotValue("derivative", selectedChineseName, selectedEnglishName);
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException($"Cannot bind derivative presentation slot for "
+                    + $"{atom.SemanticId}/{atom.Template}: zh={sourceChineseName}; en={sourceEnglishName}; "
+                    + $"rendered={sourceEnglish}; template={sourceLocalized.EnglishTemplate}.", exception);
+            }
+            try
+            {
+                derivativeLocalized.Validate(derivativeSpec);
+            }
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException($"Invalid derivative presentation slots for "
+                    + $"{atom.SemanticId}/{atom.Template}: zh={derivativeLocalized.ChineseTemplate}; "
+                    + $"en={derivativeLocalized.EnglishTemplate}; spec={derivativeSpec.StableSignature()}.", exception);
+            }
+            var derivativeChinese = derivativeLocalized.RenderChinese(derivativeSpec);
+            var derivativeEnglish = derivativeLocalized.RenderEnglish(derivativeSpec)
+                ?? throw new InvalidOperationException($"Derivative slot {atom.Template} has no English template.");
             ExternalOperationTextRegistry.Register(atom.Template, derivativeChinese, derivativeEnglish);
             atom = atom with
             {
                 ChineseText = derivativeChinese,
-                RuntimeSpec = OperationRuntimeSpecCompiler.WithDerivativeReference(
-                    OperationRuntimeSpecCompiler.GetOrCompile(atom), derivative.Id)
+                RuntimeSpec = derivativeSpec,
+                LocalizedText = derivativeLocalized
             };
         }
 
@@ -2141,14 +2310,18 @@ public sealed class ComponentAssemblyGenerator
                     atom = ReplaceAtomFixedValue(atom, countSlot.Id, adjustedCount);
                 }
             }
+            var sourceLocalized = LocalizedText(atom);
             var sourceOperation = new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
                 new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
-                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: sourceLocalized);
             var sourceEnglish = EnglishCardDescriptionRenderer.OperationText(sourceOperation);
-            var orbChinese = OrbSlotCatalog.ApplyChinese(atom.ChineseText, atom.Template, orbSource, orbOutput);
-            var orbEnglish = OrbSlotCatalog.ApplyEnglish(sourceEnglish, atom.Template, orbSource, orbOutput);
+            var orbLocalized = OrbSlotCatalog.BindLocalizedText(sourceLocalized, sourceEnglish, atom.Template,
+                orbSource, orbOutput, OperationRuntimeSpecCompiler.GetOrCompile(atom));
+            var orbChinese = orbLocalized.RenderChinese(OperationRuntimeSpecCompiler.GetOrCompile(atom));
+            var orbEnglish = orbLocalized.RenderEnglish(OperationRuntimeSpecCompiler.GetOrCompile(atom))
+                ?? throw new InvalidOperationException($"Orb slot {atom.Template} has no English template.");
             ExternalOperationTextRegistry.Register(atom.Template, orbChinese, orbEnglish);
-            atom = atom with { ChineseText = orbChinese };
+            atom = atom with { ChineseText = orbChinese, LocalizedText = orbLocalized };
         }
 
         resolved = new ResolvedSlot(derivativeId, derivativeEnchantmentId, derivativeEnchantmentAmount,
@@ -2588,7 +2761,7 @@ public sealed class ComponentAssemblyGenerator
                 : new Dictionary<string, int>();
         var preview = new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
             parameters, RequiresSingleTarget: atom.RequiresSingleTarget,
-            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: LocalizedText(atom));
         // These operations can grow the planned component count after selection.  Leave them to the existing
         // dependency/downside completion rules rather than treating the current slot as truly final.
         if (CardEffectRules.TriggerNeedsLinkedEffect(preview)
@@ -2642,6 +2815,7 @@ public sealed class ComponentAssemblyGenerator
         var tags = new List<CardTag>();
         foreach (var tag in Enum.GetValues<CardTag>())
         {
+            if (!_keywordPolicy.AllowsBase(tag)) continue;
             if (tag == CardTag.Sly) continue;
             if (tag == CardTag.Strike && type != GeneratedCardType.Attack) continue;
             if (tag == CardTag.Defend && type != GeneratedCardType.Skill) continue;
@@ -2684,6 +2858,28 @@ public sealed class ComponentAssemblyGenerator
             numerator = (int)Math.Max(1, PercentWeight.Apply(numerator,
                 EffectSelectionTuning.NegativeKeywordRarityWeight(tag, rarity)));
         return denominator > 0 && _random.Next(denominator) < numerator;
+    }
+
+    private IReadOnlyList<string> SampleCustomKeywords(GeneratedCardType type,
+        IReadOnlyList<GeneratorOperation> operations, GeneratedRarity rarity, int energyCost, int starCost,
+        bool hasStarCostX, IReadOnlyList<CardTag> nativeTags)
+    {
+        if (_catalog.CustomKeywordCounts.Count == 0) return [];
+        var selected = new List<string>();
+        var rarityRecipeCount = _recipeCountsByRarity.GetValueOrDefault(rarity);
+        foreach (var keywordId in _catalog.CustomKeywordCounts.Keys.OrderBy(value => value, StringComparer.Ordinal))
+        {
+            if (!_keywordPolicy.AllowsCustomBase(keywordId)) continue;
+            var context = new ComponentKeywordGenerationContext(_profileId, _character, rarity, type,
+                energyCost, starCost, hasStarCostX, operations, nativeTags, selected);
+            if (!ComponentKeywordApi.CanAttach(keywordId, context)) continue;
+            var numerator = _customKeywordCountsByRarity.GetValueOrDefault((rarity, keywordId)) * 4
+                + _catalog.CustomKeywordCounts.GetValueOrDefault(keywordId);
+            var denominator = rarityRecipeCount * 4 + _catalog.Recipes.Count;
+            if (numerator > 0 && denominator > 0 && _random.Next(denominator) < numerator)
+                selected.Add(keywordId);
+        }
+        return selected;
     }
 
     internal static int AdjustStrikeTagNumerator(int numerator, GeneratedCharacter character,
@@ -2823,7 +3019,7 @@ public sealed class ComponentAssemblyGenerator
         magnitude = 0;
         var operation = new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
             new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
-            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: LocalizedText(atom));
         if (!CardEffectRules.IsBeneficialEffect(operation)) return false;
         var numbers = OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(atom)
             .Select(slot => slot.BaseValue + slot.Offset).ToArray();
@@ -2907,7 +3103,7 @@ public sealed class ComponentAssemblyGenerator
             return atom;
         var sourceOperation = new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
             new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
-            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: LocalizedText(atom));
         var numericSlots = OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(sourceOperation);
         if (numericSlots.Count == 0) return atom;
         var updatedOperation = sourceOperation;
@@ -2983,7 +3179,8 @@ public sealed class ComponentAssemblyGenerator
             : atom with
             {
                 ChineseText = updatedOperation.ChineseText,
-                RuntimeSpec = updatedOperation.RuntimeSpec
+                RuntimeSpec = updatedOperation.RuntimeSpec,
+                LocalizedText = updatedOperation.LocalizedText
             };
     }
 
@@ -2991,9 +3188,14 @@ public sealed class ComponentAssemblyGenerator
     {
         var operation = new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
             new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
-            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: LocalizedText(atom));
         return OperationRuntimeSpecCompiler.TryReplaceFixedValue(operation, slotId, value, out var updated)
-            ? atom with { ChineseText = updated.ChineseText, RuntimeSpec = updated.RuntimeSpec }
+            ? atom with
+            {
+                ChineseText = updated.ChineseText,
+                RuntimeSpec = updated.RuntimeSpec,
+                LocalizedText = updated.LocalizedText
+            }
             : atom;
     }
 
@@ -3749,10 +3951,13 @@ public static class CardEffectRules
     /// is deliberately not part of this set and remains legal on Powers.
     /// </summary>
     public static bool IsSelfCardMovementOrReplay(ComponentAtom atom) =>
-        IsSelfCardMovementOrReplay(atom.Template);
+        RuntimeSpec(atom).Flags.Contains(ComponentSemanticFlags.SelfCardMovement)
+        || IsSelfCardMovementOrReplay(atom.Template);
 
     public static bool IsSelfCardMovementOrReplay(GeneratorOperation operation) =>
-        IsSelfCardMovementOrReplay(operation.Template);
+        OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags
+            .Contains(ComponentSemanticFlags.SelfCardMovement)
+        || IsSelfCardMovementOrReplay(operation.Template);
 
     private static bool IsSelfCardMovementOrReplay(string template) => template is
         "CL:ReturnThisToHand"
@@ -3951,12 +4156,14 @@ public static class CardEffectRules
     /// includes permanent potion/gold rewards and run-persistent increases to this card's base damage or Block.
     /// </summary>
     public static bool IsRestrictedEffect(ComponentAtom atom) =>
-        atom.Template is "N:Heal" or "N_HEAL" or "I:GainMaxHp" or "CL:ProxyAtomic_Alchemize" or "CL:GainGold"
+        RuntimeSpec(atom).Flags.Contains(ComponentSemanticFlags.Restricted)
+        || atom.Template is "N:Heal" or "N_HEAL" or "I:GainMaxHp" or "CL:ProxyAtomic_Alchemize" or "CL:GainGold"
             or "A:ProxyAtomic_Royalties" or "I:AddCardReward"
             or "D:IncreaseThisCardBlockRun" or "NCR:IncreaseThisCardDamageRun";
 
     public static bool IsRestrictedEffect(GeneratorOperation operation) =>
-        IsHealingOrMaxHp(operation)
+        OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains(ComponentSemanticFlags.Restricted)
+        || IsHealingOrMaxHp(operation)
         || operation.Template is "CL:ProxyAtomic_Alchemize" or "CL:GainGold"
             or "A:ProxyAtomic_Royalties" or "I:AddCardReward"
             or "D:IncreaseThisCardBlockRun" or "NCR:IncreaseThisCardDamageRun";
@@ -4300,13 +4507,13 @@ public static class CardEffectRules
     /// </summary>
     public static bool IsNegativeEffect(ComponentAtom atom) =>
         ComponentValuationApi.IsNegative(OperationRuntimeSpecCompiler.GetOrCompile(atom))
-        || OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("api_negative")
+        || OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains(ComponentSemanticFlags.Negative)
         || OperationRuntimeSpecCompiler.IsIntrinsicNegative(atom)
         || DerivativeSlotCatalog.ProducesStatus(atom);
 
     public static bool IsNegativeEffect(GeneratorOperation operation) =>
         ComponentValuationApi.IsNegative(OperationRuntimeSpecCompiler.GetOrCompile(operation))
-        || OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("api_negative")
+        || OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains(ComponentSemanticFlags.Negative)
         || OperationRuntimeSpecCompiler.IsIntrinsicNegative(operation)
         || DerivativeSlotCatalog.ProducesStatus(operation);
 
@@ -4562,7 +4769,7 @@ public static class CardEffectRules
 
     public static string EffectFamily(ComponentAtom atom) => EffectFamily(new GeneratorOperation(atom.Template,
         atom.Scope, atom.ChineseText, new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
-        RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom)));
+        RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: atom.LocalizedText));
 
     public static string? PrintedDamageValueSlot(GeneratorOperation operation)
     {
@@ -5180,10 +5387,14 @@ public static class CardEffectRules
         || operations.Any(operation => !IsSelfCostChange(operation) && IsBeneficialEffect(operation));
 
     /// <summary>Direct enemy damage from this card, used for Attack/Skill classification and Fatal legality.</summary>
-    public static bool IsEnemyDamage(ComponentAtom atom) => IsEnemyDamage(atom.Template);
+    public static bool IsEnemyDamage(ComponentAtom atom) =>
+        RuntimeSpec(atom).Flags.Contains(ComponentSemanticFlags.EnemyDamage)
+        || IsEnemyDamage(atom.Template);
 
     /// <summary>Direct enemy damage from this card, used for Attack/Skill classification and Fatal legality.</summary>
-    public static bool IsEnemyDamage(GeneratorOperation operation) => IsEnemyDamage(operation.Template);
+    public static bool IsEnemyDamage(GeneratorOperation operation) =>
+        OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains(ComponentSemanticFlags.EnemyDamage)
+        || IsEnemyDamage(operation.Template);
 
     private static bool IsEnemyDamage(string template) =>
         template.StartsWith("T:D", StringComparison.Ordinal)
@@ -5254,11 +5465,14 @@ public static class CardEffectRules
     public static bool IsBeneficialEffect(ComponentAtom atom) => IsBeneficialEffect(new GeneratorOperation(
         atom.Template, atom.Scope, atom.ChineseText, EmptyParameters,
         RequiresSingleTarget: atom.RequiresSingleTarget,
-        RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom)));
+        RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: atom.LocalizedText));
 
     public static bool IsBeneficialEffect(GeneratorOperation operation)
     {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         if (IsNegativeEffect(operation) && !IsMixedBenefitAndDownside(operation.Template)) return false;
+        if (spec.Flags.Contains(ComponentSemanticFlags.Beneficial)
+            || ComponentValuationApi.IsRegisteredBenefit(spec)) return true;
         if (IsPlayerSelectedExhaust(operation)) return true;
         if (operation.Template.Contains(":Proxy", StringComparison.Ordinal)) return true;
         if (IsEnemyDamage(operation)
@@ -5794,14 +6008,15 @@ public static class CardEffectRules
     /// restricted Power-or-Exhaust effect. Turn-local conditional triggers do not establish a Power foundation.
     /// </summary>
     public static bool IsPersistentPowerFoundation(GeneratorOperation operation) =>
-        OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("api_power_foundation")
+        OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags
+            .Contains(ComponentSemanticFlags.PowerFoundation)
         || operation.Scope is OperationScope.AbilityTrigger or OperationScope.AbilityRule
         || IsPersistentStat(operation.Template, OperationRuntimeSpecCompiler.GetOrCompile(operation))
         || IsRestrictedEffect(operation)
         || IsCopyThisCardToDiscard(operation);
 
     public static bool IsPersistentPowerFoundation(ComponentAtom atom) =>
-        RuntimeSpec(atom).Flags.Contains("api_power_foundation")
+        RuntimeSpec(atom).Flags.Contains(ComponentSemanticFlags.PowerFoundation)
         || atom.Scope is OperationScope.AbilityTrigger or OperationScope.AbilityRule
         || IsPersistentStat(atom.Template, RuntimeSpec(atom))
         || IsRestrictedEffect(atom)
@@ -5837,7 +6052,8 @@ public sealed record IroncladCardRecipe(
     IReadOnlyList<int> TriggerOwners,
     int StarCost = -1,
     bool HasStarCostX = false,
-    string EnglishTitle = "");
+    string EnglishTitle = "",
+    IReadOnlyList<string>? CustomKeywords = null);
 
 public sealed record ComponentAtom(
     string Template,
@@ -5848,6 +6064,7 @@ public sealed record ComponentAtom(
 {
     public string? SemanticId { get; init; }
     public OperationRuntimeSpec? RuntimeSpec { get; init; }
+    public OperationLocalizedText? LocalizedText { get; init; }
     public string Key => OperationRuntimeSpecCompiler.StructuralExactKey(this);
     public string FamilyKey => NumericTextSchema.Family(Template);
     public string SchemaKey => OperationRuntimeSpecCompiler.StructuralFieldKey(this);
@@ -5864,6 +6081,7 @@ public interface IComponentCatalog
     IReadOnlyDictionary<string, int> AtomCounts { get; }
     IReadOnlyDictionary<int, int> ComponentCountCounts { get; }
     IReadOnlyDictionary<CardTag, int> TagCounts { get; }
+    IReadOnlyDictionary<string, int> CustomKeywordCounts => new Dictionary<string, int>();
 }
 
 /// <summary>Registers reviewed character catalogs after ModelDb becomes available in the game layer.</summary>
@@ -5922,6 +6140,55 @@ public static class ExternalOperationUpgradeRegistry
         value = (
             matches.SelectMany(match => match.Added).Distinct().ToArray(),
             matches.SelectMany(match => match.Removed).Distinct().ToArray());
+        return true;
+    }
+}
+
+/// <summary>Upgrade routes for external keyword IDs; kept separate from the legacy CardTag wire enum.</summary>
+public static class ExternalCustomKeywordUpgradeRegistry
+{
+    private sealed record Route(IReadOnlyList<string> Added, IReadOnlyList<string> Removed);
+    private static readonly Dictionary<(string ProfileId, string Template), Route> Values = new();
+
+    public static void Register(string profileId, string template, IReadOnlyList<string> added,
+        IReadOnlyList<string> removed)
+    {
+        if (string.IsNullOrWhiteSpace(profileId) || profileId.Any(character => character > 0x7f))
+            throw new ArgumentException("Profile IDs must be non-empty ASCII strings.", nameof(profileId));
+        ComponentKeywordApi.ValidateIds(added, nameof(added));
+        ComponentKeywordApi.ValidateIds(removed, nameof(removed));
+        var key = (profileId, template);
+        if (Values.TryGetValue(key, out var current))
+        {
+            added = current.Added.Concat(added).Distinct(StringComparer.Ordinal).ToArray();
+            removed = current.Removed.Concat(removed).Distinct(StringComparer.Ordinal).ToArray();
+        }
+        Values[key] = new Route(added, removed);
+    }
+
+    public static bool TryGet(string profileId, string template,
+        out (IReadOnlyList<string> Added, IReadOnlyList<string> Removed) value)
+    {
+        if (Values.TryGetValue((profileId, template), out var route))
+        {
+            value = (route.Added, route.Removed);
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    public static bool TryGetUnified(string template,
+        out (IReadOnlyList<string> Added, IReadOnlyList<string> Removed) value)
+    {
+        var matches = Values.Where(entry => entry.Key.Template == template).Select(entry => entry.Value).ToArray();
+        if (matches.Length == 0)
+        {
+            value = default;
+            return false;
+        }
+        value = (matches.SelectMany(match => match.Added).Distinct(StringComparer.Ordinal).ToArray(),
+            matches.SelectMany(match => match.Removed).Distinct(StringComparer.Ordinal).ToArray());
         return true;
     }
 }

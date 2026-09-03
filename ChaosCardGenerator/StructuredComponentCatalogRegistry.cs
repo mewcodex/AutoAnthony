@@ -123,11 +123,26 @@ internal static class StructuredComponentCatalogRegistry
             {
                 var spec = CatalogRuntimeSpecRegistry.Get(atom.SemanticId);
                 ExternalOperationTextRegistry.Register(atom.Template, atom.ChineseText, atom.EnglishText);
+                OperationLocalizedText? localizedText;
+                try
+                {
+                    if (!OperationLocalizedText.TryCompile(atom.ChineseText, atom.EnglishText, spec,
+                            out localizedText) || localizedText is null)
+                        throw new InvalidDataException("A localized value could not be mapped to a named slot.");
+                }
+                catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException)
+                {
+                    throw new InvalidDataException($"Structured localization template could not compile for "
+                        + $"{atom.SemanticId} ({atom.Template}): zh={atom.ChineseText}; en={atom.EnglishText}.",
+                        exception);
+                }
+                ComponentLocalizationApi.RegisterBuiltIn(atom.SemanticId, localizedText, spec);
                 return new ComponentAtom(atom.Template, atom.Scope, atom.ChineseText,
                     atom.RequiresSingleTarget, atom.CardReference)
                 {
                     SemanticId = atom.SemanticId,
-                    RuntimeSpec = spec
+                    RuntimeSpec = spec,
+                    LocalizedText = localizedText
                 };
             }).ToArray();
             return new IroncladCardRecipe(entry.Id, entry.ChineseTitle, entry.Cost, entry.Type,

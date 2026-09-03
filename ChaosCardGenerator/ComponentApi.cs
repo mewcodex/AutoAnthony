@@ -1,6 +1,21 @@
 namespace ChaosCardGenerator;
 
 /// <summary>
+/// Stable flags that let external components participate in generator legality without adding Template-specific
+/// branches to AutoAnthony. Flags describe composition behavior only; execution and value remain opcode routes.
+/// </summary>
+public static class ComponentSemanticFlags
+{
+    public const string Beneficial = "api_beneficial";
+    public const string Negative = "api_negative";
+    public const string Restricted = "api_restricted";
+    public const string EnemyDamage = "api_enemy_damage";
+    public const string PowerFoundation = "api_power_foundation";
+    public const string ScalableReward = "api_scalable_reward";
+    public const string SelfCardMovement = "api_self_card_movement";
+}
+
+/// <summary>
 /// Immutable request used to resolve the component inventory and policies for one generated pool.
 /// Ultimate Chaos is a profile choice, not a second set of value rules hidden in the assembler.
 /// </summary>
@@ -68,8 +83,8 @@ public interface IComponentValuePolicy
 }
 
 /// <summary>
-/// Profile-local control over native card keywords. Null allow-lists mean all native keywords. External semantic
-/// keywords should be authored as standalone-keyword components with their own runtime/presentation route.
+/// Profile-local control over native and custom card keywords. Null allow-lists mean all registered keywords.
+/// Custom keyword identity is a stable ASCII ID; its gameplay value remains an ordinary structured component.
 /// </summary>
 public sealed record ComponentKeywordPolicy(
     IReadOnlySet<CardTag>? AllowedBaseKeywords = null,
@@ -77,13 +92,156 @@ public sealed record ComponentKeywordPolicy(
     IReadOnlySet<CardTag>? AllowedUpgradeRemovals = null,
     IReadOnlySet<CardTag>? GlobalUpgradeAdditions = null,
     IReadOnlySet<CardTag>? GlobalUpgradeRemovals = null,
-    bool UseArchetypeUpgradeDefaults = true)
+    bool UseArchetypeUpgradeDefaults = true,
+    IReadOnlySet<string>? AllowedCustomBaseKeywords = null,
+    IReadOnlySet<string>? AllowedCustomUpgradeAdditions = null,
+    IReadOnlySet<string>? AllowedCustomUpgradeRemovals = null,
+    IReadOnlySet<string>? GlobalCustomUpgradeAdditions = null,
+    IReadOnlySet<string>? GlobalCustomUpgradeRemovals = null)
 {
     public static ComponentKeywordPolicy Default { get; } = new();
 
-    public bool AllowsBase(CardTag tag) => AllowedBaseKeywords?.Contains(tag) != false;
-    public bool AllowsAddition(CardTag tag) => AllowedUpgradeAdditions?.Contains(tag) != false;
-    public bool AllowsRemoval(CardTag tag) => AllowedUpgradeRemovals?.Contains(tag) != false;
+    // Semantic mechanic tags are not governed by a keyword policy and remain reachable from their source shells.
+    public bool AllowsBase(CardTag tag) => GeneratedCardTagPolicy.IsSemanticTag(tag)
+        || GeneratedCardTagPolicy.IsNativeKeyword(tag) && AllowedBaseKeywords?.Contains(tag) != false;
+    public bool AllowsAddition(CardTag tag) => GeneratedCardTagPolicy.IsNativeKeyword(tag)
+        && AllowedUpgradeAdditions?.Contains(tag) != false;
+    public bool AllowsRemoval(CardTag tag) => GeneratedCardTagPolicy.IsNativeKeyword(tag)
+        && AllowedUpgradeRemovals?.Contains(tag) != false;
+    public bool AllowsCustomBase(string keywordId) => AllowedCustomBaseKeywords?.Contains(keywordId) != false;
+    public bool AllowsCustomAddition(string keywordId) => AllowedCustomUpgradeAdditions?.Contains(keywordId) != false;
+    public bool AllowsCustomRemoval(string keywordId) => AllowedCustomUpgradeRemovals?.Contains(keywordId) != false;
+
+    public void Validate()
+    {
+        GeneratedCardTagPolicy.ValidateKeywordSet(AllowedBaseKeywords, nameof(AllowedBaseKeywords));
+        GeneratedCardTagPolicy.ValidateKeywordSet(AllowedUpgradeAdditions, nameof(AllowedUpgradeAdditions));
+        GeneratedCardTagPolicy.ValidateKeywordSet(AllowedUpgradeRemovals, nameof(AllowedUpgradeRemovals));
+        GeneratedCardTagPolicy.ValidateKeywordSet(GlobalUpgradeAdditions, nameof(GlobalUpgradeAdditions));
+        GeneratedCardTagPolicy.ValidateKeywordSet(GlobalUpgradeRemovals, nameof(GlobalUpgradeRemovals));
+        ComponentKeywordApi.ValidateIds(AllowedCustomBaseKeywords, nameof(AllowedCustomBaseKeywords));
+        ComponentKeywordApi.ValidateIds(AllowedCustomUpgradeAdditions, nameof(AllowedCustomUpgradeAdditions));
+        ComponentKeywordApi.ValidateIds(AllowedCustomUpgradeRemovals, nameof(AllowedCustomUpgradeRemovals));
+        ComponentKeywordApi.ValidateIds(GlobalCustomUpgradeAdditions, nameof(GlobalCustomUpgradeAdditions));
+        ComponentKeywordApi.ValidateIds(GlobalCustomUpgradeRemovals, nameof(GlobalCustomUpgradeRemovals));
+    }
+}
+
+/// <summary>Immutable context supplied to custom keyword legality rules during one card assembly.</summary>
+public sealed record ComponentKeywordGenerationContext(
+    string ProfileId,
+    GeneratedCharacter Character,
+    GeneratedRarity Rarity,
+    GeneratedCardType Type,
+    int EnergyCost,
+    int StarCost,
+    bool HasStarCostX,
+    IReadOnlyList<GeneratorOperation> Operations,
+    IReadOnlyList<CardTag> NativeTags,
+    IReadOnlyList<string> SelectedCustomKeywords);
+
+/// <summary>
+/// Optional pure-generator legality for an external keyword. Runtime behavior and hover tips belong to the game
+/// assembly's ComponentKeywordRuntimeApi; this interface must remain deterministic and side-effect free.
+/// </summary>
+public interface IComponentKeywordRule
+{
+    bool CanAttach(ComponentKeywordGenerationContext context) => true;
+    bool CanUpgradeAdd(GeneratedCard card) => true;
+    bool CanUpgradeRemove(GeneratedCard card) => true;
+}
+
+public sealed record ComponentKeywordDefinition(string KeywordId, IComponentKeywordRule? Rule = null);
+
+/// <summary>Stable ASCII keyword registry shared by source recipes, upgrade generation and snapshots.</summary>
+public static class ComponentKeywordApi
+{
+    public const int ApiVersion = 1;
+    private static readonly object Sync = new();
+    private static readonly Dictionary<string, ComponentKeywordDefinition> Definitions =
+        new(StringComparer.Ordinal);
+
+    public static IReadOnlyList<string> RegisteredKeywordIds
+    {
+        get { lock (Sync) return Definitions.Keys.OrderBy(value => value, StringComparer.Ordinal).ToArray(); }
+    }
+
+    public static void Register(ComponentKeywordDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ValidateId(definition.KeywordId, nameof(definition.KeywordId));
+        lock (Sync)
+        {
+            if (ComponentApi.RegistrationsFrozen)
+                throw new InvalidOperationException(
+                    "Keyword registration must finish before the first generation profile resolves.");
+            if (!Definitions.TryAdd(definition.KeywordId, definition))
+                throw new InvalidOperationException($"Keyword '{definition.KeywordId}' is already registered.");
+        }
+    }
+
+    public static bool IsRegistered(string keywordId)
+    {
+        ValidateId(keywordId, nameof(keywordId));
+        lock (Sync) return Definitions.ContainsKey(keywordId);
+    }
+
+    internal static void EnsureCanRegister(IEnumerable<ComponentKeywordDefinition> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        var values = definitions.ToArray();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var definition in values)
+        {
+            ArgumentNullException.ThrowIfNull(definition);
+            ValidateId(definition.KeywordId, nameof(definition.KeywordId));
+            if (!ids.Add(definition.KeywordId))
+                throw new ArgumentException($"Keyword registration repeats '{definition.KeywordId}'.",
+                    nameof(definitions));
+        }
+        lock (Sync)
+        {
+            if (ComponentApi.RegistrationsFrozen)
+                throw new InvalidOperationException(
+                    "Keyword registration must finish before the first generation profile resolves.");
+            var conflict = values.FirstOrDefault(value => Definitions.ContainsKey(value.KeywordId));
+            if (conflict is not null)
+                throw new InvalidOperationException($"Keyword '{conflict.KeywordId}' is already registered.");
+        }
+    }
+
+    internal static bool CanAttach(string keywordId, ComponentKeywordGenerationContext context)
+    {
+        lock (Sync)
+            return Definitions.TryGetValue(keywordId, out var definition)
+                && (definition.Rule?.CanAttach(context) ?? true);
+    }
+
+    internal static bool CanUpgradeAdd(string keywordId, GeneratedCard card)
+    {
+        lock (Sync)
+            return Definitions.TryGetValue(keywordId, out var definition)
+                && (definition.Rule?.CanUpgradeAdd(card) ?? true);
+    }
+
+    internal static bool CanUpgradeRemove(string keywordId, GeneratedCard card)
+    {
+        lock (Sync)
+            return Definitions.TryGetValue(keywordId, out var definition)
+                && (definition.Rule?.CanUpgradeRemove(card) ?? true);
+    }
+
+    internal static void ValidateIds(IEnumerable<string>? keywordIds, string field)
+    {
+        if (keywordIds is null) return;
+        foreach (var keywordId in keywordIds) ValidateId(keywordId, field);
+    }
+
+    private static void ValidateId(string value, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Any(character => character > 0x7f))
+            throw new ArgumentException("Keyword IDs must be non-empty ASCII strings.", name);
+    }
 }
 
 /// <summary>
@@ -120,6 +278,7 @@ public sealed class ComponentGenerationProfile
         _occurrenceFactory = occurrenceFactory ?? throw new ArgumentNullException(nameof(occurrenceFactory));
         ValuePolicy = valuePolicy ?? throw new ArgumentNullException(nameof(valuePolicy));
         KeywordPolicy = keywordPolicy ?? ComponentKeywordPolicy.Default;
+        KeywordPolicy.Validate();
         if (ShellCatalog.Character != character || NameCatalog.Character != character)
             throw new ArgumentException("Shell and name catalogs must belong to the requested character.");
     }
@@ -140,7 +299,7 @@ public interface IComponentProfileProvider
 /// </summary>
 public static class ComponentApi
 {
-    public const int ApiVersion = 2;
+    public const int ApiVersion = 3;
     private static readonly object Sync = new();
     private static readonly List<IComponentProfileProvider> Providers = [new BuiltInComponentProfileProvider()];
     private static readonly Dictionary<ComponentProfileRequest, ComponentGenerationProfile> Registered = new();
@@ -240,6 +399,37 @@ public static class ComponentApi
         }
     }
 
+    internal static void EnsureCanRegisterProfile(ComponentProfileRequest request,
+        ComponentGenerationProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        lock (Sync)
+        {
+            if (_frozen)
+                throw new InvalidOperationException(
+                    "Component profile registration must finish before the first card pool is generated.");
+            if (profile.Character != request.Character
+                || profile.UnlockComponentRoles != request.UnlockComponentRoles)
+                throw new ArgumentException($"Profile {profile.Id} does not match {request}.", nameof(profile));
+            if (Registered.ContainsKey(request))
+                throw new InvalidOperationException($"A component profile is already registered for {request}.");
+        }
+    }
+
+    internal static void EnsureCanRegisterUltimateChaosContribution(string packageId)
+    {
+        ValidateApiId(packageId, nameof(packageId));
+        lock (Sync)
+        {
+            if (_frozen)
+                throw new InvalidOperationException(
+                    "Ultimate Chaos contributions must be registered before the first profile resolves.");
+            if (UltimateChaosContributions.ContainsKey(packageId))
+                throw new InvalidOperationException(
+                    $"An Ultimate Chaos contribution is already registered for '{packageId}'.");
+        }
+    }
+
     public static ComponentGenerationProfile Resolve(ComponentProfileRequest request)
     {
         lock (Sync)
@@ -324,7 +514,11 @@ public static class ComponentApi
 /// <summary>Shared pre-generation validation for built-in and externally supplied profiles.</summary>
 public static class ComponentProfileValidator
 {
-    public static void Validate(ComponentGenerationProfile profile)
+    public static void Validate(ComponentGenerationProfile profile) => Validate(profile, null, null);
+
+    internal static void Validate(ComponentGenerationProfile profile,
+        IReadOnlySet<string>? pendingLocalizationIds,
+        IReadOnlySet<string>? pendingKeywordIds)
     {
         ArgumentNullException.ThrowIfNull(profile);
         if (profile.ShellCatalog.Character != profile.Character
@@ -342,8 +536,19 @@ public static class ComponentProfileValidator
             ValidateAscii(atom.SemanticId, $"{profile.Id} component semantic ID", required: true);
             if (!semanticIds.Add(atom.SemanticId!))
                 throw new InvalidDataException($"Profile {profile.Id} repeats semantic ID {atom.SemanticId}.");
-            (atom.RuntimeSpec ?? throw new InvalidDataException(
-                $"Profile {profile.Id} component {atom.SemanticId} has no RuntimeSpec.")).Validate();
+            var spec = atom.RuntimeSpec ?? throw new InvalidDataException(
+                $"Profile {profile.Id} component {atom.SemanticId} has no RuntimeSpec.");
+            spec.Validate();
+            if (atom.LocalizedText is null
+                && !ComponentLocalizationApi.TryGet(atom.SemanticId, out _)
+                && pendingLocalizationIds?.Contains(atom.SemanticId!) != true)
+                throw new InvalidDataException(
+                    $"Profile {profile.Id} component {atom.SemanticId} has no named localization template.");
+            atom.LocalizedText?.Validate(spec);
+            if (atom.LocalizedText is { } localized
+                && !string.Equals(localized.RenderChinese(spec), atom.ChineseText, StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    $"Profile {profile.Id} component {atom.SemanticId} localization does not reproduce its Chinese projection.");
         }
 
         foreach (var recipe in profile.ShellCatalog.Recipes)
@@ -355,14 +560,41 @@ public static class ComponentProfileValidator
             for (var index = 0; index < recipe.Atoms.Count; index++)
             {
                 var owner = recipe.TriggerOwners[index];
-                if (owner < -1 || owner >= recipe.Atoms.Count || owner == index)
+                if (owner < -1 || owner >= index)
                     throw new InvalidDataException(
                         $"Profile {profile.Id} recipe {recipe.Id} has invalid trigger owner {owner} at {index}.");
-                if (!profile.ComponentCatalog.AtomKeys.Contains(recipe.Atoms[index].Key))
+                var shellAtom = recipe.Atoms[index];
+                if (shellAtom.RuntimeSpec is null || string.IsNullOrWhiteSpace(shellAtom.SemanticId))
+                    throw new InvalidDataException(
+                        $"Profile {profile.Id} recipe {recipe.Id} contains an unstructured shell component at {index}.");
+                if (!profile.ComponentCatalog.AtomKeys.Contains(shellAtom.Key))
                     throw new InvalidDataException(
                         $"Profile {profile.Id} recipe {recipe.Id} references an unavailable component at {index}.");
             }
         }
+
+        var availableKeywordIds = ComponentKeywordApi.RegisteredKeywordIds
+            .Concat(pendingKeywordIds is { } pending ? pending : Enumerable.Empty<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        var referencedKeywordIds = profile.ShellCatalog.Recipes
+            .Concat(profile.ComponentCatalog.Recipes)
+            .Concat(profile.NameCatalog.Recipes)
+            .SelectMany(recipe => recipe.CustomKeywords ?? Array.Empty<string>())
+            .Concat(profile.KeywordPolicy.AllowedCustomBaseKeywords is { } allowedBase
+                ? allowedBase : Enumerable.Empty<string>())
+            .Concat(profile.KeywordPolicy.AllowedCustomUpgradeAdditions is { } allowedAdditions
+                ? allowedAdditions : Enumerable.Empty<string>())
+            .Concat(profile.KeywordPolicy.AllowedCustomUpgradeRemovals is { } allowedRemovals
+                ? allowedRemovals : Enumerable.Empty<string>())
+            .Concat(profile.KeywordPolicy.GlobalCustomUpgradeAdditions is { } globalAdditions
+                ? globalAdditions : Enumerable.Empty<string>())
+            .Concat(profile.KeywordPolicy.GlobalCustomUpgradeRemovals is { } globalRemovals
+                ? globalRemovals : Enumerable.Empty<string>())
+            .Distinct(StringComparer.Ordinal);
+        var unknownKeyword = referencedKeywordIds.FirstOrDefault(id => !availableKeywordIds.Contains(id));
+        if (unknownKeyword is not null)
+            throw new InvalidDataException(
+                $"Profile {profile.Id} references unregistered custom keyword '{unknownKeyword}'.");
     }
 
     private static void ValidateAscii(string? value, string label, bool required)

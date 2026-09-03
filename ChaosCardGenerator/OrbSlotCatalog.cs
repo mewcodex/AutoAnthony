@@ -238,7 +238,82 @@ public static class OrbSlotCatalog
                 Definitions[slot.OutputId].ChineseName + "充能球", StringComparison.Ordinal);
         var originalEnglish = ExternalOperationTextRegistry.TryGet(operation.Template, sourceChinese, out var mapped)
             ? mapped
-            : EnglishCardDescriptionRenderer.TranslateLiteral(sourceChinese);
+            : EnglishCardDescriptionRenderer.TranslateLegacyLiteral(sourceChinese);
         return ApplyEnglish(originalEnglish, operation.Template, source, output);
+    }
+
+    /// <summary>
+    /// Binds Orb identities as named presentation slots. Runtime and balance continue to read OrbSourceId and
+    /// OrbOutputId; changing either name can no longer replace an unrelated word elsewhere in the description.
+    /// </summary>
+    public static OperationLocalizedText BindLocalizedText(OperationLocalizedText localized, string sourceEnglish,
+        string template, OrbSlotDefinition? source, OrbSlotDefinition? output, OperationRuntimeSpec spec)
+    {
+        if (template == "I:ProxyAtomic_Voltaic" && source is not null && output is not null)
+        {
+            var result = new OperationLocalizedText(
+                "生成等量于你在这场战斗中生成过的[[orb_source]]充能球数量的[[orb_output]]充能球。",
+                "Channel [[orb_output]] equal to the [[orb_source]] already Channeled this combat.",
+                [new OperationTextSlot("orb_source", source.ChineseName, source.EnglishName),
+                    new OperationTextSlot("orb_output", output.ChineseName, output.EnglishName)]);
+            result.Validate(spec);
+            return result;
+        }
+
+        if (!Sources.TryGetValue(template, out var slots)) return localized;
+        var resultLocalized = localized;
+        if (slots.SourceId is not null && source is not null)
+        {
+            var original = Definitions[slots.SourceId];
+            resultLocalized = resultLocalized
+                .BindTextSlot("orb_source", original.ChineseName + "充能球", original.EnglishName)
+                .WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName);
+        }
+        if (slots.OutputId is not null && output is not null && template != "D:ChannelRandom")
+        {
+            var original = Definitions[slots.OutputId];
+            resultLocalized = resultLocalized
+                .BindTextSlot("orb_output", original.ChineseName + "充能球", original.EnglishName)
+                .WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName);
+        }
+        if (template == "D:ChannelRandom")
+        {
+            var chinese = ApplyChinese(localized.RenderChinese(spec), template, source, output);
+            var english = ApplyEnglish(sourceEnglish, template, source, output);
+            if (!OperationLocalizedText.TryCompile(chinese, english, spec, out resultLocalized)
+                || resultLocalized is null)
+                throw new InvalidOperationException($"Cannot compile random-Orb localization for {template}.");
+        }
+        resultLocalized.Validate(spec);
+        return resultLocalized;
+    }
+
+    public static OperationLocalizedText BindResolvedLocalizedText(GeneratorOperation operation,
+        OperationLocalizedText localized, string renderedEnglish, OperationRuntimeSpec spec)
+    {
+        var source = ResolveSource(operation.OrbSourceId, operation.Template);
+        var output = ResolveOutput(operation.OrbOutputId, operation.Template);
+        if (operation.Template == "I:ProxyAtomic_Voltaic" && source is not null && output is not null)
+            return BindLocalizedText(localized, renderedEnglish, operation.Template, source, output, spec);
+        if (!Sources.TryGetValue(operation.Template, out var slots)) return localized;
+        var result = localized;
+        if (slots.SourceId is not null && source is not null)
+        {
+            var original = Definitions[slots.SourceId];
+            result = (result.TextSlots ?? []).Any(slot => slot.Id == "orb_source")
+                ? result.WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName)
+                : result.BindTextSlot("orb_source", original.ChineseName + "充能球", original.EnglishName)
+                    .WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName);
+        }
+        if (slots.OutputId is not null && output is not null && operation.Template != "D:ChannelRandom")
+        {
+            var original = Definitions[slots.OutputId];
+            result = (result.TextSlots ?? []).Any(slot => slot.Id == "orb_output")
+                ? result.WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName)
+                : result.BindTextSlot("orb_output", original.ChineseName + "充能球", original.EnglishName)
+                    .WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName);
+        }
+        result.Validate(spec);
+        return result;
     }
 }

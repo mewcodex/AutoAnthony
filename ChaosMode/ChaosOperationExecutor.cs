@@ -278,7 +278,7 @@ internal static class ChaosOperationExecutor
             // Corruption-style exhaustion is implemented by ModifyCardPlayResultLocation so it happens once,
             // after all OnPlay effects have finished.
             if (operation.Template == "N:Exhaust"
-                && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant == "referenced") continue;
+                && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == "referenced") continue;
             await ExecuteWithResolvedTarget(source, index, choiceContext, play, state);
             executed++;
         }
@@ -294,7 +294,7 @@ internal static class ChaosOperationExecutor
     private static async Task ExecuteForEach(ChaosCardModel card, int triggerIndex, PlayerChoiceContext choiceContext, CardPlay cardPlay, ChaosExecutionState state)
     {
         var trigger = card.Generated.Operations[triggerIndex];
-        var triggerKind = OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind;
+        var triggerKind = OperationRuntimeSpecCompiler.RequireStructured(trigger).Trigger?.Kind;
         IReadOnlyList<CardModel> items = state.ExhaustedByCard
             .Where(candidate => ExhaustedCardMatchesTrigger(triggerKind, candidate.Type)).ToList();
         foreach (var item in items)
@@ -2957,12 +2957,12 @@ internal static class ChaosOperationExecutor
 
     internal static bool IsTargetVulnerableStrength(GeneratorOperation operation) =>
         operation.Template is "N:Self" or "N:StrengthPerTargetVulnerable"
-        && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant == "strength_per_target_vulnerable";
+        && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == "strength_per_target_vulnerable";
 
     internal static bool IsExhaustPileDamageModifier(GeneratorOperation operation) =>
         operation.Template == "M:DamagePerExhaustCard"
         || operation.Template == "M:base"
-        && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant == "exhaust_pile_scaled";
+        && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == "exhaust_pile_scaled";
 
     internal static bool IsExternallyScaledDamageDependency(GeneratorOperation operation) =>
         operation.Template is "CL:ForEachCardPlayedCombat" or "CL:ForEachDrawPileCard";
@@ -3010,7 +3010,7 @@ internal static class ChaosOperationExecutor
     private static bool ConditionMatches(ChaosCardModel card, GeneratorOperation trigger, ChaosExecutionState state)
     {
         var combatState = card.CombatState ?? card.Owner.Creature.CombatState;
-        var spec = OperationRuntimeSpecCompiler.GetOrCompile(trigger);
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(trigger);
         var kind = spec.Condition?.Kind;
         if (kind is null) return true;
         var threshold = spec.Values.FirstOrDefault(value => value.Id == "threshold")?.BaseValue ?? 1;
@@ -3365,49 +3365,10 @@ internal static class ChaosOperationExecutor
                 or "A:ruleWeakEnemiesTakeMoreAttackDamage" or "CL:DieOnUnblockedAttack"
         || IsCompositePowerTrigger(operation);
 
-    internal static string EffectiveText(ChaosCardModel card, int operationIndex)
-    {
-        var text = card.Generated.Operations[operationIndex].ChineseText;
-        if (!card.IsUpgraded || card.Generated.Upgrade is null) return text;
-        foreach (var effect in card.Generated.Upgrade.Effects.Where(effect => effect.OperationIndex == operationIndex))
-        {
-            if (effect.Kind == CardUpgradeKind.UpgradeDerivative)
-            {
-                var operation = card.Generated.Operations[operationIndex];
-                if (!DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId))
-                    continue;
-                var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
-                if (derivative is not null)
-                    text = text.Replace(derivative.ChineseName, derivative.ChineseName + "+", StringComparison.Ordinal);
-                continue;
-            }
-            if (effect.Kind == CardUpgradeKind.UpgradeGeneratedCards)
-            {
-                text = CardUpgradeGenerator.UpgradeRandomGenerationChinese(text);
-                continue;
-            }
-            if (effect.Kind == CardUpgradeKind.IncreaseNumber
-                && CardEffectRules.IsNonUpgradeableNumericMarker(card.Generated.Operations[operationIndex]))
-                continue;
-            if (effect.Kind == CardUpgradeKind.IncreaseNumber
-                && OperationRuntimeSpecCompiler.ValueUsesX(card.Generated.Operations[operationIndex]))
-            {
-                text = OperationRuntimeSpecCompiler.IncreaseLegacyXValue(text);
-                continue;
-            }
-            if (effect.Delta is null) continue;
-            if (OperationRuntimeSpecCompiler.TryProjectLegacyExecutionUpgradeValue(
-                    card.Generated.Operations[operationIndex], text, out var projection) && projection is not null)
-                text = OperationRuntimeSpecCompiler.ReplaceLegacyProjectedValue(text, projection,
-                    projection.BaseValue + effect.Delta.Value);
-        }
-        return text;
-    }
-
     internal static OperationRuntimeSpec EffectiveRuntimeSpec(ChaosCardModel card, int operationIndex)
     {
         var operation = card.Generated.Operations[operationIndex];
-        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
         if (!card.IsUpgraded || card.Generated.Upgrade is null) return spec;
         if (card.Generated.Upgrade.Effects.Any(effect => effect.OperationIndex == operationIndex
                 && effect.Kind == CardUpgradeKind.ChooseExhaust))
@@ -3436,15 +3397,17 @@ internal static class ChaosOperationExecutor
     internal static int ExecutableOrbRepeatCount(int amount) => Math.Max(0, amount);
     internal static int ExecutableGeneratedCardCount(int amount) => Math.Max(0, amount);
     /// <summary>
-    /// The five original Defect status-to-discard clauses were authored as prose-only fixed counts: four print
-    /// “a” card and Overload prints two Wounds. They consequently have no RuntimeSpec amount slot, and the generic
-    /// operation amount reader returns zero. Preserve an explicit numeric slot when a future/custom component has
-    /// one, but supply the native fixed count for these legacy templates so old snapshots execute as printed.
+    /// Fixed-count status-to-discard clauses can reach this boundary without a materialized DynamicVar (notably
+    /// detached previews and migrated snapshots). Recover their structured fixed base value in that case. X-backed
+    /// slots deliberately keep zero as a no-op, while pre-structured legacy templates retain their native fallback.
     /// </summary>
     internal static int ExecutableDerivativeDiscardCount(GeneratorOperation operation, int amount)
     {
-        if (OperationRuntimeSpecCompiler.GetOrCompile(operation).Values.Any(value =>
-                value.Source is "fixed" or "energy_x" or "star_x" or "special_x"))
+        var values = OperationRuntimeSpecCompiler.RequireStructured(operation).Values;
+        var fixedValue = values.FirstOrDefault(value => value.Source == "fixed");
+        if (fixedValue is not null)
+            return ExecutableGeneratedCardCount(amount > 0 ? amount : fixedValue.BaseValue + fixedValue.Offset);
+        if (values.Any(value => value.Source is "energy_x" or "star_x" or "special_x"))
             return ExecutableGeneratedCardCount(amount);
         return operation.Template == "D:CreateTwoWoundsInDiscard" ? 2 : 1;
     }

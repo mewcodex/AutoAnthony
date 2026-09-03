@@ -6,16 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 $projectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoDir = (Resolve-Path (Join-Path $projectDir "..")).Path
-$localCandidates = @(
-  "F:\SteamLibrary\steamapps\common\Slay the Spire 2",
-  "D:\Steam\steamapps\common\Slay the Spire 2",
-  "C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2"
-)
-if ([string]::IsNullOrWhiteSpace($GameDir)) {
-  $GameDir = $localCandidates | Where-Object {
-    Test-Path -LiteralPath (Join-Path $_ "data_sts2_windows_x86_64\sts2.dll")
-  } | Select-Object -First 1
-}
+. (Join-Path $repoDir "scripts\Resolve-Sts2GameDir.ps1")
+$GameDir = Resolve-Sts2GameDir -ExplicitPath $GameDir
 if ([string]::IsNullOrWhiteSpace($GameDir)) {
   throw "STS2 install not found. Pass -GameDir or set STS2_GAME_DIR."
 }

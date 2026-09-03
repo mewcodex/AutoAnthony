@@ -73,7 +73,6 @@ public static class ExternalComponentCharacterApi
         var materialized = definitions.OrderBy(definition => definition.Slot).ToArray();
         lock (Sync)
         {
-            _registrationsFrozen = true;
             var registration = GetRegistrationLocked(profileId);
             if (materialized.Length == 0)
                 throw new ArgumentException("At least one external generated-card definition is required.",
@@ -95,6 +94,7 @@ public static class ExternalComponentCharacterApi
                         $"External definition {profileId}/{slot} has incomplete RuntimeSpecs.", nameof(definitions));
                 foreach (var spec in definition.RuntimeSpecs) spec.Validate();
             }
+            _registrationsFrozen = true;
             Definitions[profileId] = materialized;
         }
     }
@@ -110,8 +110,8 @@ public static class ExternalComponentCharacterApi
         ValidateId(profileId, nameof(profileId));
         lock (Sync)
         {
-            _registrationsFrozen = true;
             _ = GetRegistrationLocked(profileId);
+            _registrationsFrozen = true;
             return Definitions.TryGetValue(profileId, out var definitions) ? definitions : [];
         }
     }
@@ -120,8 +120,8 @@ public static class ExternalComponentCharacterApi
     {
         lock (Sync)
         {
-            _registrationsFrozen = true;
             _ = GetRegistrationLocked(profileId);
+            _registrationsFrozen = true;
             if (!Definitions.TryGetValue(profileId, out var definitions)
                 || (uint)slot >= (uint)definitions.Count)
                 throw new InvalidOperationException(
@@ -134,8 +134,9 @@ public static class ExternalComponentCharacterApi
     {
         lock (Sync)
         {
+            var registration = GetRegistrationLocked(profileId);
             _registrationsFrozen = true;
-            return GetRegistrationLocked(profileId).BalanceArchetype;
+            return registration.BalanceArchetype;
         }
     }
 
