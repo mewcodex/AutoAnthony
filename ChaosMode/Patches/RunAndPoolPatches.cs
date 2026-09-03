@@ -54,12 +54,13 @@ internal static class MultiplayerGenerationModePatch
         // Disabled hosts only need to synchronize the mode switch and can begin immediately.
         if (!ChaosModSettings.Enabled)
         {
-            AddGenerationMarker(modifiers, poolSnapshot: null, enabled: false,
+            AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: false,
                 ultimateChaos: ChaosModSettings.UltimateChaos,
                 replaceStartingCards: ChaosModSettings.ReplaceStartingCards,
                 numericBalanceOptimization: ChaosModSettings.NumericBalanceOptimization,
                 numericRandomMode: ChaosModSettings.NumericRandomMode,
-                preserveOriginalCards: ChaosModSettings.PreserveOriginalCards);
+                preserveOriginalCards: ChaosModSettings.PreserveOriginalCards,
+                randomCardArt: ChaosModSettings.RandomCardArt);
             return true;
         }
 
@@ -89,8 +90,9 @@ internal static class MultiplayerGenerationModePatch
                 && lobby.Players.All(player => player.character is not RandomCharacter))
             {
                 // Preserve the existing behavior for lobbies made entirely of unsupported modded characters.
-                AddGenerationMarker(modifiers, poolSnapshot: null, enabled: true, ultimateChaos,
-                    replaceStartingCards, numericBalanceOptimization, numericRandomMode, preserveOriginalCards);
+                AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: true,
+                    ultimateChaos, replaceStartingCards, numericBalanceOptimization, numericRandomMode,
+                    preserveOriginalCards, randomCardArt);
                 if (lobby.IsAboutToBeginGame()) InvokeOriginal(lobby, seed, modifiers);
                 return;
             }
@@ -100,12 +102,12 @@ internal static class MultiplayerGenerationModePatch
             generatedProgress = await ChaosRunDefinitions.ActivateAsync(provisionalCharacters, seed,
                 ultimateChaos, replaceStartingCards, numericBalanceOptimization, numericRandomMode,
                 preserveOriginalCards, randomCardArt);
-            var payload = ChaosPoolSnapshot.GetAuthoritativeMultiplayerPayload(
-                ChaosRunDefinitions.ActiveCharacters, ChaosRunDefinitions.ActiveSeed,
+            var generationFingerprint = ChaosPoolSnapshot.MultiplayerGameplayFingerprint(
                 ChaosRunDefinitions.GetAllCards());
-            AddGenerationMarker(modifiers, payload, enabled: true, ultimateChaos, replaceStartingCards,
-                numericBalanceOptimization, numericRandomMode, preserveOriginalCards);
-            Log.Info($"[AutoAnthony] Host prepared authoritative multiplayer pools: fingerprint={ChaosPoolSnapshot.MultiplayerFingerprint(payload)}, payloadChars={payload.Length}.");
+            AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint, enabled: true,
+                ultimateChaos, replaceStartingCards, numericBalanceOptimization, numericRandomMode,
+                preserveOriginalCards, randomCardArt);
+            Log.Info($"[AutoAnthony] Host prepared deterministic multiplayer pools: fingerprint={generationFingerprint}; the full run snapshot remains local and is not sent in the lobby packet.");
 
             // A peer can unready or disconnect while the worker is generating. Do not force-start a stale lobby;
             // the next all-ready notification will reuse the already generated definitions.
@@ -125,8 +127,9 @@ internal static class MultiplayerGenerationModePatch
             _hostProgress?.Dispose();
             _hostProgress = null;
             Log.Error($"[AutoAnthony] Host could not prepare an authoritative multiplayer snapshot; starting this run with original card pools instead of leaving the lobby blocked: {exception}");
-            AddGenerationMarker(modifiers, poolSnapshot: null, enabled: false, ultimateChaos,
-                replaceStartingCards, numericBalanceOptimization, numericRandomMode, preserveOriginalCards);
+            AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: false,
+                ultimateChaos, replaceStartingCards, numericBalanceOptimization, numericRandomMode,
+                preserveOriginalCards, randomCardArt);
             if (lobby.IsAboutToBeginGame()) InvokeOriginal(lobby, seed, modifiers);
             else RestoreCancelledLobby(lobby);
         }
@@ -182,9 +185,10 @@ internal static class MultiplayerGenerationModePatch
         }
     }
 
-    private static void AddGenerationMarker(List<ModifierModel> modifiers, string? poolSnapshot, bool enabled,
+    private static void AddGenerationMarker(List<ModifierModel> modifiers, string? poolSnapshot,
+        string? generationFingerprint, bool enabled,
         bool ultimateChaos, bool replaceStartingCards, bool numericBalanceOptimization, bool numericRandomMode,
-        bool preserveOriginalCards)
+        bool preserveOriginalCards, bool randomCardArt)
     {
 
         // BeginRunForAllPlayers is host-only. The marker is serialized by the vanilla lobby packet and reaches
@@ -201,9 +205,12 @@ internal static class MultiplayerGenerationModePatch
         marker.MultiplayerNumericBalanceOptimization = numericBalanceOptimization;
         marker.MultiplayerNumericRandomMode = numericRandomMode;
         marker.MultiplayerPreserveOriginalCards = preserveOriginalCards;
+        marker.MultiplayerRandomCardArtSpecified = true;
+        marker.MultiplayerRandomCardArt = randomCardArt;
+        marker.MultiplayerGenerationFingerprint = generationFingerprint ?? string.Empty;
         marker.PoolSnapshot = poolSnapshot ?? string.Empty;
         modifiers.Add(marker);
-        Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, AuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
+        Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, RandomCardArt={marker.MultiplayerRandomCardArt}, DeterministicFingerprint={!string.IsNullOrEmpty(marker.MultiplayerGenerationFingerprint)}, LegacyAuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
     }
 }
 
@@ -312,7 +319,6 @@ internal static class ChaosModelDbReadyPatch
                 AuditExternalCatalogs();
                 ChaosDerivativeResolver.AuditEnchantmentCompatibility();
                 AuditEnergyIconTemplates();
-                AuditExecutionRouting();
                 ChaosPoolSnapshot.AuditRoundTrip([GeneratedCharacter.Ironclad, GeneratedCharacter.Silent],
                     "IRONCLAD_CHAOS_LIBRARY_PREVIEW", ChaosRunDefinitions.GetAllCards());
                 const string numericRandomMultiplayerSeed = "AUTOANTHONY_NUMERIC_RANDOM_MULTIPLAYER_AUDIT";
@@ -323,6 +329,7 @@ internal static class ChaosModelDbReadyPatch
                     [GeneratedCharacter.Ironclad, GeneratedCharacter.Regent], numericRandomMultiplayerSeed,
                     ChaosRunDefinitions.GetAllCards());
                 Log.Info("[AutoAnthony] Numeric-random authoritative multiplayer snapshot audit passed.");
+                AuditExecutionRouting();
                 Audit(GeneratedCharacter.Ironclad);
                 Audit(GeneratedCharacter.Silent);
                 Audit(GeneratedCharacter.Defect);
@@ -926,12 +933,11 @@ internal static class ChaosModelDbReadyPatch
         var colorless = CharacterComponentCatalogs.Get(GeneratedCharacter.Colorless);
         var goldAxe = RequireSingle(colorless.Recipes, recipe => recipe.Id == "GoldAxe",
             "Colorless/GoldAxe recipe");
-        if (goldAxe.Atoms.Count != 2
-            || !ChaosOperationExecutor.IsExternallyScaledDamageDependency(
-                new GeneratorOperation(goldAxe.Atoms[0].Template, goldAxe.Atoms[0].Scope,
-                    goldAxe.Atoms[0].ChineseText, new Dictionary<string, int>()))
-            || goldAxe.Atoms[1].Template != "T:D")
-            throw new InvalidOperationException("Gold Axe damage dependency routing audit failed.");
+        if (goldAxe.Atoms.Count != 1
+            || goldAxe.Atoms[0].Template != "CL:DamageEqualCardsPlayedCombat"
+            || OperationRuntimeSpecCompiler.GetOrCompile(goldAxe.Atoms[0]) is not
+                { Opcode: "deal_damage", Variant: "cards_played_combat", Target: "selected_enemy", Values.Count: 0 })
+            throw new InvalidOperationException("Gold Axe dynamic single-hit damage routing audit failed.");
         var mindBlast = RequireSingle(colorless.Recipes, recipe => recipe.Id == "MindBlast",
             "Colorless/MindBlast recipe");
         if (mindBlast.Atoms.Count != 2
@@ -971,9 +977,29 @@ internal static class ChaosModelDbReadyPatch
             Operations = [new GeneratorOperation("N:B", OperationScope.NonTargeted,
                 "获得5点格挡。", new Dictionary<string, int>())]
         };
+        var weakDefense = trueDefense with
+        {
+            Operations = [new GeneratorOperation("N:B", OperationScope.NonTargeted,
+                "获得3点格挡。", new Dictionary<string, int>())]
+        };
+        var weakDamage = trueDefense with
+        {
+            Type = GeneratedCardType.Attack,
+            Operations = [new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
+                "造成3点伤害。", new Dictionary<string, int>(), RequiresSingleTarget: true)]
+        };
+        var multiHitDamage = weakDamage with
+        {
+            Operations = [new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
+                "造成2点伤害2次。", new Dictionary<string, int>(), RequiresSingleTarget: true)]
+        };
         if (ChaosRunDefinitions.CountsAsStartingDefense(falseDefense)
-            || !ChaosRunDefinitions.CountsAsStartingDefense(trueDefense))
-            throw new InvalidOperationException("Starting-deck defense coverage counts non-defensive Block wording.");
+            || ChaosRunDefinitions.CountsAsStartingDefense(weakDefense)
+            || !ChaosRunDefinitions.CountsAsStartingDefense(trueDefense)
+            || ChaosRunDefinitions.CountsAsStartingDamage(weakDamage)
+            || !ChaosRunDefinitions.CountsAsStartingDamage(multiHitDamage))
+            throw new InvalidOperationException(
+                "Starting-deck combat coverage must require at least four total Damage/Block and ignore negative Block wording.");
     }
 
     private static T RequireSingle<T>(IEnumerable<T> source, Func<T, bool> predicate, string label)
@@ -1290,8 +1316,11 @@ internal static class ChaosModelDbReadyPatch
             var startingCards = definitions.Take(10).Select(definition => definition.Card).ToArray();
             var damageCoverage = startingCards.Count(ChaosRunDefinitions.CountsAsStartingDamage);
             var defenseCoverage = startingCards.Count(ChaosRunDefinitions.CountsAsStartingDefense);
+            var highResourceCards = startingCards.Count(StartingPoolConstraintResolver.IsHighResourceCard);
             if (damageCoverage < 4 || defenseCoverage < 4)
                 throw new InvalidOperationException($"{character} starting coverage audit failed: damage={damageCoverage}, defense={defenseCoverage}.");
+            if (highResourceCards > StartingPoolConstraintResolver.MaximumHighResourceCards)
+                throw new InvalidOperationException($"{character} starting resource audit failed: highResource={highResourceCards}.");
         }
         var generatedChineseNames = definitions.Select(definition => definition.Card.Name!.Chinese).ToArray();
         var generatedEnglishNames = definitions.Select(definition => definition.Card.Name!.English).ToArray();
@@ -1629,6 +1658,9 @@ internal static class SeedBeforeMultiplayerPatch
                                 ?? ChaosModSettings.EffectiveNumericRandomMode;
         var preserveOriginalCards = generationMarker?.MultiplayerPreserveOriginalCards
                                     ?? ChaosModSettings.PreserveOriginalCards;
+        var randomCardArt = generationMarker?.MultiplayerRandomCardArtSpecified == true
+            ? generationMarker.MultiplayerRandomCardArt
+            : ChaosModSettings.RandomCardArt;
         if (generationMarker is not null && enabled != ChaosModSettings.Enabled)
             Log.Info($"[AutoAnthony] Using host multiplayer enabled setting instead of the local setting: Enabled={enabled}.");
         if (generationMarker is not null && ultimateChaos != ChaosModSettings.UltimateChaos)
@@ -1657,8 +1689,24 @@ internal static class SeedBeforeMultiplayerPatch
         else if (enabled && characters.Length > 0)
         {
             generationProgress = await ChaosRunDefinitions.ActivateAsync(characters, seed, ultimateChaos,
-                replaceStartingCards, numericBalanceOptimization, numericRandomMode, preserveOriginalCards);
-            Log.Warn("[AutoAnthony] The host did not provide an authoritative pool snapshot; using deterministic peer generation for compatibility with an older version.");
+                replaceStartingCards, numericBalanceOptimization, numericRandomMode, preserveOriginalCards,
+                randomCardArt);
+            // The host generated these exact pools before broadcasting the start message, so ActivateAsync can
+            // legitimately reuse them without returning a new overlay. Preserve the original host overlay until
+            // vanilla finishes entering the first room.
+            generationProgress ??= MultiplayerGenerationModePatch.TakeHostProgress();
+            if (!string.IsNullOrWhiteSpace(generationMarker?.MultiplayerGenerationFingerprint))
+            {
+                var localFingerprint = ChaosPoolSnapshot.MultiplayerGameplayFingerprint(
+                    ChaosRunDefinitions.GetAllCards());
+                if (!string.Equals(localFingerprint, generationMarker.MultiplayerGenerationFingerprint,
+                        StringComparison.Ordinal))
+                    throw new InvalidDataException(
+                        $"Generated multiplayer card pools differ from the host (host={generationMarker.MultiplayerGenerationFingerprint}, local={localFingerprint}). Ensure every player uses the same AutoAnthony version and gameplay component mods.");
+                Log.Info($"[AutoAnthony] Verified deterministic multiplayer pools: fingerprint={localFingerprint}.");
+            }
+            else
+                Log.Warn("[AutoAnthony] The host did not provide a generated-pool fingerprint; using deterministic peer generation for compatibility with an older version.");
         }
         using var progress = generationProgress;
         if (enabled && ChaosRunDefinitions.IsRunActive)

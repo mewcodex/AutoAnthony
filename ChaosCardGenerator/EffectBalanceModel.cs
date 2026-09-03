@@ -26,6 +26,13 @@ internal static class EffectBalanceModel
     internal const int OrdinaryEnergyValuePerPoint = 650;
     internal const int SkillsCostZeroRuleValue = 10_500;
     internal const int ReferencedSkillExhaustValuePerCard = 650;
+    // Gold Axe is itself a one-Energy Rare with no other text. Keep the complete dynamic-damage rule at the
+    // one-Energy Rare center instead of estimating an arbitrary number of cards played this combat.
+    internal const int GoldAxeDynamicDamageValue = 1_900;
+    // Bullet Time is the only native source: a three-Energy Rare plus the 1.36x no-draw payment. The rule must
+    // therefore buy the complete 3-Energy Rare envelope after that payment (1,900 * 3.40 * 1.36 ~= 8,786).
+    // Rounding to 8,800 keeps the native card centered and prevents the rule from fitting on cheap filler cards.
+    internal const int FreeHandThisTurnValue = 8_800;
     // A player-selected mandatory Hand Exhaust is worth 350. Status-only Exhaust has less targeting flexibility,
     // so value each removed Status slightly lower. Flak Cannon is intentionally a strong native 2-Energy Rare:
     // 2.6 * (300 Status utility + 720 random 8-Damage) = 2,652, about 114.2% of its 2,322 rarity/cost center,
@@ -203,10 +210,7 @@ internal static class EffectBalanceModel
         if (atom.Template == "N:NextTurnDraw") return first * 625;
         // Healing Osty is combat-local pet sustain, not run-persistent player healing.
         if (atom.Template == "NCR:HealOsty") return first * OstyHealValuePerPoint;
-        // Bullet Time converts the entire current hand to free plays. Its no-number fallback priced this combat-
-        // defining Rare effect as only one small rider; the native 3-Energy card plus no-draw payment anchors it
-        // near a full high-cost payoff.
-        if (atom.Template == "I:FreeHandThisTurn") return 4_600;
+        if (atom.Template == "I:FreeHandThisTurn") return FreeHandThisTurnValue;
         // Sentry Mode creates one fixed two-value derivative every turn. Keep the amount live and reuse the
         // established Sweeping Gaze ~= two Shivs exchange rate (2 * 425) before trigger cadence is applied.
         if (atom.Template == "NCR:AddSweepingGazeToHand") return first * 850;
@@ -261,6 +265,9 @@ internal static class EffectBalanceModel
         if (atom.Template == "I:PlayAtRandomEnemy") return 1_100;
         if (atom.Template == "I:TriggerPoisonNow") return 570;
         if (atom.Template == "CL:PlayTopDrawCard") return 710;
+        // This has no printed numeric parameter and receives neither numeric generation/upgrades nor multi-hit
+        // adaptation; its fixed price is the complete native one-Energy Rare card.
+        if (atom.Template == "CL:DamageEqualCardsPlayedCombat") return GoldAxeDynamicDamageValue;
         if (atom.Template == "I:AddCardReward") return 2_500;
         if (atom.Template == "CL:ReturnThisToHand") return 1_400;
         if (atom.Template == "CL:ApplyWeakAll")
@@ -483,7 +490,8 @@ internal static class EffectBalanceModel
     {
         count = Math.Max(1, count);
         // Draw is slightly more valuable than the former 4.5-damage exchange rate. This keeps Draw 2 a modest
-        // one-cost template while pushing Draw 4 beyond an ordinary one-cost Uncommon's balanced upper envelope.
+        // one-cost template. Four-or-more Draw keeps its existing general high-count premium relative to the
+        // balanced upper envelope, so widening every rarity ceiling does not accidentally normalize Draw 4 filler.
         if (count <= 3) return count * 460;
         var value = 3 * 460d;
         var marginal = 300d;
@@ -492,7 +500,7 @@ internal static class EffectBalanceModel
             value += marginal;
             marginal *= 0.72d;
         }
-        return (int)Math.Round(value);
+        return (int)Math.Round(value * ComponentAssemblyGenerator.BalancedUpperBoundMultiplier);
     }
 
     private static int DiminishingDurationStatusValue(int turns, int oneTurnValue) =>
@@ -1536,7 +1544,16 @@ internal static class EffectBalanceModel
             var extraHits = ExpectedContextualExtraDamageHits(operation, operationIndex, operations);
             return extraHits * operations.Where(CardEffectRules.IsEnemyDamage).Sum(AddedHitValue);
         }
-        var resolutionValue = value * LinkedResolutionMultiplier(operation, operationIndex, operations);
+        var linkedResolutions = LinkedResolutionMultiplier(operation, operationIndex, operations);
+        var resolutionValue = value * linkedResolutions;
+        if (CardEffectRules.IsEnemyDamage(operation)
+            && HasAdjacentMultiplicativeDependency(operation, operationIndex, operations)
+            && linkedResolutions > 1d)
+        {
+            // A count prefix repeats a Damage action rather than multiplying one packet. Only Damage receives the
+            // extra multi-hit adaptation value; Block, Poison, Doom and other stackable amounts remain plain totals.
+            resolutionValue += (linkedResolutions - 1d) * SingleResolutionDamagePointValue(operation);
+        }
         if (operation.Parameters.TryGetValue("triggerIndex", out var ownerIndex)
             && ownerIndex >= 0 && ownerIndex < operationIndex
             && operations[ownerIndex].Template is "A:turnStart" or "D:turnStart")
@@ -1921,8 +1938,7 @@ internal static class EffectBalanceModel
                  && CardEffectRules.IsLegalDependencyPayoff(operations[operationIndex - 1], operation))
             // Dependency prefixes are intentionally adjacent rather than trigger-owned in snapshots and catalogs.
             // Generation already scales their printed payoff through LinkedTrigger/PayoffScalePercent; whole-card
-            // valuation must restore the same expected live count or effects such as Gold Axe remain worth only
-            // their one-point coefficient.
+            // valuation must restore the same expected live count for count-prefixed effects.
         {
             triggerIndex = operationIndex - 1;
             trigger = operations[triggerIndex];
@@ -2055,8 +2071,17 @@ internal static class EffectBalanceModel
         // host's original hit. Its native prefix is calibrated at 1.2 prior attacks this turn.
         if (operation.Template == "NCR:RepeatPerOstyAttackThisTurn")
             return LinkedCountOrDefault(operation, operationIndex, operations, 1.2d);
-        return ExpectedExtraDamageHits(operation);
+        return ExpectedExtraDamageHits(operation)
+            * (HasAdjacentMultiplicativeDependency(operation, operationIndex, operations)
+                ? LinkedResolutionMultiplier(operation, operationIndex, operations)
+                : 1d);
     }
+
+    private static bool HasAdjacentMultiplicativeDependency(GeneratorOperation operation, int operationIndex,
+        IReadOnlyList<GeneratorOperation> operations) =>
+        operationIndex > 0
+        && CardEffectRules.IsMultiplicativeDependencyPrefix(operations[operationIndex - 1])
+        && CardEffectRules.IsLegalDependencyPayoff(operations[operationIndex - 1], operation);
 
     private static bool HasContextualModifierValuation(GeneratorOperation operation)
     {
@@ -2153,6 +2178,39 @@ internal static class EffectBalanceModel
             RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(priorHitAtom));
         if (RelativeTriggerFrequency(priorHitTrigger) != 2d)
             throw new InvalidOperationException("此前命中目标计数器没有按2次进行预算折算。");
+
+        static GeneratorOperation CatalogOperation(ComponentAtom atom) => new(atom.Template, atom.Scope,
+            string.Empty, new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: atom.LocalizedText);
+        var regressionAtoms = Enum.GetValues<GeneratedCharacter>()
+            .SelectMany(character => CharacterComponentCatalogs.Get(character).Atoms).ToArray();
+        GeneratorOperation WithAmount(string template, string slot, int amount)
+        {
+            var operation = CatalogOperation(regressionAtoms.First(atom => atom.Template == template
+                && OperationRuntimeSpecCompiler.GetOrCompile(atom).Values.Any(value => value.Id == slot)));
+            return OperationRuntimeSpecCompiler.TryReplaceFixedValue(operation, slot, amount, out var adjusted)
+                ? adjusted : throw new InvalidOperationException($"Cannot set {template}.{slot} for regression audit.");
+        }
+        var twoDamage = WithAmount("T:D", "damage", 2);
+        var twoBlock = WithAmount("N:B", "block", 2);
+        var twoPoison = WithAmount("T:Poison", "amount", 2);
+        var repeatedDamage = new[] { starCostCardTrigger, twoDamage };
+        var repeatedBlock = new[] { starCostCardTrigger, twoBlock };
+        var repeatedPoison = new[] { starCostCardTrigger, twoPoison };
+        if (EstimatedCardLevelRewardValue(twoDamage, 1, repeatedDamage) != 1_400d
+            || EstimatedCardLevelRewardValue(twoBlock, 1, repeatedBlock)
+                != EstimatedEffectValue(twoBlock) * 5d
+            || EstimatedCardLevelRewardValue(twoPoison, 1, repeatedPoison)
+                != EstimatedEffectValue(twoPoison) * 5d)
+            throw new InvalidOperationException("计数前件没有把伤害解析为多段，或错误地给格挡/中毒加入了多段溢价。");
+
+        var fiveDamage = WithAmount("T:D", "damage", 5);
+        var oneExtraHit = CatalogOperation(regressionAtoms.First(atom => atom.Template == "M:repeat"
+            && OperationRuntimeSpecCompiler.FixedValue(atom, "extra_hits") == 1));
+        var repeatedModifier = new[] { fiveDamage, starCostCardTrigger, oneExtraHit };
+        if (!CardEffectRules.IsLegalDependencyPayoff(starCostCardTrigger, oneExtraHit)
+            || EstimatedCardLevelRewardValue(oneExtraHit, 2, repeatedModifier) != 3_000d)
+            throw new InvalidOperationException("计数前件无法重复兼容的伤害 modifier，或多段适配价值计算错误。");
 
         var shuffleTrigger = new GeneratorOperation("CL:WheneverDrawPileShuffled",
             OperationScope.AbilityTrigger, "每当你的抽牌堆洗牌时。", new Dictionary<string, int>());
@@ -2338,6 +2396,8 @@ internal static class EffectBalanceModel
             "将一张随机攻击牌加入手牌。其本回合费用为0。", false, CardReferenceRequirement.None);
         var freeHand = new ComponentAtom("I:FreeHandThisTurn", OperationScope.Independent,
             "你手牌中的所有牌在本回合免费打出。", false, CardReferenceRequirement.None);
+        var goldAxe = new ComponentAtom("CL:DamageEqualCardsPlayedCombat", OperationScope.SingleEnemyOnly,
+            "造成本场战斗中所打出牌数的伤害。", true, CardReferenceRequirement.None);
         var discardAll = new ComponentAtom("N:DiscardAll", OperationScope.NonTargeted,
             "丢弃所有手牌。", false, CardReferenceRequirement.None);
         var shivsRetain = new ComponentAtom("A:ruleShivsRetain", OperationScope.AbilityRule,
@@ -2391,6 +2451,8 @@ internal static class EffectBalanceModel
             || EstimatedEffectValue(repeatedTargetDamage) != 1_100
             || EstimatedEffectValue(twoShivs) != 990
             || EstimatedEffectValue(freeRandomAttack) != 1_100
+            || EstimatedEffectValue(freeHand) != FreeHandThisTurnValue
+            || EstimatedEffectValue(goldAxe) != GoldAxeDynamicDamageValue
             || EstimatedEffectValue(poisonExtraTrigger) != 1_350
             || PoisonExtraTriggerValue(2) != 2_700
             || EstimatedEffectValue(royaltiesGold) != 1_500
@@ -2454,6 +2516,21 @@ internal static class EffectBalanceModel
                 + $"platingRare={ComponentAssemblyGenerator.ExplicitRareOperationRarityWeight(plating, GeneratedRarity.Rare)}。");
         GeneratorOperation Operation(ComponentAtom atom) => new(atom.Template, atom.Scope, atom.ChineseText,
             new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget);
+        var cheapFreeHand = new List<GeneratorOperation> { Operation(freeHand) };
+        var cheapFreeHandBounds = ComponentAssemblyGenerator.WholeCardBudgetBounds(
+            GeneratedRarity.Rare, 1d, 1, balancedValues: true,
+            character: GeneratedCharacter.Silent);
+        var bulletTimeNoDraw = new GeneratorOperation("I:PreventDrawThisTurn", OperationScope.Independent,
+            "你在本回合内不能再抽牌。", new Dictionary<string, int>());
+        var bulletTimeAnchor = ComponentAssemblyGenerator.CalibratedWholeCardCenter(
+            GeneratedRarity.Rare, 3d) * NegativeEffectTuning.BaseMultiplier(bulletTimeNoDraw);
+        if (cheapFreeHandBounds.Maximum >= FreeHandThisTurnValue
+            || ComponentAssemblyGenerator.ApplyWholeCardBudgetEnvelope(cheapFreeHand,
+                GeneratedRarity.Rare, 1d, GeneratedCardType.Skill, [], true,
+                balancedValues: true, character: GeneratedCharacter.Silent, ultimateChaos: false)
+            || Math.Abs(FreeHandThisTurnValue - bulletTimeAnchor) > 25d)
+            throw new InvalidOperationException("手牌全部免费没有按三费稀有《子弹时间》及其禁抽代价定价，"
+                                                + "或一费单效果版本绕过了平衡上限。");
         var summonX = new GeneratorOperation("NCR:SummonX", OperationScope.NonTargeted, "召唤X。",
             new Dictionary<string, int>(), RuntimeSpec: new OperationRuntimeSpec(
                 OperationRuntimeSpec.CurrentSchemaVersion, "template_self_action", "ncr_summonx", "self",
@@ -2512,7 +2589,7 @@ internal static class EffectBalanceModel
             (GeneratedCharacter.Colorless, "JackOfAllTrades", 855d),
             (GeneratedCharacter.Necrobinder, "TimesUp", 2_050d),
             (GeneratedCharacter.Colorless, "Prolong", 1_400d),
-            (GeneratedCharacter.Colorless, "GoldAxe", 2_000d),
+            (GeneratedCharacter.Colorless, "GoldAxe", GoldAxeDynamicDamageValue),
             (GeneratedCharacter.Ironclad, "BodySlam", 1_100d),
             (GeneratedCharacter.Silent, "Shadowmeld", 1_400d),
             (GeneratedCharacter.Silent, "Nightmare", 5_100d),
@@ -2525,7 +2602,7 @@ internal static class EffectBalanceModel
             (GeneratedCharacter.Colorless, "RollingBoulder", 6_460d),
             (GeneratedCharacter.Silent, "Murder", 3_400d),
             (GeneratedCharacter.Necrobinder, "ReaperForm", 3_375d),
-            (GeneratedCharacter.Silent, "BulletTime", 4_600d),
+            (GeneratedCharacter.Silent, "BulletTime", FreeHandThisTurnValue),
             (GeneratedCharacter.Necrobinder, "SentryMode", 2_550d),
             (GeneratedCharacter.Ironclad, "PerfectedStrike", 1_600d),
             (GeneratedCharacter.Ironclad, "Bully", 1_000d),

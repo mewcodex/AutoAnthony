@@ -688,46 +688,18 @@
     "Id": "colorless/goldaxe/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "cl_foreachcardplayedcombat",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "any_card_played_reference",
-        "count_unit_reference",
-        "repeated_or_multiplicative"
-      ],
-      "Values": [],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "colorless/goldaxe/1",
-    "Spec": {
-      "SchemaVersion": 1,
       "Opcode": "deal_damage",
-      "Variant": "selected",
+      "Variant": "cards_played_combat",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "has_numeric_literal",
-        "printed_damage_value"
+        "api_enemy_damage",
+        "damage_budget_effect",
+        "requires_single_target"
       ],
-      "Values": [
-        {
-          "Id": "damage",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        }
-      ],
+      "Values": [],
       "Condition": null,
       "Trigger": null
     }

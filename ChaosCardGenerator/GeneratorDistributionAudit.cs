@@ -142,7 +142,7 @@ public static class GeneratorDistributionAudit
                 + $"{(double.IsNaN(ratio) ? "n/a" : ratio.ToString("0.00"))}");
         }
         output.AppendLine();
-        output.AppendLine("rarity\tsourceCost(0/1/2/3/4+)\tgeneratedCost(0/1/2/3/4+)\tgeneratedZeroResource\tgeneratedEffectiveZero\tsourceStarPayment\tgeneratedStarPayment\tsourceHighStarPayment\tgeneratedHighStarPayment\tgeneratedInnateUpgrade\tnonZeroWithoutBenefit\tcommonOneCostPureDraw2\ttinyImmediateReward");
+        output.AppendLine("rarity\tsourceCost(0/1/2/3/4+)\tgeneratedCost(0/1/2/3/4+)\tgeneratedZeroResource\tgeneratedEffectiveZero\tsourceStarPayment\tgeneratedStarPayment\tsourceHighStarPayment\tgeneratedHighStarPayment\tgeneratedInnateUpgrade\tnonZeroWithoutBenefit\tcommonOneCostPureDraw2\ttinyImmediateReward\ttinyStandaloneCombatReward");
         foreach (var rarity in rarities)
         {
             var source = catalog.Recipes.Where(recipe => recipe.OriginalRarity == rarity && recipe.Cost >= 0).ToArray();
@@ -159,7 +159,9 @@ public static class GeneratorDistributionAudit
                     .Contains(CardTag.Innate)), generated.Length),
                 generated.Count(card => card.Cost > 0 && !card.Operations.Any(CardEffectRules.IsBeneficialEffect)),
                 generated.Count(IsCommonOneCostPureDrawTwo),
-                generated.Count(card => card.Operations.Any(CardAcceptanceTuning.IsTinyImmediateReward))));
+                generated.Count(card => card.Operations.Any(CardAcceptanceTuning.IsTinyImmediateReward)),
+                generated.Count(card => card.Operations.Select((_, index) => index)
+                    .Any(index => CardAcceptanceTuning.IsTinyStandaloneCombatReward(card.Operations, index)))));
         }
         var sourceFamilies = catalog.Recipes.SelectMany(recipe => recipe.Atoms.Select(atom => atom.FamilyKey)).ToArray();
         var generatedFamilies = allGenerated.SelectMany(card => card.Operations

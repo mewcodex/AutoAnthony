@@ -24,15 +24,7 @@ internal static class NativeUpgradeStrengthModel
 
     internal static double SampleTargetValue(GeneratedRarity rarity, Random random)
     {
-        var center = rarity switch
-        {
-            GeneratedRarity.Basic => 380d,
-            GeneratedRarity.Common => 450d,
-            GeneratedRarity.Uncommon => 550d,
-            GeneratedRarity.Rare => 650d,
-            GeneratedRarity.Ancient => 850d,
-            _ => 450d
-        };
+        var center = CenterValue(rarity);
         var multiplier = random.Next(1000) switch
         {
             < 180 => 0.75d,
@@ -41,6 +33,32 @@ internal static class NativeUpgradeStrengthModel
             _ => 1.45d
         };
         return center * multiplier;
+    }
+
+    internal static double CenterValue(GeneratedRarity rarity) => rarity switch
+        {
+            GeneratedRarity.Basic => 380d,
+            GeneratedRarity.Common => 450d,
+            GeneratedRarity.Uncommon => 550d,
+            GeneratedRarity.Rare => 650d,
+            GeneratedRarity.Ancient => 850d,
+            _ => 450d
+        };
+
+    /// <summary>
+    /// Final whole-upgrade ceiling. Candidate proximity alone is insufficient: when only one legal candidate
+    /// remains, a minimum +1 on a high-frequency/multiplicative field can be far above the sampled native target.
+    /// Bound both the sampled tail and the gain relative to the unupgraded card while retaining native-sized
+    /// upgrades for low-value cards.
+    /// </summary>
+    internal static double MaximumPlanGain(GeneratedCard card, double sampledTarget)
+    {
+        var baseValue = EffectBalanceModel.EstimatedPositiveCardValue(card.Operations);
+        // The low 0.75 target roll changes preference, not whether a card has any legal visible +1 upgrade.
+        // Never push the hard ceiling below the rarity's native center.
+        var targetCeiling = Math.Max(CenterValue(card.Rarity), sampledTarget * 1.50d);
+        var relativeCeiling = Math.Max(CenterValue(card.Rarity), baseValue * 0.70d);
+        return Math.Max(1d, Math.Min(targetCeiling, relativeCeiling));
     }
 
     /// <summary>Weights a legal candidate by how closely its whole-card marginal gain fits the remaining budget.</summary>

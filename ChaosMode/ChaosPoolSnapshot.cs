@@ -55,6 +55,19 @@ public sealed class ChaosPoolSnapshotModifier : ModifierModel
     [SavedProperty]
     public bool MultiplayerPreserveOriginalCards { get; set; }
 
+    [SavedProperty]
+    public bool MultiplayerRandomCardArtSpecified { get; set; }
+
+    [SavedProperty]
+    public bool MultiplayerRandomCardArt { get; set; }
+
+    // New-run lobbies carry only this compact gameplay checksum. Live saves still persist the complete pool
+    // snapshot, but sending that snapshot through LobbyBeginRunMessage became unsafe once structured runtime
+    // specifications increased it beyond 150 KB. Every peer deterministically builds the same six pools and
+    // verifies this checksum before entering the run.
+    [SavedProperty]
+    public string MultiplayerGenerationFingerprint { get; set; } = string.Empty;
+
     // The property-name registry used by multiplayer SavedProperties is populated from [SavedProperty] members.
     // Ghost Seed writes this marker onto selected SerializableCards (rather than this modifier) so an otherwise
     // non-serializable local keyword survives autosaves, reloads, and peer card transfer.
@@ -80,7 +93,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.10";
+    public const string ModVersion = "0.3.16";
     private const int SchemaVersion = 10;
     // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
     // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay
@@ -163,6 +176,104 @@ public static class ChaosPoolSnapshot
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
         return Convert.ToHexString(hash)[..16];
+    }
+
+    /// <summary>
+    /// Stable gameplay-only identity used by the lightweight multiplayer start protocol. Presentation fields
+    /// (localized text, names, portraits and VFX) are intentionally excluded so cosmetic card-art differences
+    /// cannot prevent otherwise compatible peers from starting a run.
+    /// </summary>
+    internal static string MultiplayerGameplayFingerprint(
+        IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> pools)
+    {
+        var builder = new StringBuilder(256 * 1024);
+        foreach (var character in ChaosRunDefinitions.SupportedPools)
+        {
+            builder.Append((int)character).Append(':');
+            foreach (var definition in pools[character].OrderBy(definition => definition.Slot))
+            {
+                var card = definition.Card;
+                builder.Append(definition.Slot).Append('|')
+                    .Append(card.Cost).Append('|').Append(card.StarCost).Append('|')
+                    .Append(card.HasStarCostX ? '1' : '0').Append('|')
+                    .Append((int)card.Type).Append('|').Append((int)card.Target).Append('|')
+                    .Append((int)card.Rarity).Append('|').Append(card.UnifiedChaos ? '1' : '0').Append('|');
+                foreach (var tag in card.Tags.OrderBy(tag => tag)) builder.Append((int)tag).Append(',');
+                builder.Append('|');
+                foreach (var keyword in (card.CustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal))
+                    AppendFingerprintToken(builder, keyword);
+                builder.Append('|');
+                for (var operationIndex = 0; operationIndex < card.Operations.Count; operationIndex++)
+                {
+                    var operation = card.Operations[operationIndex];
+                    AppendFingerprintToken(builder, operation.Template);
+                    builder.Append((int)operation.Scope).Append('|')
+                        .Append(operation.RequiresSingleTarget ? '1' : '0').Append('|');
+                    AppendFingerprintToken(builder, operation.CardTargetSlot);
+                    AppendFingerprintToken(builder, operation.DerivativeId);
+                    AppendFingerprintToken(builder, operation.DerivativeEnchantmentId);
+                    AppendFingerprintToken(builder, operation.OrbSourceId);
+                    AppendFingerprintToken(builder, operation.OrbOutputId);
+                    builder.Append(operation.DerivativeEnchantmentAmount?.ToString() ?? "-").Append('|');
+                    foreach (var parameter in operation.Parameters.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+                    {
+                        AppendFingerprintToken(builder, parameter.Key);
+                        builder.Append(parameter.Value).Append(',');
+                    }
+                    builder.Append('|');
+                    var spec = definition.RuntimeSpecs is { Count: > 0 }
+                               && operationIndex < definition.RuntimeSpecs.Count
+                        ? definition.RuntimeSpecs[operationIndex]
+                        : OperationRuntimeSpecCompiler.RequireStructured(operation);
+                    AppendFingerprintToken(builder, spec.StableSignature());
+                    builder.Append(';');
+                }
+                builder.Append('|');
+                if (card.Upgrade is { } upgrade)
+                {
+                    builder.Append(upgrade.UpgradedCost).Append('|')
+                        .Append(upgrade.UpgradedStarCost?.ToString() ?? "-").Append('|');
+                    foreach (var tag in upgrade.AddedKeywords.OrderBy(tag => tag))
+                        builder.Append('+').Append((int)tag).Append(',');
+                    foreach (var tag in (upgrade.RemovedKeywords ?? []).OrderBy(tag => tag))
+                        builder.Append('-').Append((int)tag).Append(',');
+                    foreach (var keyword in (upgrade.AddedCustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal))
+                    {
+                        builder.Append('+');
+                        AppendFingerprintToken(builder, keyword);
+                    }
+                    foreach (var keyword in (upgrade.RemovedCustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal))
+                    {
+                        builder.Append('-');
+                        AppendFingerprintToken(builder, keyword);
+                    }
+                    builder.Append('|');
+                    for (var effectIndex = 0; effectIndex < upgrade.Effects.Count; effectIndex++)
+                    {
+                        var effect = upgrade.Effects[effectIndex];
+                        builder.Append((int)effect.Kind).Append(',')
+                            .Append(effect.OperationIndex?.ToString() ?? "-").Append(',')
+                            .Append(effect.Delta?.ToString() ?? "-").Append(',');
+                        AppendFingerprintToken(builder,
+                            definition.UpgradeValueSlots is { Count: > 0 }
+                            && effectIndex < definition.UpgradeValueSlots.Count
+                                ? definition.UpgradeValueSlots[effectIndex]
+                                : effect.ValueSlotId);
+                        AppendFingerprintToken(builder, effect.KeywordId);
+                        builder.Append(';');
+                    }
+                }
+                builder.AppendLine();
+            }
+        }
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()));
+        return Convert.ToHexString(hash)[..16];
+    }
+
+    private static void AppendFingerprintToken(StringBuilder builder, string? value)
+    {
+        value ??= string.Empty;
+        builder.Append(value.Length).Append('#').Append(value).Append('|');
     }
 
     /// <summary>
@@ -1429,6 +1540,57 @@ public static class ChaosPoolSnapshot
         IReadOnlyCollection<GeneratedCharacter> activeCharacters, string seed,
         IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> pools)
     {
+        var gameplayFingerprint = MultiplayerGameplayFingerprint(pools);
+        if (gameplayFingerprint.Length != 16)
+            throw new InvalidOperationException("Deterministic multiplayer gameplay fingerprint is malformed.");
+        var presentationOnlyPools = pools.ToDictionary(pair => pair.Key,
+            pair => (IReadOnlyList<ChaosCardDefinition>)pair.Value.Select(definition => definition with
+            {
+                PortraitPath = definition.PortraitPath + "#cosmetic-audit",
+                HitFx = definition.HitFx + "#cosmetic-audit"
+            }).ToArray());
+        if (MultiplayerGameplayFingerprint(presentationOnlyPools) != gameplayFingerprint)
+            throw new InvalidOperationException(
+                "Cosmetic card fields unexpectedly affect the deterministic multiplayer fingerprint.");
+        var gameplayChangedPools = pools.ToDictionary(pair => pair.Key,
+            pair => (IReadOnlyList<ChaosCardDefinition>)pair.Value.ToArray());
+        var changedCharacter = ChaosRunDefinitions.SupportedPools[0];
+        var changedCards = gameplayChangedPools[changedCharacter].ToArray();
+        changedCards[0] = changedCards[0] with
+        {
+            Card = changedCards[0].Card with { Cost = changedCards[0].Card.Cost + 1 }
+        };
+        gameplayChangedPools[changedCharacter] = changedCards;
+        if (MultiplayerGameplayFingerprint(gameplayChangedPools) == gameplayFingerprint)
+            throw new InvalidOperationException(
+                "A gameplay card change did not affect the deterministic multiplayer fingerprint.");
+
+        var carrier = (ChaosPoolSnapshotModifier)ModelDb.Modifier<ChaosPoolSnapshotModifier>().ToMutable();
+        carrier.MultiplayerGenerationModeSpecified = true;
+        carrier.MultiplayerModEnabled = true;
+        carrier.MultiplayerUltimateChaos = true;
+        carrier.MultiplayerReplaceStartingCardsSpecified = true;
+        carrier.MultiplayerReplaceStartingCards = false;
+        carrier.MultiplayerNumericBalanceOptimizationSpecified = true;
+        carrier.MultiplayerNumericBalanceOptimization = true;
+        carrier.MultiplayerNumericRandomMode = true;
+        carrier.MultiplayerPreserveOriginalCards = true;
+        carrier.MultiplayerRandomCardArtSpecified = true;
+        carrier.MultiplayerRandomCardArt = true;
+        carrier.MultiplayerGenerationFingerprint = gameplayFingerprint;
+        var serializedCarrier = carrier.ToSerializable();
+        var packetWriter = new PacketWriter { WarnOnGrow = false };
+        packetWriter.Write(serializedCarrier);
+        var restoredCarrier = (ChaosPoolSnapshotModifier)ModifierModel.FromSerializable(serializedCarrier);
+        if (packetWriter.BytePosition > 2_048
+            || restoredCarrier.PoolSnapshot.Length != 0
+            || restoredCarrier.MultiplayerGenerationFingerprint != gameplayFingerprint
+            || !restoredCarrier.MultiplayerRandomCardArtSpecified
+            || !restoredCarrier.MultiplayerRandomCardArt)
+            throw new InvalidOperationException(
+                $"The lightweight multiplayer generation carrier failed round-trip validation ({packetWriter.BytePosition} bytes).");
+        Log.Info($"[AutoAnthony] Lightweight multiplayer carrier audit: fingerprint={gameplayFingerprint}, bytes={packetWriter.BytePosition}.");
+
         var payload = GetAuthoritativeMultiplayerPayload(activeCharacters, seed, pools);
         var reboundCharacters = new[] { GeneratedCharacter.Ironclad, GeneratedCharacter.Regent };
         var reboundPayload = RebindMultiplayerActiveCharacters(payload, reboundCharacters, seed);

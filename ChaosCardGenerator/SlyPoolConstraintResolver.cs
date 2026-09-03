@@ -53,21 +53,19 @@ public static class SlyPoolConstraintResolver
                     - (OstyPoolConstraintResolver.HasOstyEffect(cards[index]) ? 1 : 0);
                 var summonsWithoutCandidate = cards.Count(OstyPoolConstraintResolver.HasSummonEffect)
                     - (OstyPoolConstraintResolver.HasSummonEffect(cards[index]) ? 1 : 0);
-                for (var attempt = 0; attempt < replacementAttemptLimit; attempt++)
+                try
                 {
                     // Sly cards are fixed-cost by construction. Suppressing derivative references makes this
                     // repair incapable of adding new demand to an already-resolved derivative supply graph.
-                    var replacement = generator.GenerateReferenceFreeWithoutSpecialX(rarities[index]);
-                    if (HasSly(replacement)) continue;
-                    var prospectiveOsty = ostyWithoutCandidate
-                        + (OstyPoolConstraintResolver.HasOstyEffect(replacement) ? 1 : 0);
-                    var prospectiveSummons = summonsWithoutCandidate
-                        + (OstyPoolConstraintResolver.HasSummonEffect(replacement) ? 1 : 0);
-                    if (prospectiveOsty > prospectiveSummons) continue;
+                    var replacement = generator.GenerateReferenceFreeWithoutSpecialXMatching(rarities[index],
+                        card => !HasSly(card)
+                            && ostyWithoutCandidate + (OstyPoolConstraintResolver.HasOstyEffect(card) ? 1 : 0)
+                            <= summonsWithoutCandidate
+                               + (OstyPoolConstraintResolver.HasSummonEffect(card) ? 1 : 0));
                     cards[index] = replacement;
                     replaced = true;
-                    break;
                 }
+                catch (InvalidOperationException) { }
                 if (replaced) break;
             }
 

@@ -370,6 +370,8 @@ internal static class NumericGenerationTuning
     {
         if (slot == 0 && atom.Template is "N:CreateShiv" or "N:CreateInkShiv")
             value = SampleShivProducerCount(random, atom.Template, value);
+        if (slot == 0 && CardEffectRules.IsEnemyStrengthGain(atom))
+            value = ThinEnemyStrengthGainTail(value, random.Next(100));
         if (slot == 0 && CardEffectRules.IsStarGainOperation(atom) && value > 1 && random.Next(100) < 28)
             value--;
         if (slot == 0
@@ -379,6 +381,14 @@ internal static class NumericGenerationTuning
             // but ordinary multi-effect cards should overwhelmingly stop at three.
             value = random.Next(100) < 82 ? 3 : 4;
         return value;
+    }
+
+    internal static int ThinEnemyStrengthGainTail(int sampledValue, int percentileRoll)
+    {
+        if (sampledValue <= 1) return 1;
+        // Giving Strength to the selected enemy is usually printed at one in the native pool. Preserve a small
+        // two-stack tail for randomized combinations, but never generate three or more stacks.
+        return percentileRoll < 85 ? 1 : 2;
     }
 
     internal static int SampleMandatoryHandExhaustCount(Random random)
@@ -471,6 +481,8 @@ internal static class NumericGenerationTuning
         if (slot == 0 && atom.Template == "D:GainOrbSlots")
             return 1;
         if (slot == 0 && CardEffectRules.IsPositivePermanentStatGain(atom))
+            return Math.Clamp(value, 1, 2);
+        if (slot == 0 && CardEffectRules.IsEnemyStrengthGain(atom))
             return Math.Clamp(value, 1, 2);
         if (slot == 0 && CardEffectRules.IsPermanentStrengthOrDexterityChange(atom))
             return Math.Clamp(value, 1, 3);
@@ -599,41 +611,41 @@ internal static class NumericGenerationTuning
         return Math.Max(1, cost);
     }
 
-    internal static int ApplyStarCostAdjustment(Random random, int cost, bool ultimateChaos)
+    internal static bool SampleNonBasicStarPayment(Random random, bool usesSharedResourceShell,
+        GeneratedRarity rarity) =>
+        usesSharedResourceShell && rarity != GeneratedRarity.Basic && random.Next(4) == 0;
+
+    internal static int SampleNonBasicFixedStarCost(Random random, int nativeCost, GeneratedRarity rarity)
     {
-        if (cost <= 0) return cost;
-
-        // Fixed Star payments remain a Regent identity, but the native shell histogram is slightly too dense once
-        // it is recombined independently from Energy and effects. Keep every source outcome reachable while making
-        // a no-Star result a modest (rather than dominant) branch. Ultimate Chaos uses the same shared sixth-column
-        // resource policy with a slightly stronger normalization because every character can inherit Regent shells.
-        if (random.Next(10_000) < (ultimateChaos ? 1_200 : 800)) return -1;
-        if (cost == 1) return 1;
-
-        // Four-to-six Stars are bankable but still strategically restrictive. A single generic -1 roll left most
-        // five/six-Star shells in the extreme band, so sample that tail explicitly. All original values retain a
-        // non-zero path, while >=4 is now exceptional rather than a common consequence of the source histogram.
-        var roll = random.Next(10_000);
-        return cost switch
+        if (rarity == GeneratedRarity.Basic) return nativeCost;
+        // Presence is sampled once per card before assembly retries. Once selected, one shared native-tail chance
+        // keeps every original high-Star card reconstructible while the rarity center supplies the requested
+        // 1/2/3 median without a per-cost fit table.
+        if (nativeCost > 0 && random.Next(4) == 0) return nativeCost;
+        return rarity switch
         {
-            2 => roll < (ultimateChaos ? 3_200 : 1_800) ? 1 : 2,
-            3 => roll < (ultimateChaos ? 4_000 : 2_400) ? 2 : 3,
-            4 => roll < (ultimateChaos ? 9_200 : 8_800) ? 3 : 4,
-            5 => roll < (ultimateChaos ? 7_800 : 7_000) ? 3
-                : roll < (ultimateChaos ? 9_500 : 9_200) ? 4 : 5,
-            _ => roll < (ultimateChaos ? 7_500 : 6_500) ? 3
-                : roll < (ultimateChaos ? 9_100 : 8_700) ? 4
-                : roll < (ultimateChaos ? 9_800 : 9_700) ? 5 : cost
+            GeneratedRarity.Common => 1,
+            GeneratedRarity.Uncommon => 2,
+            GeneratedRarity.Rare or GeneratedRarity.Ancient => 3,
+            _ => 1
         };
     }
 
     internal static bool KeepStarXCost(Random random, bool hasStarCostX, bool ultimateChaos) =>
         !hasStarCostX || ultimateChaos || random.Next(10_000) >= 800;
 
-    internal static int ApplyBasicStarCostFloor(int cost, GeneratedRarity rarity) =>
-        // Falling Star is the native fixed-Star Basic reference. Starting-pool cards use its stable two-Star
-        // payment instead of inheriting the much wider 1-6 Star shell range from higher rarities.
-        rarity == GeneratedRarity.Basic && cost > 0 ? 2 : cost;
+    internal static int ApplyBasicStarCostTuning(Random random, int cost, GeneratedRarity rarity)
+    {
+        if (rarity != GeneratedRarity.Basic || cost <= 0) return cost;
+
+        // Falling Star is the only Star-paying card in the Regent's ten-card starting deck. Component shells are
+        // sampled from the four distinct Basic models, which would otherwise make roughly one quarter of the
+        // generated starting pool pay Stars. Retain two Stars as the valid Basic template, but keep only 30% of
+        // positive-Star Basic shells so the completed ten-card pool returns to the native ~10% incidence.
+        // Preserve the previous small no-Star normalization before applying the starting-deck incidence.
+        if (random.Next(10_000) < 800) return -1;
+        return random.Next(100) < 30 ? 2 : -1;
+    }
 
     internal static int ApplyUnconditionalStarGainSoftCap(Random random, int amount)
     {
@@ -693,7 +705,9 @@ internal static class NegativeEffectTuning
                 EffectBalanceModel.ReferencedSkillExhaustValuePerCard,
             "N:Exhaust" when spec.Variant is "random" or "referenced" or "top" => 100d,
             "I:ExhaustRandomAttack" => 100d,
-            "T:Apply" when CardEffectRules.IsEnemyStrengthGain(operation) => 1_500d,
+            // Front-loaded damage can kill the buffed target before the permanent Strength matters. Keep this a
+            // substantial additive payment, but do not let one stack buy an entire 1-Energy Uncommon card.
+            "T:Apply" when CardEffectRules.IsEnemyStrengthGain(operation) => 1_000d,
             "R:AddDebrisToHand" => StatusUnitValue(operation),
             _ when DerivativeSlotCatalog.ProducesStatus(operation)
                 && operation.Template != "R:FillHandWithDebris" => StatusUnitValue(operation),
@@ -1049,6 +1063,50 @@ internal static class EnergyCostTuning
 /// </summary>
 internal static class CardAcceptanceTuning
 {
+    internal const int TinyStandaloneRewardMaximum = 2;
+    internal const int TinyStandaloneRemovalChancePercent = 90;
+
+    internal static bool ShouldAttemptTinyStandaloneRemoval(int amount, int percentileRoll) =>
+        amount is >= 1 and <= TinyStandaloneRewardMaximum
+        && percentileRoll is >= 0 and < TinyStandaloneRemovalChancePercent;
+
+    /// <summary>
+    /// Very small ordinary one-shot combat lines add text without providing a meaningful decision. Repeated,
+    /// conditional, delayed and multi-hit lines are excluded because their printed per-resolution number is not
+    /// their whole value. The assembler may remove these lines and refill the released slot from the active profile.
+    /// </summary>
+    internal static bool IsTinyStandaloneCombatReward(IReadOnlyList<GeneratorOperation> operations, int index)
+    {
+        if ((uint)index >= (uint)operations.Count) return false;
+        var operation = operations[index];
+        if (operation.Parameters.ContainsKey("triggerIndex")
+            || operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                or OperationScope.AbilityRule or OperationScope.Modifier)
+            return false;
+        if (index > 0 && CardEffectRules.IsDependencyPrefix(operations[index - 1])
+            && CardEffectRules.IsLegalDependencyPayoff(operations[index - 1], operation))
+            return false;
+
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        var familyMatches = spec.Opcode == "gain_block" && spec.Variant == "immediate"
+            || CardEffectRules.IsEnemyDamage(operation)
+            || operation.Template is "R:GainVigor" or "CL:GainVigor" or "NCR:Summon";
+        if (!familyMatches) return false;
+
+        // A low per-hit number on a genuine multi-hit attack is intentional. Static/dynamic hit modifiers also
+        // make every Damage line multi-hit, so do not prune its anchor as if it were a one-shot two-Damage rider.
+        if (CardEffectRules.IsEnemyDamage(operation)
+            && (CardEffectRules.IsIntrinsicMultiHitDamage(operation)
+                || operations.Any(candidate => candidate.Scope == OperationScope.Modifier
+                    && (OperationRuntimeSpecCompiler.GetOrCompile(candidate).Opcode == "modify_hits"
+                        || OperationRuntimeSpecCompiler.GetOrCompile(candidate).Flags
+                            .Contains("static_extra_damage_hits")))))
+            return false;
+
+        return OperationRuntimeSpecCompiler.TryGetPrimaryExplicitFixedValue(operation, out _, out var amount)
+            && amount is >= 1 and <= TinyStandaloneRewardMaximum;
+    }
+
     internal static int EffectiveZeroAcceptancePercent(GeneratedCharacter character, bool ultimateChaos,
         int energyCost, int starCost, bool hasEnergyX, bool hasStarX, double effectiveCost)
     {
@@ -1146,6 +1204,42 @@ internal static class CardAcceptanceTuning
             || IsTinyImmediateReward(blockThree)
             || TinyImmediateRewardAcceptancePercent([blockOne], GeneratedRarity.Common) != 35)
             throw new InvalidOperationException("极低单项收益软限制发生了意外变化。");
+
+        var summonTwo = new GeneratorOperation("NCR:Summon", OperationScope.NonTargeted, "召唤2。",
+            new Dictionary<string, int> { ["summon"] = 2 }, RuntimeSpec: OperationRuntimeSpecCompiler.CompileLegacy(
+                new GeneratorOperation("NCR:Summon", OperationScope.NonTargeted, "召唤2。",
+                    new Dictionary<string, int> { ["summon"] = 2 })));
+        var multiHitTwo = new GeneratorOperation("N:RandomD", OperationScope.NonTargeted,
+            "随机对敌人造成2点伤害3次。", new Dictionary<string, int> { ["damage"] = 2, ["hits"] = 3 },
+            RuntimeSpec: OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation("N:RandomD",
+                OperationScope.NonTargeted, "随机对敌人造成2点伤害3次。",
+                new Dictionary<string, int> { ["damage"] = 2, ["hits"] = 3 })));
+        var starCount = new GeneratorOperation("R:ForEachStarCostCard", OperationScope.Modifier,
+            "你的所有牌中每有一张有蓝星耗费的牌，", new Dictionary<string, int>(),
+            RuntimeSpec: OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation(
+                "R:ForEachStarCostCard", OperationScope.Modifier,
+                "你的所有牌中每有一张有蓝星耗费的牌，", new Dictionary<string, int>())));
+        var repeatedDamageTwo = new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly, "造成2点伤害。",
+            new Dictionary<string, int> { ["damage"] = 2 }, RequiresSingleTarget: true,
+            RuntimeSpec: OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation("T:D",
+                OperationScope.SingleEnemyOnly, "造成2点伤害。", new Dictionary<string, int> { ["damage"] = 2 },
+                RequiresSingleTarget: true)));
+        var tinyRemovalChecks = new[]
+        {
+            ShouldAttemptTinyStandaloneRemoval(1, 0),
+            ShouldAttemptTinyStandaloneRemoval(2, 89),
+            !ShouldAttemptTinyStandaloneRemoval(2, 90),
+            !ShouldAttemptTinyStandaloneRemoval(3, 0),
+            IsTinyStandaloneCombatReward([blockOne], 0),
+            !IsTinyStandaloneCombatReward([linkedBlockOne], 0),
+            !IsTinyStandaloneCombatReward([blockThree], 0),
+            IsTinyStandaloneCombatReward([summonTwo], 0),
+            !IsTinyStandaloneCombatReward([multiHitTwo], 0),
+            !IsTinyStandaloneCombatReward([starCount, repeatedDamageTwo], 1)
+        };
+        if (Array.FindIndex(tinyRemovalChecks, passed => !passed) is var failedTinyCheck
+            && failedTinyCheck >= 0)
+            throw new InvalidOperationException($"低数值单次战斗效果的90%移除判定发生了意外变化（检查项 {failedTinyCheck}）。");
     }
 }
 
@@ -1154,12 +1248,23 @@ internal static class AggressiveModeTuning
 {
     internal const int RaisedEffectFloorChancePercent = 30;
     internal const int NegativeOptimizationChancePercent = 50;
+    internal const int EnergyGainWeightPercent = 200;
 
     internal static bool ShouldRaiseEffectCountFloor(bool balancedValues, int percentileRoll) =>
         !balancedValues && percentileRoll is >= 0 and < RaisedEffectFloorChancePercent;
 
     internal static bool ShouldOptimizeNegatives(bool balancedValues, int percentileRoll) =>
         !balancedValues && percentileRoll is >= 0 and < NegativeOptimizationChancePercent;
+
+    /// <summary>
+    /// Numeric-aggressive mode doubles the selection weight of ordinary Energy gain families. This changes only
+    /// component occurrence odds: Star gain, sampled Energy amounts, trigger-frequency penalties, and valuation are
+    /// deliberately left untouched.
+    /// </summary>
+    internal static int EnergyGainSelectionWeight(bool balancedValues, IEnumerable<ComponentAtom> family) =>
+        !balancedValues && family.Any(CardEffectRules.IsEnergyGainOperation)
+            ? EnergyGainWeightPercent
+            : 100;
 
     internal static void Validate()
     {
@@ -1170,7 +1275,16 @@ internal static class AggressiveModeTuning
             || !ShouldOptimizeNegatives(false, 49)
             || ShouldOptimizeNegatives(false, 50)
             || Enumerable.Range(0, 100).Count(roll => ShouldRaiseEffectCountFloor(false, roll)) != 30
-            || Enumerable.Range(0, 100).Count(roll => ShouldOptimizeNegatives(false, roll)) != 50)
-            throw new InvalidOperationException("数值激进模式的效果数下界或负面优化概率发生了意外变化。");
+            || Enumerable.Range(0, 100).Count(roll => ShouldOptimizeNegatives(false, roll)) != 50
+            || EnergyGainSelectionWeight(true,
+                [new ComponentAtom("N:E", OperationScope.NonTargeted, "获得1点能量。", false,
+                    CardReferenceRequirement.None)]) != 100
+            || EnergyGainSelectionWeight(false,
+                [new ComponentAtom("N:E", OperationScope.NonTargeted, "获得1点能量。", false,
+                    CardReferenceRequirement.None)]) != EnergyGainWeightPercent
+            || EnergyGainSelectionWeight(false,
+                [new ComponentAtom("N:B", OperationScope.NonTargeted, "获得5点格挡。", false,
+                    CardReferenceRequirement.None)]) != 100)
+            throw new InvalidOperationException("数值激进模式的效果数下界、负面优化或能量组件权重发生了意外变化。");
     }
 }

@@ -848,13 +848,14 @@ internal static class ChaosStatPreview
         {
             "N:BlockEqualAllPoison" or "CL:GainBlockEqualCurrent" or "CL:GainNextTurnBlockEqualCurrent"
                 or "NCR:BlockTripleOstyMaxHp" => ChaosStatPreviewKind.Block,
-            "NCR:DoomScaledDamage" => ChaosStatPreviewKind.Damage,
+            "NCR:DoomScaledDamage" or "CL:DamageEqualCardsPlayedCombat" => ChaosStatPreviewKind.Damage,
             "N:StrengthPerTargetVulnerable" => ChaosStatPreviewKind.Strength,
             "I:ProxyAtomic_Voltaic" => ChaosStatPreviewKind.Channels,
             _ => default
         };
         if (operation.Template is "N:BlockEqualAllPoison" or "CL:GainBlockEqualCurrent"
             or "CL:GainNextTurnBlockEqualCurrent" or "NCR:BlockTripleOstyMaxHp" or "NCR:DoomScaledDamage"
+            or "CL:DamageEqualCardsPlayedCombat"
             or "N:StrengthPerTargetVulnerable" or "I:ProxyAtomic_Voltaic") return true;
         if (operation.Template == "N:Self"
             && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant
@@ -900,7 +901,9 @@ internal static class ChaosStatPreview
         if (CardEffectRules.IsMultiplicativeDependencyPrefix(prefix))
         {
             var payoffSpec = OperationRuntimeSpecCompiler.RequireStructured(operation);
-            if (CardEffectRules.IsEnemyDamage(operation)) kind = ChaosStatPreviewKind.Damage;
+            // Count prefixes repeat a Damage action as separate hits. Their combat preview therefore reports the
+            // live hit count, while Block/Poison/other additive payoffs continue to report their summed amount.
+            if (CardEffectRules.IsEnemyDamage(operation)) kind = ChaosStatPreviewKind.Hits;
             else if (payoffSpec.Opcode == "gain_block") kind = ChaosStatPreviewKind.Block;
             else if (payoffSpec.Opcode == "draw_cards") kind = ChaosStatPreviewKind.Cards;
             else if (payoffSpec.Flags.Contains("orb_channel_reference")) kind = ChaosStatPreviewKind.Channels;
@@ -972,16 +975,20 @@ internal static class ChaosStatPreview
             if (blockIndex < 0) return 0;
             var block = card.OperationAmount(blockIndex)
                 * ChaosOperationExecutor.DependencyMultiplier(card, blockIndex, target);
-            return ChaosOperationExecutor.ApplyBlockModifiers(card, block);
+            return ChaosOperationExecutor.ApplyBlockModifiers(card, block, blockIndex, target);
         }
 
         var damageIndex = operation.Scope == OperationScope.Modifier
             ? card.Generated.Operations.ToList().FindIndex(CardEffectRules.IsEnemyDamage)
             : index;
         if (damageIndex < 0) return 0;
-        var baseDamage = card.OperationAmount(damageIndex)
-            * ChaosOperationExecutor.DependencyMultiplier(card, damageIndex, target);
-        var result = ChaosOperationExecutor.DamageAndHits(card, baseDamage, new ChaosExecutionState { Target = target });
+        var baseDamage = card.OperationAmount(damageIndex);
+        if (OperationRuntimeSpecCompiler.RequireStructured(
+                card.Generated.Operations[damageIndex]).Variant == "cards_played_combat")
+            baseDamage = CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                entry.CardPlay.Player == card.Owner);
+        var result = ChaosOperationExecutor.DamageAndHits(card, baseDamage,
+            new ChaosExecutionState { Target = target }, damageOperationIndex: damageIndex);
         return kind == ChaosStatPreviewKind.Hits ? result.Hits : result.Damage;
     }
 
@@ -1016,6 +1023,16 @@ internal static class ChaosStatPreview
         };
         if (!TryGetKind(dynamicRepeat, 0, out var repeatKind) || repeatKind != ChaosStatPreviewKind.Hits)
             throw new InvalidOperationException("AutoAnthony dynamic repeat modifier must retain its in-combat preview.");
+        var starCardRepeatedDamage = new[]
+        {
+            Op("R:ForEachStarCostCard", OperationScope.Modifier, "你的所有牌中每有一张有蓝星耗费的牌，"),
+            Op("T:D", OperationScope.SingleEnemyOnly, "造成4点伤害。")
+        };
+        if (!TryGetKind(starCardRepeatedDamage, 1, out var starDamageKind)
+            || starDamageKind != ChaosStatPreviewKind.Hits
+            || !Description(starDamageKind, 1, true).Contains("次伤害", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "AutoAnthony repeated Damage dependency preview must display the live number of hits.");
     }
 }
 

@@ -97,6 +97,9 @@ public sealed class RandomCardGenerator
         return OperationRuntimeSpecCompiler.Attach(_normalAssembler.Generate(rarity));
     }
 
+    internal GeneratedCard GenerateMatching(GeneratedRarity rarity, Func<GeneratedCard, bool> accept) =>
+        OperationRuntimeSpecCompiler.Attach(_normalAssembler.GenerateMatching(rarity, accept));
+
     public GeneratedCard GenerateWithoutSpecialX(GeneratedRarity rarity)
     {
         return OperationRuntimeSpecCompiler.Attach(_nonSpecialXAssembler.Generate(rarity));
@@ -116,12 +119,30 @@ public sealed class RandomCardGenerator
     public GeneratedCard GenerateReferenceFreeWithoutSpecialX(GeneratedRarity rarity) =>
         OperationRuntimeSpecCompiler.Attach(_referenceFreeNonSpecialXAssembler.Generate(rarity));
 
+    internal GeneratedCard GenerateWithoutSpecialXMatching(GeneratedRarity rarity,
+        Func<GeneratedCard, bool> accept) =>
+        OperationRuntimeSpecCompiler.Attach(_nonSpecialXAssembler.GenerateMatching(rarity, accept));
+
+    internal GeneratedCard GenerateReferenceFreeWithoutSpecialXMatching(GeneratedRarity rarity,
+        Func<GeneratedCard, bool> accept) =>
+        OperationRuntimeSpecCompiler.Attach(_referenceFreeNonSpecialXAssembler.GenerateMatching(rarity, accept));
+
     public GeneratedCard GenerateReferenceFreeSpecialX(GeneratedRarity rarity)
     {
         var card = OperationRuntimeSpecCompiler.Attach(_referenceFreeForcedSpecialXAssembler.Generate(rarity));
         return SpecialXCardConverter.IsSpecial(card)
             ? card
             : throw new InvalidOperationException($"无法为 {_character}/{rarity} 生成无衍生物引用的特殊X费牌。");
+    }
+
+    internal GeneratedCard GenerateReferenceFreeSpecialXMatching(GeneratedRarity rarity,
+        Func<GeneratedCard, bool> accept)
+    {
+        var card = OperationRuntimeSpecCompiler.Attach(
+            _referenceFreeForcedSpecialXAssembler.GenerateMatching(rarity, accept));
+        return SpecialXCardConverter.IsSpecial(card)
+            ? card
+            : throw new InvalidOperationException($"无法为 {_character}/{rarity} 生成符合约束的无衍生物引用特殊X费牌。");
     }
 
 }
@@ -507,6 +528,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("“这张牌被消耗时”后面不能接负面效果。");
         if (!CardEffectRules.HasNoInvalidTriggeredStateEffects(card.Operations))
             throw new InvalidOperationException("由卡牌状态钩子执行的效果不能嵌套在其他条件或重复触发条件之后。");
+        if (!CardEffectRules.HasNoStateConditionModifiers(card.Operations))
+            throw new InvalidOperationException("消耗牌堆或抽牌堆顶部状态条件后必须连接可实际结算的效果，不能连接 modifier。");
         if (!CardEffectRules.HasValidTriggeredEndTurnAssembly(card.Operations))
             throw new InvalidOperationException("结束回合不能接在回合开始或回合结束触发器之后。");
         if (card.Type == GeneratedCardType.Power && !card.Operations.Any(CardEffectRules.IsPersistentPowerFoundation))
@@ -854,6 +877,11 @@ public static class CardTemplateValidator
 /// </summary>
 public static class CardDescriptionRenderer
 {
+    private sealed record RenderedLine(string Text, bool Last);
+
+    private static bool MustRenderLast(GeneratorOperation operation) =>
+        operation.Template == "CL:NoBlockFromCards";
+
     internal static string RenderNextAttackGrant(GeneratorOperation trigger,
         IReadOnlyList<GeneratorOperation> effects, Func<GeneratorOperation, string> text, bool chinese)
     {
@@ -959,7 +987,7 @@ public static class CardDescriptionRenderer
 
     public static string Render(IReadOnlyList<GeneratorOperation> operations)
     {
-        var lines = new List<string>();
+        var lines = new List<RenderedLine>();
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
@@ -973,9 +1001,9 @@ public static class CardDescriptionRenderer
             {
                 var chosen = OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
                     is "selected" or "i_exhaustselectedattack";
-                lines.Add(chosen
+                lines.Add(new RenderedLine(chosen
                     ? "选择你手牌中的一张攻击牌，将其消耗，并将它的伤害添加给这张牌。"
-                    : "消耗你的手牌中随机一张攻击牌，并将它的伤害添加给这张牌。");
+                    : "消耗你的手牌中随机一张攻击牌，并将它的伤害添加给这张牌。", false));
                 index++;
                 continue;
             }
@@ -988,7 +1016,9 @@ public static class CardDescriptionRenderer
                     .ToArray();
                 if (CardEffectRules.IsNextAttackGrantTrigger(operation))
                 {
-                    lines.Add(RenderNextAttackGrant(operation, effects, CardTextStyle.Chinese, chinese: true));
+                    lines.Add(new RenderedLine(
+                        RenderNextAttackGrant(operation, effects, CardTextStyle.Chinese, chinese: true),
+                        effects.Any(MustRenderLast)));
                     continue;
                 }
                 var triggerText = CardTextStyle.Chinese(operation).TrimEnd('。', '，', '；');
@@ -1001,7 +1031,9 @@ public static class CardDescriptionRenderer
                 if (operation.Scope == OperationScope.AbilityTrigger
                     && renderedEffects.StartsWith("在本回合", StringComparison.Ordinal))
                     renderedEffects = renderedEffects[1..];
-                lines.Add(effects.Length == 0 ? CardTextStyle.Chinese(operation) : $"{triggerText}{separator}{renderedEffects}");
+                lines.Add(new RenderedLine(
+                    effects.Length == 0 ? CardTextStyle.Chinese(operation) : $"{triggerText}{separator}{renderedEffects}",
+                    MustRenderLast(operation) || effects.Any(MustRenderLast)));
                 continue;
             }
 
@@ -1011,14 +1043,15 @@ public static class CardDescriptionRenderer
                     && !operations[index + 1].Parameters.ContainsKey("triggerIndex")
                     && CardEffectRules.IsLegalDependencyPayoff(operation, operations[index + 1]))
                 {
-                    lines.Add(RenderEffects([operation, operations[++index]]));
+                    lines.Add(new RenderedLine(RenderEffects([operation, operations[++index]]),
+                        MustRenderLast(operation) || MustRenderLast(operations[index])));
                     continue;
                 }
-                lines.Add(CardTextStyle.Chinese(operation));
+                lines.Add(new RenderedLine(CardTextStyle.Chinese(operation), MustRenderLast(operation)));
             }
         }
 
-        return string.Join("\n", lines);
+        return string.Join("\n", lines.OrderBy(line => line.Last ? 1 : 0).Select(line => line.Text));
     }
 }
 
@@ -2055,6 +2088,9 @@ public static class GeneratorSelfTest
                             poolRandom, minimumDamage: 0, minimumDefense: 0,
                             replacementAttemptLimit: 20_000, out _);
                         if (!resolved) continue;
+                        if (startingCards.Count(StartingPoolConstraintResolver.IsHighResourceCard)
+                            > StartingPoolConstraintResolver.MaximumHighResourceCards)
+                            throw new InvalidOperationException("初始牌堆中高于1费或带蓝星耗费的牌超过2张。");
                     }
                     foreach (var operation in cards.SelectMany(card => card.Operations))
                     {
@@ -2245,11 +2281,18 @@ public static class GeneratorSelfTest
             "target:vulnerable_double", "target:vulnerable_weak_double", "target:copy_debuffs_to_others",
             "action:draw_discard_nonzero", "action:shuffle_unexhausted", "rule:skills_cost_zero",
             "rule:skills_exhaust", "rule:buffer", "rule:no_block_from_cards",
-            "rule:die_on_unblocked_attack", "reward:gain_gold"
+            "rule:die_on_unblocked_attack", "reward:gain_gold", "turn:free_hand",
+            "damage:cards_played_combat"
         };
         if (requiredPoolUniqueKeys.Any(key => !declaredPoolUniqueKeys.Contains(key)))
             throw new InvalidOperationException("请求的卡池唯一组件缺少稳定语义键："
                 + string.Join(", ", requiredPoolUniqueKeys.Where(key => !declaredPoolUniqueKeys.Contains(key))));
+        var freeHandAtom = Enum.GetValues<GeneratedCharacter>()
+            .SelectMany(character => CharacterComponentCatalogs.Get(character).Atoms)
+            .First(atom => atom.Template == "I:FreeHandThisTurn");
+        if (freeHandAtom.Multiplicity != ComponentMultiplicity.UniquePerPool
+            || ComponentPolicy.PoolUniqueKey(freeHandAtom) != "turn:free_hand")
+            throw new InvalidOperationException("手牌中所有牌免费打出必须保持为卡池唯一效果。");
         var multiplicityNecrobinderCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder);
         var debilitateRecipe = multiplicityNecrobinderCatalog.Recipes.Single(recipe => recipe.Id == "Debilitate");
         if (debilitateRecipe.Atoms.Count != 2
@@ -2391,11 +2434,11 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("重复伤害字段没有共享整卡预算，或整卡预算包络未压回目标范围。 ");
         var expectedOneCostBands = new Dictionary<GeneratedRarity, (int Minimum, int Maximum)>
         {
-            [GeneratedRarity.Basic] = (6, 7),
-            [GeneratedRarity.Common] = (10, 14),
-            [GeneratedRarity.Uncommon] = (12, 17),
-            [GeneratedRarity.Rare] = (16, 23),
-            [GeneratedRarity.Ancient] = (20, 30)
+            [GeneratedRarity.Basic] = (6, 8),
+            [GeneratedRarity.Common] = (10, 16),
+            [GeneratedRarity.Uncommon] = (12, 19),
+            [GeneratedRarity.Rare] = (16, 26),
+            [GeneratedRarity.Ancient] = (20, 35)
         };
         foreach (var (bandRarity, expectedBand) in expectedOneCostBands)
         {
@@ -2405,6 +2448,8 @@ public static class GeneratorSelfTest
                 || (int)Math.Round(bounds.Maximum / 100d) != expectedBand.Maximum)
                 throw new InvalidOperationException($"{bandRarity}的一费单收益整卡预算带偏离设定范围。 ");
         }
+        if (Math.Abs(ComponentAssemblyGenerator.BalancedUpperBoundMultiplier - 1.15d) > 0.0001d)
+            throw new InvalidOperationException("数值平衡模式的整卡上界没有保持15%统一提升。");
         foreach (var bandRarity in Enum.GetValues<GeneratedRarity>())
         {
             var oneField = ComponentAssemblyGenerator.WholeCardBudgetBounds(
@@ -2951,11 +2996,20 @@ public static class GeneratorSelfTest
         var fittedTriple = CardUpgradeGenerator.FitNumericEffectForAudit(tripleUpgradeProbe, 0, 3, 450d);
         var fittedFlechettes = CardUpgradeGenerator.FitNumericEffectForAudit(
             flechettesUpgradeProbe, 0, 3, 450d);
+        var fatalUpgradeTrigger = new GeneratorOperation("C:if", OperationScope.ConditionalTrigger,
+            "斩杀时。", new Dictionary<string, int>());
+        var lowFrequencyDamage = new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
+            "造成21点伤害。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var lowFrequencyUpgradeProbe = UpgradeProbe([fatalUpgradeTrigger, lowFrequencyDamage]);
+        var fittedLowFrequency = CardUpgradeGenerator.FitNumericEffectForAudit(
+            lowFrequencyUpgradeProbe, 1, 2, 450d);
         if (triplePointGain < singlePointGain * 2.9d || flechettesPointGain < singlePointGain * 2d
             || singleRider?.Delta != 2 || tripleRider?.Delta != 1
             || fittedSingle.Delta != 3 || fittedTriple.Delta != 1 || fittedFlechettes.Delta != 1
+            || fittedLowFrequency.Delta != 5
             || CardUpgradeGenerator.SupplementalNumericUpgradeBudget != 200d)
-            throw new InvalidOperationException("升级边际价值没有计入静态/动态多段，或追加数值升级未遵守固定预算。 ");
+            throw new InvalidOperationException(
+                "升级边际价值没有计入静态/动态多段、低频触发，或追加数值升级未遵守固定预算。 ");
         var skillThresholdRandom = new Random(20260911);
         var skillThresholds = Enumerable.Range(0, 20_000)
             .Select(_ => NumericGenerationTuning.SampleSkillsPerReturnThreshold(skillThresholdRandom)).ToArray();
@@ -3212,32 +3266,49 @@ public static class GeneratorSelfTest
             || NumericGenerationTuning.ApplyValueBonuses(damageAtom, 10,
                 GeneratedCharacter.Ironclad, false) != 10)
             throw new InvalidOperationException("终极混乱的奥斯提权重或共享数值倍率失效。 ");
-        var ordinaryStarCostRandom = new Random(20260902);
-        var ordinaryStarCosts = Enumerable.Range(0, 100_000)
-            .Select(_ => NumericGenerationTuning.ApplyStarCostAdjustment(ordinaryStarCostRandom, 3, false)).ToArray();
-        var ultimateStarCostRandom = new Random(20260903);
-        var ultimateStarCosts = Enumerable.Range(0, 100_000)
-            .Select(_ => NumericGenerationTuning.ApplyStarCostAdjustment(ultimateStarCostRandom, 3, true)).ToArray();
-        var ordinaryHighStarRandom = new Random(20260905);
-        var ordinaryHighStarCosts = Enumerable.Range(0, 100_000)
-            .Select(_ => NumericGenerationTuning.ApplyStarCostAdjustment(ordinaryHighStarRandom, 5, false))
-            .ToArray();
-        var ultimateHighStarRandom = new Random(20260906);
-        var ultimateHighStarCosts = Enumerable.Range(0, 100_000)
-            .Select(_ => NumericGenerationTuning.ApplyStarCostAdjustment(ultimateHighStarRandom, 5, true))
-            .ToArray();
+        var commonStarCostRandom = new Random(20260902);
+        var commonStarCosts = Enumerable.Range(0, 100_000)
+            .Select(_ => NumericGenerationTuning.SampleNonBasicFixedStarCost(
+                commonStarCostRandom, 7, GeneratedRarity.Common)).ToArray();
+        var uncommonStarCostRandom = new Random(20260903);
+        var uncommonStarCosts = Enumerable.Range(0, 100_000)
+            .Select(_ => NumericGenerationTuning.SampleNonBasicFixedStarCost(
+                uncommonStarCostRandom, 5, GeneratedRarity.Uncommon)).ToArray();
+        var rareStarCostRandom = new Random(20260905);
+        var rareStarCosts = Enumerable.Range(0, 100_000)
+            .Select(_ => NumericGenerationTuning.SampleNonBasicFixedStarCost(
+                rareStarCostRandom, 7, GeneratedRarity.Rare)).ToArray();
+        var commonPositiveStarCosts = commonStarCosts.Where(value => value > 0).Order().ToArray();
+        var uncommonPositiveStarCosts = uncommonStarCosts.Where(value => value > 0).Order().ToArray();
+        var rarePositiveStarCosts = rareStarCosts.Where(value => value > 0).Order().ToArray();
+        var nonBasicStarPaymentRandom = new Random(20260906);
+        var sampledNonBasicStarPayments = Enumerable.Range(0, 100_000)
+            .Count(_ => NumericGenerationTuning.SampleNonBasicStarPayment(
+                nonBasicStarPaymentRandom, usesSharedResourceShell: true, rarity: GeneratedRarity.Uncommon));
         var starXRandom = new Random(20260907);
         var retainedStarX = Enumerable.Range(0, 100_000)
             .Count(_ => NumericGenerationTuning.KeepStarXCost(starXRandom, true, false));
         var ultimateStarXRandom = new Random(20260908);
         var retainedUltimateStarX = Enumerable.Range(0, 100_000)
             .Count(_ => NumericGenerationTuning.KeepStarXCost(ultimateStarXRandom, true, true));
-        if (ordinaryStarCosts.Any(value => value is not (-1 or 2 or 3))
-            || ultimateStarCosts.Any(value => value is not (-1 or 2 or 3))
-            || ordinaryStarCosts.Average() >= 3d
-            || ultimateStarCosts.Average() >= ordinaryStarCosts.Average()
-            || ordinaryHighStarCosts.Count(value => value >= 4) is < 26_000 or > 30_000
-            || ultimateHighStarCosts.Count(value => value >= 4) is < 18_000 or > 21_000
+        var basicStarCostRandom = new Random(20260909);
+        if (sampledNonBasicStarPayments is < 24_000 or > 26_000
+            || NumericGenerationTuning.SampleNonBasicStarPayment(
+                new Random(1), usesSharedResourceShell: false, rarity: GeneratedRarity.Uncommon)
+            || NumericGenerationTuning.SampleNonBasicStarPayment(
+                new Random(1), usesSharedResourceShell: true, rarity: GeneratedRarity.Basic)
+            || commonPositiveStarCosts[commonPositiveStarCosts.Length / 2] != 1
+            || uncommonPositiveStarCosts[uncommonPositiveStarCosts.Length / 2] != 2
+            || rarePositiveStarCosts[rarePositiveStarCosts.Length / 2] != 3
+            || commonPositiveStarCosts.Count(value => value == 7) is < 24_000 or > 26_000
+            || uncommonPositiveStarCosts.Count(value => value == 5) is < 24_000 or > 26_000
+            || rarePositiveStarCosts.Count(value => value == 7) is < 24_000 or > 26_000
+            || NumericGenerationTuning.SampleNonBasicFixedStarCost(
+                new Random(1), 3, GeneratedRarity.Basic) != 3
+            || !Enumerable.Range(0, 10_000).Select(seed =>
+                    NumericGenerationTuning.SampleNonBasicFixedStarCost(
+                        new Random(seed), 6, GeneratedRarity.Ancient))
+                .Any(value => value == 3)
             || retainedStarX is < 91_000 or > 93_000
             || retainedUltimateStarX != 100_000
             || NumericGenerationTuning.ApplyUltimateEnergyCostDiscount(new Random(1), -1, true) != -1
@@ -3246,10 +3317,14 @@ public static class GeneratorSelfTest
             || Enumerable.Range(0, 10_000).Select(seed =>
                     NumericGenerationTuning.ApplyUltimateEnergyCostDiscount(new Random(seed), 4, true))
                 .Any(cost => cost < 1)
-            || NumericGenerationTuning.ApplyStarCostAdjustment(new Random(1), -1, false) != -1
-            || NumericGenerationTuning.ApplyBasicStarCostFloor(1, GeneratedRarity.Basic) != 2
-            || NumericGenerationTuning.ApplyBasicStarCostFloor(6, GeneratedRarity.Basic) != 2
-            || NumericGenerationTuning.ApplyBasicStarCostFloor(1, GeneratedRarity.Common) != 1)
+            || Enumerable.Range(0, 100_000)
+                .Select(_ => NumericGenerationTuning.ApplyBasicStarCostTuning(
+                    basicStarCostRandom, 6, GeneratedRarity.Basic))
+                .Count(value => value == 2) is < 26_500 or > 28_700
+            || NumericGenerationTuning.ApplyBasicStarCostTuning(
+                new Random(1), 1, GeneratedRarity.Common) != 1
+            || NumericGenerationTuning.ApplyBasicStarCostTuning(
+                new Random(1), -1, GeneratedRarity.Basic) != -1)
             throw new InvalidOperationException("蓝星费用的总体出率或极高费用尾部没有按预期降低。 ");
         var starGainRandom = new Random(20260904);
         var starGainSamples = Enumerable.Range(0, 100_000)
@@ -3831,7 +3906,7 @@ public static class GeneratorSelfTest
 
         var colorlessCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Colorless);
         var ordinaryColorlessDamage = colorlessCatalog.Atoms.Single(atom => atom.Template == "T:D");
-        foreach (var recipeId in new[] { "GoldAxe", "MindBlast" })
+        foreach (var recipeId in new[] { "MindBlast" })
         {
             var payoff = colorlessCatalog.Recipes.Single(recipe => recipe.Id == recipeId)
                 .Atoms.Single(atom => atom.Template == "T:D");
@@ -3908,7 +3983,7 @@ public static class GeneratorSelfTest
             [GeneratedCharacter.Defect] = ["D:ForEachOrb", "D:ForEachUniqueOrb", "D:ForEachEnergySpentThisTurn"],
             [GeneratedCharacter.Necrobinder] = ["NCR:ForEachDoomThreshold", "NCR:ForEachOstyAttackThisTurn"],
             [GeneratedCharacter.Regent] = ["R:ForEachStarCostCard", "R:ForEachStarGainedThisTurn"],
-            [GeneratedCharacter.Colorless] = ["CL:ForEachCardPlayedCombat", "CL:ForEachDrawPileCard"]
+            [GeneratedCharacter.Colorless] = ["CL:ForEachDrawPileCard"]
         };
         foreach (var (owner, templates) in roleOwnedTriggerTemplates)
         foreach (var template in templates)
@@ -3953,6 +4028,25 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("逃脱计划的中英文重组描述不符合原版文风："
                 + CardDescriptionRenderer.Render(escapeOperations).Replace("\n", " / ", StringComparison.Ordinal)
                 + " | " + EnglishCardDescriptionRenderer.Render(escapeOperations).Replace("\n", " / ", StringComparison.Ordinal));
+
+        ExternalOperationTextRegistry.Register("CL:NoBlockFromCards",
+            "你在接下来的2回合内无法再从卡牌中获得格挡。",
+            "You cannot gain Block from cards for the next 2 turns.");
+        var noBlockLastOperations = new GeneratorOperation[]
+        {
+            new("CL:NoBlockFromCards", OperationScope.Independent,
+                "你在接下来的2回合内无法再从卡牌中获得格挡。", new Dictionary<string, int>()),
+            new("N:B", OperationScope.NonTargeted, "获得5点格挡。", new Dictionary<string, int>())
+        };
+        var renderedNoBlockLastChinese = CardDescriptionRenderer.Render(noBlockLastOperations);
+        var renderedNoBlockLastEnglish = EnglishCardDescriptionRenderer.Render(noBlockLastOperations);
+        if (renderedNoBlockLastChinese
+                != "获得5点格挡。\n你在接下来的2回合内无法再从卡牌中获得格挡。"
+            || renderedNoBlockLastEnglish
+                != "Gain 5 Block.\nYou cannot gain Block from cards for the next 2 turns.")
+            throw new InvalidOperationException("无法从卡牌中获得格挡的持续负面效果必须显示在卡面最后："
+                + renderedNoBlockLastChinese.Replace("\n", " / ", StringComparison.Ordinal) + " | "
+                + renderedNoBlockLastEnglish.Replace("\n", " / ", StringComparison.Ordinal));
 
         var doomConditionalOperations = new GeneratorOperation[]
         {
@@ -4303,6 +4397,19 @@ public static class GeneratorSelfTest
         var exhaustPileTurnStartTrigger = new GeneratorOperation("R:AtTurnStartIfInExhaust",
             OperationScope.ConditionalTrigger, "在你的回合开始时，如果这张牌在你的消耗牌堆中。",
             new Dictionary<string, int>());
+        var conditionalExtraHits = new GeneratorOperation("M:repeat", OperationScope.Modifier,
+            "这张牌额外造成2次伤害。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        if (CardEffectRules.HasNoStateConditionModifiers(
+                [exhaustPileTurnStartTrigger, conditionalExtraHits])
+            || !CardEffectRules.HasNoStateConditionModifiers(
+                [exhaustPileTurnStartTrigger, selfExhaustBlock]))
+            throw new InvalidOperationException("卡牌所在牌堆的状态条件仍允许连接 modifier，或错误拒绝实际触发效果。");
+        var drawTopTurnEndCondition = new GeneratorOperation("R:AtTurnEndWhenTopOfDraw",
+            OperationScope.Modifier, "在你的回合结束时，如果这张牌位于你的抽牌堆顶部，",
+            new Dictionary<string, int>());
+        if (CardEffectRules.HasNoStateConditionModifiers(
+                [drawTopTurnEndCondition, conditionalExtraHits]))
+            throw new InvalidOperationException("抽牌堆顶部状态条件仍允许连接 modifier。");
         var playFromExhaustAtTurnStart = new GeneratorOperation("R:PlayThisCard", OperationScope.Independent,
             "则将其打出。", new Dictionary<string, int> { ["triggerIndex"] = 1 });
         var ironcladReplayAtom = new ComponentAtom("I:PlayThisCard", OperationScope.Independent,
@@ -4426,11 +4533,19 @@ public static class GeneratorSelfTest
             OperationScope.Independent, "打出抽牌堆顶部的牌并消耗该牌。", new Dictionary<string, int>());
         var enemyGainStrength = new GeneratorOperation("T:Apply", OperationScope.SingleEnemyOnly,
             "使该敌人获得1点力量。", new Dictionary<string, int>(), RequiresSingleTarget: true);
+        var enemyGainTwoStrength = new GeneratorOperation("T:Apply", OperationScope.SingleEnemyOnly,
+            "使该敌人获得2点力量。", new Dictionary<string, int>(), RequiresSingleTarget: true);
         if (CardEffectRules.IsNegativeEffect(playTopAndExhaust)
             || !CardEffectRules.IsBeneficialEffect(playTopAndExhaust)
             || NegativeEffectTuning.BaseMultiplier(playTopAndExhaust) != 1d
             || NegativeEffectTuning.BaseMultiplier(enemyGainStrength) != 1d
-            || NegativeEffectTuning.LinearCompensationValue(enemyGainStrength) != 1_500d)
+            || NegativeEffectTuning.LinearCompensationValue(enemyGainStrength) != 1_000d
+            || NegativeEffectTuning.LinearCompensationValue(enemyGainTwoStrength) != 2_000d
+            || NumericGenerationTuning.ThinEnemyStrengthGainTail(1, 99) != 1
+            || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 84) != 1
+            || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 85) != 2
+            || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 97) != 2
+            || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 98) != 2)
             throw new InvalidOperationException("牌堆顶打出并消耗必须是纯正面效果；给予敌人力量必须保留足额负面补偿。 ");
         AssertInvalid(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Common,
             "你在本回合中每打出过一张攻击牌，其耗能减少1。", Array.Empty<CardTag>(),

@@ -20,7 +20,7 @@
 | 妙计 `Finesse` | 0/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得4点格挡。¦Gain 4 Block.⟧；⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽1张牌。¦Draw 1 card.⟧ |  | Finesse |
 | 拳斗 `Fisticuffs` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成7点伤害。¦Deal 7 damage.⟧；⟦CL:GainBlockEqualDamage¦NonTargeted¦false¦None¦-1¦获得等量于所造成伤害的格挡。¦Gain Block equal to damage dealt.⟧ |  | Fisticuffs |
 | 亮剑 `FlashOfSteel` | 0/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧；⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽1张牌。¦Draw 1 card.⟧ |  | Flash of Steel |
-| 金斧 `GoldAxe` | 1/-/Attack/SingleEnemy/Rare | ⟦CL:ForEachCardPlayedCombat¦Modifier¦false¦None¦-1¦本场战斗每打出一张牌，¦For each card played this combat,⟧；⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成1点伤害。¦Deal 1 damage.⟧ |  | Gold Axe |
+| 金斧 `GoldAxe` | 1/-/Attack/SingleEnemy/Rare | ⟦CL:DamageEqualCardsPlayedCombat¦SingleEnemyOnly¦true¦None¦-1¦造成本场战斗中所打出牌数的伤害。¦Deal damage equal to the number of cards played this combat.⟧ |  | Gold Axe |
 | 贪婪之手 `HandOfGreed` | 2/-/Attack/SingleEnemy/Rare | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成20点伤害。¦Deal 20 damage.⟧；⟦CL:IfFatal¦ConditionalTrigger¦true¦None¦-1¦斩杀时。¦If Fatal.⟧；⟦CL:GainGold¦NonTargeted¦false¦None¦1¦获得20金币。¦Gain 20 Gold.⟧ |  | Hand of Greed |
 | 未掘宝石 `HiddenGem` | 1/-/Skill/Other/Rare | ⟦CL:ProxyAtomic_HiddenGem¦Independent¦false¦None¦-1¦你抽牌堆中的一张没有重放的随机牌获得2层重放。¦A random card without Replay in your Draw Pile gains 2 Replay.⟧ |  | Hidden Gem |
 | 急躁 `Impatience` | 0/-/Skill/Other/Uncommon | ⟦CL:IfNoAttacksInHand¦ConditionalTrigger¦false¦None¦-1¦如果你的手牌中没有攻击牌。¦If you have no Attacks in your Hand.⟧；⟦N:Draw¦NonTargeted¦false¦None¦0¦抽2张牌。¦Draw 2 cards.⟧ |  | Impatience |

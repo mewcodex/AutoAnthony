@@ -453,7 +453,7 @@ public static class ComponentApi
                 var builtInUltimate = CharacterComponentCatalogs.Get(request.Character,
                     unlockComponentRoles: true);
                 var combined = ComposeCatalog(request.Character,
-                    new[] { builtInUltimate }.Concat(UltimateChaosContributions.Values).ToArray());
+                    new[] { builtInUltimate }.Concat(OrderedUltimateChaosContributions()).ToArray());
                 var derived = new ComponentGenerationProfile(
                     nativeExternal.Id + ":ultimate",
                     request.Character,
@@ -491,7 +491,7 @@ public static class ComponentApi
     {
         if (!request.UnlockComponentRoles || UltimateChaosContributions.Count == 0) return profile;
         var combined = ComposeCatalog(request.Character,
-            new[] { profile.ComponentCatalog }.Concat(UltimateChaosContributions.Values).ToArray());
+            new[] { profile.ComponentCatalog }.Concat(OrderedUltimateChaosContributions()).ToArray());
         return new ComponentGenerationProfile(
             profile.Id + ":external-union",
             profile.Character,
@@ -503,6 +503,9 @@ public static class ComponentApi
             profile.ValuePolicy,
             profile.KeywordPolicy);
     }
+
+    private static IEnumerable<IComponentCatalog> OrderedUltimateChaosContributions() =>
+        UltimateChaosContributions.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => pair.Value);
 
     private static void ValidateApiId(string value, string name)
     {

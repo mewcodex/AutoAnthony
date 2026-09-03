@@ -28,6 +28,8 @@ public static class ComponentPolicy
         "rule:buffer",
         "rule:die_on_unblocked_attack",
         "rule:no_block_from_cards",
+        "turn:free_hand",
+        "damage:cards_played_combat",
         "transform:all_hand_attacks",
         "clear:all_non_attack_hand_exhaust",
         "clear:all_hand_exhaust",
@@ -181,6 +183,7 @@ public static class ComponentPolicy
             "NCR:CopyTargetDebuffsToOthers" => "target:copy_debuffs_to_others",
             "D:DrawAndDiscardNonZero" => "action:draw_discard_nonzero",
             "D:ShuffleAllUnexhaustedIntoDraw" => "action:shuffle_unexhausted",
+            "CL:DamageEqualCardsPlayedCombat" => "damage:cards_played_combat",
             "A:ProxyAtomic_Buffer" => "rule:buffer",
             "CL:GainGold" or "A:ProxyAtomic_Royalties" => "reward:gain_gold",
             _ => null

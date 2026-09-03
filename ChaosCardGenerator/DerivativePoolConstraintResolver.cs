@@ -147,7 +147,6 @@ public static class DerivativePoolConstraintResolver
 
         failure = string.Empty;
         var maximumRepairs = Math.Max(8, cards.Length * 2);
-        var perReplacementAttempts = Math.Min(Math.Max(32, replacementAttemptLimit), 1024);
         for (var repair = 0; repair <= maximumRepairs; repair++)
         {
             // Binding is speculative because a failed matching order may already have rebound some slots.  Commit
@@ -196,29 +195,30 @@ public static class DerivativePoolConstraintResolver
                     - (SlyPoolConstraintResolver.HasSly(cards[index]) ? 1 : 0);
                 var discardWithoutCandidate = cards.Count(SlyPoolConstraintResolver.HasDiscardEffect)
                     - (SlyPoolConstraintResolver.HasDiscardEffect(cards[index]) ? 1 : 0);
-                for (var attempt = 0; attempt < perReplacementAttempts; attempt++)
+                try
                 {
                     var replacement = requiredXClass == 2
-                        ? generator.GenerateReferenceFreeSpecialX(rarities[index])
-                        : generator.GenerateReferenceFreeWithoutSpecialX(rarities[index]);
-                    if (XClass(replacement) != requiredXClass || HasProducedDerivativeReference(replacement)) continue;
-                    // Local derivative repair runs after the Osty/Summon support pass. Replacing its only Summon
-                    // card would silently invalidate that earlier pool invariant, so validate both constraints
-                    // before committing this candidate instead of forcing a later whole-pool reroll.
-                    var prospectiveOsty = ostyWithoutCandidate
-                        + (OstyPoolConstraintResolver.HasOstyEffect(replacement) ? 1 : 0);
-                    var prospectiveSummons = summonsWithoutCandidate
-                        + (OstyPoolConstraintResolver.HasSummonEffect(replacement) ? 1 : 0);
-                    if (prospectiveOsty > prospectiveSummons) continue;
-                    var prospectiveSly = slyWithoutCandidate
-                        + (SlyPoolConstraintResolver.HasSly(replacement) ? 1 : 0);
-                    var prospectiveDiscard = discardWithoutCandidate
-                        + (SlyPoolConstraintResolver.HasDiscardEffect(replacement) ? 1 : 0);
-                    if (prospectiveSly > prospectiveDiscard) continue;
+                        ? generator.GenerateReferenceFreeSpecialXMatching(rarities[index], Accept)
+                        : generator.GenerateReferenceFreeWithoutSpecialXMatching(rarities[index], Accept);
                     cards[index] = replacement;
                     replaced = true;
-                    break;
+
+                    bool Accept(GeneratedCard card)
+                    {
+                        if (XClass(card) != requiredXClass || HasProducedDerivativeReference(card)) return false;
+                        // Local derivative repair runs after the Osty and Sly support passes. Keep both valid.
+                        var prospectiveOsty = ostyWithoutCandidate
+                            + (OstyPoolConstraintResolver.HasOstyEffect(card) ? 1 : 0);
+                        var prospectiveSummons = summonsWithoutCandidate
+                            + (OstyPoolConstraintResolver.HasSummonEffect(card) ? 1 : 0);
+                        if (prospectiveOsty > prospectiveSummons) return false;
+                        var prospectiveSly = slyWithoutCandidate + (SlyPoolConstraintResolver.HasSly(card) ? 1 : 0);
+                        var prospectiveDiscard = discardWithoutCandidate
+                            + (SlyPoolConstraintResolver.HasDiscardEffect(card) ? 1 : 0);
+                        return prospectiveSly <= prospectiveDiscard;
+                    }
                 }
+                catch (InvalidOperationException) { }
                 if (replaced) break;
             }
             if (!replaced)

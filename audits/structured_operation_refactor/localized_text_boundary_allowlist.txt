@@ -3,38 +3,6 @@ legacy|ChaosCardGenerator/ComponentAssemblyGenerator.cs|+ $" legacy={legacy}, st
 legacy|ChaosCardGenerator/ComponentAssemblyGenerator.cs|+ $"legacy={legacyBudgetedSourceChinese}; structured={atom.ChineseText}");
 legacy|ChaosCardGenerator/ComponentAssemblyGenerator.cs|var legacy = string.Equals(NumericTextSchema.Fields(operation.ChineseText).Trim(),
 legacy|ChaosCardGenerator/ComponentAssemblyGenerator.cs|var legacy = xOperations.GroupBy(operation => NumericTextSchema.Fields(operation.ChineseText).Trim(),
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, fallback));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot("damage", FirstNumber(operation.ChineseText, 0));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot(id, FirstNumber(operation.ChineseText, fallback));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot(slotId, FirstNumber(operation.ChineseText, fallback));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("充能球", StringComparison.Ordinal) ? "orb"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("抽", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("覆甲", StringComparison.Ordinal) ? "plating"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("格挡", StringComparison.Ordinal) ? "block"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("集中", StringComparison.Ordinal) ? "focus"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("荆棘", StringComparison.Ordinal) ? "thorns"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("蓝星", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("力量", StringComparison.Ordinal) ? "strength"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("敏捷", StringComparison.Ordinal) ? "dexterity"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("虚弱", StringComparison.Ordinal) ? "weak"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("易伤", StringComparison.Ordinal) ? "vulnerable"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("灾厄", StringComparison.Ordinal) ? "doom"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("召唤", StringComparison.Ordinal) ? "summon"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("中毒", StringComparison.Ordinal) ? "poison"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("铸造", StringComparison.Ordinal) ? "forge"
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? "special_x" : "energy_x", LegacyXOffset(operation.ChineseText))
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? "special_x" : "energy_x", LegacyXOffset(operation.ChineseText))
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? "special_x" : "energy_x", operation.ChineseText.Contains("X+1", StringComparison.Ordinal) ? 1 : 0)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, 1)) }
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("duration", FirstNumber(operation.ChineseText, 1)) }
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("percentage", FirstNumber(operation.ChineseText, 50)) }
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1)) }
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1)) }
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Append(atom.ChineseText.Replace("\r", "\\r", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Append(atom.ChineseText.Replace("\r", "\\r", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.DistinctBy(operation => $"{operation.Template}|{operation.Scope}|{operation.ChineseText}")
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"A:rule" when operation.ChineseText.Contains("第一次通过卡牌获得的格挡翻倍", StringComparison.Ordinal) =>
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"A:rule" when operation.ChineseText.Contains("格挡不再", StringComparison.Ordinal) =>
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"A:rule" when operation.ChineseText.Contains("技能牌", StringComparison.Ordinal)
@@ -47,8 +15,6 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"C:if" => CompileLegacyConditi
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"C:untilTurnEnd" => CompileUntilTurnEndKind(operation.ChineseText),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"cost_zero", values: [Count(FirstNumber(operation.ChineseText, 1)),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|"M:base" when operation.ChineseText.Contains("力量", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|[new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1), Upgradable: false)],
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|[new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 2), Upgradable: false)])
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !operation.ChineseText.Contains("本回合", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !operation.ChineseText.Contains("本回合", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !operation.ChineseText.Contains("此牌", StringComparison.Ordinal)
@@ -79,7 +45,6 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !text.Contains("这张牌",
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !trigger.ChineseText.Contains("花费或获得蓝星", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !trigger.ChineseText.Contains("生成一张", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& !trigger.ChineseText.Contains("失去生命", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains('X')
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains("敌人", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains("覆甲", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains("该牌", StringComparison.Ordinal)
@@ -88,6 +53,7 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Cont
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains("力量", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains("每打出过一张攻击牌", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains("名称含“打击”", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (operation.ChineseText.Contains('X')
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (text.Contains("此牌", StringComparison.Ordinal) || text.Contains("这张牌", StringComparison.Ordinal)))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& (text.Contains("该牌", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText is "每消耗一张牌。" or "每消耗一张手牌中的非攻击牌时。",
@@ -104,8 +70,8 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Conta
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("额外造成", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("格挡", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("格挡", StringComparison.Ordinal) =>
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("格挡", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("格挡", StringComparison.Ordinal))
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("格挡", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("耗能变为0", StringComparison.Ordinal) =>
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("耗能减少", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("回合结束时", StringComparison.Ordinal)
@@ -126,11 +92,11 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Conta
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("每有", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("牌", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("牌", StringComparison.Ordinal) ? "draw"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal))
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal))
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal);
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal))
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal))
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("伤害", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("失去", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("手牌", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& operation.ChineseText.Contains("随机", StringComparison.Ordinal)
@@ -159,18 +125,42 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& text.Contains("随机攻击
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& text.StartsWith("你每有", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& text.StartsWith("在下个回合，", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|&& TryProjectLegacyUpgradeValue(operation, operation.ChineseText, out var projection)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" legacy={legacy}, structured={structured}, text={operation.ChineseText}");
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" legacy={legacy}, structured={structured}, text={operation.ChineseText}");
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" legacy={legacy}:{legacyValue}, structured={slot is not null}:{value}, text={operation.ChineseText}");
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" text={operation.ChineseText}");
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ operation.ChineseText);
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ operation.ChineseText[(match.Index + match.Length)..];
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Legacy}")));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Legacy}")));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Structured}")));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Structured}")));
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join("\n", failures.Select(operation => $"{operation.Template}:{operation.ChineseText}")));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Append(atom.ChineseText.Replace("\r", "\\r", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Append(atom.ChineseText.Replace("\r", "\\r", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.DistinctBy(operation => $"{operation.Template}|{operation.Scope}|{operation.ChineseText}")
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, fallback));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot("damage", FirstNumber(operation.ChineseText, 0));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot(id, FirstNumber(operation.ChineseText, fallback));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: new RuntimeValueSlot(slotId, FirstNumber(operation.ChineseText, fallback));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("充能球", StringComparison.Ordinal) ? "orb"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("抽", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("覆甲", StringComparison.Ordinal) ? "plating"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("格挡", StringComparison.Ordinal) ? "block"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("集中", StringComparison.Ordinal) ? "focus"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("荆棘", StringComparison.Ordinal) ? "thorns"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("蓝星", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("力量", StringComparison.Ordinal) ? "strength"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("敏捷", StringComparison.Ordinal) ? "dexterity"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("虚弱", StringComparison.Ordinal) ? "weak"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("易伤", StringComparison.Ordinal) ? "vulnerable"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("灾厄", StringComparison.Ordinal) ? "doom"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("召唤", StringComparison.Ordinal) ? "summon"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("中毒", StringComparison.Ordinal) ? "poison"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|: operation.ChineseText.Contains("铸造", StringComparison.Ordinal) ? "forge"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? "special_x" : "energy_x", LegacyXOffset(operation.ChineseText))
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? "special_x" : "energy_x", LegacyXOffset(operation.ChineseText))
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? "special_x" : "energy_x", operation.ChineseText.Contains("X+1", StringComparison.Ordinal) ? 1 : 0)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, 1)) }
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("duration", FirstNumber(operation.ChineseText, 1)) }
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("percentage", FirstNumber(operation.ChineseText, 50)) }
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1)) }
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|? new[] { new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1)) }
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|[new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1), Upgradable: false)],
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|[new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 2), Upgradable: false)])
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText is "将弃牌堆中的一张牌放到抽牌堆顶部。" or "升级手牌中的一张牌。"
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("exhausted(card)", StringComparison.Ordinal));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("被命中的敌人", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("变为", StringComparison.Ordinal)) legacyHover.Add("transform");
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("敌人身上每有", StringComparison.Ordinal);
@@ -207,7 +197,6 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Conta
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("在接下来的", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("在下个回合", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("置入手牌", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.Contains("exhausted(card)", StringComparison.Ordinal));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.StartsWith("处于虚弱状态的敌人受到的攻击伤害增加", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.StartsWith("如果", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| operation.ChineseText.StartsWith("若", StringComparison.Ordinal));
@@ -217,6 +206,7 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| Regex.IsMatch(operation.Chi
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| Regex.IsMatch(operation.ChineseText, @"伤害X(?:\+1)?次", RegexOptions.CultureInvariant,
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| Regex.IsMatch(operation.ChineseText, @"造成X点伤害", RegexOptions.CultureInvariant,
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| Regex.IsMatch(operation.ChineseText, @"造成X点伤害", RegexOptions.CultureInvariant,
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("exhausted(card)", StringComparison.Ordinal));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("奥斯提在本回合攻击过", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("被命中的敌人", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("曾给予灾厄", StringComparison.Ordinal)
@@ -260,12 +250,22 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("选择", Str
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("拥有易伤", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("在接下来的", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("置入手牌", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.Contains("exhausted(card)", StringComparison.Ordinal));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.StartsWith("抽", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.StartsWith("对", StringComparison.Ordinal) && text.Contains("造成", StringComparison.Ordinal))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.StartsWith("给予", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| text.StartsWith("回复", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs||| upgrade is null || upgrade.BaseValue != 1 || upgrade.Start != exhaustModifier.ChineseText.IndexOf('1'))
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" legacy={legacy}, structured={structured}, text={operation.ChineseText}");
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" legacy={legacy}, structured={structured}, text={operation.ChineseText}");
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" legacy={legacy}:{legacyValue}, structured={slot is not null}:{value}, text={operation.ChineseText}");
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ $" text={operation.ChineseText}");
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ operation.ChineseText);
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ operation.ChineseText[(match.Index + match.Length)..];
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Legacy}")));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Legacy}")));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Structured}")));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join(" || ", group.Select(row => $"{row.Operation.Template}:{row.Operation.ChineseText}=>{row.Structured}")));
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|+ string.Join("\n", failures.Select(operation => $"{operation.Template}:{operation.ChineseText}")));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|atom.Template, atom.Scope, atom.ChineseText, new Dictionary<string, int>(),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|cardFilter: text.Contains("攻击牌", StringComparison.Ordinal) ? "attack" : "any",
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|Check("plating", operation, operation.ChineseText.Contains("覆甲", StringComparison.Ordinal),
@@ -404,7 +404,6 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|LegacyXOffset(operation.Chines
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|LegacyXOffset(operation.ChineseText))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|LegacyXOffset(operation.ChineseText))
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|new RuntimeValueSlot("hits", 0, source, LegacyXOffset(operation.ChineseText))]);
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains('X');
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains("被命中的敌人", StringComparison.Ordinal),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains("翻倍", StringComparison.Ordinal) ? "legacy_inline_double_x" : null,
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains("获得", StringComparison.Ordinal)
@@ -412,6 +411,7 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains("失去生命", StringComparison.Ordinal),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains("手牌中的", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains("随机", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.Contains('X');
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.StartsWith("在本场战斗中，此卡的基础伤害增加", StringComparison.Ordinal),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.ChineseText.TrimStart().StartsWith("这张牌就造成", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|operation.Template, operation.ChineseText, out var legacyFrequency);
@@ -422,20 +422,20 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|specialX ? "special_x" : "ener
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text = operation.ChineseText;
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text = operation.ChineseText;
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text = operation.ChineseText[..match.Index]
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text.Contains("至多", StringComparison.Ordinal)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text.Contains("至多", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text.Contains("X+1", StringComparison.Ordinal) ? 1 : 0;
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text.Contains("至多", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text.Contains("至多", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|text.Replace("X", "X+1", StringComparison.Ordinal);
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|throw new InvalidOperationException($"Cannot compile {operation.Template} / {operation.ChineseText}: {failure}");
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|throw new InvalidOperationException($"Duplicate numeric slot in {operation.Template}: {operation.ChineseText}");
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|updated = operation with { ChineseText = text, RuntimeSpec = updatedSpec };
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values.Add(new RuntimeValueSlot("hits", 0, "energy_x", LegacyXOffset(operation.ChineseText)));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values: [new RuntimeValueSlot("draw", FirstNumber(operation.ChineseText, 1)),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values: [new RuntimeValueSlot("duration", FirstNumber(operation.ChineseText, 1))]),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values: [new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1), Upgradable: false)],
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values: [new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1), Upgradable: false)],
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values: [Value("count") with { Explicit = Number.IsMatch(operation.ChineseText) }]),
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values: TryProjectLegacyUpgradeValue(operation, operation.ChineseText, out var projection)
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|values.Add(new RuntimeValueSlot("hits", 0, "energy_x", LegacyXOffset(operation.ChineseText)));
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var atom = new ComponentAtom(operation.Template, operation.Scope, operation.ChineseText,
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var blockMatch = Regex.Match(operation.ChineseText, @"获得(\d+)点格挡", RegexOptions.CultureInvariant,
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var damage = FirstNumber(operation.ChineseText, 0);
@@ -455,9 +455,9 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var legacyHitMatch = Regex.Mat
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var legacyHits = Regex.Match(operation.ChineseText, @"伤害\s*(\d+)\s*次",
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var legacyPermanentStrengthOrDexterity = !operation.ChineseText.Contains("本回合", StringComparison.Ordinal)
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var match = Number.Match(operation.ChineseText);
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var matches = Number.Matches(operation.ChineseText).Cast<Match>().ToArray();
+legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var matches = Number.Matches(operation.ChineseText).Cast<Match>().ToArray();
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var matches = Number.Matches(operation.ChineseText);
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var matches = Number.Matches(operation.ChineseText).Cast<Match>().ToArray();
-legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var matches = Number.Matches(operation.ChineseText).Cast<Match>().ToArray();
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var numbers = Number.Matches(operation.ChineseText).Cast<Match>()
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var numbers = Number.Matches(operation.ChineseText).Cast<Match>()
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var numbers = Number.Matches(operation.ChineseText).Cast<Match>()
@@ -481,8 +481,8 @@ legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var trimmed = operation.Chines
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var trimmed = text.TrimStart();
 legacy|ChaosCardGenerator/OperationRuntimeSpec.cs|var usesEnergyX = !usesSpecialX && operation.ChineseText.Contains('X');
 legacy|ChaosCardGenerator/RandomCardGenerator.cs|"{\"kind\":0,\"chineseDescription\":\"旧升级标签\",\"englishDescription\":\"legacy label\","
-legacy|ChaosCardGenerator/RefactorBaselineAudit.cs|+ NumericTextSchema.Fields(operation.ChineseText);
 legacy|ChaosCardGenerator/RefactorBaselineAudit.cs||| code.Contains("ChineseDescription", StringComparison.Ordinal)
+legacy|ChaosCardGenerator/RefactorBaselineAudit.cs|+ NumericTextSchema.Fields(operation.ChineseText);
 legacy|ChaosCardGenerator/RefactorBaselineAudit.cs|baselineFieldKey, operation.Scope, operation.ChineseText,
 legacy|ChaosCardGenerator/RefactorBaselineAudit.cs|card.Tags.Order().ToArray(), card.Name, card.ChineseDescription, card.EnglishDescription,
 legacy|ChaosCardGenerator/RefactorBaselineAudit.cs|new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
@@ -502,6 +502,10 @@ legacy|ChaosMode/ChaosPoolSnapshot.cs|if (!OperationLocalizedText.TryCompile(hyd
 legacy|ChaosMode/HistorySnapshotOptimizer.cs|&& text.Contains("\"AA1:", StringComparison.Ordinal);
 legacy|ChaosMode/HistorySnapshotOptimizer.cs|&& text.Contains("\"PoolSnapshot\"", StringComparison.Ordinal)
 legacy|ChaosMode/HistorySnapshotOptimizer.cs|text.Contains(ModelDb.Modifier<ChaosPoolSnapshotModifier>().Id.Entry, StringComparison.Ordinal)
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:e={operation.DerivativeEnchantmentId}:"
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|&& !name.English.Contains("Strike", StringComparison.OrdinalIgnoreCase);
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|&& name.English.EndsWith(" Strike", StringComparison.OrdinalIgnoreCase)
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|.Select(operation => Legacy(operation.Template, operation.ChineseText))
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|: !name.Chinese.Contains("打击", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|: Regex.Replace(text, "随机", "升级过的随机", RegexOptions.CultureInvariant,
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|: Regex.Replace(text, @"\brandom\b", "random upgraded", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
@@ -509,22 +513,20 @@ renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|: text.Contains("
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|? name.Chinese.EndsWith("打击", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|? text.Replace("其他角色的攻击牌", "其他角色的升级过的攻击牌", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|?? OperationRuntimeSpecCompiler.IncreaseLegacyXValue(operation.ChineseText);
-renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|.Select(operation => Legacy(operation.Template, operation.ChineseText))
-renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|&& !name.English.Contains("Strike", StringComparison.OrdinalIgnoreCase);
-renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|&& name.English.EndsWith(" Strike", StringComparison.OrdinalIgnoreCase)
-renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|+ $"text={operation.ChineseText}; spec={spec.StableSignature()}.");
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs||| !name.Chinese.EndsWith("形态", StringComparison.Ordinal);
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs||| operationSchemas.Contains(Legacy(atom.Template, atom.ChineseText))))
-renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:e={operation.DerivativeEnchantmentId}:"
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|+ $"text={operation.ChineseText}; spec={spec.StableSignature()}.");
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|Array.Empty<CardTag>(), card.EnglishDescription);
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|Array.Empty<CardTag>(), card.EnglishDescription);
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|ChineseText = text,
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|return new CardUpgradePlan(card.Cost, Array.Empty<CardUpgradeEffect>(), card.ChineseDescription,
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|return new CardUpgradePlan(card.Cost, Array.Empty<CardUpgradeEffect>(), card.ChineseDescription,
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|return new CardUpgradePlan(card.Cost, Array.Empty<CardUpgradeEffect>(), card.ChineseDescription, Array.Empty<CardTag>(), card.EnglishDescription);
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|return operation with { ChineseText = fixedProjection, RuntimeSpec = fixedSpec };
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|return operation with { ChineseText = projectedText, RuntimeSpec = updatedSpec };
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|text = operation.ChineseText;
-renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|text.Contains("升级过的随机", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|text.Contains("random upgraded", StringComparison.OrdinalIgnoreCase)
+renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|text.Contains("升级过的随机", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|var chinesePrefix = name.Chinese.EndsWith("打击", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|var englishPrefix = name.English.EndsWith(" Strike", StringComparison.OrdinalIgnoreCase)
 renderer|ChaosCardGenerator/CardIdentityAndUpgradeGenerator.cs|var text = operation.ChineseText;
@@ -655,16 +657,16 @@ renderer|ChaosCardGenerator/DerivativeSlotCatalog.cs|var amount = System.Text.Re
 renderer|ChaosCardGenerator/DerivativeSlotCatalog.cs|var match = System.Text.RegularExpressions.Regex.Match(chineseText,
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|"D:GainTemporaryFocus" when !text.Contains("this turn", StringComparison.OrdinalIgnoreCase)
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|"R:ReturnAfterSkillsPlayed" => Regex.Replace(text,
-renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|// value (and multiple source cards can register the same template/text pair). ChineseText is
+renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|$"Operation text '{registration.Template}'/'{registration.ChineseText}' is already registered with different English text.");
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|&& !string.Equals(existing, registration.EnglishText, StringComparison.Ordinal))
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|&& ExternalOperationTextRegistry.TryGet(operation.Template, operation.ChineseText,
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|&& operation.ChineseText.Contains("残骸", StringComparison.Ordinal))
-renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|=> text.TrimEnd('.') + " this turn.",
+renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|// value (and multiple source cards can register the same template/text pair). ChineseText is
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs||| Regex.IsMatch(text, @"\b(?!1\b)(?:\d+|X(?:\+1)?) (?:random |Lightning |Frost |Dark |Plasma |Glass )?(?:card|Attack|Skill|Power|Orb|Star|Soul|Wound|Shiv|time)(?:\+)?(?!\w| [Ss]lots)")
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs||| Regex.IsMatch(text, @"\b1 additional times\b"))
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs||| text.StartsWith("ALL", StringComparison.Ordinal)
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs||| text.StartsWith("King's Sword", StringComparison.Ordinal)
-renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|$"Operation text '{registration.Template}'/'{registration.ChineseText}' is already registered with different English text.");
+renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|=> text.TrimEnd('.') + " this turn.",
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|else if (ExternalOperationTextRegistry.TryGet(operation.Template, operation.ChineseText, out var registered))
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|english = Regex.Replace(english, @"(ALL enemies|a random enemy)(\d+|X(?:\+1)?)$", "$1 $2 times");
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|english = Regex.Replace(english, @"\b(a|one) card\b", match =>
@@ -712,24 +714,24 @@ renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|var upgradedDeriva
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|var values = Regex.Matches(chineseText, @"(?<!X\+)\d+")
 renderer|ChaosCardGenerator/EnglishCardDescriptionRenderer.cs|var values = Regex.Matches(chineseText, @"\d+").Cast<Match>().Select(match => match.Value).ToArray();
 renderer|ChaosCardGenerator/OperationLocalizedText.cs|var matches = Regex.Matches(text, $@"\b{Regex.Escape(candidate.Text)}\b",
-renderer|ChaosCardGenerator/OrbSlotCatalog.cs|: result.BindTextSlot("orb_output", original.ChineseName + "充能球", original.EnglishName)
-renderer|ChaosCardGenerator/OrbSlotCatalog.cs|: result.BindTextSlot("orb_source", original.ChineseName + "充能球", original.EnglishName)
-renderer|ChaosCardGenerator/OrbSlotCatalog.cs|? result.WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName)
-renderer|ChaosCardGenerator/OrbSlotCatalog.cs|? result.WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName)
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|.BindTextSlot("orb_output", original.ChineseName + "充能球", original.EnglishName)
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|.BindTextSlot("orb_source", original.ChineseName + "充能球", original.EnglishName)
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|.WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|.WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|.WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|.WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName);
+renderer|ChaosCardGenerator/OrbSlotCatalog.cs|: result.BindTextSlot("orb_output", original.ChineseName + "充能球", original.EnglishName)
+renderer|ChaosCardGenerator/OrbSlotCatalog.cs|: result.BindTextSlot("orb_source", original.ChineseName + "充能球", original.EnglishName)
+renderer|ChaosCardGenerator/OrbSlotCatalog.cs|? result.WithTextSlotValue("orb_output", output.ChineseName + "充能球", output.EnglishName)
+renderer|ChaosCardGenerator/OrbSlotCatalog.cs|? result.WithTextSlotValue("orb_source", source.ChineseName + "充能球", source.EnglishName)
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|[new OperationTextSlot("orb_source", source.ChineseName, source.EnglishName),
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|Definitions[slot.OutputId].ChineseName + "充能球", StringComparison.Ordinal);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|Definitions[slot.SourceId].ChineseName + "充能球", StringComparison.Ordinal);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|new OperationTextSlot("orb_output", output.ChineseName, output.EnglishName)]);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|output.ChineseName + "充能球", StringComparison.Ordinal);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|public static string EnglishText(GeneratorOperation operation)
-renderer|ChaosCardGenerator/OrbSlotCatalog.cs|return $"生成等量于你在这场战斗中生成过的{source.ChineseName}充能球数量的{output.ChineseName}充能球。";
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|return $"Channel {output.EnglishName} equal to the {source.EnglishName} already Channeled this combat.";
+renderer|ChaosCardGenerator/OrbSlotCatalog.cs|return $"生成等量于你在这场战斗中生成过的{source.ChineseName}充能球数量的{output.ChineseName}充能球。";
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|source.ChineseName + "充能球", StringComparison.Ordinal);
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|sourceChinese = sourceChinese.Replace(output.ChineseName + "充能球",
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|sourceChinese = sourceChinese.Replace(source.ChineseName + "充能球",
@@ -741,16 +743,16 @@ renderer|ChaosCardGenerator/OrbSlotCatalog.cs|text = text.Replace(Definitions[sl
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|text = text.Replace(Definitions[slot.SourceId].ChineseName + "充能球",
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|text = text.Replace(Definitions[slot.SourceId].EnglishName, source.EnglishName,
 renderer|ChaosCardGenerator/OrbSlotCatalog.cs|var sourceChinese = operation.ChineseText;
-renderer|ChaosMode/ChaosCardModel.cs|? CardTextStyle.Chinese(effective, effective.ChineseText)
-renderer|ChaosMode/ChaosCardModel.cs|? definition.ChineseName.Length
-renderer|ChaosMode/ChaosCardModel.cs||| text.StartsWith("ALL", StringComparison.Ordinal)
-renderer|ChaosMode/ChaosCardModel.cs||| text.StartsWith("Sovereign Blade", StringComparison.Ordinal)
 renderer|ChaosMode/ChaosCardModel.cs|$"[gold]{derivative.ChineseName}[/gold]", composites, chinese: true);
 renderer|ChaosMode/ChaosCardModel.cs|$"[purple]{enchantment.ChineseName}[/purple][gold]{derivative.ChineseName}[/gold]",
 renderer|ChaosMode/ChaosCardModel.cs|$"[purple]{enchantment.EnglishName}[/purple] [gold]{derivative.EnglishPlural}[/gold]",
 renderer|ChaosMode/ChaosCardModel.cs|$"[purple]{enchantment.EnglishName}[/purple] [gold]{derivative.EnglishSingular}[/gold]",
-renderer|ChaosMode/ChaosCardModel.cs|ChaosStatPreviewKind.Channels => $"生成{{{variable}:diff()}}个{orb?.ChineseName ?? string.Empty}充能球",
+renderer|ChaosMode/ChaosCardModel.cs|? CardTextStyle.Chinese(effective, effective.ChineseText)
+renderer|ChaosMode/ChaosCardModel.cs|? definition.ChineseName.Length
+renderer|ChaosMode/ChaosCardModel.cs||| text.StartsWith("ALL", StringComparison.Ordinal)
+renderer|ChaosMode/ChaosCardModel.cs||| text.StartsWith("Sovereign Blade", StringComparison.Ordinal)
 renderer|ChaosMode/ChaosCardModel.cs|ChaosStatPreviewKind.Channels => $"Channel {{{variable}:diff()}} {orb?.EnglishName ?? "Orbs"}",
+renderer|ChaosMode/ChaosCardModel.cs|ChaosStatPreviewKind.Channels => $"生成{{{variable}:diff()}}个{orb?.ChineseName ?? string.Empty}充能球",
 renderer|ChaosMode/ChaosCardModel.cs|ChineseText = localized.RenderChinese(updatedSpec),
 renderer|ChaosMode/ChaosCardModel.cs|ChineseText = Text(card, effectiveOperations, effectIndex, chinese)
 renderer|ChaosMode/ChaosCardModel.cs|ChineseText = Text(card, effectiveOperations, index, chinese)
@@ -770,12 +772,17 @@ renderer|ChaosMode/ChaosCompositePower.cs|text = System.Text.RegularExpressions.
 validation|ChaosCardGenerator/CatalogRuntimeSpecRegistry.cs|authoringAtom.Template, authoringAtom.Scope, authoringAtom.ChineseText,
 validation|ChaosCardGenerator/CharacterComponentCatalogs.cs|private static string Unescape(string text) => text.Replace("<br>", "\n", StringComparison.Ordinal)
 validation|ChaosCardGenerator/ComponentApi.cs|&& !string.Equals(localized.RenderChinese(spec), atom.ChineseText, StringComparison.Ordinal))
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|.SequenceEqual(semantic.Select(operation => (operation.Template, operation.ChineseText)));
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{atom.Template}:{atom.ChineseText}:"
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{NumericTextSchema.Family(operation.Template)}|{NumericTextSchema.Fields(operation.ChineseText)}",
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{NumericTextSchema.Family(operation.Template)}|{NumericTextSchema.Fields(operation.ChineseText)}",
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:"
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:{XEffectKindKey(operation)}")));
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:"
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:"
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|&& atom.ChineseText.Contains("额外获得", StringComparison.Ordinal),
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|&& legacyBudgetedSourceChinese != atom.ChineseText)
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|&& recipe.Atoms.Select(atom => (atom.Template, atom.ChineseText))
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|+ $"{atom.Template}:{atom.ChineseText}:{XEffectKindKey(atom)}");
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|+ $"{operation.Template}:{operation.ChineseText}:{XEffectKindKey(operation)}; atom="
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|.SequenceEqual(semantic.Select(operation => (operation.Template, operation.ChineseText)));
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| !prior.ChineseText.Contains("第3张攻击牌", StringComparison.Ordinal)),
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| !prior.ChineseText.Contains("技能牌", StringComparison.Ordinal)),
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| !prior.ChineseText.StartsWith("每当你抽到名字中有", StringComparison.Ordinal),
@@ -785,16 +792,11 @@ validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| atom.ChineseText 
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| atom.ChineseText == "消耗那张非攻击牌。")
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| atom.ChineseText is "将弃牌堆中的一张牌放到抽牌堆顶部。"
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs||| atom.ChineseText.Contains("选择", StringComparison.Ordinal);
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{atom.Template}:{atom.ChineseText}:"
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{NumericTextSchema.Family(operation.Template)}|{NumericTextSchema.Fields(operation.ChineseText)}",
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{NumericTextSchema.Family(operation.Template)}|{NumericTextSchema.Fields(operation.ChineseText)}",
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:"
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:{XEffectKindKey(operation)}")));
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:"
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:"
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|+ $"{atom.Template}:{atom.ChineseText}:{XEffectKindKey(atom)}");
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|+ $"{operation.Template}:{operation.ChineseText}:{XEffectKindKey(operation)}; atom="
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|atom = atom with { ChineseText = orbChinese, LocalizedText = orbLocalized };
-validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|atom.ChineseText,
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|atom.ChineseText);
+validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|atom.ChineseText,
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|atom.Scope, atom.ChineseText, new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|atom.Template, atom.Scope, atom.ChineseText, EmptyParameters,
 validation|ChaosCardGenerator/ComponentAssemblyGenerator.cs|Check("next_attack_payoff", atom.ChineseText == "将该攻击牌额外打出1次。"
@@ -841,6 +843,11 @@ validation|ChaosCardGenerator/ComponentPackageApi.cs|ExternalOperationTextRegist
 validation|ChaosCardGenerator/ComponentPackageApi.cs|if (string.IsNullOrWhiteSpace(text.ChineseText) || string.IsNullOrWhiteSpace(text.EnglishText))
 validation|ChaosCardGenerator/ComponentPackageApi.cs|string ChineseText,
 validation|ChaosCardGenerator/ComponentPackageApi.cs|string EnglishText);
+validation|ChaosCardGenerator/EffectBalanceModel.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:"
+validation|ChaosCardGenerator/EffectBalanceModel.cs|.DistinctBy(atom => (atom.Template, atom.Scope, atom.ChineseText))
+validation|ChaosCardGenerator/EffectBalanceModel.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
+validation|ChaosCardGenerator/EffectBalanceModel.cs|.Select(operation => $"{operation.Template}: {operation.ChineseText}")
+validation|ChaosCardGenerator/EffectBalanceModel.cs|: $"{NumericTextSchema.Family(operation.Template)}|{NumericTextSchema.Fields(operation.ChineseText)}")
 validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when template == "C:after" && text.Contains("被消耗", StringComparison.Ordinal) => 0.7d,
 validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when template == "C:after" && text.Contains("回合结束", StringComparison.Ordinal) => 0.35d,
 validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when text.Contains("奥斯提在本回合攻击过", StringComparison.Ordinal) => 0.55d,
@@ -873,10 +880,6 @@ validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when text.Contains("拥有
 validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when text.Contains("拥有中毒", StringComparison.Ordinal) => 0.55d,
 validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when text.Contains("在回合内失去生命", StringComparison.Ordinal) => 0.55d,
 validation|ChaosCardGenerator/EffectBalanceModel.cs|_ when text.StartsWith("斩杀时", StringComparison.Ordinal) => FatalTriggerFrequency,
-validation|ChaosCardGenerator/EffectBalanceModel.cs|: $"{NumericTextSchema.Family(operation.Template)}|{NumericTextSchema.Fields(operation.ChineseText)}")
-validation|ChaosCardGenerator/EffectBalanceModel.cs|.DistinctBy(atom => (atom.Template, atom.Scope, atom.ChineseText))
-validation|ChaosCardGenerator/EffectBalanceModel.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
-validation|ChaosCardGenerator/EffectBalanceModel.cs|.Select(operation => $"{operation.Template}: {operation.ChineseText}")
 validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("攻击对一名敌人造成伤害时", StringComparison.Ordinal)
 validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("攻击造成伤害时", StringComparison.Ordinal);
 validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("攻击造成未被格挡的伤害", StringComparison.Ordinal)
@@ -884,7 +887,6 @@ validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("每抽一�
 validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("每打出一张牌", StringComparison.Ordinal)
 validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("每当你使用一张牌", StringComparison.Ordinal)
 validation|ChaosCardGenerator/EffectBalanceModel.cs||| text.Contains("每使用一张牌", StringComparison.Ordinal);
-validation|ChaosCardGenerator/EffectBalanceModel.cs|$"{operation.Template}:{operation.ChineseText}:d={operation.DerivativeId}:"
 validation|ChaosCardGenerator/EffectBalanceModel.cs|damage.ChineseText, damage.RequiresSingleTarget, CardReferenceRequirement.None)
 validation|ChaosCardGenerator/EffectBalanceModel.cs|ExpectedExtraDamageHits(new ComponentAtom(operation.Template, operation.Scope, operation.ChineseText,
 validation|ChaosCardGenerator/EffectBalanceModel.cs|GeneratorOperation Operation(ComponentAtom atom) => new(atom.Template, atom.Scope, atom.ChineseText,
@@ -929,11 +931,11 @@ validation|ChaosCardGenerator/NativeUpgradeValueModel.cs|if (text.Contains("力�
 validation|ChaosCardGenerator/NativeUpgradeValueModel.cs|if (text.Contains("易伤", StringComparison.Ordinal) || text.Contains("虚弱", StringComparison.Ordinal)
 validation|ChaosCardGenerator/NativeUpgradeValueModel.cs|if (text.Contains("张", StringComparison.Ordinal) || text.Contains("次", StringComparison.Ordinal)
 validation|ChaosCardGenerator/NativeUpgradeValueModel.cs|var text = operation.ChineseText;
+validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|$"{index}:{SuggestedSlot(group.Key.Template, group.Key.ChineseText, match, index, dynamicIndex)}")
+validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|(item.Atom.Template, item.Atom.Scope, item.Atom.ChineseText))
 validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|.Append(group.Key.ChineseText.Contains('X')).Append('\t').Append(group.Count()).Append('\t')
 validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|.Append(group.Key.ChineseText.Replace("\r", "\\r", StringComparison.Ordinal)
 validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|.ThenBy(group => group.Key.ChineseText, StringComparer.Ordinal))
-validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|(item.Atom.Template, item.Atom.Scope, item.Atom.ChineseText))
-validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|$"{index}:{SuggestedSlot(group.Key.Template, group.Key.ChineseText, match, index, dynamicIndex)}")
 validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|if (scope == OperationScope.Modifier && text.Contains("消耗牌堆", StringComparison.Ordinal) && count >= 2)
 validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|return text.Contains("伤害", StringComparison.Ordinal) ? "hits" : "count";
 validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|var dynamicIndex = LegacyDynamicIndex(group.Key.Template, group.Key.Scope, group.Key.ChineseText,
@@ -941,27 +943,28 @@ validation|ChaosCardGenerator/NumericSlotMigrationAudit.cs|var matches = Number.
 validation|ChaosCardGenerator/Program.cs|atom.ChineseText, new Dictionary<string, int>(),
 validation|ChaosCardGenerator/Program.cs|Console.WriteLine($"{atom.Template}\t{atom.Scope}\t{atom.ChineseText}");
 validation|ChaosCardGenerator/Program.cs|foreach (var atom in catalog.Atoms.OrderBy(atom => atom.Template).ThenBy(atom => atom.ChineseText))
-validation|ChaosCardGenerator/RandomCardGenerator.cs|_ = EnglishCardDescriptionRenderer.OperationText(new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText, new Dictionary<string, int>()));
-validation|ChaosCardGenerator/RandomCardGenerator.cs|_ = EnglishCardDescriptionRenderer.OperationText(new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText, new Dictionary<string, int>()));
-validation|ChaosCardGenerator/RandomCardGenerator.cs|: operation.Template == "C:ifLastDrawnSkill" || triggerText.StartsWith("如果", StringComparison.Ordinal) ? "，则"
-validation|ChaosCardGenerator/RandomCardGenerator.cs|: operation.Template == "C:untilTurnEnd" && triggerText.Contains("受到一次攻击", StringComparison.Ordinal) ? "，都会"
-validation|ChaosCardGenerator/RandomCardGenerator.cs|.First(item => System.Text.RegularExpressions.Regex.IsMatch(item.Atom.ChineseText, @"\d"));
-validation|ChaosCardGenerator/RandomCardGenerator.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
 validation|ChaosCardGenerator/RandomCardGenerator.cs|"{\"Template\":\"I:Transform\",\"Scope\":6,\"ChineseText\":\"将手牌中的所有攻击牌变化为巨石。\",\"Parameters\":{}}")!;
-validation|ChaosCardGenerator/RandomCardGenerator.cs|[ordinaryBlock, selfCostPenalty with { ChineseText = "这张牌的耗能增加4。" }],
-validation|ChaosCardGenerator/RandomCardGenerator.cs|[repeatedDamageOperation], EnglishDescription: EnglishCardDescriptionRenderer.Render([repeatedDamageOperation]));
-validation|ChaosCardGenerator/RandomCardGenerator.cs|[royaltiesOperation], EnglishDescription: EnglishCardDescriptionRenderer.Render([royaltiesOperation]),
-validation|ChaosCardGenerator/RandomCardGenerator.cs|[System.Text.Json.Serialization.JsonPropertyName("chineseDescription")]
-validation|ChaosCardGenerator/RandomCardGenerator.cs|[System.Text.Json.Serialization.JsonPropertyName("englishDescription")]
-validation|ChaosCardGenerator/RandomCardGenerator.cs|{ ChineseText = "在这个回合，你打出的下1张攻击牌获得效果：" }, nextAttackReplay])
+validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{definition.ChineseName}充能球槽权重偏离调整后的卡池：{actual:P2} / {expected:P2}。 ");
+validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{index}:{operation.Template}[{operation.Parameters.GetValueOrDefault("triggerIndex", -1)}]:{operation.ChineseText}")));
+validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{operation.Template}[{operation.Parameters.GetValueOrDefault("triggerIndex", -1)}]:{operation.ChineseText}")));
+validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{outputOrb.ChineseName}充能球在当前费用与触发频率下最多生成{maximum}个。 ");
 validation|ChaosCardGenerator/RandomCardGenerator.cs|&& !operation.ChineseText.Contains(DerivativeSlotCatalog.ChineseCardName(operation),
 validation|ChaosCardGenerator/RandomCardGenerator.cs|&& (!atom.ChineseText.Contains("本回合", StringComparison.Ordinal)
 validation|ChaosCardGenerator/RandomCardGenerator.cs|&& (!card.Name.Chinese.EndsWith("打击", StringComparison.Ordinal) || !card.Name.English.EndsWith(" Strike", StringComparison.Ordinal)))
 validation|ChaosCardGenerator/RandomCardGenerator.cs|&& atom.ChineseText.Contains("本回合", StringComparison.Ordinal))
 validation|ChaosCardGenerator/RandomCardGenerator.cs|&& card.Name?.Chinese.EndsWith("形态", StringComparison.Ordinal) == true)
-validation|ChaosCardGenerator/RandomCardGenerator.cs|+ $"{card.ChineseDescription} | {string.Join(';', card.Upgrade.Effects.Select(effect => $"{effect.Kind}/{effect.OperationIndex}/{effect.Delta}"))} "
-validation|ChaosCardGenerator/RandomCardGenerator.cs|+ generated.ChineseDescription);
-validation|ChaosCardGenerator/RandomCardGenerator.cs|+ rareFallback.ChineseDescription);
+validation|ChaosCardGenerator/RandomCardGenerator.cs|.First(item => System.Text.RegularExpressions.Regex.IsMatch(item.Atom.ChineseText, @"\d"));
+validation|ChaosCardGenerator/RandomCardGenerator.cs|.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
+validation|ChaosCardGenerator/RandomCardGenerator.cs|: operation.Template == "C:ifLastDrawnSkill" || triggerText.StartsWith("如果", StringComparison.Ordinal) ? "，则"
+validation|ChaosCardGenerator/RandomCardGenerator.cs|: operation.Template == "C:untilTurnEnd" && triggerText.Contains("受到一次攻击", StringComparison.Ordinal) ? "，都会"
+validation|ChaosCardGenerator/RandomCardGenerator.cs|[ordinaryBlock, selfCostPenalty with { ChineseText = "这张牌的耗能增加4。" }],
+validation|ChaosCardGenerator/RandomCardGenerator.cs|[repeatedDamageOperation], EnglishDescription: EnglishCardDescriptionRenderer.Render([repeatedDamageOperation]));
+validation|ChaosCardGenerator/RandomCardGenerator.cs|[royaltiesOperation], EnglishDescription: EnglishCardDescriptionRenderer.Render([royaltiesOperation]),
+validation|ChaosCardGenerator/RandomCardGenerator.cs|[System.Text.Json.Serialization.JsonPropertyName("chineseDescription")]
+validation|ChaosCardGenerator/RandomCardGenerator.cs|[System.Text.Json.Serialization.JsonPropertyName("englishDescription")]
+validation|ChaosCardGenerator/RandomCardGenerator.cs|_ = EnglishCardDescriptionRenderer.OperationText(new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText, new Dictionary<string, int>()));
+validation|ChaosCardGenerator/RandomCardGenerator.cs|_ = EnglishCardDescriptionRenderer.OperationText(new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText, new Dictionary<string, int>()));
+validation|ChaosCardGenerator/RandomCardGenerator.cs|{ ChineseText = "在这个回合，你打出的下1张攻击牌获得效果：" }, nextAttackReplay])
 validation|ChaosCardGenerator/RandomCardGenerator.cs||| !generated.Operations[anchorIndex].ChineseText.Contains("造成0点伤害", StringComparison.Ordinal)
 validation|ChaosCardGenerator/RandomCardGenerator.cs||| !specialX.EnglishDescription.Contains("X damage", StringComparison.Ordinal)
 validation|ChaosCardGenerator/RandomCardGenerator.cs||| !upgradedCurrentCharacterGeneration.ChineseText.Contains("升级过的随机牌", StringComparison.Ordinal))
@@ -977,10 +980,9 @@ validation|ChaosCardGenerator/RandomCardGenerator.cs||| text.StartsWith("ALL", S
 validation|ChaosCardGenerator/RandomCardGenerator.cs||| text.StartsWith("King's Sword", StringComparison.Ordinal)
 validation|ChaosCardGenerator/RandomCardGenerator.cs||| text.StartsWith("Sovereign Blade", StringComparison.Ordinal)
 validation|ChaosCardGenerator/RandomCardGenerator.cs||| upgradedQuasar.ChineseText != "从4张随机无色牌中选择1张加入你的手牌。"
-validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{definition.ChineseName}充能球槽权重偏离调整后的卡池：{actual:P2} / {expected:P2}。 ");
-validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{index}:{operation.Template}[{operation.Parameters.GetValueOrDefault("triggerIndex", -1)}]:{operation.ChineseText}")));
-validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{operation.Template}[{operation.Parameters.GetValueOrDefault("triggerIndex", -1)}]:{operation.ChineseText}")));
-validation|ChaosCardGenerator/RandomCardGenerator.cs|$"{outputOrb.ChineseName}充能球在当前费用与触发频率下最多生成{maximum}个。 ");
+validation|ChaosCardGenerator/RandomCardGenerator.cs|+ $"{card.ChineseDescription} | {string.Join(';', card.Upgrade.Effects.Select(effect => $"{effect.Kind}/{effect.OperationIndex}/{effect.Delta}"))} "
+validation|ChaosCardGenerator/RandomCardGenerator.cs|+ generated.ChineseDescription);
+validation|ChaosCardGenerator/RandomCardGenerator.cs|+ rareFallback.ChineseDescription);
 validation|ChaosCardGenerator/RandomCardGenerator.cs|atom.ChineseText, recipe.Tags, [operation], Character: character);
 validation|ChaosCardGenerator/RandomCardGenerator.cs|atom.Template, atom.Scope, atom.ChineseText,
 validation|ChaosCardGenerator/RandomCardGenerator.cs|CardTextStyle.ValidateRenderedChinese(card.ChineseDescription);
@@ -1081,12 +1083,12 @@ validation|ChaosCardGenerator/SpecialXCardConverter.cs|var matches = Regex.Match
 validation|ChaosCardGenerator/SpecialXCardConverter.cs|var text = operation.ChineseText;
 validation|ChaosCardGenerator/SpecialXCardConverter.cs|var values = Regex.Matches(operation.ChineseText, @"\d+");
 validation|ChaosMode/ChaosOperationExecutor.cs|operation.ChineseText, out var legacyProjection))
-validation|ChaosMode/ChaosRunDefinitions.cs|: text.Replace("燃料", "先古燃料", StringComparison.Ordinal);
 validation|ChaosMode/ChaosRunDefinitions.cs|: text.Replace("Fuel", "Ancient Fuel", StringComparison.OrdinalIgnoreCase);
-validation|ChaosMode/ChaosRunDefinitions.cs|return text.Contains("先古燃料", StringComparison.Ordinal)
+validation|ChaosMode/ChaosRunDefinitions.cs|: text.Replace("燃料", "先古燃料", StringComparison.Ordinal);
 validation|ChaosMode/ChaosRunDefinitions.cs|return text.Contains("Ancient Fuel", StringComparison.OrdinalIgnoreCase)
-validation|ChaosMode/Patches/RunAndPoolPatches.cs|.Where(atom => atom.ChineseText.Contains("升级", StringComparison.Ordinal))
+validation|ChaosMode/ChaosRunDefinitions.cs|return text.Contains("先古燃料", StringComparison.Ordinal)
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|&& atom.ChineseText.Contains("力量", StringComparison.Ordinal),
+validation|ChaosMode/Patches/RunAndPoolPatches.cs|.Where(atom => atom.ChineseText.Contains("升级", StringComparison.Ordinal))
 validation|ChaosMode/Patches/RunAndPoolPatches.cs||| !chinese.Contains("{Energy0:energyIcons()}", StringComparison.Ordinal)
 validation|ChaosMode/Patches/RunAndPoolPatches.cs||| !english.Contains("{Energy0:energyIcons()}", StringComparison.Ordinal))
 validation|ChaosMode/Patches/RunAndPoolPatches.cs||| description.Contains('{') || eventDescription.Contains('{'))
@@ -1096,7 +1098,6 @@ validation|ChaosMode/Patches/RunAndPoolPatches.cs|atom.Template, atom.Scope, ato
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|ChineseDescription = "获得5点格挡。",
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|ChineseText = CardUpgradeGenerator.UpgradeRandomGenerationChinese(currentCharacterCard.ChineseText)
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|enchantedShiv.ChineseText, [enchantedShiv], chinese: true), chinese: true);
-validation|ChaosMode/Patches/RunAndPoolPatches.cs|goldAxe.Atoms[0].ChineseText, new Dictionary<string, int>()))
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|helixSpent.ChineseText, chinese: true);
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|if (ChaosOperationVariables.ReplaceInitialValue(descriptionProbe[0], 13).ChineseText
 validation|ChaosMode/Patches/RunAndPoolPatches.cs|if (ChaosOperationVariables.ReplaceInitialValue(drawAndBlock, 11).ChineseText

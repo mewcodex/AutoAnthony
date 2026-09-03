@@ -15603,20 +15603,10 @@
     "Atoms": [
       {
         "SemanticId": "colorless/goldaxe/0",
-        "Template": "CL:ForEachCardPlayedCombat",
-        "Scope": "Modifier",
-        "ChineseText": "\u672C\u573A\u6218\u6597\u6BCF\u6253\u51FA\u4E00\u5F20\u724C\uFF0C",
-        "EnglishText": "For each card played this combat,",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": -1
-      },
-      {
-        "SemanticId": "colorless/goldaxe/1",
-        "Template": "T:D",
+        "Template": "CL:DamageEqualCardsPlayedCombat",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u62101\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 1 damage.",
+        "ChineseText": "\u9020\u6210\u672C\u573A\u6218\u6597\u4E2D\u6240\u6253\u51FA\u724C\u6570\u7684\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal damage equal to the number of cards played this combat.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1

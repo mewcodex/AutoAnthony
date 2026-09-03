@@ -614,6 +614,9 @@ public static class OperationRuntimeSpecCompiler
             "N:Exhaust" => CompileExhaust(operation),
             "N:AllD" or "N:RandomD" => CompileMultiDamage(operation),
             "T:D" or "T:DX" or "T:D_EnergyX" => CompileTargetDamage(operation),
+            "CL:DamageEqualCardsPlayedCombat" => Spec("deal_damage", "cards_played_combat",
+                "selected_enemy", flags:
+                ["requires_single_target", "damage_budget_effect", ComponentSemanticFlags.EnemyDamage]),
             "T:ProxyDamage_Atomic_EnergyX_Eradicate" or "N:ProxyDamage_Atomic_StarX_Stardust" =>
                 CompileProxyXDamage(operation),
             "N:B" or "N_BLOCK" or "N:Draw" or "N:E" or "N:NextTurnEnergy"

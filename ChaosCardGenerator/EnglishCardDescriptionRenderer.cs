@@ -4,6 +4,11 @@ namespace ChaosCardGenerator;
 
 public static class EnglishCardDescriptionRenderer
 {
+    private sealed record RenderedLine(string Text, bool Last);
+
+    private static bool MustRenderLast(GeneratorOperation operation) =>
+        operation.Template == "CL:NoBlockFromCards";
+
     public static void ValidateRenderedEnglish(string text)
     {
         if (Regex.IsMatch(text, @"(?<![+\d])\b1 (?:random |Lightning |Frost |Dark |Plasma |Glass )?(?:cards|Attacks|Skills|Powers|Orbs|Stars|Souls|Wounds|Shivs|times)\b")
@@ -42,7 +47,7 @@ public static class EnglishCardDescriptionRenderer
 
     public static string Render(IReadOnlyList<GeneratorOperation> operations)
     {
-        var lines = new List<string>();
+        var lines = new List<RenderedLine>();
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
@@ -58,9 +63,9 @@ public static class EnglishCardDescriptionRenderer
             {
                 var chosen = OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
                     is "selected" or "i_exhaustselectedattack";
-                lines.Add(chosen
+                lines.Add(new RenderedLine(chosen
                     ? "Choose an Attack in your Hand to Exhaust and add its damage to this card."
-                    : "Exhaust a random Attack in your Hand and add its damage to this card.");
+                    : "Exhaust a random Attack in your Hand and add its damage to this card.", false));
                 index++;
                 continue;
             }
@@ -72,21 +77,25 @@ public static class EnglishCardDescriptionRenderer
                     .ToArray();
                 if (CardEffectRules.IsNextAttackGrantTrigger(operation))
                 {
-                    lines.Add(CardDescriptionRenderer.RenderNextAttackGrant(operation, effects, OperationText, chinese: false));
+                    lines.Add(new RenderedLine(
+                        CardDescriptionRenderer.RenderNextAttackGrant(operation, effects, OperationText, chinese: false),
+                        effects.Any(MustRenderLast)));
                     continue;
                 }
                 var trigger = OperationText(operation).TrimEnd('.');
                 if (effects.Length == 0)
                 {
-                    lines.Add(trigger + ".");
+                    lines.Add(new RenderedLine(trigger + ".", MustRenderLast(operation)));
                 }
                 else if (operation.Template == "C:playableIfDrawPileEmpty")
                 {
-                    lines.Add($"{trigger}. {UpperFirst(RenderTriggeredEffects(effects))}");
+                    lines.Add(new RenderedLine($"{trigger}. {UpperFirst(RenderTriggeredEffects(effects))}",
+                        MustRenderLast(operation) || effects.Any(MustRenderLast)));
                 }
                 else
                 {
-                    lines.Add($"{trigger}, {LowerFirst(RenderTriggeredEffects(effects))}");
+                    lines.Add(new RenderedLine($"{trigger}, {LowerFirst(RenderTriggeredEffects(effects))}",
+                        MustRenderLast(operation) || effects.Any(MustRenderLast)));
                 }
                 continue;
             }
@@ -96,13 +105,14 @@ public static class EnglishCardDescriptionRenderer
                     && !operations[index + 1].Parameters.ContainsKey("triggerIndex")
                     && CardEffectRules.IsLegalDependencyPayoff(operation, operations[index + 1]))
                 {
-                    lines.Add(RenderEffects([operation, operations[++index]]));
+                    lines.Add(new RenderedLine(RenderEffects([operation, operations[++index]]),
+                        MustRenderLast(operation) || MustRenderLast(operations[index])));
                     continue;
                 }
-                lines.Add(OperationText(operation));
+                lines.Add(new RenderedLine(OperationText(operation), MustRenderLast(operation)));
             }
         }
-        return string.Join("\n", lines);
+        return string.Join("\n", lines.OrderBy(line => line.Last ? 1 : 0).Select(line => line.Text));
     }
 
     public static string OperationText(GeneratorOperation operation)

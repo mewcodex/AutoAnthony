@@ -665,7 +665,9 @@ public static class ChaosRunDefinitions
         Random Random,
         GeneratedRarity[] Rarities,
         int AttemptsUsed,
-        long GenerationMilliseconds);
+        long GenerationMilliseconds,
+        long CardAssemblyMilliseconds,
+        long PoolRepairMilliseconds);
 
     private static GeneratedPoolCandidate GenerateCardCandidates(GeneratedCharacter character, string seed,
         bool ultimateChaos, bool balancedValues, bool randomizeNumericValues, bool enforcePoolConstraints,
@@ -683,14 +685,35 @@ public static class ChaosRunDefinitions
         GeneratedCard[]? generatedCards;
         var poolConstraintFailure = string.Empty;
         var attemptsUsed = 0;
+        long cardAssemblyMilliseconds = 0;
+        long poolRepairMilliseconds = 0;
         GeneratedCard[] GenerateCandidate(RandomCardGenerator generator)
         {
+            var candidateStopwatch = Stopwatch.StartNew();
+            long localRepairMilliseconds = 0;
             var cards = new GeneratedCard[generatedRarities.Length];
             for (var index = 0; index < generatedRarities.Length; index++)
             {
                 cards[index] = generator.Generate(generatedRarities[index]);
                 progress?.Invoke(index + 1);
+                // Repair the actual ten-card starting subset before the generator has reserved names and pool-unique
+                // components for the other ~80 cards. Late repair could exhaust the uniqueness space and fail even
+                // though plenty of legal Basic replacements existed when this subset was first assembled.
+                if (index + 1 == poolPolicy.StartingDeckSize && enforcePoolConstraints
+                    && poolPolicy.EnforceStartingCoverage && _activeReplaceStartingCards)
+                {
+                    var startingCards = cards.Take(poolPolicy.StartingDeckSize).ToArray();
+                    var repairStopwatch = Stopwatch.StartNew();
+                    EnsureStartingDeckCoverage(startingCards, generator, poolPolicy);
+                    repairStopwatch.Stop();
+                    localRepairMilliseconds += repairStopwatch.ElapsedMilliseconds;
+                    Array.Copy(startingCards, cards, startingCards.Length);
+                }
             }
+            candidateStopwatch.Stop();
+            cardAssemblyMilliseconds += Math.Max(0,
+                candidateStopwatch.ElapsedMilliseconds - localRepairMilliseconds);
+            poolRepairMilliseconds += localRepairMilliseconds;
             return cards;
         }
         if (!enforcePoolConstraints)
@@ -712,21 +735,24 @@ public static class ChaosRunDefinitions
                     AncientFuelActive,
                     suppressDerivativeReferences: attempt == PoolGenerationAttemptLimit - 1,
                     balancedValues: balancedValues, randomizeNumericValues: randomizeNumericValues);
-                var candidateCards = GenerateCandidate(generator);
+                GeneratedCard[] candidateCards;
                 try
                 {
-                    // These Basic slots are not the starting deck when replacement is disabled. Enforcing 4/4
-                    // coverage in that mode was both wasted work and, on a rare unrepairable candidate, an
-                    // exception after the first character's last slot—the historical 93/514 failure signature.
-                    if (poolPolicy.EnforceStartingCoverage && _activeReplaceStartingCards)
-                        EnsureStartingDeckCoverage(candidateCards, generator, poolPolicy);
+                    candidateCards = GenerateCandidate(generator);
+                    var repairStopwatch = Stopwatch.StartNew();
                     EnsureXCostDistribution(candidateCards, generatedRarities, generator, random, poolPolicy);
                     if (!TryResolvePoolSupportConstraints(candidateCards, generatedRarities, generator, random,
                             poolPolicy,
                             checkStartingDeck: _activeReplaceStartingCards
                                                && character != GeneratedCharacter.Colorless,
                             out poolConstraintFailure))
+                    {
+                        repairStopwatch.Stop();
+                        poolRepairMilliseconds += repairStopwatch.ElapsedMilliseconds;
                         continue;
+                    }
+                    repairStopwatch.Stop();
+                    poolRepairMilliseconds += repairStopwatch.ElapsedMilliseconds;
                 }
                 catch (Exception exception)
                 {
@@ -763,7 +789,7 @@ public static class ChaosRunDefinitions
 
         stopwatch.Stop();
         return new GeneratedPoolCandidate(generatedCards, random, rarities, attemptsUsed,
-            stopwatch.ElapsedMilliseconds);
+            stopwatch.ElapsedMilliseconds, cardAssemblyMilliseconds, poolRepairMilliseconds);
     }
 
     private static bool TryResolvePoolSupportConstraints(GeneratedCard[] cards,
@@ -880,7 +906,9 @@ public static class ChaosRunDefinitions
         assemblyStopwatch.Stop();
         Log.Info($"[AutoAnthony.Perf] Generated {character} {(enforcePoolConstraints ? "run" : "preview")} pool "
             + $"({built.Count} cards, attempts={candidate.AttemptsUsed}, ultimate={ultimateChaos}) in "
-            + $"{candidate.GenerationMilliseconds} ms; art/definition assembly={assemblyStopwatch.ElapsedMilliseconds} ms.");
+            + $"{candidate.GenerationMilliseconds} ms (card assembly={candidate.CardAssemblyMilliseconds} ms, "
+            + $"pool repair={candidate.PoolRepairMilliseconds} ms); "
+            + $"art/definition assembly={assemblyStopwatch.ElapsedMilliseconds} ms.");
         return built;
     }
 
@@ -1363,15 +1391,17 @@ public static class ChaosRunDefinitions
     {
         while (cards.Take(deckSize).Count(required) < minimum)
         {
+            _ = attemptLimit; // Matching generation owns one bounded, non-committing retry loop.
             GeneratedCard replacement;
-            var attempts = 0;
-            do
+            try
             {
-                if (++attempts > attemptLimit)
-                    throw new InvalidOperationException($"Could not generate a Basic {label} card for the starting deck.");
-                replacement = generator.Generate(GeneratedRarity.Basic);
+                replacement = generator.GenerateMatching(GeneratedRarity.Basic, required);
             }
-            while (!required(replacement));
+            catch (InvalidOperationException exception)
+            {
+                throw new InvalidOperationException(
+                    $"Could not generate a Basic {label} card for the starting deck.", exception);
+            }
 
             var protectedCount = cards.Take(deckSize).Count(protectedCoverage);
             var slot = Enumerable.Range(0, deckSize).FirstOrDefault(index =>
@@ -1392,7 +1422,10 @@ public static class ChaosRunDefinitions
         // Ordinary native X cards keep their original generator path, but no run pool may be flooded by them.
         var ordinary = Enumerable.Range(0, cards.Length)
             .Where(index => SpecialXCardConverter.IsOrdinaryX(cards[index]))
-            .OrderBy(_ => random.Next()).ToList();
+            // Preserve the already-repaired ten-card combat coverage whenever a non-starting slot can satisfy the
+            // ordinary-X cap. Basic X cards remain replaceable as the bounded fallback, so the quota is unchanged.
+            .OrderBy(index => index < basicCount ? 1 : 0)
+            .ThenBy(_ => random.Next()).ToList();
         foreach (var index in ordinary.Skip(policy.OrdinaryXMaximum))
             cards[index] = GenerateNonX(rarities[index], generator, policy.ReplacementAttemptLimit);
 
@@ -1434,12 +1467,9 @@ public static class ChaosRunDefinitions
     private static GeneratedCard GenerateNonX(GeneratedRarity rarity, RandomCardGenerator generator,
         int attemptLimit)
     {
-        for (var attempt = 0; attempt < attemptLimit; attempt++)
-        {
-            var replacement = generator.GenerateWithoutSpecialX(rarity);
-            if (!SpecialXCardConverter.IsOrdinaryX(replacement)) return replacement;
-        }
-        throw new InvalidOperationException($"Could not generate a fixed-cost {rarity} replacement card.");
+        _ = attemptLimit; // Matching generation owns one bounded, non-committing retry loop.
+        return generator.GenerateWithoutSpecialXMatching(rarity,
+            replacement => !SpecialXCardConverter.IsOrdinaryX(replacement));
     }
 
     internal static bool CountsAsStartingDamage(GeneratedCard card) =>

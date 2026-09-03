@@ -459,19 +459,20 @@ public static class CardUpgradeGenerator
         var count = availableCount >= 2
             && random.Next(100) < NativeUpgradeStrengthModel.MultipleEffectChance(card.Rarity) ? 2 : 1;
         var targetUpgradeValue = NativeUpgradeStrengthModel.SampleTargetValue(card.Rarity, random);
+        var maximumUpgradeGain = NativeUpgradeStrengthModel.MaximumPlanGain(card, targetUpgradeValue);
         var selected = new List<Candidate>(count);
         // Cost reduction does not compete at equal weight with numeric upgrades; cheaper cards receive it less often.
         var chooseCost = costCandidate is not null
             && (card.Cost != 1 && candidates.Count == 0 && starCostCandidate is null
                 || random.Next(100) < CostReductionChance(card.Character, card.Cost, unifiedChaos));
-        if (chooseCost)
+        if (chooseCost && FitsUpgradeCeiling(card, selected, costCandidate!, maximumUpgradeGain))
             selected.Add(costCandidate!);
         // Fixed-Star Regent cards have a separate upgrade axis. Higher Star costs are more likely to spend an
         // upgrade slot on reducing that cost; a 1-Star card can legitimately upgrade to 0 Stars.
         var chooseStarCost = starCostCandidate is not null && selected.Count < count
             && (candidates.Count == 0 && costCandidate is null
                 || random.Next(100) < StarCostReductionChance(card.StarCost));
-        if (chooseStarCost)
+        if (chooseStarCost && FitsUpgradeCeiling(card, selected, starCostCandidate!, maximumUpgradeGain))
             selected.Add(starCostCandidate!);
         if (selected.Count == 0 && candidates.Count == 0)
         {
@@ -482,7 +483,12 @@ public static class CardUpgradeGenerator
                 return new CardUpgradePlan(card.Cost, Array.Empty<CardUpgradeEffect>(), card.ChineseDescription,
                     Array.Empty<CardTag>(), card.EnglishDescription);
             var resourceCandidates = new[] { costCandidate, starCostCandidate }
-                .Where(candidate => candidate is not null).Cast<Candidate>().ToArray();
+                .Where(candidate => candidate is not null).Cast<Candidate>()
+                .Where(candidate => FitsUpgradeCeiling(card, selected, candidate, maximumUpgradeGain))
+                .ToArray();
+            if (resourceCandidates.Length == 0)
+                return new CardUpgradePlan(card.Cost, Array.Empty<CardUpgradeEffect>(), card.ChineseDescription,
+                    Array.Empty<CardTag>(), card.EnglishDescription);
             selected.Add(resourceCandidates[random.Next(resourceCandidates.Length)]);
         }
 
@@ -504,16 +510,20 @@ public static class CardUpgradeGenerator
             if (acceptedKeywordCandidates.Length > 0)
             {
                 var keyword = PickCandidateByMarginalValue(card, acceptedKeywordCandidates, selected,
-                    count, targetUpgradeValue, random);
-                selected.Add(keyword);
-                keywordCandidates.Remove(keyword);
-                continue;
+                    count, targetUpgradeValue, maximumUpgradeGain, random);
+                if (keyword is not null)
+                {
+                    selected.Add(keyword);
+                    keywordCandidates.Remove(keyword);
+                    continue;
+                }
             }
 
             if (ordinaryCandidates.Count == 0)
                 break;
             var ordinary = PickCandidateByMarginalValue(card, ordinaryCandidates, selected,
-                count, targetUpgradeValue, random);
+                count, targetUpgradeValue, maximumUpgradeGain, random);
+            if (ordinary is null) break;
             selected.Add(ordinary);
             ordinaryCandidates.RemoveAll(candidate => candidate.Effect.Kind == ordinary.Effect.Kind
                 && SameUpgradeAxis(candidate.Effect, ordinary.Effect));
@@ -538,9 +548,10 @@ public static class CardUpgradeGenerator
             {
                 // CandidateWeight retains variation between legal fields, but strongly prefers the field whose
                 // minimum-one integer delta lands closest to the fixed supplemental budget.
-                selected.Add(PickCandidateByMarginalValue(card, lowNumericCandidates, selected,
+                var supplemental = PickCandidateByMarginalValue(card, lowNumericCandidates, selected,
                     selected.Count + 1, EstimatedPlanGain(card, selected) + SupplementalNumericUpgradeBudget,
-                    random));
+                    maximumUpgradeGain, random);
+                if (supplemental is not null) selected.Add(supplemental);
             }
         }
         // Silent alone retains a small native-flavored chance to turn mandatory discard into an additional synergy
@@ -647,9 +658,9 @@ public static class CardUpgradeGenerator
         return Math.Clamp(maximum, 1, 100);
     }
 
-    private static Candidate PickCandidateByMarginalValue(GeneratedCard card,
+    private static Candidate? PickCandidateByMarginalValue(GeneratedCard card,
         IReadOnlyList<Candidate> candidates, IReadOnlyList<Candidate> selected, int targetCount,
-        double targetUpgradeValue, Random random)
+        double targetUpgradeValue, double maximumPlanGain, Random random)
     {
         var accumulated = EstimatedPlanGain(card, selected);
         var remainingSlots = Math.Max(1, targetCount - selected.Count);
@@ -660,7 +671,9 @@ public static class CardUpgradeGenerator
         // trigger frequency and dependent numeric modifiers rather than treating every printed +1 as one hit.
         var fittedCandidates = candidates
             .Select(candidate => FitNumericCandidateToBudget(card, selected, candidate, desiredGain))
+            .Where(candidate => FitsUpgradeCeiling(card, selected, candidate, maximumPlanGain))
             .ToArray();
+        if (fittedCandidates.Length == 0) return null;
         var weights = fittedCandidates.Select(candidate => NativeUpgradeStrengthModel.CandidateWeight(
             EstimatedMarginalGain(card, selected, candidate), desiredGain)).ToArray();
         var total = weights.Sum(weight => (long)weight);
@@ -673,6 +686,10 @@ public static class CardUpgradeGenerator
         return fittedCandidates[^1];
     }
 
+    private static bool FitsUpgradeCeiling(GeneratedCard card, IReadOnlyList<Candidate> selected,
+        Candidate candidate, double maximumPlanGain) =>
+        EstimatedPlanGain(card, selected.Append(candidate).ToArray()) <= maximumPlanGain + 0.001d;
+
     private static Candidate FitNumericCandidateToBudget(GeneratedCard card, IReadOnlyList<Candidate> selected,
         Candidate candidate, double desiredGain)
     {
@@ -681,17 +698,28 @@ public static class CardUpgradeGenerator
             || (uint)operationIndex >= (uint)card.Operations.Count)
             return candidate;
         var operation = card.Operations[operationIndex];
-        // NativeUpgradeValueModel already supplies correct ordinary deltas for Block, Gold, healing, statuses and
-        // single-resolution Damage. Only refit a primary candidate when the complete card proves that one printed
-        // Damage point resolves more than once (intrinsic/static/dynamic hits or a repeated trigger).
-        if (effect.Kind != CardUpgradeKind.IncreaseNumber || !CardEffectRules.IsPrintedDamageReward(operation))
+        // NativeUpgradeValueModel remains the ordinary single-resolution prior. Refit every positive numeric reward
+        // against its complete-card marginal value so repeated/multi-hit fields can shrink and difficult, low-rate
+        // trigger payoffs can grow. The latter used to inherit a tiny unconditional delta (for example 21 -> 23)
+        // even though each added point was expected to resolve far less than once.
+        if (effect.Kind != CardUpgradeKind.IncreaseNumber || !CardEffectRules.IsBeneficialEffect(operation))
             return candidate;
         var sign = effect.Delta > 0 ? 1 : -1;
         var unitEffect = effect with { Delta = sign };
         var unitGain = EstimatedMarginalGain(card, selected, new Candidate(unitEffect));
-        if (unitGain <= EffectBalanceModel.SingleResolutionDamagePointValue(operation) * 1.05d)
-            return candidate;
-        var maximumMagnitude = Math.Max(1, Math.Abs(effect.Delta.Value));
+        if (unitGain <= 0.5d) return candidate;
+        var triggerOwned = operation.Parameters.ContainsKey("triggerIndex");
+        if (!triggerOwned)
+        {
+            // Preserve the cheap native path for ordinary effects. Only an unowned Damage field needs the existing
+            // multi-hit correction; all cadence-aware payoffs carry trigger ownership in generated snapshots.
+            if (!CardEffectRules.IsPrintedDamageReward(operation)
+                || unitGain <= EffectBalanceModel.SingleResolutionDamagePointValue(operation) * 1.05d)
+                return candidate;
+        }
+        var nativeMagnitude = Math.Max(1, Math.Abs(effect.Delta.Value));
+        var maximumMagnitude = PrimaryNumericMaximumMagnitude(card, selected, candidate, unitGain,
+            nativeMagnitude);
         Candidate? best = null;
         var bestDistance = double.MaxValue;
         for (var magnitude = 1; magnitude <= maximumMagnitude; magnitude++)
@@ -704,6 +732,75 @@ public static class CardUpgradeGenerator
             bestDistance = distance;
         }
         return best ?? candidate;
+    }
+
+    private static int PrimaryNumericMaximumMagnitude(GeneratedCard card, IReadOnlyList<Candidate> selected,
+        Candidate candidate, double linkedUnitGain, int nativeMagnitude)
+    {
+        var effect = candidate.Effect;
+        if (effect.OperationIndex is not { } operationIndex
+            || (uint)operationIndex >= (uint)card.Operations.Count)
+            return nativeMagnitude;
+        var operation = card.Operations[operationIndex];
+
+        // These axes have semantic/native caps which are more important than cadence compensation. Draw upgrades
+        // remain +1; Energy, direct Orb counts, durations, and repeated-play counts retain their dedicated limits.
+        if (OperationRuntimeSpecCompiler.ValueUsesX(operation)
+            || NativeUpgradeValueModel.Classify(operation) == NativeUpgradeValueModel.Family.Draw
+            || CardEffectRules.IsDirectOrbChannel(operation)
+            || NumericGenerationTuning.DurationOnlyStackCap(operation, card.Character, card.UnifiedChaos) is not null
+            || operation.Template is "NCR:BlockTripleOstyMaxHp" or "R:PlaySelectedSkillMultipleTimes"
+            || CardEffectRules.IsEnergyGainOperation(operation))
+            return nativeMagnitude;
+
+        var slotId = effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
+        var slot = slotId is null
+            ? null
+            : OperationRuntimeSpecCompiler.GetOrCompile(operation).Values
+                .FirstOrDefault(value => value.Id == slotId);
+        if (slot is null || slot.Source != "fixed") return nativeMagnitude;
+        var currentValue = Math.Max(1, slot.BaseValue + slot.Offset);
+
+        var unlinkedUnitGain = EstimatedUnlinkedUnitGain(card, selected, candidate);
+        if (unlinkedUnitGain <= 0.5d || linkedUnitGain >= unlinkedUnitGain * 0.80d)
+            return Math.Min(nativeMagnitude, currentValue);
+
+        // Compensate low trigger cadence conservatively. The square root avoids turning an exceptionally rare
+        // condition into a 100% numeric upgrade, while the 20%-of-field floor keeps large printed payoffs from
+        // receiving visually negligible +1/+2 changes. Whole-plan ceilings still reject an excessive result.
+        var cadenceScale = Math.Min(3d, Math.Sqrt(unlinkedUnitGain / Math.Max(0.5d, linkedUnitGain)));
+        var cadenceMagnitude = (int)Math.Ceiling(nativeMagnitude * cadenceScale);
+        var largeFieldFloor = (int)Math.Ceiling(currentValue * 0.20d);
+        return Math.Clamp(Math.Max(nativeMagnitude, Math.Max(cadenceMagnitude, largeFieldFloor)),
+            1, currentValue);
+    }
+
+    private static double EstimatedUnlinkedUnitGain(GeneratedCard card, IReadOnlyList<Candidate> selected,
+        Candidate candidate)
+    {
+        if (candidate.Effect.OperationIndex is not { } operationIndex
+            || (uint)operationIndex >= (uint)card.Operations.Count)
+            return 0d;
+        var beforeEffects = selected.Select(item => item.Effect).ToArray();
+        var afterEffects = beforeEffects.Append(candidate.Effect with
+        {
+            Delta = candidate.Effect.Delta is > 0 ? 1 : -1
+        }).ToArray();
+        var beforeOperations = ApplyEffectsToOperations(card.Operations, beforeEffects);
+        var afterOperations = ApplyEffectsToOperations(card.Operations, afterEffects);
+        beforeOperations[operationIndex] = WithoutTriggerOwner(beforeOperations[operationIndex]);
+        afterOperations[operationIndex] = WithoutTriggerOwner(afterOperations[operationIndex]);
+        return Math.Max(0d, EffectBalanceModel.EstimatedPositiveCardValue(afterOperations)
+            - EffectBalanceModel.EstimatedPositiveCardValue(beforeOperations));
+    }
+
+    private static GeneratorOperation WithoutTriggerOwner(GeneratorOperation operation)
+    {
+        if (!operation.Parameters.ContainsKey("triggerIndex")) return operation;
+        var parameters = operation.Parameters
+            .Where(pair => pair.Key != "triggerIndex")
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        return operation with { Parameters = parameters };
     }
 
     private static double EstimatedPlanGain(GeneratedCard card, IReadOnlyList<Candidate> selected)
@@ -752,6 +849,12 @@ public static class CardUpgradeGenerator
     private static double EstimatedMarginalGain(GeneratedCard card, IReadOnlyList<Candidate> selected,
         Candidate candidate)
     {
+        if (candidate.Effect.Kind == CardUpgradeKind.IncreaseNumber
+            && candidate.Effect.OperationIndex is { } downsideIndex
+            && (uint)downsideIndex < (uint)card.Operations.Count
+            && card.Operations[downsideIndex].Template == "N:Discard")
+            // Silent's optional +1 mandatory-discard rider is a drawback, not 200 points of positive upgrade.
+            return 0d;
         if (IsXValueUpgrade(card, candidate.Effect))
             return 500d;
 

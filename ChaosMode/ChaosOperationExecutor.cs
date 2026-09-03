@@ -113,6 +113,16 @@ internal static class ChaosOperationExecutor
         if (missing.Length > 0 || stale.Length > 0)
             throw new InvalidOperationException("Derivative producer runtime coverage mismatch. Missing: ["
                 + string.Join(", ", missing) + "]; stale: [" + string.Join(", ", stale) + "].");
+
+        var extraHitSpecs = Enum.GetValues<GeneratedCharacter>()
+            .SelectMany(character => CharacterComponentCatalogs.Get(character).Atoms)
+            .Where(atom => atom.Scope == OperationScope.Modifier
+                && OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("static_extra_damage_hits"))
+            .Select(OperationRuntimeSpecCompiler.GetOrCompile)
+            .ToArray();
+        if (extraHitSpecs.Length == 0 || extraHitSpecs.Any(spec => !IsFlatExtraHitModifier(spec)))
+            throw new InvalidOperationException(
+                "Static extra-hit modifiers must share the structured independent-hit execution path.");
     }
 
     public static async Task Play(ChaosCardModel card, PlayerChoiceContext choiceContext, CardPlay cardPlay)
@@ -487,10 +497,12 @@ internal static class ChaosOperationExecutor
         // into producers that defensively clamp their count to one would otherwise create a card/orb despite the
         // printed “for each” clause having no matches.
         if (dependencyMultiplier <= 0) return;
-        amount *= dependencyMultiplier;
-        // Persistent Powers snapshot powered Damage when played. For Mind Blast/Gold Axe dependencies the flat
-        // Strength/Vigor contribution is stored separately so it is added once after the live-count multiplier,
-        // matching CalculatedDamageVar rather than becoming part of the per-card coefficient.
+        // Count prefixes repeat Damage actions (and therefore their hit/on-hit behavior). Other numeric actions
+        // still collapse to one total amount: gaining Block 2 five times is executed as gaining 10 Block.
+        if (!IsRepeatedDependencyDamagePayoff(card, index))
+            amount *= dependencyMultiplier;
+        // Persistent Powers snapshot powered Damage when played. Dynamic damage components still recompute their
+        // base amount here; DamageAndHits then applies Strength/Vigor once per actual hit.
         amount += card.CapturedExternalDamageBonus(index);
 
         // All of these operations mean “create the slotted derivative in Hand”. Dispatch by the stable producer
@@ -508,7 +520,7 @@ internal static class ChaosOperationExecutor
             return;
         }
 
-        if (await TryExecuteStructuredCommon(card, choiceContext, cardPlay, state, runtimeSpec, amount))
+        if (await TryExecuteStructuredCommon(card, index, choiceContext, cardPlay, state, runtimeSpec, amount))
             return;
         if (await TryExecuteStructuredDamage(card, index, choiceContext, cardPlay, state,
                 runtimeSpec, amount, combatState))
@@ -673,7 +685,7 @@ internal static class ChaosOperationExecutor
     /// enter this path before their legacy character switch, so identical actions cannot drift between pools.
     /// Proxy operations remain native and are filtered by the caller before reaching this method.
     /// </summary>
-    private static async Task<bool> TryExecuteStructuredCommon(ChaosCardModel card,
+    private static async Task<bool> TryExecuteStructuredCommon(ChaosCardModel card, int operationIndex,
         PlayerChoiceContext choiceContext, CardPlay cardPlay, ChaosExecutionState state,
         OperationRuntimeSpec spec, int amount)
     {
@@ -686,7 +698,7 @@ internal static class ChaosOperationExecutor
         {
             case ("gain_block", "immediate"):
             {
-                var block = ApplyBlockModifiers(card, amount);
+                var block = ApplyBlockModifiers(card, amount, operationIndex, state.Target);
                 var blockProps = state.IsTriggered ? ValueProp.Unpowered : ValueProp.Move;
                 var blockCardPlay = state.IsTriggered ? null : cardPlay;
                 await CreatureCmd.GainBlock(card.Owner.Creature, block, blockProps, blockCardPlay);
@@ -871,6 +883,9 @@ internal static class ChaosOperationExecutor
         if (spec.Opcode != "deal_damage") return false;
 
         var baseHits = Math.Max(0, RuntimeSpecValue(card, operationIndex, "hits", 1));
+        if (spec.Variant == "cards_played_combat")
+            amount = CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                entry.CardPlay.Player == card.Owner);
         if (spec.Variant == "selected_per_energy_spent_this_turn"
             && !(card.Generated.Operations[operationIndex].Parameters
                 .TryGetValue("triggerIndex", out var linkedTriggerIndex)
@@ -2792,15 +2807,20 @@ internal static class ChaosOperationExecutor
         var hasDynamicHitTotal = false;
         var dynamicHitTotal = 0;
         var additionalHits = 0;
+        if (damageOperationIndex >= 0 && IsRepeatedDependencyDamagePayoff(card, damageOperationIndex))
+            baseHits *= DependencyMultiplier(card, damageOperationIndex, state.Target,
+                state.PriorAttackHitsOnTargetAtPlayStart);
         for (var index = 0; index < card.Generated.Operations.Count; index++)
         {
             var modifier = card.Generated.Operations[index];
             if (modifier.Scope != OperationScope.Modifier) continue;
             if (!ModifierConditionMatches(card, modifier, state)) continue;
             var modifierAmount = card.OperationAmount(index);
-            var modifierSpec = modifier.Template is "M:base" or "M:repeat"
-                ? EffectiveRuntimeSpec(card, index)
-                : null;
+            var dependencyRepeats = ModifierDependencyMultiplier(card, index, state);
+            // All generated modifiers carry a structured contract. Resolve extra hits by semantic opcode/flag
+            // rather than by the character-specific template name so conditional D:/R:/M: variants all produce
+            // independent attack hits through the same execution path.
+            var modifierSpec = EffectiveRuntimeSpec(card, index);
             if (CardEffectRules.IsCurrentBlockDamageModifier(modifier))
             {
                 // M:value replaces only its own hidden T:D anchor. Older builds applied it to every damage line,
@@ -2812,30 +2832,34 @@ internal static class ChaosOperationExecutor
             }
             else if (modifier.Template == "M:DamagePerExhaustCard"
                      || modifierSpec?.Variant == "exhaust_pile_scaled")
-                damage += modifierAmount * PileType.Exhaust.GetPile(card.Owner).Cards.Count;
+                damage += modifierAmount * PileType.Exhaust.GetPile(card.Owner).Cards.Count * dependencyRepeats;
             else if (modifierSpec?.Variant == "vulnerable_scaled")
-                damage += modifierAmount * (state.Target?.GetPower<VulnerablePower>()?.Amount ?? 0);
+                damage += modifierAmount * (state.Target?.GetPower<VulnerablePower>()?.Amount ?? 0)
+                    * dependencyRepeats;
             else if (modifierSpec?.Variant == "strike_count_scaled")
                 damage += modifierAmount * (card.Owner.PlayerCombatState?.AllCards.Count(candidate =>
-                    candidate.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Strike)) ?? 0);
+                    candidate.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Strike)) ?? 0)
+                    * dependencyRepeats;
             else if (modifier.Template == "M:RepeatPerAttackThisTurn")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += combatState is null ? 0 : CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                dynamicHitTotal += (combatState is null ? 0 : CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
                     entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Type == CardType.Attack
-                    && entry.HappenedThisTurn(combatState));
+                    && entry.HappenedThisTurn(combatState))) * dependencyRepeats;
             }
             else if (modifier.Template == "M:RepeatPerSkillInHand")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += PileType.Hand.GetPile(card.Owner).Cards.Count(candidate => candidate.Type == CardType.Skill);
+                dynamicHitTotal += PileType.Hand.GetPile(card.Owner).Cards.Count(candidate => candidate.Type == CardType.Skill)
+                    * dependencyRepeats;
             }
             else if (modifier.Template == "M:DamagePerDiscardThisTurn")
                 damage += modifierAmount * (combatState is null ? 0 : CombatManager.Instance.History.Entries
                     .OfType<CardDiscardedEntry>().Count(entry => entry.Actor == card.Owner.Creature
-                        && entry.HappenedThisTurn(combatState)));
+                        && entry.HappenedThisTurn(combatState))) * dependencyRepeats;
             else if (modifier.Template == "M:DamagePerCardDrawnCombat")
-                damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardDrawnEntry>().Count(entry => entry.Actor == card.Owner.Creature);
+                damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardDrawnEntry>()
+                    .Count(entry => entry.Actor == card.Owner.Creature) * dependencyRepeats;
             else if (modifier.Template == "M:DamageMinusPerCardInHand")
             {
                 var handCount = PileType.Hand.GetPile(card.Owner).Cards.Count;
@@ -2845,10 +2869,10 @@ internal static class ChaosOperationExecutor
             else if (modifier.Template == "D:RepeatPerOrb")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += playerCombatState?.OrbQueue.Orbs.Count ?? 0;
+                dynamicHitTotal += (playerCombatState?.OrbQueue.Orbs.Count ?? 0) * dependencyRepeats;
             }
-            else if (modifier.Template == "D:RepeatDamage")
-                additionalHits += Math.Max(1, modifierAmount);
+            else if (IsFlatExtraHitModifier(modifierSpec))
+                additionalHits += Math.Max(1, modifierAmount) * dependencyRepeats;
             else if (modifier.Template == "D:RepeatPerEnergySpentThisTurn"
                      && modifier.Scope == OperationScope.Modifier)
             {
@@ -2861,12 +2885,12 @@ internal static class ChaosOperationExecutor
                     && card.Generated.Operations[index - 1].Template == "D:ForEachEnergySpentThisTurn"
                         ? RuntimeSpecValue(card, index - 1, "threshold", 1)
                         : 1;
-                dynamicHitTotal += Math.Max(0, spent) / Math.Max(1, threshold);
+                dynamicHitTotal += Math.Max(0, spent) / Math.Max(1, threshold) * dependencyRepeats;
             }
             else if (modifier.Template == "NCR:DamagePerCardDrawnThisTurn")
                 damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardDrawnEntry>()
                     .Count(entry => combatState is not null && entry.Actor == card.Owner.Creature
-                        && entry.HappenedThisTurn(combatState));
+                        && entry.HappenedThisTurn(combatState)) * dependencyRepeats;
             else if (modifier.Template == "NCR:OstyMaxHpBonusDamage")
                 damage += card.Owner.Osty?.MaxHp ?? 0;
             else if (modifier.Template == "NCR:OstyCurrentHpBonusDamage")
@@ -2875,49 +2899,49 @@ internal static class ChaosOperationExecutor
             {
                 hasDynamicHitTotal = true;
                 dynamicHitTotal += CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
-                    entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Keywords.Contains(CardKeyword.Ethereal));
+                    entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Keywords.Contains(CardKeyword.Ethereal))
+                    * dependencyRepeats;
             }
             else if (modifier.Template == "NCR:RepeatPerOstyAttackThisTurn")
                 additionalHits += CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
                     entry.CardPlay.Player == card.Owner
                     && entry.CardPlay.Card.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)
-                    && combatState is not null && entry.HappenedThisTurn(combatState));
+                    && combatState is not null && entry.HappenedThisTurn(combatState)) * dependencyRepeats;
             else if (modifier.Template == "NCR:DamagePerExhaustedSoul")
             {
                 var prefix = index > 0 && card.Generated.Operations[index - 1].Template == "NCR:ForEachExhaustedSoul"
                     ? card.Generated.Operations[index - 1]
                     : card.Generated.Operations.FirstOrDefault(candidate => candidate.Template == "NCR:ForEachExhaustedSoul");
                 damage += modifierAmount * (prefix is null ? 0 : PileType.Exhaust.GetPile(card.Owner).Cards
-                    .Count(candidate => ChaosDerivativeResolver.Matches(candidate, prefix)));
+                    .Count(candidate => ChaosDerivativeResolver.Matches(candidate, prefix))) * dependencyRepeats;
             }
             else if (modifier.Template == "NCR:DamagePerOstyAttackCard")
                 damage += modifierAmount * (playerCombatState?.AllCards.Count(candidate =>
-                    candidate.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)) ?? 0);
-            else if (modifier.Template == "R:RepeatDamage")
-                additionalHits += Math.Max(1, modifierAmount);
+                    candidate.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)) ?? 0)
+                    * dependencyRepeats;
             else if (modifier.Template == "R:BonusPerStarCostCardInHand")
-                damage += modifierAmount * (playerCombatState?.AllCards.Count(candidate =>
-                    candidate.CanonicalStarCost >= 0 || candidate.HasStarCostX) ?? 0);
+                damage += modifierAmount * dependencyRepeats;
             else if (modifier.Template == "R:RepeatPerSkillPlayedThisTurn")
             {
                 hasDynamicHitTotal = true;
                 dynamicHitTotal += CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
                     entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Type == CardType.Skill
-                    && combatState is not null && entry.HappenedThisTurn(combatState));
+                    && combatState is not null && entry.HappenedThisTurn(combatState)) * dependencyRepeats;
             }
             else if (modifier.Template == "R:RepeatPerStarGainedThisTurn")
             {
                 hasDynamicHitTotal = true;
                 dynamicHitTotal += CombatManager.Instance.History.Entries.OfType<StarsModifiedEntry>()
                     .Where(entry => entry.Actor == card.Owner.Creature && entry.Amount > 0
-                        && combatState is not null && entry.HappenedThisTurn(combatState)).Sum(entry => entry.Amount);
+                        && combatState is not null && entry.HappenedThisTurn(combatState)).Sum(entry => entry.Amount)
+                    * dependencyRepeats;
             }
             else if (modifier.Template == "R:BonusPerGeneratedCardThisCombat")
                 damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardGeneratedEntry>()
-                    .Count(entry => entry.Creator == card.Owner);
+                    .Count(entry => entry.Creator == card.Owner) * dependencyRepeats;
             else if (modifier.Template == "CL:BonusPerUniqueDebuff")
                 damage += modifierAmount * (state.Target?.Powers.Count(power =>
-                    power.Type == PowerType.Debuff && power is not ITemporaryPower) ?? 0);
+                    power.Type == PowerType.Debuff && power is not ITemporaryPower) ?? 0) * dependencyRepeats;
             else if (IsExternallyScaledDamageDependency(modifier))
             {
                 // The multiplier is already applied to the following damage operation before this method is
@@ -2925,11 +2949,32 @@ internal static class ChaosOperationExecutor
                 // belongs to the payoff.
             }
             else if (modifierSpec?.Variant == "hp_loss_scaled")
-                additionalHits += modifierAmount * HpLossCount(card);
-            else if (modifierSpec?.Variant == "flat_extra") additionalHits += modifierAmount;
+                additionalHits += modifierAmount * HpLossCount(card) * dependencyRepeats;
         }
         var hits = (hasDynamicHitTotal ? dynamicHitTotal : Math.Max(0, baseHits)) + additionalHits;
         return (damage, Math.Max(0, hits));
+    }
+
+    internal static bool IsFlatExtraHitModifier(OperationRuntimeSpec? spec) =>
+        spec is not null && (spec.Opcode == "modify_hits" && spec.Variant == "flat_extra"
+            || spec.Flags.Contains("static_extra_damage_hits"));
+
+    private static bool IsRepeatedDependencyDamagePayoff(ChaosCardModel card, int operationIndex)
+    {
+        var prefix = DependencyPrefix(card, operationIndex);
+        return prefix is not null && CardEffectRules.IsMultiplicativeDependencyPrefix(prefix)
+            && CardEffectRules.IsEnemyDamage(card.Generated.Operations[operationIndex]);
+    }
+
+    private static int ModifierDependencyMultiplier(ChaosCardModel card, int modifierIndex,
+        ChaosExecutionState state)
+    {
+        var modifier = card.Generated.Operations[modifierIndex];
+        var prefix = DependencyPrefix(card, modifierIndex);
+        if (prefix is null || !CardEffectRules.IsMultiplicativeDependencyPrefix(prefix)
+            || !CardEffectRules.IsRepeatableDependencyModifier(modifier)) return 1;
+        return Math.Max(0, DependencyMultiplier(card, modifierIndex, state.Target,
+            state.PriorAttackHitsOnTargetAtPlayStart));
     }
 
     internal static void IncreaseCardDamageForRun(ChaosCardModel card, int amount)
@@ -2988,7 +3033,8 @@ internal static class ChaosOperationExecutor
             damage, ValueProp.Move, card, null, ModifyDamageHookType.All, CardPreviewMode.None, out _);
     }
 
-    internal static decimal ApplyBlockModifiers(ChaosCardModel card, int baseBlock)
+    internal static decimal ApplyBlockModifiers(ChaosCardModel card, int baseBlock, int blockOperationIndex = -1,
+        Creature? target = null)
     {
         decimal block = baseBlock + card.ExtraBlock;
         for (var index = 0; index < card.Generated.Operations.Count; index++)
@@ -3001,7 +3047,9 @@ internal static class ChaosOperationExecutor
                 var strength = Math.Max(0, card.Owner.Creature.GetPower<StrengthPower>()?.Amount ?? 0);
                 var interval = RuntimeSpecValue(card, index, "strength_interval", 1);
                 var bonus = RuntimeSpecValue(card, index, "block_per_interval", 0);
-                block += strength / Math.Max(1, interval) * bonus;
+                var dependencyRepeats = ModifierDependencyMultiplier(card, index,
+                    new ChaosExecutionState { Target = target });
+                block += strength / Math.Max(1, interval) * bonus * dependencyRepeats;
             }
         }
         return block;
@@ -3131,7 +3179,8 @@ internal static class ChaosOperationExecutor
             "R:ForEachGeneratedCardCombat" => CombatManager.Instance.History.Entries.OfType<CardGeneratedEntry>()
                 .Count(entry => entry.Creator == card.Owner),
             // Gold Axe counts every completed card play in the combat, matching the original implementation.
-            "CL:ForEachCardPlayedCombat" => CombatManager.Instance.History.CardPlaysFinished.Count(),
+            "CL:ForEachCardPlayedCombat" => CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                entry.CardPlay.Player == card.Owner),
             "CL:ForEachDrawPileCard" => PileType.Draw.GetPile(card.Owner).Cards.Count,
             _ => 1
         };

@@ -62,18 +62,19 @@ public static class OstyPoolConstraintResolver
             foreach (var index in candidates)
             {
                 var requiredXClass = XClass(cards[index]);
-                for (var attempt = 0; attempt < replacementAttemptLimit; attempt++)
+                try
                 {
                     var replacement = requiredXClass switch
                     {
-                        2 => generator.GenerateSpecialX(rarities[index]),
-                        _ => generator.GenerateWithoutSpecialX(rarities[index])
+                        2 => generator.GenerateReferenceFreeSpecialXMatching(rarities[index],
+                            card => XClass(card) == requiredXClass && !HasOstyEffect(card)),
+                        _ => generator.GenerateWithoutSpecialXMatching(rarities[index],
+                            card => XClass(card) == requiredXClass && !HasOstyEffect(card))
                     };
-                    if (XClass(replacement) != requiredXClass || HasOstyEffect(replacement)) continue;
                     cards[index] = replacement;
                     replaced = true;
-                    break;
                 }
+                catch (InvalidOperationException) { }
                 if (replaced) break;
             }
 
