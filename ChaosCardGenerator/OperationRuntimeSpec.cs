@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
+using System.Globalization;
 
 namespace ChaosCardGenerator;
 
@@ -81,13 +82,16 @@ public sealed record OperationRuntimeSpec(
     private static string BuildStableSignature(OperationRuntimeSpec spec)
     {
         var builder = new StringBuilder()
-            .Append(spec.SchemaVersion).Append('|').Append(spec.Opcode).Append('|').Append(spec.Variant).Append('|')
+            .Append(spec.SchemaVersion.ToString(CultureInfo.InvariantCulture)).Append('|')
+            .Append(spec.Opcode).Append('|').Append(spec.Variant).Append('|')
             .Append(spec.Target).Append('|').Append(spec.SourceZone).Append('|').Append(spec.DestinationZone).Append('|')
             .Append(spec.CardFilter).Append('|');
         foreach (var flag in spec.Flags.Order(StringComparer.Ordinal)) builder.Append("f:").Append(flag).Append(';');
         foreach (var value in spec.Values.OrderBy(value => value.Id, StringComparer.Ordinal))
-            builder.Append("v:").Append(value.Id).Append('=').Append(value.BaseValue).Append('@')
-                .Append(value.Source).Append('+').Append(value.Offset).Append(':')
+            builder.Append("v:").Append(value.Id).Append('=')
+                .Append(value.BaseValue.ToString(CultureInfo.InvariantCulture)).Append('@')
+                .Append(value.Source).Append('+')
+                .Append(value.Offset.ToString(CultureInfo.InvariantCulture)).Append(':')
                 .Append(value.Upgradable ? '1' : '0').Append(':')
                 .Append(value.Explicit ? '1' : '0').Append(';');
         if (spec.Condition is not null)

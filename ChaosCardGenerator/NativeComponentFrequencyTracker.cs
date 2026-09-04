@@ -10,6 +10,8 @@ namespace ChaosCardGenerator;
 public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
 {
     private const double PriorCards = 0.5d;
+    private readonly GeneratedCharacter _catalogCharacter;
+    private readonly bool _unifiedChaos;
     private readonly IReadOnlyDictionary<GeneratedCardType, int> _sourceCardsByType;
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, GeneratedCardType Type), int>
         _sourceCardsByRarityType;
@@ -37,7 +39,8 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
 
     public NativeComponentFrequencyTracker(IComponentCatalog catalog, bool unifiedChaos = false)
     {
-        _ = unifiedChaos; // The supplied catalog already represents either one native pool or the weighted union.
+        _catalogCharacter = catalog.Character;
+        _unifiedChaos = unifiedChaos;
         _sourceCardsByType = catalog.Recipes.GroupBy(recipe => recipe.Type)
             .ToDictionary(group => group.Key, group => group.Count());
         _sourceCardsByRarityType = catalog.Recipes.GroupBy(recipe => (recipe.OriginalRarity, recipe.Type))
@@ -190,10 +193,14 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
             : NativeComponentRole.ConditionalPayoff;
     }
 
-    private double TargetMultiplier(string family) =>
-        _atomsByFamily.TryGetValue(family, out var atoms) && atoms.Any(ComponentPolicy.HasReplaceableSlot)
-            ? 1.10d
-            : 1d;
+    private double TargetMultiplier(string family)
+    {
+        if (!_atomsByFamily.TryGetValue(family, out var atoms)) return 1d;
+        var multiplier = atoms.Any(ComponentPolicy.HasReplaceableSlot) ? 1.10d : 1d;
+        multiplier *= EffectSelectionTuning.NecrobinderBlockAndSummonWeight(atoms, _catalogCharacter,
+            _unifiedChaos) / 100d;
+        return multiplier;
+    }
 
     private double TargetRate(GeneratedRarity rarity, GeneratedCardType type, NativeComponentRole role,
         string family)

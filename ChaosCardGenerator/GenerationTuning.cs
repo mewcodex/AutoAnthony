@@ -11,6 +11,10 @@ internal static class EffectSelectionTuning
 {
     private const int UltimateOstyFamilyWeightPercent = 60;
     private const int BasicDownsideWeightPercent = 30;
+    // In the native Necrobinder pool, direct Block plus Summon occupies substantially more family mass than direct
+    // Block alone. The native-frequency policy applies one shared target-rate factor, preserving their internal
+    // ratio while bringing their combined mass close to the former Block mass and making room for damage payoffs.
+    internal const int NecrobinderBlockAndSummonWeightPercent = 35;
 
     /// <summary>
     /// Resource-positive feedback loops become degenerate much sooner than ordinary numeric payoffs. Keep them
@@ -255,6 +259,22 @@ internal static class EffectSelectionTuning
         return Average(atoms, atom => IsOstyDependent(atom) ? UltimateOstyFamilyWeightPercent : 100);
     }
 
+    internal static int NecrobinderBlockAndSummonWeight(IEnumerable<ComponentAtom> family,
+        GeneratedCharacter character, bool ultimateChaos)
+    {
+        if (ultimateChaos || character != GeneratedCharacter.Necrobinder) return 100;
+        var atoms = family as ComponentAtom[] ?? family.ToArray();
+        return atoms.Any(atom =>
+        {
+            var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+            return spec.Flags.Contains("block_reference")
+                || spec.Opcode == "gain_block"
+                || atom.Template is "NCR:Summon" or "NCR:SummonX";
+        })
+            ? NecrobinderBlockAndSummonWeightPercent
+            : 100;
+    }
+
     internal static bool IsOstyDependent(ComponentAtom atom) =>
         atom.Template.Contains("Osty", StringComparison.Ordinal)
         || atom.Template == "A:ProxyAtomic_Calcify";
@@ -328,6 +348,9 @@ internal static class EffectSelectionTuning
 /// <summary>Shared numeric sampling policy. Mechanism-specific bounds live here instead of in the assembly loop.</summary>
 internal static class NumericGenerationTuning
 {
+    internal const int MaximumPercentageDamageReduction = 95;
+    internal const int MaximumCardActionCount = 10;
+
     internal static int OriginalValueChance(ComponentAtom atom, int benefitLines) => atom.Template switch
     {
         "NCR:OstyDamage" or "NCR:OstyAllDamage" => 1,
@@ -443,6 +466,10 @@ internal static class NumericGenerationTuning
         IReadOnlyList<GeneratorOperation> previous, GeneratedCharacter? character = null,
         bool ultimateChaos = false)
     {
+        var fixedSlot = OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(atom).ElementAtOrDefault(slot);
+        if (fixedSlot is not null)
+            value = ClampUniversalFixedValue(atom.Template, OperationRuntimeSpecCompiler.GetOrCompile(atom),
+                fixedSlot.Id, value);
         if (slot == 0 && DurationOnlyStackCap(atom.Template,
                 OperationRuntimeSpecCompiler.GetOrCompile(atom), character, ultimateChaos) is { } cap)
             return Math.Clamp(value, 1, cap);
@@ -496,6 +523,67 @@ internal static class NumericGenerationTuning
                 or "NCR:IncreaseAllCardCostsThisTurn")
             return Math.Clamp(value, 1, 3);
         return value;
+    }
+
+    /// <summary>
+    /// Final bounds that describe engine/UI-safe value domains rather than the ordinary balance profile. These
+    /// limits therefore apply to balanced generation, Numeric Random mode, whole-card rescaling and upgrades.
+    /// They are intentionally structural: localized prose is never inspected here.
+    /// </summary>
+    internal static int ClampUniversalFixedValue(string template, OperationRuntimeSpec spec, string slotId,
+        int value)
+    {
+        if (slotId == "percentage"
+            && spec.Trigger?.Kind == "vulnerable_enemy_damage_reduction")
+            return Math.Min(MaximumPercentageDamageReduction, value);
+        if (IsCardActionCountSlot(template, spec, slotId))
+            return Math.Min(MaximumCardActionCount, value);
+        return value;
+    }
+
+    internal static int ClampUniversalFixedValue(GeneratorOperation operation, string slotId, int value) =>
+        ClampUniversalFixedValue(operation.Template, OperationRuntimeSpecCompiler.GetOrCompile(operation),
+            slotId, value);
+
+    internal static int? UniversalFixedValueCap(GeneratorOperation operation, string slotId)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        if (slotId == "percentage"
+            && spec.Trigger?.Kind == "vulnerable_enemy_damage_reduction")
+            return MaximumPercentageDamageReduction;
+        return IsCardActionCountSlot(operation.Template, spec, slotId)
+            ? MaximumCardActionCount
+            : null;
+    }
+
+    private static bool IsCardActionCountSlot(string template, OperationRuntimeSpec spec, string slotId)
+    {
+        if (spec.Opcode == "draw_cards") return slotId == "draw";
+        if (spec.Opcode == "draw_and_discard") return slotId == "draw";
+        if (spec.Opcode is "create_card" or "create_copy" or "exhaust_card" or "discard_card"
+                or "move_card")
+            return slotId is "amount" or "count";
+        if (spec.Opcode == "choose_generated_card") return slotId is "choices" or "picks";
+        if (DerivativeSlotCatalog.IsProducer(template)) return slotId is "amount" or "count";
+        if (CardEffectRules.IsRandomCardGenerationBySpec(template, spec))
+            return slotId is "amount" or "count";
+
+        // These reviewed compound/native actions still use template opcodes, but their variable is likewise a
+        // number of cards acted upon. Keep this small compatibility list here until those operations migrate to
+        // the generic card-action opcodes above.
+        return slotId is "amount" or "count" or "draw" or "choices" or "picks"
+            && template is
+                "CL:TransformSelectedHandCards" or "CL:ExhaustUpToHandCards"
+                or "CL:ChooseFromRandomDrawCards" or "CL:ProxyAtomic_Discovery"
+                or "CL:ProxyAtomic_Splash" or "I:ProxyAtomic_Quasar"
+                or "CL:ProxyAtomic_BeatDown" or "CL:ProxyAtomic_Catastrophe"
+                or "D:AutoPlayRandomAttackFromDraw" or "I:AutoPlayRandomAttackFromHand"
+                or "I:PlayTopXCards" or "R:PlaySelectedSkillMultipleTimes"
+                or "I:CopySelectedCardNextTurn" or "I:ProxyAtomic_ForegoneConclusion"
+                or "I:ProxyAtomic_Dredge" or "I:ProxyAtomic_Charge"
+                or "N:NextTurnDraw" or "I:DrawWithRetain" or "NCR:UpgradeRandomDiscardCards"
+                or "I:ReplayNextSkills" or "C:grantNextAttacksThisTurn"
+                or "A:VoidFormFirstCardsFree";
     }
 
     /// <summary>
@@ -871,7 +959,7 @@ internal static class NegativeEffectTuning
             // card disappears. Preserve the reviewed 2.26 combined factor as an explicit interaction multiplier.
             if (hasExhaust && hasEthereal) multiplier *= 2.26d / (1.45d * 1.07d);
         }
-        if (paidReusableCopies > 0) multiplier *= Math.Pow(1.14d, paidReusableCopies);
+        multiplier *= CopyThisCardValuation.PaidReusableMultiplier(paidReusableCopies);
         return Math.Max(1d, multiplier);
     }
 

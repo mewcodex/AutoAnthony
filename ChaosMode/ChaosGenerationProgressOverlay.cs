@@ -127,6 +127,15 @@ internal sealed class ChaosGenerationProgressOverlay : IDisposable
         ForceDrawSafely();
     }
 
+    internal void ShowWaitingForPlayers()
+    {
+        if (_disposed || _label is null) return;
+        var chinese = LocManager.Instance?.Language is "zhs" or "zht";
+        _label.Text = chinese ? "等待其他玩家生成卡池……" : "Waiting for other players to generate card pools...";
+        _lastDrawTimestamp = Stopwatch.GetTimestamp();
+        ForceDrawSafely();
+    }
+
     public void Dispose()
     {
         if (_disposed) return;

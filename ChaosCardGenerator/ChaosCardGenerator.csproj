@@ -15,5 +15,7 @@
     <EmbeddedResource Include="..\colorless_unit_operations.md" Link="Data\colorless_unit_operations.md" />
     <EmbeddedResource Include="Data\catalog_runtime_specs.json" />
     <EmbeddedResource Include="Data\catalog_recipes.json" />
+    <EmbeddedResource Include="Data\native_reference_cards.json" />
+    <EmbeddedResource Include="Data\native_reference_components.json" />
   </ItemGroup>
 </Project>

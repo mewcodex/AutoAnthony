@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Globalization;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -189,16 +190,21 @@ public static class ChaosPoolSnapshot
         var builder = new StringBuilder(256 * 1024);
         foreach (var character in ChaosRunDefinitions.SupportedPools)
         {
-            builder.Append((int)character).Append(':');
+            AppendFingerprintInt(builder, (int)character).Append(':');
             foreach (var definition in pools[character].OrderBy(definition => definition.Slot))
             {
                 var card = definition.Card;
-                builder.Append(definition.Slot).Append('|')
-                    .Append(card.Cost).Append('|').Append(card.StarCost).Append('|')
+                AppendFingerprintInt(builder, definition.Slot).Append('|');
+                AppendFingerprintInt(builder, card.Cost).Append('|');
+                AppendFingerprintInt(builder, card.StarCost).Append('|')
                     .Append(card.HasStarCostX ? '1' : '0').Append('|')
-                    .Append((int)card.Type).Append('|').Append((int)card.Target).Append('|')
-                    .Append((int)card.Rarity).Append('|').Append(card.UnifiedChaos ? '1' : '0').Append('|');
-                foreach (var tag in card.Tags.OrderBy(tag => tag)) builder.Append((int)tag).Append(',');
+                    ;
+                AppendFingerprintInt(builder, (int)card.Type).Append('|');
+                AppendFingerprintInt(builder, (int)card.Target).Append('|');
+                AppendFingerprintInt(builder, (int)card.Rarity).Append('|')
+                    .Append(card.UnifiedChaos ? '1' : '0').Append('|');
+                foreach (var tag in card.Tags.OrderBy(tag => tag))
+                    AppendFingerprintInt(builder, (int)tag).Append(',');
                 builder.Append('|');
                 foreach (var keyword in (card.CustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal))
                     AppendFingerprintToken(builder, keyword);
@@ -207,18 +213,19 @@ public static class ChaosPoolSnapshot
                 {
                     var operation = card.Operations[operationIndex];
                     AppendFingerprintToken(builder, operation.Template);
-                    builder.Append((int)operation.Scope).Append('|')
+                    AppendFingerprintInt(builder, (int)operation.Scope).Append('|')
                         .Append(operation.RequiresSingleTarget ? '1' : '0').Append('|');
                     AppendFingerprintToken(builder, operation.CardTargetSlot);
                     AppendFingerprintToken(builder, operation.DerivativeId);
                     AppendFingerprintToken(builder, operation.DerivativeEnchantmentId);
                     AppendFingerprintToken(builder, operation.OrbSourceId);
                     AppendFingerprintToken(builder, operation.OrbOutputId);
-                    builder.Append(operation.DerivativeEnchantmentAmount?.ToString() ?? "-").Append('|');
+                    builder.Append(operation.DerivativeEnchantmentAmount?.ToString(CultureInfo.InvariantCulture)
+                                   ?? "-").Append('|');
                     foreach (var parameter in operation.Parameters.OrderBy(pair => pair.Key, StringComparer.Ordinal))
                     {
                         AppendFingerprintToken(builder, parameter.Key);
-                        builder.Append(parameter.Value).Append(',');
+                        AppendFingerprintInt(builder, parameter.Value).Append(',');
                     }
                     builder.Append('|');
                     var spec = definition.RuntimeSpecs is { Count: > 0 }
@@ -231,12 +238,13 @@ public static class ChaosPoolSnapshot
                 builder.Append('|');
                 if (card.Upgrade is { } upgrade)
                 {
-                    builder.Append(upgrade.UpgradedCost).Append('|')
-                        .Append(upgrade.UpgradedStarCost?.ToString() ?? "-").Append('|');
+                    AppendFingerprintInt(builder, upgrade.UpgradedCost).Append('|')
+                        .Append(upgrade.UpgradedStarCost?.ToString(CultureInfo.InvariantCulture) ?? "-")
+                        .Append('|');
                     foreach (var tag in upgrade.AddedKeywords.OrderBy(tag => tag))
-                        builder.Append('+').Append((int)tag).Append(',');
+                        AppendFingerprintInt(builder.Append('+'), (int)tag).Append(',');
                     foreach (var tag in (upgrade.RemovedKeywords ?? []).OrderBy(tag => tag))
-                        builder.Append('-').Append((int)tag).Append(',');
+                        AppendFingerprintInt(builder.Append('-'), (int)tag).Append(',');
                     foreach (var keyword in (upgrade.AddedCustomKeywords ?? []).OrderBy(id => id, StringComparer.Ordinal))
                     {
                         builder.Append('+');
@@ -251,9 +259,10 @@ public static class ChaosPoolSnapshot
                     for (var effectIndex = 0; effectIndex < upgrade.Effects.Count; effectIndex++)
                     {
                         var effect = upgrade.Effects[effectIndex];
-                        builder.Append((int)effect.Kind).Append(',')
-                            .Append(effect.OperationIndex?.ToString() ?? "-").Append(',')
-                            .Append(effect.Delta?.ToString() ?? "-").Append(',');
+                        AppendFingerprintInt(builder, (int)effect.Kind).Append(',')
+                            .Append(effect.OperationIndex?.ToString(CultureInfo.InvariantCulture) ?? "-")
+                            .Append(',')
+                            .Append(effect.Delta?.ToString(CultureInfo.InvariantCulture) ?? "-").Append(',');
                         AppendFingerprintToken(builder,
                             definition.UpgradeValueSlots is { Count: > 0 }
                             && effectIndex < definition.UpgradeValueSlots.Count
@@ -263,7 +272,9 @@ public static class ChaosPoolSnapshot
                         builder.Append(';');
                     }
                 }
-                builder.AppendLine();
+                // Fingerprints are compared across Windows/Linux peers. StringBuilder.AppendLine uses the host
+                // platform newline (CRLF vs LF), so identical generated pools previously hashed differently.
+                builder.Append('\n');
             }
         }
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()));
@@ -275,6 +286,9 @@ public static class ChaosPoolSnapshot
         value ??= string.Empty;
         builder.Append(value.Length).Append('#').Append(value).Append('|');
     }
+
+    private static StringBuilder AppendFingerprintInt(StringBuilder builder, int value) =>
+        builder.Append(value.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// Completed-run history only needs definitions for generated cards that remain in a player's final deck.
@@ -512,6 +526,33 @@ public static class ChaosPoolSnapshot
     public static string? ReadSurpriseKnowledge(SerializableRun save) =>
         FindStringProperty(save, SurpriseKnowledgeProperty, remove: false);
 
+    /// <summary>
+    /// The generated pool has its own immutable seed identity. Some run-continuation mods deliberately replace
+    /// RunState.Rng between acts/loops while keeping the same deck and save; that mutable gameplay seed must not be
+    /// used to reinterpret or regenerate an already persisted card pool.
+    /// </summary>
+    internal static string? ReadPoolSeed(string? payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try
+        {
+            using var document = Decode(payload);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("seed", out var seedElement)
+                || seedElement.ValueKind != JsonValueKind.String)
+                return null;
+            var seed = seedElement.GetString();
+            return string.IsNullOrWhiteSpace(seed) ? null : seed;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static string ResolveGeneratedPoolSeed(string? payload, string runtimeSeed) =>
+        ReadPoolSeed(payload) ?? runtimeSeed;
+
     public static string? ExtractFrom(SerializableRun save) => FindStringProperty(save, PayloadProperty, remove: true);
 
     private static string? FindStringProperty(SerializableRun save, string propertyName, bool remove)
@@ -626,9 +667,27 @@ public static class ChaosPoolSnapshot
                 {
                     var definition = element.Deserialize<ChaosCardDefinition>(JsonOptions)
                         ?? throw new JsonException("Card definition was null.");
-                    definition = HydrateRuntimeSpecs(definition, requirePersisted: schema >= 8);
+                    try
+                    {
+                        definition = HydrateRuntimeSpecs(definition, requirePersisted: schema >= 8);
+                    }
+                    catch (Exception exception)
+                    {
+                        throw new InvalidDataException(
+                            $"{character} slot {definition.Slot} could not hydrate its structured operations: "
+                            + exception.Message, exception);
+                    }
                     if ((uint)definition.Slot >= (uint)cards.Length || seen[definition.Slot]) return false;
-                    ValidateDefinition(definition, character, expectedRarities, allowRandomizedNumericValues);
+                    try
+                    {
+                        ValidateDefinition(definition, character, expectedRarities, allowRandomizedNumericValues);
+                    }
+                    catch (Exception exception)
+                    {
+                        throw new InvalidDataException(
+                            $"{character} slot {definition.Slot} failed complete-snapshot validation: "
+                            + exception.Message, exception);
+                    }
                     cards[definition.Slot] = definition;
                     seen[definition.Slot] = true;
                 }
@@ -1077,16 +1136,30 @@ public static class ChaosPoolSnapshot
             if (hydrated.LocalizedText is not null) return hydrated;
             if (ComponentLocalizationApi.TryGet(hydrated.LocalizationId, out var registeredLocalization))
             {
-                var localized = registeredLocalization;
-                var registeredEnglish = localized.RenderEnglish(specs[index])
-                    ?? EnglishCardDescriptionRenderer.OperationText(hydrated);
-                if (hydrated.DerivativeId is not null)
-                    localized = DerivativeSlotCatalog.BindSourceLocalizedText(hydrated, localized,
-                        registeredEnglish, specs[index]);
-                if (hydrated.OrbSourceId is not null || hydrated.OrbOutputId is not null)
-                    localized = OrbSlotCatalog.BindResolvedLocalizedText(hydrated, localized, registeredEnglish,
-                        specs[index]);
-                return hydrated with { LocalizedText = localized };
+                try
+                {
+                    // Most schema-10 operations can reuse their immutable catalog localization. A derivative
+                    // producer may, however, turn an authored implicit one-card amount into an explicit numeric
+                    // slot after derivative-value conversion. That shape is intentionally persisted in the
+                    // RuntimeSpec, so fall back to compiling the saved rendered text instead of forcing the
+                    // original one-card template onto it.
+                    registeredLocalization.Validate(specs[index]);
+                    var localized = registeredLocalization;
+                    var registeredEnglish = localized.RenderEnglish(specs[index])
+                        ?? EnglishCardDescriptionRenderer.OperationText(hydrated);
+                    if (hydrated.DerivativeId is not null)
+                        localized = DerivativeSlotCatalog.BindSourceLocalizedText(hydrated, localized,
+                            registeredEnglish, specs[index]);
+                    if (hydrated.OrbSourceId is not null || hydrated.OrbOutputId is not null)
+                        localized = OrbSlotCatalog.BindResolvedLocalizedText(hydrated, localized,
+                            registeredEnglish, specs[index]);
+                    return hydrated with { LocalizedText = localized };
+                }
+                catch (InvalidOperationException)
+                {
+                    // Continue through the bounded migration compiler below. This is presentation-only and does
+                    // not infer or change gameplay semantics, which remain fully defined by the persisted spec.
+                }
             }
             // Named localization templates are deliberately not persisted per operation: doing so would duplicate
             // the already stored card text throughout every live/history snapshot. Rebuild this presentation-only
@@ -1281,6 +1354,11 @@ public static class ChaosPoolSnapshot
         var marker = ToSerializableModifier(activeCharacters, seed, pools);
         var payload = marker.Props?.strings?.Single(property => property.name == PayloadProperty).value
             ?? throw new InvalidOperationException("Pool snapshot audit did not produce a payload.");
+        if (!string.Equals(ReadPoolSeed(payload), seed, StringComparison.Ordinal)
+            || !string.Equals(ResolveGeneratedPoolSeed(payload, seed + "_ENDLESS_LOOP"),
+                seed, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "A mutable run RNG seed replaced the immutable generated-pool snapshot identity.");
         ClearRunPayloadCache();
         var firstCachedPayload = GetOrCreateRunPayload(activeCharacters, seed, pools, out var firstCacheBuild);
         var reusedCachedPayload = GetOrCreateRunPayload(activeCharacters, seed, pools, out var repeatedCacheBuild);
@@ -1594,14 +1672,17 @@ public static class ChaosPoolSnapshot
         var payload = GetAuthoritativeMultiplayerPayload(activeCharacters, seed, pools);
         var reboundCharacters = new[] { GeneratedCharacter.Ironclad, GeneratedCharacter.Regent };
         var reboundPayload = RebindMultiplayerActiveCharacters(payload, reboundCharacters, seed);
-        if (!TryRestoreComplete(reboundPayload, reboundCharacters, seed,
-                out var restored, out var report)
+        var restoredComplete = TryRestoreComplete(reboundPayload, reboundCharacters, seed,
+            out var restored, out var report);
+        var mismatch = restoredComplete ? FirstDefinitionMismatch(pools, restored) : null;
+        if (!restoredComplete
             || report.RegeneratedCards != 0
             || report.RestoredCards != pools.Values.Sum(cards => cards.Count)
-            || ChaosRunDefinitions.SupportedPools.Any(character =>
-                JsonSerializer.Serialize(restored[character], JsonOptions)
-                != JsonSerializer.Serialize(pools[character], JsonOptions)))
+            || mismatch is not null)
             throw new InvalidOperationException(
-                "Numeric-random authoritative multiplayer snapshot round-trip failed.");
+                "Numeric-random authoritative multiplayer snapshot round-trip failed: "
+                + $"complete={restoredComplete}, restored={report.RestoredCards}, "
+                + $"regenerated={report.RegeneratedCards}, mismatch={mismatch ?? "none"}, "
+                + $"failure={report.Failure ?? "none"}.");
     }
 }

@@ -144,7 +144,10 @@ public static class CardUpgradeGenerator
             ?? throw new InvalidOperationException($"RuntimeSpec has no upgrade slot {slotId} for {operation.Template}.");
         if (slot.Source == "fixed")
         {
-            var updatedValue = slot.BaseValue + slot.Offset + delta;
+            var currentValue = slot.BaseValue + slot.Offset;
+            var updatedValue = NumericGenerationTuning.ClampUniversalFixedValue(operation, slotId,
+                currentValue + delta);
+            delta = updatedValue - currentValue;
             if (!OperationRuntimeSpecCompiler.TryRenderFixedValue(operation, slotId, updatedValue,
                     out var fixedProjection))
                 throw new InvalidOperationException(
@@ -299,6 +302,8 @@ public static class CardUpgradeGenerator
                     if (NumericGenerationTuning.DurationOnlyStackCap(operation, card.Character, unifiedChaos)
                         is { } durationCap)
                         delta = Math.Min(delta, Math.Max(0, durationCap - value));
+                    if (NumericGenerationTuning.UniversalFixedValueCap(operation, valueSlotId!) is { } valueCap)
+                        delta = Math.Min(delta, Math.Max(0, valueCap - value));
                     if (operation.Template == "NCR:BlockTripleOstyMaxHp")
                         delta = Math.Min(delta, 3 - value);
                     if (delta <= 0) continue;

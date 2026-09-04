@@ -988,7 +988,6 @@ validation|ChaosCardGenerator/RandomCardGenerator.cs|atom.Template, atom.Scope, 
 validation|ChaosCardGenerator/RandomCardGenerator.cs|CardTextStyle.ValidateRenderedChinese(card.ChineseDescription);
 validation|ChaosCardGenerator/RandomCardGenerator.cs|ChineseDescription = "造成12点伤害。",
 validation|ChaosCardGenerator/RandomCardGenerator.cs|ChineseDescription = "造成20点伤害。",
-validation|ChaosCardGenerator/RandomCardGenerator.cs|ChineseText = "造成5点伤害。", RequiresSingleTarget = true
 validation|ChaosCardGenerator/RandomCardGenerator.cs|ChineseText = "造成6点伤害。", Parameters = new Dictionary<string, int>()
 validation|ChaosCardGenerator/RandomCardGenerator.cs|ChineseText = perturbedLocalization.RenderChinese(OperationRuntimeSpecCompiler.GetOrCompile(quasarOperation)),
 validation|ChaosCardGenerator/RandomCardGenerator.cs|EnglishCardDescriptionRenderer.ValidateRenderedEnglish(card.EnglishDescription);
@@ -1048,7 +1047,6 @@ validation|ChaosCardGenerator/RandomCardGenerator.cs|string ChineseText,
 validation|ChaosCardGenerator/RandomCardGenerator.cs|string EnglishDescription = "",
 validation|ChaosCardGenerator/RandomCardGenerator.cs|summonXAtom.ChineseText, new Dictionary<string, int>());
 validation|ChaosCardGenerator/RandomCardGenerator.cs|System.Text.RegularExpressions.Regex.Replace(numericSource.Atom.ChineseText, @"\d+", "997"),
-validation|ChaosCardGenerator/RandomCardGenerator.cs|Template = "N:B", ChineseText = "获得5点格挡。"
 validation|ChaosCardGenerator/RandomCardGenerator.cs|throw new InvalidOperationException($"{operation.Template}（{operation.ChineseText}）引用了卡牌对象却没有 cardTargetSlot。");
 validation|ChaosCardGenerator/RandomCardGenerator.cs|throw new InvalidOperationException($"猎手中文描述未通过原版文风检查：{generated.ChineseDescription}");
 validation|ChaosCardGenerator/RandomCardGenerator.cs|throw new InvalidOperationException($"中文描述未通过原版文风检查：{generated.ChineseDescription}");

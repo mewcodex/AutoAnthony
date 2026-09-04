@@ -15,6 +15,12 @@ public sealed class ComponentAssemblyGenerator
 {
     private const int AssemblyAttemptsPerShell = 64;
     private const int ShellRerollLimit = 4;
+    // Pool repair predicates commonly constrain card type, resource class and one combat role at once. Repeating
+    // 64 component rolls on an unsuitable native shell created the multi-second/GB-allocation generation tail.
+    // Spread the same bounded search across more independent shells; ordinary unconstrained generation retains
+    // its historical 4 x 64 path and therefore keeps its seed/output distribution unchanged.
+    private const int MatchingAssemblyAttemptsPerShell = 4;
+    private const int MatchingShellRerollLimit = 32;
     private const int DuplicateFailuresPerDensityStep = 3;
     private const int MaximumAdaptiveEffectCount = 8;
     internal const double BalancedUpperBoundMultiplier = 1.15d;
@@ -22,6 +28,10 @@ public sealed class ComponentAssemblyGenerator
         IReadOnlyDictionary<GeneratedRarity, int> RecipeCountsByRarity,
         IReadOnlyDictionary<(GeneratedRarity Rarity, CardTag Tag), int> TagCountsByRarity,
         IReadOnlyDictionary<(GeneratedRarity Rarity, string KeywordId), int> CustomKeywordCountsByRarity);
+    private sealed class ReusableFamilyGroup(string key) : List<ComponentAtom>, IGrouping<string, ComponentAtom>
+    {
+        public string Key { get; } = key;
+    }
     private readonly record struct ResolvedSlot(
         string? DerivativeId,
         string? DerivativeEnchantmentId,
@@ -44,8 +54,12 @@ public sealed class ComponentAssemblyGenerator
     private readonly bool _balancedValues;
     private readonly bool _randomizeNumericValues;
     private readonly IReadOnlyDictionary<GeneratedRarity, int> _recipeCountsByRarity;
+    private readonly IReadOnlyDictionary<GeneratedRarity, int> _minimumEffectCountsByRarity;
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, CardTag Tag), int> _tagCountsByRarity;
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, string KeywordId), int> _customKeywordCountsByRarity;
+    private readonly Dictionary<string, ReusableFamilyGroup> _familyGroupsByKey = new(StringComparer.Ordinal);
+    private readonly List<ReusableFamilyGroup> _activeFamilyGroups = [];
+    private readonly List<ComponentAtom> _compatibleCandidates = [];
     private readonly IComponentOccurrencePolicy _frequencyTracker;
     private readonly IComponentValuePolicy _valuePolicy;
     private readonly ComponentKeywordPolicy _keywordPolicy;
@@ -90,6 +104,9 @@ public sealed class ComponentAssemblyGenerator
         _profileId = profileRegistrationId ?? profile.Id;
         var index = GetShellFrequencyIndex(profile.Id, _catalog);
         _recipeCountsByRarity = index.RecipeCountsByRarity;
+        _minimumEffectCountsByRarity = _catalog.Recipes
+            .GroupBy(recipe => recipe.OriginalRarity)
+            .ToDictionary(group => group.Key, group => group.Min(recipe => recipe.Atoms.Count));
         _tagCountsByRarity = index.TagCountsByRarity;
         _customKeywordCountsByRarity = index.CustomKeywordCountsByRarity;
         _frequencyTracker = frequencyTracker
@@ -159,12 +176,15 @@ public sealed class ComponentAssemblyGenerator
         var duplicateFailures = 0;
         // A pool-repair predicate may require a different card type/resource shell (for example starter damage).
         // Give that bounded search enough independent shells instead of failing and regenerating the entire pool.
-        var shellRerollLimit = accept is null ? ShellRerollLimit : ShellRerollLimit * 4;
+        var shellRerollLimit = accept is null ? ShellRerollLimit : MatchingShellRerollLimit;
+        var assemblyAttemptsPerShell = accept is null
+            ? AssemblyAttemptsPerShell : MatchingAssemblyAttemptsPerShell;
         for (var shellAttempt = 0; shellAttempt < shellRerollLimit; shellAttempt++)
         {
             lastShell = PickShell(rarity);
             if (TryGenerate(rarity, lastShell, ref duplicateFailures, raiseAggressiveEffectFloor,
-                    softenAggressiveNegative, wantsNonBasicStarPayment, accept) is { } generated)
+                    softenAggressiveNegative, wantsNonBasicStarPayment, accept,
+                    assemblyAttemptsPerShell) is { } generated)
                 return generated;
         }
         // A legal shell should normally succeed in a handful of attempts. This path exists to guarantee that an
@@ -172,8 +192,14 @@ public sealed class ComponentAssemblyGenerator
         // pinning the pool-generation worker forever.
         for (var fallbackAttempt = 0; fallbackAttempt < 256; fallbackAttempt++)
         {
+            // A predicate can require a card type/resource class that the final speculative shell cannot express.
+            // Reusing that one shell for all 256 fallbacks used to allocate hundreds of guaranteed rejections and
+            // could still fail the whole pool. Ordinary generation keeps its historical fallback sequence; only
+            // constrained repair periodically samples another shell.
+            if (accept is not null && fallbackAttempt % MatchingAssemblyAttemptsPerShell == 0)
+                lastShell = PickShell(rarity);
             var fallback = GenerateEmergencyFallback(rarity, lastShell!, fallbackAttempt,
-                raiseAggressiveEffectFloor, wantsNonBasicStarPayment);
+                raiseAggressiveEffectFloor, wantsNonBasicStarPayment, accept);
             if (TryFinalizeUniqueCard(fallback, ref duplicateFailures, accept, out var finalized)) return finalized;
         }
         throw new InvalidOperationException($"Could not produce a unique emergency fallback for {_character}/{rarity}.");
@@ -181,11 +207,12 @@ public sealed class ComponentAssemblyGenerator
 
     private GeneratedCard? TryGenerate(GeneratedRarity rarity, IroncladCardRecipe shell,
         ref int duplicateFailures, bool raiseAggressiveEffectFloor, bool softenAggressiveNegative,
-        bool wantsNonBasicStarPayment, Func<GeneratedCard, bool>? accept)
+        bool wantsNonBasicStarPayment, Func<GeneratedCard, bool>? accept,
+        int assemblyAttemptLimit)
     {
         // Rejected assemblies are expected. Keep them in an iterative loop: rare shells with a very low legal
         // acceptance rate must not accumulate one stack frame per retry or keep the worker alive forever.
-        for (var assemblyAttempt = 0; assemblyAttempt < AssemblyAttemptsPerShell; assemblyAttempt++)
+        for (var assemblyAttempt = 0; assemblyAttempt < assemblyAttemptLimit; assemblyAttempt++)
         {
         // Type and target still come from the native shell distribution. On an assembly failure, keep that shell and
         // redraw components so type-specific acceptance rates cannot distort the sampled distribution. Sample cost
@@ -234,46 +261,43 @@ public sealed class ComponentAssemblyGenerator
 
         for (var index = 0; index < componentCount; index++)
         {
-            var candidates = _componentCatalog.Atoms
-                .Where(atom => ComponentPolicy.PoolUniqueKey(atom) is not { } uniqueKey
-                    || _usedPoolUniqueComponents?.Contains(uniqueKey) != true)
-                .Where(atom => IsCompatible(shell.Type, shell.Target, shell.Cost, shell.HasStarCostX, atom, operations) && slots.CanResolve(atom.CardReference))
-                .Where(atom => !isZeroResourceCard || !CardEffectRules.IsSelfCostReduction(atom))
-                .Where(atom => !isZeroResourceCard || atom.Template != "D:CreateZeroCostCopyInDiscard")
-                .Where(atom => !_suppressDerivativeReferences
-                    || !DerivativePoolConstraintResolver.RequiresProducedDerivative(atom.Template))
-                .Where(atom => !EffectSelectionTuning.DifficultConditionAwaitsPayoff(operations)
-                    || atom.Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger or OperationScope.AbilityRule)
-                    && !CardEffectRules.IsDependencyPrefix(atom))
-                // A dependency prefix is half of one semantic clause. Never leave it in the final slot;
-                // once selected, the following slot is reserved for one of its legal payoffs.
-                .Where(atom => index < componentCount - 1 || !CardEffectRules.IsDependencyPrefix(atom))
-                // “Grant an effect to the next Attack(s)” is a scoped modifier block, not a free-form trigger.
-                // Its single compatible payload and the block itself must occupy the final two operation slots.
-                .Where(atom => !CardEffectRules.IsNextAttackGrantTrigger(atom)
-                    || shell.Type != GeneratedCardType.Power && index == componentCount - 2)
-                // Reboot-style reshuffling is only meaningful when this card subsequently draws. It remains a
-                // separate operation (and sentence), but reserves the next component slot for an immediate draw.
-                .Where(atom => index < componentCount - 1 || atom.Template != "D:ShuffleAllUnexhaustedIntoDraw")
-                // Do not spend the final planned slot on an operation that cannot possibly complete the sampled
-                // shell.  This is only a look-ahead over hard end-state requirements (Attack damage, a real target,
-                // and a positive payoff on paid cards); triggers/downside lines that can reserve another slot remain
-                // eligible.  Previously these doomed partial cards ran through numeric rolling, slot binding and all
-                // whole-card validators before being rejected near the end of the attempt.
-                .Where(atom => index < componentCount - 1
-                    || CanCompleteFinalPlannedSlot(shell, plannedCost, starCost, hasStarCostX, operations, atom))
-                // The first Power component establishes its persistent purpose. Instant and this-turn components may
-                // follow, but cannot make a card a Power on their own.
-                .Where(atom => shell.Type != GeneratedCardType.Power || index != 0
-                    || CardEffectRules.IsPersistentPowerFoundation(atom)
-                    || CanAnchorRestrictedPowerFoundation(atom))
-                // If a Power starts with the damage/block anchor required by a restricted effect, force that
-                // restricted effect next. This keeps a theoretically legal route reachable in a large candidate pool.
-                .Where(atom => shell.Type != GeneratedCardType.Power || index == 0
-                    || operations.Any(CardEffectRules.IsPersistentPowerFoundation)
-                    || CardEffectRules.IsRestrictedEffect(atom))
-                .ToArray();
-            if (candidates.Length == 0)
+            _compatibleCandidates.Clear();
+            var difficultConditionAwaitsPayoff = EffectSelectionTuning.DifficultConditionAwaitsPayoff(operations);
+            var powerHasFoundation = shell.Type != GeneratedCardType.Power
+                || operations.Any(CardEffectRules.IsPersistentPowerFoundation);
+            foreach (var candidate in _componentCatalog.Atoms)
+            {
+                if (ComponentPolicy.PoolUniqueKey(candidate) is { } uniqueKey
+                    && _usedPoolUniqueComponents?.Contains(uniqueKey) == true) continue;
+                if (!IsCompatible(shell.Type, shell.Target, shell.Cost, shell.HasStarCostX, candidate, operations)
+                    || !slots.CanResolve(candidate.CardReference)) continue;
+                if (isZeroResourceCard && (CardEffectRules.IsSelfCostReduction(candidate)
+                                           || candidate.Template == "D:CreateZeroCostCopyInDiscard")) continue;
+                if (_suppressDerivativeReferences
+                    && DerivativePoolConstraintResolver.RequiresProducedDerivative(candidate.Template)) continue;
+                if (difficultConditionAwaitsPayoff
+                    && (candidate.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                            or OperationScope.AbilityRule
+                        || CardEffectRules.IsDependencyPrefix(candidate))) continue;
+                // Dependency prefixes and the two scoped/specific setup clauses need a following payload slot.
+                if (index >= componentCount - 1 && (CardEffectRules.IsDependencyPrefix(candidate)
+                        || candidate.Template == "D:ShuffleAllUnexhaustedIntoDraw")) continue;
+                if (CardEffectRules.IsNextAttackGrantTrigger(candidate)
+                    && (shell.Type == GeneratedCardType.Power || index != componentCount - 2)) continue;
+                // Do not spend the final planned slot on an operation that cannot complete the sampled shell.
+                if (index >= componentCount - 1
+                    && !CanCompleteFinalPlannedSlot(shell, plannedCost, starCost, hasStarCostX, operations,
+                        candidate)) continue;
+                // The first Power component establishes its persistent purpose; until one exists, later slots may
+                // only take the restricted effect paired with a valid first-slot anchor.
+                if (shell.Type == GeneratedCardType.Power && index == 0
+                    && !CardEffectRules.IsPersistentPowerFoundation(candidate)
+                    && !CanAnchorRestrictedPowerFoundation(candidate)) continue;
+                if (shell.Type == GeneratedCardType.Power && index != 0 && !powerHasFoundation
+                    && !CardEffectRules.IsRestrictedEffect(candidate)) continue;
+                _compatibleCandidates.Add(candidate);
+            }
+            if (_compatibleCandidates.Count == 0)
                 break;
 
             // A conditional payoff is worth more than an unconditional line. Difficult conditions move the
@@ -283,7 +307,7 @@ public sealed class ComponentAssemblyGenerator
                 + EffectSelectionTuning.PayoffBudgetBonus(operations)
                 + (curseStatusEasterEgg ? 3 : 0);
             var atom = InstantiateNumericSlotsStructured(
-                PickForRarity(candidates, rarity, payoffBudget, shell.Type, shell.Target, operations,
+                PickForRarity(_compatibleCandidates, rarity, payoffBudget, shell.Type, shell.Target, operations,
                     currentEffectiveCost),
                 rarity,
                 payoffBudget,
@@ -693,10 +717,7 @@ public sealed class ComponentAssemblyGenerator
     }
 
     private int RarityEffectCountMinimum(GeneratedRarity rarity) =>
-        _catalog.Recipes.Where(recipe => recipe.OriginalRarity == rarity)
-            .Select(recipe => recipe.Atoms.Count)
-            .DefaultIfEmpty(_catalog.ComponentCounts.Min())
-            .Min();
+        _minimumEffectCountsByRarity.GetValueOrDefault(rarity, _catalog.ComponentCounts.Min());
 
     private bool TryFinalizeUniqueCard(GeneratedCard card, ref int duplicateFailures,
         Func<GeneratedCard, bool>? accept,
@@ -777,6 +798,19 @@ public sealed class ComponentAssemblyGenerator
                 };
                 var randomized = Math.Max(1,
                     (int)Math.Round(original * percent / 100d, MidpointRounding.AwayFromZero));
+                // Reserve room for an already-authored positive upgrade so the upgraded card obeys the same
+                // universal action-count / mitigation bounds as its base form. Ordinary generation caps remain
+                // deliberately bypassed by Numeric Random mode.
+                var positiveUpgradeDelta = card.Upgrade?.Effects.Where(effect =>
+                        effect.OperationIndex == operationIndex
+                        && effect.Kind == CardUpgradeKind.IncreaseNumber
+                        && string.Equals(effect.ValueSlotId
+                                         ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation),
+                            slot.Id, StringComparison.Ordinal))
+                    .Sum(effect => Math.Max(0, effect.Delta ?? 0)) ?? 0;
+                if (NumericGenerationTuning.UniversalFixedValueCap(operation, slot.Id) is { } universalCap)
+                    randomized = Math.Min(randomized, Math.Max(1, universalCap - positiveUpgradeDelta));
+                randomized = NumericGenerationTuning.ClampUniversalFixedValue(operation, slot.Id, randomized);
                 if (slot.Id == "amount"
                     && OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("plating_reference"))
                     randomized = Math.Max(3, randomized);
@@ -1090,7 +1124,7 @@ public sealed class ComponentAssemblyGenerator
 
     internal GeneratedCard GenerateEmergencyFallback(GeneratedRarity rarity, IroncladCardRecipe shell,
         int uniquenessBoost = 0, bool raiseAggressiveEffectFloor = false,
-        bool wantsNonBasicStarPayment = false)
+        bool wantsNonBasicStarPayment = false, Func<GeneratedCard, bool>? accept = null)
     {
         var type = shell.Type;
         var target = shell.Target;
@@ -1145,6 +1179,10 @@ public sealed class ComponentAssemblyGenerator
         card = SpecialXCardConverter.Convert(card, _random, _specialXMode);
         if (_specialXMode == SpecialXGenerationMode.Forced && !SpecialXCardConverter.IsSpecial(card))
             throw new InvalidOperationException("Emergency fallback could not produce the required special-X card.");
+        // Matching repair only observes the base card. Avoid running up to 64 upgrade searches for a fallback whose
+        // type/resource/effect predicate is already known to fail. Numeric-random mode must retain the completed
+        // card because its post-generation projection can affect a numeric acceptance predicate.
+        if (!_randomizeNumericValues && accept is not null && !accept(card)) return card;
         // A two-line aggressive fallback exposes more legal upgrade candidates than the historical one-line
         // fallback. Reroll only its upgrade plan when a candidate violates a whole-card upgrade invariant; never
         // discard the already selected card-level density branch.
@@ -1616,8 +1654,8 @@ public sealed class ComponentAssemblyGenerator
         {
             var zeroCostBounds = WholeCardBudgetBounds(rarity, 0d, budgetRewardFields,
                 downsidePercent, powerFactor, balancedValues, character, downsideFlatValue);
-            minimum = (minimum + zeroCostBounds.Minimum) / 2d;
-            maximum = (maximum + zeroCostBounds.Maximum) / 2d;
+            minimum = CopyThisCardValuation.BlendWithZeroCostEnvelope(minimum, zeroCostBounds.Minimum);
+            maximum = CopyThisCardValuation.BlendWithZeroCostEnvelope(maximum, zeroCostBounds.Maximum);
         }
 
         for (var attempt = 0; attempt < 16; attempt++)
@@ -1670,8 +1708,8 @@ public sealed class ComponentAssemblyGenerator
         {
             var zeroCostBounds = WholeCardBudgetBounds(rarity, 0d, Math.Max(1, distinctRewards),
                 downsidePercent, powerFactor, balancedValues, character, downsideFlatValue);
-            minimum = (minimum + zeroCostBounds.Minimum) / 2d;
-            maximum = (maximum + zeroCostBounds.Maximum) / 2d;
+            minimum = CopyThisCardValuation.BlendWithZeroCostEnvelope(minimum, zeroCostBounds.Minimum);
+            maximum = CopyThisCardValuation.BlendWithZeroCostEnvelope(maximum, zeroCostBounds.Maximum);
         }
         var actual = EffectBalanceModel.EstimatedPositiveCardValue(operations,
             hasPrintedResourceCost, cardType, tags);
@@ -1781,7 +1819,7 @@ public sealed class ComponentAssemblyGenerator
         {
             var zeroCostMinimum = WholeCardBudgetBounds(rarity, 0d, Math.Max(1, distinctRewards),
                 downsidePercent, powerFactor, balancedValues, character, downsideFlatValue).Minimum;
-            minimum = (minimum + zeroCostMinimum) / 2d;
+            minimum = CopyThisCardValuation.BlendWithZeroCostEnvelope(minimum, zeroCostMinimum);
         }
 
         return EffectBalanceModel.EstimatedPositiveCardValue(operations, hasPrintedResourceCost, cardType, tags)
@@ -2213,8 +2251,6 @@ public sealed class ComponentAssemblyGenerator
             || !CardEffectRules.HasNoFatalDoubleVulnerablePayoff(assembled)
             || !CardEffectRules.HasNoNegativeSelfExhaustPayoffs(assembled)
             || !CardEffectRules.HasValidTriggerPayloadAssembly(assembled)
-            || !CardEffectRules.HasNoSelfTriggeringDraw(assembled)
-            || !CardEffectRules.HasNoSelfTriggeringBlock(assembled)
             || !CardEffectRules.HasValidReturnThisToHandCost(recipe.Cost, recipe.StarCost,
                 recipe.HasStarCostX, assembled)
             || !CardEffectRules.HasValidRepeatDamageAssembly(assembled)
@@ -2311,9 +2347,6 @@ public sealed class ComponentAssemblyGenerator
         && CardEffectRules.HasNoInvalidTriggeredStateEffects(operations)
         && CardEffectRules.HasNoStateConditionModifiers(operations)
         && CardEffectRules.HasValidTriggeredEndTurnAssembly(operations)
-        && CardEffectRules.HasNoSelfTriggeringHpLoss(operations)
-        && CardEffectRules.HasNoSelfTriggeringDraw(operations)
-        && CardEffectRules.HasNoSelfTriggeringBlock(operations)
         && CardEffectRules.HasValidTriggerPayloadAssembly(operations)
         && CardEffectRules.HasValidRepeatDamageAssembly(operations)
         && CardEffectRules.HasValidNextAttackGrantAssembly(operations)
@@ -2627,10 +2660,6 @@ public sealed class ComponentAssemblyGenerator
             return false;
         if (previous.LastOrDefault()?.Template == "D:ShuffleAllUnexhaustedIntoDraw"
             && !CardEffectRules.IsImmediateDrawEffect(atom))
-            return false;
-        if (CardEffectRules.IsImmediateDrawEffect(atom)
-            && previous.LastOrDefault() is { } drawTrigger
-            && CardEffectRules.IsEveryCardDrawnTrigger(drawTrigger))
             return false;
         if (type == GeneratedCardType.Power && CardEffectRules.IsSelfCardMovementOrReplay(atom))
             return false;
@@ -3102,31 +3131,45 @@ public sealed class ComponentAssemblyGenerator
         IReadOnlyList<GeneratorOperation> previous,
         double currentEffectiveCost)
     {
-        var families = atoms.GroupBy(atom => atom.FamilyKey).ToArray();
+        // Reuse family buckets instead of allocating a grouping plus one array per family for every effect of every
+        // rejected speculative card. Component order and weight evaluation remain identical to LINQ GroupBy.
+        foreach (var activeGroup in _activeFamilyGroups) activeGroup.Clear();
+        _activeFamilyGroups.Clear();
+        foreach (var atom in atoms)
+        {
+            if (!_familyGroupsByKey.TryGetValue(atom.FamilyKey, out var group))
+            {
+                group = new ReusableFamilyGroup(atom.FamilyKey);
+                _familyGroupsByKey.Add(atom.FamilyKey, group);
+            }
+            if (group.Count == 0) _activeFamilyGroups.Add(group);
+            group.Add(atom);
+        }
         var family = PickWeighted(
-            families,
+            _activeFamilyGroups,
             group => FamilySelectionWeight(group, rarity, cost, type, target, previous,
                 currentEffectiveCost));
-        var variants = family.ToArray();
         var finaleCondition = previous.Any(IsDrawPileEmptyCondition);
         return PickWeighted(
-            variants,
-            atom => VariantSelectionWeight(atom, variants, rarity, cost, type, target, previous, finaleCondition));
+            family,
+            atom => VariantSelectionWeight(atom, family, rarity, cost, type, target, previous, finaleCondition));
     }
 
-    private long FamilySelectionWeight(IGrouping<string, ComponentAtom> family, GeneratedRarity rarity, int cost,
+    private long FamilySelectionWeight(ReusableFamilyGroup family, GeneratedRarity rarity, int cost,
         GeneratedCardType type, TargetMode target, IReadOnlyList<GeneratorOperation> previous,
         double currentEffectiveCost)
     {
-        var familyAtoms = family.ToArray();
         // The base probability is one direct native-pool prior and never reads a numeric value-fit score. Ultimate
         // Chaos supplies the combined catalog, so this same call yields the pool-size-weighted six-pool average.
         // The remaining multipliers are relationship/safety policies (Power foundation, repeat loops, downsides),
         // not a second hand-authored per-character occurrence table.
         var sourcePriorWeight = _frequencyTracker.SourcePriorWeight(rarity, type, family.Key, previous);
-        var atomAdjustmentWeight = Math.Max(1, (int)Math.Round(familyAtoms.Average(atom =>
-            EffectSelectionTuning.ApplyAtomAdjustments(100, atom, rarity,
-                _specialXMode == SpecialXGenerationMode.Forced, type))));
+        long atomAdjustmentTotal = 0;
+        foreach (var atom in family)
+            atomAdjustmentTotal += EffectSelectionTuning.ApplyAtomAdjustments(100, atom, rarity,
+                _specialXMode == SpecialXGenerationMode.Forced, type);
+        var atomAdjustmentWeight = Math.Max(1,
+            (int)Math.Round(atomAdjustmentTotal / (double)family.Count));
         var adjusted = sourcePriorWeight * (long)atomAdjustmentWeight;
         adjusted = PercentWeight.Apply(adjusted,
             EffectSelectionTuning.PowerAuxiliaryWeight(family, type, previous));
@@ -4895,78 +4938,6 @@ public static class CardEffectRules
         }
         return true;
     }
-
-    public static bool HasNoSelfTriggeringHpLoss(IReadOnlyList<GeneratorOperation> operations)
-    {
-        for (var index = 0; index < operations.Count; index++)
-        {
-            var effect = operations[index];
-            if (effect.Template != "N:HP-"
-                || !effect.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
-                || triggerIndex < 0 || triggerIndex >= index)
-                continue;
-            // Paying HP from inside a "whenever you lose HP" payload can recursively emit the event that owns
-            // the same payload. Reject the assembly instead of relying on engine event-queue reentrancy guards.
-            if (OperationRuntimeSpecCompiler.GetOrCompile(operations[triggerIndex])
-                .Flags.Contains("hp_loss_reference"))
-                return false;
-        }
-        return true;
-    }
-
-    public static bool HasNoSelfTriggeringDraw(IReadOnlyList<GeneratorOperation> operations)
-    {
-        for (var index = 0; index < operations.Count; index++)
-        {
-            var effect = operations[index];
-            if (!IsImmediateDrawEffect(effect)
-                || !effect.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
-                || triggerIndex < 0 || triggerIndex >= index)
-                continue;
-            var trigger = operations[triggerIndex];
-            // Drawing is the event that owns this payload. An immediate Draw payoff can emit the same event before
-            // resolution finishes, producing recursive text and, depending on pile state, an unbounded hook chain.
-            if (IsEveryCardDrawnTrigger(trigger)) return false;
-        }
-        return true;
-    }
-
-    public static bool HasNoSelfTriggeringBlock(IReadOnlyList<GeneratorOperation> operations)
-    {
-        for (var index = 0; index < operations.Count; index++)
-        {
-            var effect = operations[index];
-            if (!IsImmediateBlockGain(effect)
-                || !effect.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
-                || triggerIndex < 0 || triggerIndex >= index)
-                continue;
-            // A Block-gained hook whose own payload immediately grants Block can recursively emit the event that
-            // owns it. Reject the semantic loop at generation/validation time rather than relying on event guards.
-            if (IsBlockGainedTrigger(operations[triggerIndex])) return false;
-        }
-        return true;
-    }
-
-    public static bool IsBlockGainedTrigger(GeneratorOperation trigger) =>
-        trigger.Template == "A_WHEN_GAIN_BLOCK"
-        || OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind == "block_gained";
-
-    private static bool IsImmediateBlockGain(GeneratorOperation operation)
-    {
-        if (operation.Template is "N:B" or "N_BLOCK" or "N:BlockEqualAllPoison"
-            or "CL:GainBlockEqualDamage" or "CL:GainBlockEqualCurrent"
-            or "I:DrawAndBlockIfSkill" or "NCR:BlockTripleOstyMaxHp")
-            return true;
-        // Keep this semantic rather than catalog-only: new computed-Block operations must not silently reopen
-        // "whenever you gain Block -> gain Block" recursion. Delayed Block and permanent card-stat growth do not
-        // synchronously emit the event and are therefore legal.
-        return OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("immediate_block_gain");
-    }
-
-    public static bool IsEveryCardDrawnTrigger(GeneratorOperation trigger) => trigger.Template is
-            "A:whenCardDrawnDuringTurn" or "C:untilTurnEndCardDrawn"
-        || OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind is
-            "card_drawn" or "card_drawn_during_turn";
 
     public static bool NeedsExternalCardSlot(GeneratorOperation operation) =>
         OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("needs_external_card_slot");

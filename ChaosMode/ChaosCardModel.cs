@@ -298,9 +298,20 @@ public abstract class ChaosCardModel : CardModel
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
+        // ResourceInfo is the synchronized payment attached to this CardPlay. Prefer it over mutable card fields on
+        // remote peers; LastStarsSpent/CapturedXValue can lag one action while a multiplayer play is reconstructed.
+        // Auto-played/replayed X cards intentionally spend zero, so retain the card's captured value in that case.
+        var resolvedEnergyX = EnergyCost.CostsX
+            ? Hook.ModifyXValue(CombatState!, this,
+                cardPlay.Resources.EnergySpent > 0 ? cardPlay.Resources.EnergySpent : EnergyCost.CapturedXValue)
+            : 0;
+        var resolvedStarX = HasStarCostX
+            ? Hook.ModifyXValue(CombatState!, this,
+                cardPlay.Resources.StarsSpent > 0 ? cardPlay.Resources.StarsSpent : LastStarsSpent)
+            : 0;
         SetResolvedXValues(
-            EnergyCost.CostsX ? ResolveEnergyXValue() : 0,
-            HasStarCostX ? ResolveStarXValue() : 0);
+            resolvedEnergyX,
+            resolvedStarX);
         var special = Generated.Operations.FirstOrDefault(SpecialXCardConverter.IsSpecial);
         ResolvedSpecialXValue = special is null ? 0
             : SpecialXCardConverter.Resource(special) == SpecialXCardConverter.StarResource
@@ -396,7 +407,7 @@ public abstract class ChaosCardModel : CardModel
         if (!CombatManager.Instance.History.CardPlaysFinished.Any(entry =>
                 entry.HappenedLastPlayerTurn(Owner) && entry.CardPlay.Card == this)) return;
         if (Pile?.Type != PileType.Hand)
-            await CardPileCmd.Add(this, PileType.Hand);
+            await ChaosOperationExecutor.TryAddToHand(this);
     }
 
     public override Task AfterCardEnteredCombat(CardModel card)
@@ -462,7 +473,7 @@ public abstract class ChaosCardModel : CardModel
                 : -1;
             var threshold = thresholdIndex < 0 ? 2 : OperationAmount(thresholdIndex);
             if (cardPlay.Resources.EnergyValue >= threshold && Pile?.Type == PileType.Discard)
-                await CardPileCmd.Add(this, PileType.Hand);
+                await ChaosOperationExecutor.TryAddToHand(this);
         }
         var returnIndices = Generated.Operations.Select((operation, index) => (operation, index))
             .Where(item => item.operation.Template == "R:ReturnAfterSkillsPlayed")
@@ -480,7 +491,7 @@ public abstract class ChaosCardModel : CardModel
             // compatibility boundary for already-instantiated cards from old saves; current snapshots are rejected
             // by CardTemplateValidator and selectively regenerated instead.
             if (skills > 0 && returnIndices.Any(index => skills % Math.Max(2, OperationAmount(index)) == 0))
-                await CardPileCmd.Add(this, PileType.Hand);
+                await ChaosOperationExecutor.TryAddToHand(this);
         }
     }
 
@@ -1187,6 +1198,30 @@ internal static class ChaosOperationVariables
     internal static string InsertToken(GeneratorOperation operation, int operationIndex, string text, bool chinese)
     {
         var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+        if (operation.Template == "A:whenOneStarSpent")
+        {
+            var threshold = spec.Values.FirstOrDefault(value => value.Id == "threshold")
+                ?? spec.Values.FirstOrDefault(value => value.Source == "fixed" && value.Explicit);
+            if (threshold is not null)
+            {
+                var starName = Name(operation, operationIndex);
+                var replacement = threshold.BaseValue + threshold.Offset > 5
+                    ? $"{{{starName}:diff()}}{{singleStarIcon}}"
+                    : $"{{{starName}:starIcons()}}";
+                if (operation.LocalizedText?.TryReplaceRenderedSlot(text, spec, threshold.Id, replacement,
+                        chinese, out var structuredStars) == true)
+                {
+                    // starIcons() is the complete resource glyph, not a numeric prefix. Remove the localized
+                    // resource noun left around the replaced numeric slot ("icons颗蓝星" / "icons Stars").
+                    return chinese
+                        ? structuredStars.Replace(replacement + "颗蓝星", replacement, StringComparison.Ordinal)
+                        : System.Text.RegularExpressions.Regex.Replace(structuredStars,
+                            System.Text.RegularExpressions.Regex.Escape(replacement) + @"\s+Stars?",
+                            replacement, System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+                            TimeSpan.FromMilliseconds(50));
+                }
+            }
+        }
         if (operation.Template is "A:whenEnergySpent" or "D:ForEachEnergySpentThisTurn")
         {
             var threshold = spec.Values.FirstOrDefault(value => value.Id == "threshold")

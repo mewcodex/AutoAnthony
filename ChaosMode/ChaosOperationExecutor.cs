@@ -49,6 +49,13 @@ internal sealed class ChaosExecutionState
     public int CurrentCardEnergySpent { get; init; }
     public int PriorAttackHitsOnTargetAtPlayStart { get; init; }
     public bool EndTurnRequested { get; set; }
+    /// <summary>
+    /// A lifecycle trigger fired by the actual card in Hand/Draw/Discard/Exhaust still represents that card's
+    /// attack and must pass through Strength, Vulnerable, Vigor, and other powered-damage hooks.  A trigger fired
+    /// by ChaosCompositePower instead uses a detached proxy whose final value was captured when the Power was
+    /// played, so powering it again would apply those hooks twice.
+    /// </summary>
+    public bool UsePoweredCardDamage { get; init; }
 }
 
 internal static class ChaosOperationExecutor
@@ -275,7 +282,14 @@ internal static class ChaosOperationExecutor
             PlayIndex = 0,
             PlayCount = 1
         };
-        var state = new ChaosExecutionState { Target = eventCreature, EventCard = eventCard, EventAmount = eventAmount, IsTriggered = true };
+        var state = new ChaosExecutionState
+        {
+            Target = eventCreature,
+            EventCard = eventCard,
+            EventAmount = eventAmount,
+            IsTriggered = true,
+            UsePoweredCardDamage = TriggeredDamageUsesPoweredAttack(source.Pile?.IsCombatPile == true)
+        };
         if (eventCreature is not null
             && linkedOperations.Any(index => operations[index].Template == "NCR:CopyTargetDebuffsToOthers"))
             state.TargetDebuffSnapshot = CaptureTargetDebuffs(eventCreature);
@@ -452,7 +466,8 @@ internal static class ChaosOperationExecutor
                         ? SelectionPrompt("ADD_RETAIN")
                 : SelectionPrompt(selector.Template == "N_SELECT_HAND_ATTACK"
                     ? "SELECT_HAND_ATTACK" : "SELECT_HAND_CARD");
-        var prefs = new CardSelectorPrefs(prompt, 1)
+        var requestedSelectionCount = SelectionCountForEffect(selectedEffect, card.OperationAmount(operationIndex));
+        var prefs = new CardSelectorPrefs(prompt, requestedSelectionCount)
         {
             // Decisions Decisions explicitly permits selecting a Skill regardless of whether its ordinary cost or
             // target would make it playable from hand; AutoPlay supplies those semantics after selection.
@@ -510,7 +525,8 @@ internal static class ChaosOperationExecutor
         // such as Minion Strike and Minion Dive Bomb use exactly the same execution path as Shivs and Souls.
         if (SimpleHandDerivativeProducerTemplates.Contains(operation.Template))
         {
-            await CreateDerivatives(card, index, operation, PileType.Hand, ExecutableGeneratedCardCount(amount));
+            await CreateDerivatives(card, index, operation, PileType.Hand,
+                ExecutableOperationCount(operation, amount));
             return;
         }
 
@@ -935,7 +951,7 @@ internal static class ChaosOperationExecutor
             {
                 var target = state.Target ?? cardPlay.Target;
                 if (target is null) return true;
-                if (state.IsTriggered)
+                if (state.IsTriggered && !state.UsePoweredCardDamage)
                 {
                     var results = new List<DamageResult>();
                     for (var hit = 0; hit < hits; hit++)
@@ -951,7 +967,7 @@ internal static class ChaosOperationExecutor
             }
             case "all_enemies":
             {
-                if (state.IsTriggered)
+                if (state.IsTriggered && !state.UsePoweredCardDamage)
                 {
                     var results = new List<DamageResult>();
                     for (var hit = 0; hit < hits; hit++)
@@ -988,7 +1004,7 @@ internal static class ChaosOperationExecutor
             }
             case "random_enemy":
             {
-                if (state.IsTriggered)
+                if (state.IsTriggered && !state.UsePoweredCardDamage)
                 {
                     var results = new List<DamageResult>();
                     for (var hit = 0; hit < hits; hit++)
@@ -1014,10 +1030,14 @@ internal static class ChaosOperationExecutor
     private static void CaptureDamageResults(ChaosExecutionState state, IEnumerable<DamageResult> results)
     {
         var materialized = results as DamageResult[] ?? results.ToArray();
-        state.LastAttackKilled = materialized.Any(result => result.WasTargetKilled);
+        // Fatal belongs to the assembled card resolution, not merely its most recent damage field. A later area or
+        // multi-effect hit that kills nothing must not erase an earlier kill before the linked Fatal payoff runs.
+        state.LastAttackKilled |= materialized.Any(result => result.WasTargetKilled);
         state.LastDamageDealt = decimal.ToInt32(materialized.Sum(result =>
             result.TotalDamage + result.OverkillDamage));
     }
+
+    internal static bool TriggeredDamageUsesPoweredAttack(bool sourceIsInCombatPile) => sourceIsInCombatPile;
 
     private static async Task ExecuteColorlessOperation(ChaosCardModel card, int operationIndex,
         PlayerChoiceContext choiceContext, CardPlay cardPlay, ChaosExecutionState state,
@@ -1034,9 +1054,11 @@ internal static class ChaosOperationExecutor
                 return;
             case "CL:TransformSelectedHandCards":
             {
-                var selected = (await SelectFromHandIfAny(choiceContext, card.Owner,
-                    new CardSelectorPrefs(CardSelectorPrefs.TransformSelectionPrompt, amount),
-                    candidate => candidate.IsTransformable, card)).ToList();
+                var selected = SelectedCards(operation, state).ToList();
+                if (selected.Count == 0 && string.IsNullOrWhiteSpace(operation.CardTargetSlot))
+                    selected = (await SelectFromHandIfAny(choiceContext, card.Owner,
+                        new CardSelectorPrefs(CardSelectorPrefs.TransformSelectionPrompt, amount),
+                        candidate => candidate.IsTransformable, card)).ToList();
                 if (selected.Count == 0) return;
                 // CardCmd's multi-card path snapshots every source pile/index before removing anything, then
                 // restores all replacements and hand nodes as one transaction. Running TransformToRandom once per
@@ -1062,10 +1084,11 @@ internal static class ChaosOperationExecutor
                 return;
             case "CL:AddRandomAttackToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
+                var count = ExecutableOperationCount(operation, amount);
                 if (count == 0) return;
-                var candidates = card.Owner.Character.CardPool.GetUnlockedCards(card.Owner.UnlockState,
-                    card.Owner.RunState.CardMultiplayerConstraint).Where(candidate => candidate.Type == CardType.Attack);
+                var candidates = RandomCombatGenerationCandidates(card.Owner.Character.CardPool.GetUnlockedCards(
+                    card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
+                    .Where(candidate => candidate.Type == CardType.Attack);
                 var generated = CardFactory.GetForCombat(card.Owner, candidates, count,
                     card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
                 UpgradeGeneratedCards(card, operationIndex, generated);
@@ -1075,10 +1098,11 @@ internal static class ChaosOperationExecutor
             }
             case "CL:AddRandomColorlessToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
+                var count = ExecutableOperationCount(operation, amount);
                 if (count == 0) return;
-                var candidates = ModelDb.CardPool<ColorlessCardPool>().GetUnlockedCards(card.Owner.UnlockState,
-                    card.Owner.RunState.CardMultiplayerConstraint).Where(candidate => candidate.Id != card.Id);
+                var candidates = RandomCombatGenerationCandidates(ModelDb.CardPool<ColorlessCardPool>()
+                        .GetUnlockedCards(card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
+                    .Where(candidate => candidate.Id != card.Id);
                 var generated = CardFactory.GetDistinctForCombat(card.Owner, candidates, count,
                     card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
                 UpgradeGeneratedCards(card, operationIndex, generated);
@@ -1088,11 +1112,11 @@ internal static class ChaosOperationExecutor
             }
             case "CL:AddRandomZeroCostCardsToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
+                var count = ExecutableOperationCount(operation, amount);
                 if (count == 0) return;
-                var candidates = card.Owner.Character.CardPool.GetUnlockedCards(card.Owner.UnlockState,
-                    card.Owner.RunState.CardMultiplayerConstraint).Where(candidate =>
-                    candidate.EnergyCost is { Canonical: 0, CostsX: false });
+                var candidates = RandomCombatGenerationCandidates(card.Owner.Character.CardPool.GetUnlockedCards(
+                        card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
+                    .Where(candidate => candidate.EnergyCost is { Canonical: 0, CostsX: false });
                 var generated = CardFactory.GetForCombat(card.Owner, candidates, count,
                     card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
                 UpgradeGeneratedCards(card, operationIndex, generated);
@@ -1244,7 +1268,7 @@ internal static class ChaosOperationExecutor
             }
             case "R:AddDebrisToHand":
                 await CreateDerivatives(card, operationIndex, operation, PileType.Hand,
-                    ExecutableGeneratedCardCount(amount));
+                    ExecutableOperationCount(operation, amount));
                 return;
             case "R:FillHandWithDebris":
             {
@@ -1327,11 +1351,11 @@ internal static class ChaosOperationExecutor
             }
             case "R:AddRandomColorlessToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
+                var count = ExecutableOperationCount(operation, amount);
                 if (count == 0) return;
                 var generated = CardFactory.GetDistinctForCombat(card.Owner,
-                    ModelDb.CardPool<ColorlessCardPool>().GetUnlockedCards(card.Owner.UnlockState,
-                        card.Owner.RunState.CardMultiplayerConstraint), count,
+                    RandomCombatGenerationCandidates(ModelDb.CardPool<ColorlessCardPool>().GetUnlockedCards(
+                        card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint)), count,
                     card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
                 UpgradeGeneratedCards(card, operationIndex, generated);
                 await CardPileCmd.AddGeneratedCardsToCombat(generated, PileType.Hand, card.Owner);
@@ -1372,9 +1396,12 @@ internal static class ChaosOperationExecutor
             case "R:PutKingsSwordInHand":
             {
                 if (playerCombatState is null) return;
+                var handSlots = AvailableHandSlots(card.Owner);
+                if (handSlots == 0) return;
                 var matching = playerCombatState.AllCards
                     .Where(candidate => ChaosDerivativeResolver.Matches(candidate, operation)).ToList();
-                var recoverable = matching.Where(candidate => candidate.Pile?.Type != PileType.Hand).ToList();
+                var recoverable = matching.Where(candidate => candidate.Pile?.Type != PileType.Hand)
+                    .Take(handSlots).ToList();
                 if (recoverable.Count > 0)
                 {
                     await CardPileCmd.Add(recoverable, PileType.Hand);
@@ -1446,7 +1473,7 @@ internal static class ChaosOperationExecutor
                 var command = await DamageCmd.Attack(value).WithHitCount(hits).FromOsty(targetedOsty, card, cardPlay)
                     .Targeting(state.Target).WithHitFx(card.Definition.HitFx).Execute(choiceContext);
                 var results = command.Results.SelectMany(result => result).ToArray();
-                state.LastAttackKilled = results.Any(result => result.WasTargetKilled);
+                state.LastAttackKilled |= results.Any(result => result.WasTargetKilled);
                 state.LastDamageDealt = decimal.ToInt32(results.Sum(result => result.TotalDamage));
                 return;
             }
@@ -1460,7 +1487,7 @@ internal static class ChaosOperationExecutor
                         .FromOsty(areaOsty, card, cardPlay)
                         .TargetingAllOpponents(combatState).WithHitFx(card.Definition.HitFx).Execute(choiceContext);
                     var results = command.Results.SelectMany(result => result).ToArray();
-                    state.LastAttackKilled = results.Any(result => result.WasTargetKilled);
+                    state.LastAttackKilled |= results.Any(result => result.WasTargetKilled);
                     state.LastDamageDealt = decimal.ToInt32(results.Sum(result => result.TotalDamage));
                 }
                 return;
@@ -1491,10 +1518,10 @@ internal static class ChaosOperationExecutor
                 return;
             case "NCR:AddRandomEtherealCardToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
+                var count = ExecutableOperationCount(operation, amount);
                 if (count == 0) return;
-                var pool = card.Owner.Character.CardPool.GetUnlockedCards(card.Owner.UnlockState,
-                        card.Owner.RunState.CardMultiplayerConstraint)
+                var pool = RandomCombatGenerationCandidates(card.Owner.Character.CardPool.GetUnlockedCards(
+                        card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
                     .Where(candidate => candidate.Rarity is not (CardRarity.Basic or CardRarity.Ancient))
                     .ToArray();
                 var generated = CardFactory.GetDistinctForCombat(card.Owner, pool, count,
@@ -1506,7 +1533,7 @@ internal static class ChaosOperationExecutor
             }
             case "NCR:AddSweepingGazeToHand":
                 await CreateDerivatives(card, operationIndex, operation, PileType.Hand,
-                    ExecutableGeneratedCardCount(amount));
+                    ExecutableOperationCount(operation, amount));
                 return;
             case "NCR:CreateSoulInDraw":
                 await CreateDerivatives(card, operationIndex, operation, PileType.Draw, amount, CardPilePosition.Random);
@@ -1576,9 +1603,7 @@ internal static class ChaosOperationExecutor
                 return;
             case "NCR:MoveDiscardCardToHand":
             {
-                var selected = (await SelectFromCombatPileIfAny(choiceContext, PileType.Discard.GetPile(card.Owner),
-                    card.Owner, new CardSelectorPrefs(SelectionPrompt("DISCARD_TO_HAND"), 1))).FirstOrDefault();
-                if (selected is not null) await CardPileCmd.Add(selected, PileType.Hand);
+                await MoveSelectedDiscardCardsToHand(choiceContext, card.Owner, 1);
                 return;
             }
             case "NCR:CopyTargetDebuffsToOthers":
@@ -1863,22 +1888,26 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "D:ReturnZeroCostDiscardToHand":
-                foreach (var candidate in PileType.Discard.GetPile(card.Owner).Cards
-                             .Where(candidate => !candidate.EnergyCost.CostsX
-                                 && candidate.EnergyCost.GetWithModifiers(CostModifiers.All) == 0
-                                 && candidate.Type is CardType.Attack or CardType.Skill or CardType.Power).ToList())
-                    await CardPileCmd.Add(candidate, PileType.Hand);
+            {
+                var candidates = PileType.Discard.GetPile(card.Owner).Cards
+                    .Where(candidate => !candidate.EnergyCost.CostsX
+                        && candidate.EnergyCost.GetWithModifiers(CostModifiers.All) == 0
+                        && candidate.Type is CardType.Attack or CardType.Skill or CardType.Power)
+                    .Take(AvailableHandSlots(card.Owner)).ToArray();
+                if (candidates.Length > 0) await CardPileCmd.Add(candidates, PileType.Hand);
                 return;
+            }
             case "D:ChannelLightning": case "D:ChannelFrost": case "D:ChannelDark":
             case "D:ChannelPlasma": case "D:ChannelGlass": case "D:ChannelRandom":
                 if (ExecutableOrbRepeatCount(amount) == 0) return;
                 await ChaosOrbResolver.Channel(choiceContext, card.Owner, operation, amount); return;
             case "D:AddRandomPowerToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
+                var count = ExecutableOperationCount(operation, amount);
                 if (count == 0) return;
-                var powers = card.Owner.Character.CardPool.GetUnlockedCards(card.Owner.UnlockState,
-                    card.Owner.RunState.CardMultiplayerConstraint).Where(candidate => candidate.Type == CardType.Power);
+                var powers = RandomCombatGenerationCandidates(card.Owner.Character.CardPool.GetUnlockedCards(
+                        card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
+                    .Where(candidate => candidate.Type == CardType.Power);
                 var generated = CardFactory.GetDistinctForCombat(card.Owner, powers, count,
                     card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
                 UpgradeGeneratedCards(card, operationIndex, generated);
@@ -1962,10 +1991,7 @@ internal static class ChaosOperationExecutor
             case "D:IncreaseThisCardBlockRun": IncreaseCardBlockForRun(card, amount); return;
             case "D:MoveDiscardCardToHand":
             {
-                var discard = PileType.Discard.GetPile(card.Owner);
-                var selected = (await SelectFromCombatPileIfAny(choiceContext, discard, card.Owner,
-                    new CardSelectorPrefs(SelectionPrompt("DISCARD_TO_HAND"), 1))).FirstOrDefault();
-                if (selected is not null) await CardPileCmd.Add(selected, PileType.Hand);
+                await MoveSelectedDiscardCardsToHand(choiceContext, card.Owner, 1);
                 return;
             }
             case "D:LoseTemporaryFocus":
@@ -2043,7 +2069,7 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "D:ReturnEventCardToHand":
-                if (state.EventCard is not null) await CardPileCmd.Add(state.EventCard, PileType.Hand);
+                if (state.EventCard is not null) await TryAddToHand(state.EventCard);
                 return;
             case "D:ExhaustSelectedHandCard":
                 if (operation.CardTargetSlot is { } slot && state.CardSlots.TryGetValue(slot, out var selectedCard))
@@ -2132,8 +2158,9 @@ internal static class ChaosOperationExecutor
         }
         if (operation.Template == "I:ProxyAtomic_WhiteNoise")
         {
-            var powers = card.Owner.Character.CardPool.GetUnlockedCards(card.Owner.UnlockState,
-                card.Owner.RunState.CardMultiplayerConstraint).Where(candidate => candidate.Type == CardType.Power);
+            var powers = RandomCombatGenerationCandidates(card.Owner.Character.CardPool.GetUnlockedCards(
+                    card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
+                .Where(candidate => candidate.Type == CardType.Power);
             var generated = CardFactory.GetDistinctForCombat(card.Owner, powers, 1,
                 card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
             UpgradeGeneratedCards(card, operationIndex, generated);
@@ -2149,19 +2176,19 @@ internal static class ChaosOperationExecutor
         {
             IEnumerable<CardModel> pool;
             if (operation.Template == "I:ProxyAtomic_Quasar")
-                pool = ModelDb.CardPool<ColorlessCardPool>().GetUnlockedCards(card.Owner.UnlockState,
-                    card.Owner.RunState.CardMultiplayerConstraint);
+                pool = RandomCombatGenerationCandidates(ModelDb.CardPool<ColorlessCardPool>().GetUnlockedCards(
+                    card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint));
             else if (operation.Template == "CL:ProxyAtomic_Splash")
             {
                 var pools = card.Owner.UnlockState.CharacterCardPools.ToList();
                 if (pools.Count > 1) pools.Remove(card.Owner.Character.CardPool);
-                pool = pools.SelectMany(candidate => candidate.GetUnlockedCards(card.Owner.UnlockState,
-                        card.Owner.RunState.CardMultiplayerConstraint))
+                pool = RandomCombatGenerationCandidates(pools.SelectMany(candidate => candidate.GetUnlockedCards(
+                        card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint)))
                     .Where(candidate => candidate.Type == CardType.Attack);
             }
             else
-                pool = card.Owner.Character.CardPool.GetUnlockedCards(card.Owner.UnlockState,
-                    card.Owner.RunState.CardMultiplayerConstraint);
+                pool = RandomCombatGenerationCandidates(card.Owner.Character.CardPool.GetUnlockedCards(
+                    card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint));
 
             // FromChooseACardScreen throws for four or more cards. New definitions are capped during generation,
             // and this runtime clamp keeps pre-cap snapshots safe without regenerating the saved card.
@@ -2349,13 +2376,8 @@ internal static class ChaosOperationExecutor
         // the card node in Play. Interpret them directly so absence of an object is a true no-op, not a UI choice.
         if (operation.Template == "I:ProxyAtomic_Dredge")
         {
-            var handSpace = Math.Max(0, CardPile.MaxCardsInHand - PileType.Hand.GetPile(card.Owner).Cards.Count);
-            var count = Math.Min(handSpace,
+            await MoveSelectedDiscardCardsToHand(choiceContext, card.Owner,
                 Math.Max(1, card.OperationAmount(operationIndex)));
-            if (count == 0) return;
-            var selected = await SelectFromCombatPileIfAny(choiceContext, PileType.Discard.GetPile(card.Owner),
-                card.Owner, new CardSelectorPrefs(SelectionPrompt("DISCARD_TO_HAND"), count));
-            await CardPileCmd.Add(selected, PileType.Hand);
             return;
         }
         if (operation.Template == "I:ProxyAtomic_Transfigure")
@@ -2551,7 +2573,7 @@ internal static class ChaosOperationExecutor
     private static async Task CreateCard(ChaosCardModel card, int operationIndex, GeneratorOperation operation,
         OperationRuntimeSpec spec, int amount, ChaosExecutionState state)
     {
-        var count = ExecutableGeneratedCardCount(amount);
+        var count = ExecutableOperationCount(operation, amount);
         if (count == 0) return;
         IEnumerable<CardModel> created = [];
         if (spec.Opcode == "create_copy" && spec.Variant == "this_card")
@@ -2563,7 +2585,8 @@ internal static class ChaosOperationExecutor
                  && (state.IterationCard ?? state.EventCard) is { } referencedCard)
             created = Enumerable.Range(0, count).Select(_ => referencedCard.CreateClone());
         else if (spec.Opcode == "create_card" && spec.Variant == "current_character_random")
-            created = CardFactory.GetDistinctForCombat(card.Owner, CurrentCharacterCards(card), count,
+            created = CardFactory.GetDistinctForCombat(card.Owner,
+                RandomCombatGenerationCandidates(CurrentCharacterCards(card)), count,
                 card.Owner.RunState.Rng.CombatCardGeneration);
         var materialized = created.ToArray();
         UpgradeGeneratedCards(card, operationIndex, materialized);
@@ -2580,13 +2603,14 @@ internal static class ChaosOperationExecutor
         var discard = PileType.Discard.GetPile(card.Owner);
         if (spec.Variant == "random" && spec.CardFilter == "attack")
         {
+            if (AvailableHandSlots(card.Owner) == 0) return;
             var attacks = discard.Cards.Where(candidate => candidate.Type == CardType.Attack).ToList();
             if (attacks.Count > 0)
             {
                 var moved = card.Owner.RunState.Rng.CombatCardSelection.NextItem(attacks);
                 if (moved is not null)
                 {
-                    await CardPileCmd.Add(moved, PileType.Hand);
+                    if (!await TryAddToHand(moved)) return;
                     state.CardSlots[operation.CardTargetSlot ?? "movedCard"] = moved;
                     state.LastMovedCard = moved;
                 }
@@ -2596,6 +2620,33 @@ internal static class ChaosOperationExecutor
         var selected = (await SelectFromCombatPileIfAny(choiceContext, discard, card.Owner,
             new CardSelectorPrefs(SelectionPrompt("DISCARD_TO_DRAW_PILE"), 1))).FirstOrDefault();
         if (selected is not null) await CardPileCmd.Add(selected, PileType.Draw, CardPilePosition.Top);
+    }
+
+    internal static int AvailableHandSlots(Player player) =>
+        Math.Max(0, CardPile.MaxCardsInHand - PileType.Hand.GetPile(player).Cards.Count);
+
+    internal static async Task<bool> TryAddToHand(CardModel card)
+    {
+        if (AvailableHandSlots(card.Owner) == 0) return false;
+        await CardPileCmd.Add(card, PileType.Hand);
+        return card.Pile?.Type == PileType.Hand;
+    }
+
+    private static async Task<IReadOnlyList<CardModel>> MoveSelectedDiscardCardsToHand(
+        PlayerChoiceContext choiceContext, Player player, int requestedCount)
+    {
+        var discard = PileType.Discard.GetPile(player);
+        var count = Math.Min(Math.Max(0, requestedCount),
+            Math.Min(discard.Cards.Count, AvailableHandSlots(player)));
+        if (count == 0) return Array.Empty<CardModel>();
+
+        var selected = (await SelectFromCombatPileIfAny(choiceContext, discard, player,
+            new CardSelectorPrefs(SelectionPrompt("DISCARD_TO_HAND"), count))).ToArray();
+        // A multiplayer choice may resolve after another effect has changed the hand. Recheck the live capacity so
+        // CardPileCmd never redirects a selected discard card back into its source pile.
+        var movable = selected.Take(AvailableHandSlots(player)).ToArray();
+        if (movable.Length > 0) await CardPileCmd.Add(movable, PileType.Hand);
+        return movable;
     }
 
     private static async Task ExecuteIndependent(ChaosCardModel card, int operationIndex,
@@ -2689,7 +2740,15 @@ internal static class ChaosOperationExecutor
         else if (operation.Template == "I:AddCardReward")
         {
             if ((card.CombatState ?? card.Owner.Creature.CombatState)?.RunState.CurrentRoom is CombatRoom room)
+            {
                 room.AddExtraReward(card.Owner, new CardReward(CardCreationOptions.ForRoom(card.Owner, room.RoomType), 3, card.Owner));
+                // Match The Hunt's native success indicator. The Power is visual only; the reward itself remains in
+                // CombatRoom.ExtraRewards and is serialized/offered through the base-game reward flow.
+                await PowerCmd.Apply<TheHuntPower>(choiceContext, card.Owner.Creature, 1m,
+                    card.Owner.Creature, card);
+                if (ChaosDiagnostics.VerboseRuntime)
+                    Log.Info($"[AutoAnthony] Registered a Fatal card reward for player {card.Owner.NetId}.");
+            }
         }
         else if (operation.Template == "I:ReduceThisCardCostCombat")
             card.EnergyCost.AddThisCombat(-amount);
@@ -2712,9 +2771,10 @@ internal static class ChaosOperationExecutor
                 CardPilePosition.Top, forceExhaust: false);
         else if (operation.Template == "I:Create")
         {
-            var count = ExecutableGeneratedCardCount(amount);
+            var count = ExecutableOperationCount(operation, amount);
             if (count == 0) return;
-            var attackPool = CurrentCharacterCards(card).Where(candidate => candidate.Type == CardType.Attack).ToArray();
+            var attackPool = RandomCombatGenerationCandidates(CurrentCharacterCards(card))
+                .Where(candidate => candidate.Type == CardType.Attack).ToArray();
             if (ChaosDiagnostics.VerboseRuntime)
                 Log.Info($"[AutoAnthony] Random Attack pool contains {attackPool.Length} card(s) before combat-generation filtering.");
             var created = CardFactory.GetDistinctForCombat(card.Owner, attackPool, count,
@@ -3208,6 +3268,20 @@ internal static class ChaosOperationExecutor
     }
 
     /// <summary>
+    /// Random in-combat card creation must not turn run-persistent restricted effects (healing, maximum HP, gold,
+    /// potions, or permanent card growth) into repeatable resources.  Vanilla cards keep vanilla behaviour; this
+    /// filter only removes generated AutoAnthony definitions whose operation list contains such an effect.
+    /// </summary>
+    private static IEnumerable<CardModel> RandomCombatGenerationCandidates(IEnumerable<CardModel> candidates) =>
+        candidates.Where(CanBeRandomlyGeneratedInCombat);
+
+    internal static bool CanBeRandomlyGeneratedInCombat(CardModel candidate) =>
+        candidate is not ChaosCardModel chaos || CanBeRandomlyGeneratedInCombat(chaos.Generated.Operations);
+
+    internal static bool CanBeRandomlyGeneratedInCombat(IReadOnlyList<GeneratorOperation> operations) =>
+        !operations.Any(CardEffectRules.IsRestrictedEffect);
+
+    /// <summary>
     /// CardSelectCmd reserves and begins a multiplayer choice before it checks whether a hand/pile has any legal
     /// candidates. Generated cards can combine a selector with effects that empty or transform that source first,
     /// so every interpreter-owned selection must preflight the live source and avoid creating an empty choice.
@@ -3445,6 +3519,24 @@ internal static class ChaosOperationExecutor
         Math.Max(0, CardPile.MaxCardsInHand - (returnsThisToHand ? 1 : 0));
     internal static int ExecutableOrbRepeatCount(int amount) => Math.Max(0, amount);
     internal static int ExecutableGeneratedCardCount(int amount) => Math.Max(0, amount);
+    internal static int ExecutableOperationCount(GeneratorOperation operation, int amount)
+    {
+        if (amount > 0) return amount;
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+        // Native singular clauses such as Manifest Authority, Collision Course and several derivative producers
+        // intentionally have no numeric slot. Their count is one, not zero. X-backed zero remains a real no-op.
+        if (spec.Values.Any(value => value.Source is "energy_x" or "star_x" or "special_x")) return 0;
+        return spec.Flags.Contains("add_one_card_to_hand_reference") ? 1 : 0;
+    }
+
+    internal static int SelectionCountForEffect(GeneratorOperation operation, int amount)
+    {
+        // Most card-reference operations select one card and use their number for a different purpose (notably
+        // "play the selected Skill N times"). Only batch operations interpret their amount as selection count.
+        if (operation.Template is "CL:TransformSelectedHandCards" or "R:PutSelectedHandCardsOnDraw")
+            return Math.Max(1, amount);
+        return 1;
+    }
     /// <summary>
     /// Fixed-count status-to-discard clauses can reach this boundary without a materialized DynamicVar (notably
     /// detached previews and migrated snapshots). Recover their structured fixed base value in that case. X-backed

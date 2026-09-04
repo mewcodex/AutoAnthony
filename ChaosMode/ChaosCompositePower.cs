@@ -19,6 +19,11 @@ namespace AutoAnthony;
 
 public sealed class ChaosCompositePower : PowerModel
 {
+    // A component is allowed to emit the same event that owns it (for example, Channel an Orb whenever an Orb is
+    // Channeled). The per-Power active set suppresses direct and cross-event re-entry while the originating hook is
+    // still resolving. The async-flow depth limit is a final circuit breaker for cycles involving several Powers.
+    private const int MaximumNestedTriggerDepth = 64;
+    private static readonly AsyncLocal<int> TriggerChainDepth = new();
     private int _slot;
     private GeneratedCharacter _character;
     private string _profileId = string.Empty;
@@ -196,8 +201,10 @@ public sealed class ChaosCompositePower : PowerModel
         _remainingTurnTriggers = limitedTurnIndex < 0 ? 0 : EffectiveOperationAmount(limitedTurnIndex, 1);
         _firstCardReplayAvailable = HasTriggerWithLinkedEffect(powerOperations,
             "first_card_played_each_turn", "D:ReplayEventCard");
-        _zeroCostAttackReturnAvailable = HasTriggerWithLinkedEffect(powerOperations,
-            "first_zero_cost_attack_played_each_turn", "D:ReturnEventCardToHand");
+        // This trigger was originally introduced for ReturnEventCardToHand, but its payoff is now composable.
+        // Arming it only for the native payoff made other legal combinations (for example status -> Fuel) inert.
+        _zeroCostAttackReturnAvailable = powerOperations.Any(operation =>
+            TriggerKind(operation) == "first_zero_cost_attack_played_each_turn");
         _firstAttackOrSkillAvailable = powerOperations.Any(operation => operation.Template == "CL:FirstAttackOrSkillEachTurn");
         var delayed = powerOperations.ToList().FindIndex(operation => operation.Template == "CL:AfterTurns");
         _delayedTurns = delayed < 0 ? 0 : Math.Max(1, EffectiveOperationAmount(delayed, 3));
@@ -414,8 +421,8 @@ public sealed class ChaosCompositePower : PowerModel
         var effectiveOperations = EffectivePowerOperations();
         _firstCardReplayAvailable = HasTriggerWithLinkedEffect(effectiveOperations,
             "first_card_played_each_turn", "D:ReplayEventCard");
-        _zeroCostAttackReturnAvailable = HasTriggerWithLinkedEffect(effectiveOperations,
-            "first_zero_cost_attack_played_each_turn", "D:ReturnEventCardToHand");
+        _zeroCostAttackReturnAvailable = effectiveOperations.Any(operation =>
+            TriggerKind(operation) == "first_zero_cost_attack_played_each_turn");
         if (!Permanent && _remainingTurnTriggers > 0)
         {
             await FireTriggers("next_turns_start", new ThrowingPlayerChoiceContext());
@@ -526,6 +533,13 @@ public sealed class ChaosCompositePower : PowerModel
             if (cardPlay.Card.Id == ChaosCardRegistry.Canonical(Character, Slot).Id)
                 return;
         }
+        // Unlike Echo Form's linked replay payoff, the first-card trigger itself is composable.  It must be
+        // dispatched for every legal linked effect (draw, Block, channel, and so on), not only when the trigger
+        // happens to own D:ReplayEventCard.  Capture the state before firing any other play triggers because those
+        // payoffs may autoplay additional cards and would otherwise change the combat history underneath us.
+        var isFirstCardPlayedThisTurn = IsFirstCardPlayThisTurn(
+            CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                entry.CardPlay.Player.Creature == Owner && entry.HappenedThisTurn(CombatState)));
         var cardsTrigger = Definition.Card.Operations.ToList().FindIndex(operation => operation.Template == "CL:EveryCardsPlayedThisTurn");
         if (cardsTrigger >= 0 && cardPlay.Card.Id != ChaosCardRegistry.Canonical(Character, Slot).Id)
         {
@@ -538,6 +552,9 @@ public sealed class ChaosCompositePower : PowerModel
             }
         }
         await FireTriggers("card_played", choiceContext, sourcePlay: cardPlay, eventCard: cardPlay.Card);
+        if (isFirstCardPlayedThisTurn)
+            await FireTriggers("first_card_played_each_turn", choiceContext,
+                sourcePlay: cardPlay, eventCard: cardPlay.Card);
         if (cardPlay.Card.Type == CardType.Power)
             await FireTriggers("power_played", choiceContext, sourcePlay: cardPlay, eventCard: cardPlay.Card);
         var derivativeTriggers = Definition.Card.Operations;
@@ -590,7 +607,7 @@ public sealed class ChaosCompositePower : PowerModel
             await FireTriggers("first_attack_or_skill_each_turn", choiceContext, cardPlay, cardPlay.Card);
         }
         if (_zeroCostAttackReturnAvailable && cardPlay.Card.Type == CardType.Attack
-            && cardPlay.Resources.EnergyValue == 0)
+            && cardPlay.Card.EnergyCost.GetResolved() == 0)
         {
             _zeroCostAttackReturnAvailable = false;
             await FireTriggers("first_zero_cost_attack_played_each_turn", choiceContext,
@@ -613,7 +630,10 @@ public sealed class ChaosCompositePower : PowerModel
     {
         if (creature == Owner.Player?.Osty && delta < 0)
             await FireTriggers("osty_hp_lost", new ThrowingPlayerChoiceContext(), eventAmount: -delta);
-        if (creature == Owner && delta < 0)
+        // This trigger explicitly says "during your turn".  Damage received while enemies or another multiplayer
+        // side is acting must not resolve it, even though the same Power remains subscribed to the HP hook.
+        if (ShouldFireOwnerTurnHpLoss(creature == Owner, delta,
+                Owner.CombatState?.CurrentSide == Owner.Side))
         {
             await FireTriggers("owner_hp_lost_during_turn", new ThrowingPlayerChoiceContext());
         }
@@ -636,6 +656,12 @@ public sealed class ChaosCompositePower : PowerModel
         await FireTriggers("card_generated", new ThrowingPlayerChoiceContext(), eventCard: card);
         if (card.Type == CardType.Status)
             await FireTriggers("status_generated", new ThrowingPlayerChoiceContext(), eventCard: card);
+    }
+
+    public override async Task AfterOrbChanneled(PlayerChoiceContext choiceContext, Player player, OrbModel orb)
+    {
+        if (player.Creature != Owner) return;
+        await FireTriggers("orb_channeled", choiceContext);
     }
 
     public override async Task AfterOrbEvoked(PlayerChoiceContext choiceContext, OrbModel orb, IEnumerable<Creature> targets)
@@ -1046,7 +1072,9 @@ public sealed class ChaosCompositePower : PowerModel
     {
         var operation = Definition.Card.Operations[index];
         if (TurnLimitedTriggerExpired(operation, OwnerTurnEffectsExpired, DefensiveTurnEffectsExpired)) return;
-        if (!_activeTriggers.Add(index)) return;
+        var previousDepth = TriggerChainDepth.Value;
+        if (!TryEnterTrigger(_activeTriggers, index, previousDepth)) return;
+        TriggerChainDepth.Value = previousDepth + 1;
         try
         {
             var rollingIndex = Definition.Card.Operations.ToList().FindIndex(candidate =>
@@ -1070,9 +1098,18 @@ public sealed class ChaosCompositePower : PowerModel
         }
         finally
         {
+            TriggerChainDepth.Value = previousDepth;
             _activeTriggers.Remove(index);
         }
     }
+
+    internal static bool TryEnterTrigger(ISet<int> activeTriggers, int triggerIndex, int currentDepth) =>
+        currentDepth < MaximumNestedTriggerDepth && activeTriggers.Add(triggerIndex);
+
+    internal static bool IsFirstCardPlayThisTurn(int finishedOwnerCardPlays) => finishedOwnerCardPlays == 1;
+
+    internal static bool ShouldFireOwnerTurnHpLoss(bool isOwner, decimal delta, bool isOwnerSide) =>
+        isOwner && delta < 0 && isOwnerSide;
 
     private void ExpireOwnerTurnEffects()
     {

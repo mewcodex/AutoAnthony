@@ -275,7 +275,8 @@ internal static class NativeCardValuationAudit
         // operation schedules one later zero-cost use of the complete payload. The audit must use that same target
         // instead of making Adaptive Strike look weak merely by omitting the generator's explicit copy rule.
         return operations.Any(CardEffectRules.IsZeroCostCopyThisCardToDiscard)
-            ? (target + ComponentAssemblyGenerator.CalibratedWholeCardCenter(recipe.OriginalRarity, 0d)) / 2d
+            ? CopyThisCardValuation.BlendWithZeroCostEnvelope(target,
+                ComponentAssemblyGenerator.CalibratedWholeCardCenter(recipe.OriginalRarity, 0d))
             : target;
     }
 

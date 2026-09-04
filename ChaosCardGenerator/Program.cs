@@ -316,6 +316,7 @@ if (selfTest)
 {
     GeneratorSelfTest.Run();
     NativeCardValuationAudit.ValidateCoverage();
+    NativeReferenceCatalog.Validate();
     Console.WriteLine("RandomCardGenerator self-test passed.");
     return;
 }
@@ -353,6 +354,8 @@ if (poolAuditSeed is { } exactPoolSeed)
     long cardGenerationMs = 0;
     long generatorConstructionMs = 0;
     long startingRepairMs = 0;
+    long initialStartingRepairMs = 0;
+    long finalStartingRepairMs = 0;
     long supportRepairMs = 0;
     long slowestCardMs = 0;
     var slowestCardIndex = -1;
@@ -396,7 +399,9 @@ if (poolAuditSeed is { } exactPoolSeed)
                 if (!StartingPoolConstraintResolver.TryRepair(startingCards, poolGenerator, poolRandom,
                         minimumDamage: 4, minimumDefense: 4, replacementAttemptLimit: 20_000, out failure))
                     break;
-                startingRepairMs += Stopwatch.GetElapsedTime(repairStarted).Milliseconds;
+                var repairElapsedMs = (long)Stopwatch.GetElapsedTime(repairStarted).TotalMilliseconds;
+                startingRepairMs += repairElapsedMs;
+                initialStartingRepairMs += repairElapsedMs;
                 Array.Copy(startingCards, poolCards, startingCards.Length);
             }
         }
@@ -411,14 +416,16 @@ if (poolAuditSeed is { } exactPoolSeed)
             && DerivativePoolConstraintResolver.TryRepairAndResolve(poolCards, poolRarities, poolGenerator,
                 poolRandom, replacementAttemptLimit: 20_000, out failure)
              && GeneratedCardEffectIdentity.TryAudit(poolCards, out failure);
-        supportRepairMs += Stopwatch.GetElapsedTime(supportStarted).Milliseconds;
+        supportRepairMs += (long)Stopwatch.GetElapsedTime(supportStarted).TotalMilliseconds;
         if (resolved && character != GeneratedCharacter.Colorless)
         {
             var startingCards = poolCards.Take(10).ToArray();
             var repairStarted = Stopwatch.GetTimestamp();
             resolved = StartingPoolConstraintResolver.TryRepair(startingCards, poolGenerator, poolRandom,
                 minimumDamage: 4, minimumDefense: 4, replacementAttemptLimit: 20_000, out failure);
-            startingRepairMs += Stopwatch.GetElapsedTime(repairStarted).Milliseconds;
+            var repairElapsedMs = (long)Stopwatch.GetElapsedTime(repairStarted).TotalMilliseconds;
+            startingRepairMs += repairElapsedMs;
+            finalStartingRepairMs += repairElapsedMs;
             if (resolved) Array.Copy(startingCards, poolCards, startingCards.Length);
         }
     }
@@ -427,16 +434,17 @@ if (poolAuditSeed is { } exactPoolSeed)
     var allocatedBytes = GC.GetTotalAllocatedBytes(precise: false) - allocatedBytesStart;
     var gcCounts = Enumerable.Range(0, GC.MaxGeneration + 1)
         .Select(generation => GC.CollectionCount(generation) - gcCountsStart[generation]);
+    var completedPoolCards = poolCards.OfType<GeneratedCard>().ToArray();
     Console.WriteLine($"character={character}; ultimate={ultimateChaos}; cards={poolRarities.Length}; "
         + $"resolved={resolved}; attempts={attemptsUsed}; elapsedMs={stopwatch.ElapsedMilliseconds}; "
-        + $"sly={poolCards.Count(SlyPoolConstraintResolver.HasSly)}; "
-        + $"discard={poolCards.Count(SlyPoolConstraintResolver.HasDiscardEffect)}; "
-        + $"startingDamage={poolCards.Take(10).Count(StartingPoolConstraintResolver.CountsAsDamage)}; "
-        + $"startingDefense={poolCards.Take(10).Count(StartingPoolConstraintResolver.CountsAsDefense)}; "
-        + $"startingHighResource={poolCards.Take(10).Count(StartingPoolConstraintResolver.IsHighResourceCard)}; "
+        + $"sly={completedPoolCards.Count(SlyPoolConstraintResolver.HasSly)}; "
+        + $"discard={completedPoolCards.Count(SlyPoolConstraintResolver.HasDiscardEffect)}; "
+        + $"startingDamage={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.CountsAsDamage)}; "
+        + $"startingDefense={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.CountsAsDefense)}; "
+        + $"startingHighResource={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.IsHighResourceCard)}; "
         + $"generatorConstructionMs={generatorConstructionMs}; cardGenerationMs={cardGenerationMs}; "
         + $"generationLoopWallMs={generationLoopWallMs}; "
-        + $"startingRepairMs={startingRepairMs}; "
+        + $"startingRepairMs={startingRepairMs}({initialStartingRepairMs}+{finalStartingRepairMs}); "
         + $"supportRepairMs={supportRepairMs}; slowestCard={slowestCardIndex + 1}/{slowestCardMs}ms; "
         + $"mostAllocatedCard={mostAllocatedCardIndex + 1}/{mostAllocatedCardBytes / 1024d / 1024d:F1}MiB; "
         + $"gcPauseMs={gcPauseMs}; gcCollections={string.Join('/', gcCounts)}; "

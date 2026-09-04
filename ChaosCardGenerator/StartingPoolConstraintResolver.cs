@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace ChaosCardGenerator;
 
 /// <summary>
@@ -11,6 +13,7 @@ public static class StartingPoolConstraintResolver
     public static bool TryRepair(GeneratedCard[] cards, RandomCardGenerator generator, Random random,
         int minimumDamage, int minimumDefense, int replacementAttemptLimit, out string failure)
     {
+        var traceRepairs = Environment.GetEnvironmentVariable("AUTOANTHONY_TRACE_POOL_REPAIR") == "1";
         var maximumRepairs = cards.Length * 4;
         for (var repair = 0; repair <= maximumRepairs; repair++)
         {
@@ -64,6 +67,12 @@ public static class StartingPoolConstraintResolver
                     && OstyPoolConstraintResolver.HasOstyEffect(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => currentSlyGap > 0
                     && SlyPoolConstraintResolver.HasSly(cards[index]) ? 1 : 0)
+                // Prefer slots whose removal preserves both current coverage counts. When defense is exactly at
+                // its minimum, replacing a defensive card while repairing damage would require the rare combined
+                // damage+Block template; trying those slots first caused seconds of guaranteed low-yield search.
+                .ThenByDescending(index =>
+                    (currentDamage - (CountsAsDamage(cards[index]) ? 1 : 0) >= minimumDamage ? 1 : 0)
+                    + (currentDefense - (CountsAsDefense(cards[index]) ? 1 : 0) >= minimumDefense ? 1 : 0))
                 .ThenByDescending(index => !damageValid && !CountsAsDamage(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => !defenseValid && !CountsAsDefense(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => !highResourceValid && IsHighResourceCard(cards[index]) ? 1 : 0)
@@ -78,6 +87,7 @@ public static class StartingPoolConstraintResolver
             var replaced = false;
             foreach (var index in candidates)
             {
+                var replacementStarted = traceRepairs ? Stopwatch.GetTimestamp() : 0;
                 var oldOrdinaryX = SpecialXCardConverter.IsOrdinaryX(cards[index]);
                 var oldCard = cards[index];
                 var repairingHighResource = !highResourceValid && IsHighResourceCard(cards[index]);
@@ -130,10 +140,20 @@ public static class StartingPoolConstraintResolver
                     });
                     cards[index] = replacement;
                     replaced = true;
+                    if (traceRepairs)
+                        Console.Error.WriteLine($"starter-repair[{repair}] {Stopwatch.GetElapsedTime(replacementStarted).TotalMilliseconds:F0}ms "
+                            + $"slot={index}; damage={currentDamage}/{minimumDamage}; defense={currentDefense}/{minimumDefense}; "
+                            + $"high={currentHighResource}/{MaximumHighResourceCards}; ostyGap={currentOstyGap}; "
+                            + $"slyGap={currentSlyGap}; derivativeValid={derivativeValid}");
                 }
                 catch (InvalidOperationException)
                 {
                     // Try another replaceable slot. The outer bounded pool attempt remains the final fallback.
+                    if (traceRepairs)
+                        Console.Error.WriteLine($"starter-repair[{repair}] rejected after "
+                            + $"{Stopwatch.GetElapsedTime(replacementStarted).TotalMilliseconds:F0}ms slot={index}; "
+                            + $"oldDamage={CountsAsDamage(oldCard)}; oldDefense={CountsAsDefense(oldCard)}; "
+                            + $"oldHigh={IsHighResourceCard(oldCard)}; oldX={oldOrdinaryX}");
                 }
                 if (replaced) break;
             }

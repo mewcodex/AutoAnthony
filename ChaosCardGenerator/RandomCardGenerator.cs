@@ -475,10 +475,6 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("消耗所有手牌后，同一次结算中不能继续使用手牌，除非先补充手牌。");
         if (!CardEffectRules.HasValidPlayerSelectedExhaustCounts(card.Operations))
             throw new InvalidOperationException("必须选择消耗的效果只能选择1张牌；多张牌必须使用“至多”效果。");
-        if (!CardEffectRules.HasNoSelfTriggeringDraw(card.Operations))
-            throw new InvalidOperationException("抽牌事件触发器不能连接会再次触发自身的即时抽牌效果。");
-        if (!CardEffectRules.HasNoSelfTriggeringBlock(card.Operations))
-            throw new InvalidOperationException("获得格挡触发器不能连接会再次触发自身的即时格挡效果。");
         if (!allowRandomizedNumericValues && !CardEffectRules.HasValidHighCostThresholds(card.Operations))
             throw new InvalidOperationException("耗能大于等于门槛只能取1、2或3。 ");
         if (!CardEffectRules.HasValidEnergyXDoubleThreshold(card.Operations))
@@ -1065,6 +1061,35 @@ public static class GeneratorSelfTest
         SlyKeywordTuning.Validate();
         SlyPoolConstraintResolver.Validate();
         CardKeywordTuning.Validate();
+        var regentStarAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Regent).Atoms
+            .First(atom => atom.Template == "R:GainStars");
+        var twoStarSpec = OperationRuntimeSpecCompiler.GetOrCompile(regentStarAtom) with
+        {
+            Values = OperationRuntimeSpecCompiler.GetOrCompile(regentStarAtom).Values
+                .Select(value => value.Id == "stars" ? value with { BaseValue = 2 } : value).ToArray()
+        };
+        var twoStars = new GeneratorOperation(regentStarAtom.Template, regentStarAtom.Scope,
+            string.Empty, new Dictionary<string, int>(), RuntimeSpec: twoStarSpec,
+            LocalizedText: regentStarAtom.LocalizedText);
+        if (EffectBalanceModel.EstimatedEffectValue(twoStars) != 2 * EffectBalanceModel.StarValuePerPoint)
+            throw new InvalidOperationException("蓝星收益没有使用统一的略降价值换算。 ");
+        var necrobinderAtoms = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder).Atoms;
+        var necrobinderBlock = necrobinderAtoms.First(atom => atom.Template == "N:B");
+        var necrobinderSummon = necrobinderAtoms.First(atom => atom.Template == "NCR:Summon");
+        var necrobinderDamage = necrobinderAtoms.First(CardEffectRules.IsEnemyDamage);
+        if (EffectSelectionTuning.NecrobinderBlockAndSummonWeight([necrobinderBlock],
+                GeneratedCharacter.Necrobinder, ultimateChaos: false)
+                != EffectSelectionTuning.NecrobinderBlockAndSummonWeightPercent
+            || EffectSelectionTuning.NecrobinderBlockAndSummonWeight([necrobinderSummon],
+                GeneratedCharacter.Necrobinder, ultimateChaos: false)
+                != EffectSelectionTuning.NecrobinderBlockAndSummonWeightPercent
+            || EffectSelectionTuning.NecrobinderBlockAndSummonWeight([necrobinderDamage],
+                GeneratedCharacter.Necrobinder, ultimateChaos: false) != 100
+            || EffectSelectionTuning.NecrobinderBlockAndSummonWeight([necrobinderBlock],
+                GeneratedCharacter.Necrobinder, ultimateChaos: true) != 100
+            || EffectSelectionTuning.NecrobinderBlockAndSummonWeight([necrobinderBlock],
+                GeneratedCharacter.Ironclad, ultimateChaos: false) != 100)
+            throw new InvalidOperationException("死灵契约师的格挡/召唤共享降权越过了角色或究极混沌边界。 ");
         var packageSourceCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad);
         var packageCatalog = new ImmutableComponentCatalog(GeneratedCharacter.Ironclad,
             packageSourceCatalog.Recipes);
@@ -2195,7 +2220,7 @@ public static class GeneratorSelfTest
             GeneratedRarity.Rare, 2d, 2, balancedValues: false,
             character: GeneratedCharacter.Colorless).Maximum;
         if (Math.Abs(EffectBalanceModel.RelativeTriggerFrequency(goldAxeCount) - 20d) > 0.001d
-            || EffectBalanceModel.EstimatedEffectValue(randomZeroCost) != 1_320
+            || EffectBalanceModel.EstimatedEffectValue(randomZeroCost) != EffectBalanceModel.RandomZeroCostCardValue
             || runawayRandomZeroCostValue <= aggressiveRareTwoCostMaximum
             || ComponentAssemblyGenerator.ApplyWholeCardBudgetEnvelope(runawayRandomZeroCost,
                 GeneratedRarity.Rare, 2d, GeneratedCardType.Attack, [], true,
@@ -2626,44 +2651,6 @@ public static class GeneratorSelfTest
             || !ComponentAssemblyGenerator.IsExplicitRareTemplate(loseFocusProbe.Template)
             || !ComponentAssemblyGenerator.IsExplicitRareTemplate(loseOrbSlotProbe.Template))
             throw new InvalidOperationException("永久失去集中或充能球栏位没有被同时认定为稀有效果、负面和永久负面效果。");
-        var hpLossTriggerProbe = new[]
-        {
-            new GeneratorOperation("A:when", OperationScope.AbilityTrigger, "每当你在回合内失去生命时。",
-                new Dictionary<string, int>()),
-            new GeneratorOperation("N:HP-", OperationScope.NonTargeted, "失去1点生命。",
-                new Dictionary<string, int> { ["triggerIndex"] = 0 })
-        };
-        if (CardEffectRules.HasNoSelfTriggeringHpLoss(hpLossTriggerProbe))
-            throw new InvalidOperationException("失去生命触发器不得以玩家失去生命作为自身结算内容。");
-        var drawTriggerProbe = new[]
-        {
-            new GeneratorOperation("C:untilTurnEndCardDrawn", OperationScope.ConditionalTrigger,
-                "本回合每当你抽到一张牌时。", new Dictionary<string, int>()),
-            new GeneratorOperation("N:Draw", OperationScope.NonTargeted, "抽2张牌。",
-                new Dictionary<string, int> { ["triggerIndex"] = 0 })
-        };
-        if (CardEffectRules.HasNoSelfTriggeringDraw(drawTriggerProbe)
-            || !CardEffectRules.HasNoSelfTriggeringDraw(
-                [drawTriggerProbe[0], drawTriggerProbe[1] with
-                {
-                    Template = "N:B", ChineseText = "获得5点格挡。"
-                }]))
-            throw new InvalidOperationException("抽牌触发器不得以即时抽牌作为自身结算内容。");
-        var blockTriggerProbe = new[]
-        {
-            new GeneratorOperation("A_WHEN_GAIN_BLOCK", OperationScope.AbilityTrigger,
-                "每当你获得格挡时。", new Dictionary<string, int>()),
-            new GeneratorOperation("N:B", OperationScope.NonTargeted, "获得5点格挡。",
-                new Dictionary<string, int> { ["triggerIndex"] = 0 })
-        };
-        if (CardEffectRules.HasNoSelfTriggeringBlock(blockTriggerProbe)
-            || !CardEffectRules.HasNoSelfTriggeringBlock(
-                [blockTriggerProbe[0], blockTriggerProbe[1] with
-                {
-                    Template = "T:D", Scope = OperationScope.SingleEnemyOnly,
-                    ChineseText = "造成5点伤害。", RequiresSingleTarget = true
-                }]))
-            throw new InvalidOperationException("获得格挡触发器不得以即时获得格挡作为自身结算内容。");
         var conditionalDamageProbe = new[]
         {
             new GeneratorOperation("C:ifTargetVulnerable", OperationScope.ConditionalTrigger,
@@ -2904,6 +2891,25 @@ public static class GeneratorSelfTest
             "使该敌人本回合失去12点力量。", true, CardReferenceRequirement.None);
         var temporaryAllEnemyStrengthAtom = new ComponentAtom("N:AllTempStrengthLoss", OperationScope.NonTargeted,
             "使所有敌人本回合失去12点力量。", false, CardReferenceRequirement.None);
+        var percentageDamageReductionAtom = new ComponentAtom("C:untilTurnEnd",
+            OperationScope.ConditionalTrigger,
+            "在本回合中，有易伤状态的敌人对你造成的伤害降低150%。", false,
+            CardReferenceRequirement.None);
+        var excessiveShivCountAtom = new ComponentAtom("N:CreateShiv", OperationScope.NonTargeted,
+            "将20张小刀加入手牌。", false, CardReferenceRequirement.None);
+        var excessiveTransformCountAtom = new ComponentAtom("CL:TransformSelectedHandCards",
+            OperationScope.NonTargeted, "变化手牌中的20张牌。", false, CardReferenceRequirement.HandCard);
+        var excessiveNextTurnDrawAtom = new ComponentAtom("N:NextTurnDraw", OperationScope.NonTargeted,
+            "在下个回合抽20张牌。", false, CardReferenceRequirement.None);
+        var unrelatedCardThresholdAtom = new ComponentAtom("CL:EveryCardsDrawn",
+            OperationScope.AbilityTrigger, "你每抽20张牌。", false, CardReferenceRequirement.None);
+        var tenShivs = new GeneratorOperation(excessiveShivCountAtom.Template,
+            excessiveShivCountAtom.Scope, "将10张小刀加入手牌。", new Dictionary<string, int>(),
+            RuntimeSpec: OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation(
+                excessiveShivCountAtom.Template, excessiveShivCountAtom.Scope, "将10张小刀加入手牌。",
+                new Dictionary<string, int>())));
+        var upgradedTenShivs = CardUpgradeGenerator.ApplyEffectsToOperations([tenShivs],
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 4, ValueSlotId: "amount")]);
         if (NumericGenerationTuning.ClampSampledValue(vulnerableAtom, 0, 9, [],
                 GeneratedCharacter.Silent) != 4
             || NumericGenerationTuning.ClampSampledValue(vulnerableAtom, 0, 9, [],
@@ -2913,8 +2919,14 @@ public static class GeneratorSelfTest
             || NumericGenerationTuning.ClampSampledValue(weakAtom, 0, 9, [],
                 GeneratedCharacter.Ironclad) != 4
             || NumericGenerationTuning.ClampSampledValue(temporaryEnemyStrengthAtom, 0, 12, []) != 9
-            || NumericGenerationTuning.ClampSampledValue(temporaryAllEnemyStrengthAtom, 0, 12, []) != 6)
-            throw new InvalidOperationException("易伤/虚弱的持续层数上限或战士/终极混乱放宽规则失效。 ");
+            || NumericGenerationTuning.ClampSampledValue(temporaryAllEnemyStrengthAtom, 0, 12, []) != 6
+            || NumericGenerationTuning.ClampSampledValue(percentageDamageReductionAtom, 0, 150, []) != 95
+            || NumericGenerationTuning.ClampSampledValue(excessiveShivCountAtom, 0, 20, []) != 10
+            || NumericGenerationTuning.ClampSampledValue(excessiveTransformCountAtom, 0, 20, []) != 10
+            || NumericGenerationTuning.ClampSampledValue(excessiveNextTurnDrawAtom, 0, 20, []) != 10
+            || NumericGenerationTuning.ClampSampledValue(unrelatedCardThresholdAtom, 0, 20, []) != 20
+            || OperationRuntimeSpecCompiler.FixedValue(upgradedTenShivs[0], "amount") != 10)
+            throw new InvalidOperationException("持续层数、百分比减伤或牌张数的全局数值上限失效。 ");
         var returnToHand = new GeneratorOperation("R:ReturnThisToHand", OperationScope.Independent,
             "将此牌放回手牌。", new Dictionary<string, int>());
         var gainOneEnergy = new GeneratorOperation("N:E", OperationScope.NonTargeted,
@@ -4486,17 +4498,19 @@ public static class GeneratorSelfTest
                 != CopyThisCardBudgetRole.PowerBenefit
             || CardEffectRules.CopyThisCardBudgetRole(zeroCostCopy, true, GeneratedCardType.Skill, [])
                 != CopyThisCardBudgetRole.None
+            || EffectBalanceModel.EstimatedEffectValue(ordinaryCopyAtom)
+                != CopyThisCardValuation.FreeReusableRewardValue
             || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryCopy], false,
-                GeneratedCardType.Skill, []) != 600d
+                GeneratedCardType.Skill, []) != CopyThisCardValuation.FreeReusableRewardValue
             || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryCopy], true,
                 GeneratedCardType.Skill, []) != 0d
             || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryCopy], true,
-                GeneratedCardType.Power, []) != 2_000d
+                GeneratedCardType.Power, []) != CopyThisCardValuation.PowerRewardValue
             || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryBlock, zeroCostCopy], true,
                 GeneratedCardType.Skill, []) != EffectBalanceModel.EstimatedPositiveCardValue(
                     [ordinaryBlock], true, GeneratedCardType.Skill, [])
             || Math.Abs(NegativeEffectTuning.TotalMultiplier([ordinaryCopy], [], true,
-                GeneratedCardType.Skill) - 1.14d) > 0.0001d
+                GeneratedCardType.Skill) - CopyThisCardValuation.PaidReusableDownsideMultiplier) > 0.0001d
             || NegativeEffectTuning.TotalMultiplier([ordinaryCopy], [CardTag.Exhaust], true,
                 GeneratedCardType.Skill) != 1d
             || NegativeEffectTuning.TotalMultiplier([], [CardTag.Exhaust], true,
@@ -4509,6 +4523,21 @@ public static class GeneratorSelfTest
             || EffectSelectionTuning.CopyThisCardPowerWeight(ordinaryCopyAtom,
                 GeneratedRarity.Common, GeneratedCardType.Skill) != 100)
             throw new InvalidOperationException("弃牌堆自身复制没有按费用、消耗与能力牌上下文正确计价。 ");
+
+        var rareZeroCostBlockTwentySix = new GeneratorOperation("N:B", OperationScope.NonTargeted,
+            "获得26点格挡。", new Dictionary<string, int> { ["block"] = 26 });
+        var rareZeroCostExhaustCopyOperations = new[] { rareZeroCostBlockTwentySix, ordinaryCopy };
+        var rareZeroCostBounds = ComponentAssemblyGenerator.WholeCardBudgetBounds(GeneratedRarity.Rare, 0d, 1,
+            balancedValues: true, character: GeneratedCharacter.Ironclad);
+        var rareZeroCostExhaustCopyValue = EffectBalanceModel.EstimatedPositiveCardValue(
+            rareZeroCostExhaustCopyOperations, false, GeneratedCardType.Skill, [CardTag.Exhaust]);
+        if (Math.Abs(rareZeroCostBounds.Maximum - 1_876.8d) > 0.001d
+            || rareZeroCostExhaustCopyValue != 3_120d
+            || ComponentAssemblyGenerator.IsWithinWholeCardBudgetEnvelope(rareZeroCostExhaustCopyOperations,
+                GeneratedRarity.Rare, 0d, GeneratedCardType.Skill, [CardTag.Exhaust], false,
+                true, GeneratedCharacter.Ironclad, false))
+            throw new InvalidOperationException(
+                "0费稀有的26格挡/弃牌堆复制/消耗组合错误地通过了数值平衡上界。 ");
 
         var exhaustPileCondition = new GeneratorOperation("R:AtTurnStartIfInExhaust",
             OperationScope.ConditionalTrigger, "在你的回合开始时，如果这张牌在你的消耗牌堆中。",
@@ -4812,6 +4841,14 @@ public static class GeneratorSelfTest
             "本回合失去3点集中。", Array.Empty<CardTag>(),
             [new GeneratorOperation("D:LoseTemporaryFocus", OperationScope.NonTargeted,
                 "本回合失去3点集中。", new Dictionary<string, int>())], Character: GeneratedCharacter.Defect));
+        AssertInvalid(new GeneratedCard(1, GeneratedCardType.Power, TargetMode.Other, GeneratedRarity.Uncommon,
+            "在你的回合开始时，本回合失去2点集中。", Array.Empty<CardTag>(),
+            [
+                new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
+                    "在你的回合开始时。", new Dictionary<string, int>()),
+                new GeneratorOperation("D:LoseTemporaryFocus", OperationScope.NonTargeted,
+                    "本回合失去2点集中。", new Dictionary<string, int> { ["triggerIndex"] = 0 })
+            ], Character: GeneratedCharacter.Defect));
         AssertInvalid(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Common,
             "如果奥斯提在本回合攻击过，则这张牌的耗能变为0。", Array.Empty<CardTag>(),
             [
