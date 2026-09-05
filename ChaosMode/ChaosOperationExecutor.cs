@@ -1702,7 +1702,8 @@ internal static class ChaosOperationExecutor
                 }
                 return;
             case "NCR:CreateCopyInDiscard":
-                await CardPileCmd.AddGeneratedCardToCombat(card.CreateClone(), PileType.Discard, card.Owner);
+                await AddGeneratedCardsToCombat(card, [card.CreateClone()], PileType.Discard,
+                    operation.Template);
                 return;
             case "NCR:NextVoidCostsZero":
                 await PowerCmd.Apply<VeilpiercerPower>(choiceContext, card.Owner.Creature, 1, card.Owner.Creature, card);
@@ -1819,35 +1820,49 @@ internal static class ChaosOperationExecutor
             .Select(_ => ChaosDerivativeResolver.Create(combatState, card.Owner, operation,
                 DerivativeIsUpgraded(card, operationIndex)))
             .ToArray();
-        IReadOnlyList<CardPileAddResult> results;
-        if (position is { } pilePosition)
-        {
-            results = await CardPileCmd.AddGeneratedCardsToCombat(cards, pile, card.Owner, pilePosition);
-            CardCmd.PreviewCardPileAdd(results);
-        }
-        else
-        {
-            results = await CardPileCmd.AddGeneratedCardsToCombat(cards, pile, card.Owner);
-            // Native status producers such as Gunk Up preview the newly added card. Besides matching that visual
-            // contract, the preview path refreshes pile counters immediately instead of making a successful
-            // discard-pile insertion look like a no-op until the next pile animation.
-            if (pile != PileType.Hand) CardCmd.PreviewCardPileAdd(results);
-        }
+        await AddGeneratedCardsToCombat(card, cards, pile,
+            $"{operation.Template}/{operation.DerivativeId ?? "default"}",
+            position ?? CardPilePosition.Bottom);
+    }
 
-        // Card generation can legitimately fail once combat is ending. At every other time, report a shortfall
-        // with the resolved derivative and final pile so vague "the token was not generated" reports can be
-        // distinguished from the normal full-Hand redirect to the Discard Pile.
+    /// <summary>
+    /// Generated-card insertion is one gameplay transaction regardless of whether the payload is a Status,
+    /// derivative, Curse, Soul, or a copy of the source card. Native discard producers always preview the returned
+    /// CardPileAddResult; omitting that step leaves no fly animation and can defer the discard counter refresh,
+    /// which is indistinguishable from a failed effect to the player. Keep presentation and the postcondition in
+    /// the same boundary so every discard producer follows the native contract and a genuine shortfall is logged
+    /// with the exact route/card identity.
+    /// </summary>
+    private static async Task<IReadOnlyList<CardPileAddResult>> AddGeneratedCardsToCombat(
+        ChaosCardModel source, IEnumerable<CardModel> generatedCards, PileType destination, string route,
+        CardPilePosition position = CardPilePosition.Bottom)
+    {
+        var cards = generatedCards as CardModel[] ?? generatedCards.ToArray();
+        if (cards.Length == 0) return Array.Empty<CardPileAddResult>();
+
+        var results = await CardPileCmd.AddGeneratedCardsToCombat(cards, destination, source.Owner, position);
+        var successful = results.Where(result => result.success).ToArray();
+        if (destination != PileType.Hand && successful.Length > 0)
+            CardCmd.PreviewCardPileAdd(successful);
+
+        var failed = results.Where(result => !result.success
+            || destination != PileType.Hand && result.cardAdded.Pile?.Type != destination).ToArray();
         if (!CombatManager.Instance.IsOverOrEnding
-            && (results.Count != cards.Length || results.Any(result => !result.success)))
-            Log.Error($"[AutoAnthony] Derivative producer {operation.Template}/{operation.DerivativeId ?? "default"} "
-                      + $"expected {cards.Length} add(s) to {pile}, received {results.Count}: "
+            && (results.Count != cards.Length || failed.Length > 0))
+        {
+            Log.Error($"[AutoAnthony] Generated-card route {route} expected {cards.Length} add(s) to "
+                      + $"{destination}, received {results.Count}: "
                       + string.Join(", ", results.Select(result =>
-                          $"{result.cardAdded.Id}@{result.cardAdded.Pile?.Type.ToString() ?? "no pile"}/success={result.success}")));
+                          $"{result.cardAdded.Id}@{result.cardAdded.Pile?.Type.ToString() ?? "no pile"}"
+                          + $"/success={result.success}")));
+        }
         else if (ChaosDiagnostics.VerboseRuntime)
-            Log.Info($"[AutoAnthony] Derivative producer {operation.Template}/{operation.DerivativeId ?? "default"} "
-                     + $"created {results.Count} card(s): "
+        {
+            Log.Info($"[AutoAnthony] Generated-card route {route} created {results.Count} card(s): "
                      + string.Join(", ", results.Select(result =>
                          $"{result.cardAdded.Id}@{result.cardAdded.Pile?.Type.ToString() ?? "no pile"}")));
+        }
+        return results;
     }
 
     /// <summary>
@@ -1909,7 +1924,7 @@ internal static class ChaosOperationExecutor
             {
                 var copy = card.CreateClone();
                 copy.EnergyCost.SetThisCombat(0);
-                await CardPileCmd.AddGeneratedCardToCombat(copy, PileType.Discard, card.Owner);
+                await AddGeneratedCardsToCombat(card, [copy], PileType.Discard, operation.Template);
                 return;
             }
             case "D:ReturnZeroCostDiscardToHand":
@@ -2615,8 +2630,9 @@ internal static class ChaosOperationExecutor
                 card.Owner.RunState.Rng.CombatCardGeneration);
         var materialized = created.ToArray();
         UpgradeGeneratedCards(card, operationIndex, materialized);
-        await CardPileCmd.AddGeneratedCardsToCombat(materialized,
-            spec.DestinationZone == "discard" ? PileType.Discard : PileType.Hand, card.Owner);
+        await AddGeneratedCardsToCombat(card, materialized,
+            spec.DestinationZone == "discard" ? PileType.Discard : PileType.Hand,
+            $"{operation.Template}/{spec.Variant}");
     }
 
     internal static bool IsCurrentCharacterRandomCardGeneration(GeneratorOperation operation) =>
