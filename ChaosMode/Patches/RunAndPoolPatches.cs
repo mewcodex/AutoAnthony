@@ -1295,12 +1295,23 @@ internal static class ChaosModelDbReadyPatch
         };
         var linkedBlock = Structured(new GeneratorOperation("N:B", OperationScope.NonTargeted,
             "获得5点格挡。", new Dictionary<string, int> { ["triggerIndex"] = 0 }));
+        var nestedAutoplayTemplates = new[]
+        {
+            "I:PlayTopCardAndExhaust", "I:PlayTopXCards", "CL:PlayTopDrawCard",
+            "D:AutoPlayRandomAttackFromDraw", "I:AutoPlayRandomAttackFromHand", "I:PlayAtRandomEnemy",
+            "I:PlayThisCard", "R:PlayThisCard", "D:ReplayEventCard",
+            "CL:ProxyAtomic_Catastrophe", "CL:ProxyAtomic_BeatDown"
+        };
         if (!ChaosCompositePower.StartTriggerNeedsPlayerChoice([nextTurnTrigger, linkedAutoplay],
                 ["next_turn_start"])
             || !ChaosCompositePower.StartTriggerNeedsPlayerChoice([repeatedNextTurnTrigger, linkedAutoplay],
                 ["next_turns_start"])
             || ChaosCompositePower.StartTriggerNeedsPlayerChoice([nextTurnTrigger, linkedBlock],
-                ["next_turn_start"]))
+                ["next_turn_start"])
+            || nestedAutoplayTemplates.Any(template =>
+                !ChaosCompositePower.TurnStartOperationNeedsChoiceContext(Structured(new GeneratorOperation(
+                    template, OperationScope.Independent, template,
+                    new Dictionary<string, int> { ["triggerIndex"] = 0 })))))
             throw new InvalidOperationException("Delayed turn-start PlayerChoiceContext routing audit failed.");
         if (ChaosOperationExecutor.RandomDrawAutoplayLimit(2) != 2
             || ChaosOperationExecutor.RandomDrawAutoplayLimit(0) != 1)

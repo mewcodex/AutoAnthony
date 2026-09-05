@@ -1081,6 +1081,8 @@ public sealed class ChaosCompositePower : PowerModel
         or "I:PlayTopCardAndExhaust" or "I:PlayTopXCards"
         or "CL:PlayTopDrawCard" or "D:AutoPlayRandomAttackFromDraw"
         or "I:AutoPlayRandomAttackFromHand" or "I:PlayAtRandomEnemy"
+        or "I:PlayThisCard" or "R:PlayThisCard" or "D:ReplayEventCard"
+        or "CL:ProxyAtomic_Catastrophe" or "CL:ProxyAtomic_BeatDown"
         || CardEffectRules.OperationNeedsChoiceContext(operation);
 
     private static string? TriggerKind(GeneratorOperation operation) =>
