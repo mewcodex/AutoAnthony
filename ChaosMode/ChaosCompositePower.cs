@@ -425,27 +425,53 @@ public sealed class ChaosCompositePower : PowerModel
             TriggerKind(operation) == "first_zero_cost_attack_played_each_turn");
         if (!Permanent && _remainingTurnTriggers > 0)
         {
-            await FireTriggers("next_turns_start", new ThrowingPlayerChoiceContext());
-            _remainingTurnTriggers--;
-            if (_remainingTurnTriggers <= 0) await PowerCmd.Remove(this);
+            // Player-choice hooks run earlier than AfterSideTurnStart in v111. Leave choice-capable delayed
+            // triggers to AfterPlayerTurnStart; resolving one here with ThrowingPlayerChoiceContext can leave the
+            // turn setup task incomplete and the player's phase permanently stuck at Start.
+            if (StartTriggerNeedsPlayerChoice("next_turns_start")) return;
+            await ResolveRemainingTurnStart(new ThrowingPlayerChoiceContext());
             return;
         }
         if (_waitForNextTurn)
         {
-            _waitForNextTurn = false;
-            await FireTriggers("next_turn_start", new ThrowingPlayerChoiceContext());
-            await PowerCmd.Remove(this);
+            if (StartTriggerNeedsPlayerChoice("next_turn_start")) return;
+            await ResolveNextTurnStart(new ThrowingPlayerChoiceContext());
             return;
         }
-        if (Permanent && !TurnStartNeedsPlayerChoice())
+        if (Permanent && !StartTriggerNeedsPlayerChoice("turn_start", "turn_start_if_self_in_exhaust"))
             await FireTriggersAny(["turn_start", "turn_start_if_self_in_exhaust"],
                 new ThrowingPlayerChoiceContext());
     }
 
     public override async Task AfterPlayerTurnStart(PlayerChoiceContext choiceContext, Player player)
     {
-        if (Permanent && player.Creature == Owner && TurnStartNeedsPlayerChoice())
+        if (player.Creature != Owner) return;
+        if (!Permanent && _remainingTurnTriggers > 0 && StartTriggerNeedsPlayerChoice("next_turns_start"))
+        {
+            await ResolveRemainingTurnStart(choiceContext);
+            return;
+        }
+        if (_waitForNextTurn && StartTriggerNeedsPlayerChoice("next_turn_start"))
+        {
+            await ResolveNextTurnStart(choiceContext);
+            return;
+        }
+        if (Permanent && StartTriggerNeedsPlayerChoice("turn_start", "turn_start_if_self_in_exhaust"))
             await FireTriggersAny(["turn_start", "turn_start_if_self_in_exhaust"], choiceContext);
+    }
+
+    private async Task ResolveRemainingTurnStart(PlayerChoiceContext choiceContext)
+    {
+        await FireTriggers("next_turns_start", choiceContext);
+        _remainingTurnTriggers--;
+        if (_remainingTurnTriggers <= 0) await PowerCmd.Remove(this);
+    }
+
+    private async Task ResolveNextTurnStart(PlayerChoiceContext choiceContext)
+    {
+        _waitForNextTurn = false;
+        await FireTriggers("next_turn_start", choiceContext);
+        await PowerCmd.Remove(this);
     }
 
     public override async Task AfterSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side, IEnumerable<Creature> participants)
@@ -1029,13 +1055,18 @@ public sealed class ChaosCompositePower : PowerModel
         return false;
     }
 
-    private bool TurnStartNeedsPlayerChoice()
+    private bool StartTriggerNeedsPlayerChoice(params string[] kinds) =>
+        StartTriggerNeedsPlayerChoice(Definition.Card.Operations, kinds);
+
+    internal static bool StartTriggerNeedsPlayerChoice(IReadOnlyList<GeneratorOperation> operations,
+        IReadOnlyCollection<string> kinds)
     {
-        var operations = Definition.Card.Operations;
         for (var triggerIndex = 0; triggerIndex < operations.Count; triggerIndex++)
         {
-            if (operations[triggerIndex].Template != "A:turnStart") continue;
-            if (operations.Any(operation => CardEffectRules.OperationNeedsChoiceContext(operation)
+            var trigger = operations[triggerIndex];
+            if (trigger.Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger)
+                || TriggerKind(trigger) is not { } kind || !kinds.Contains(kind)) continue;
+            if (operations.Any(operation => TurnStartOperationNeedsChoiceContext(operation)
                 && operation.Parameters.TryGetValue("triggerIndex", out var linked) && linked == triggerIndex))
                 return true;
         }

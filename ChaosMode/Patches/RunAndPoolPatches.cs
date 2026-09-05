@@ -1284,6 +1284,24 @@ internal static class ChaosModelDbReadyPatch
             "打出抽牌堆顶部的牌并将其消耗。", new Dictionary<string, int> { ["triggerIndex"] = 0 }));
         if (!ChaosCompositePower.TurnStartOperationNeedsChoiceContext(autoplay))
             throw new InvalidOperationException("Turn-start autoplay choice-context audit failed.");
+        var nextTurnTrigger = Structured(new GeneratorOperation("R:NextTurn", OperationScope.ConditionalTrigger,
+            "在你的下个回合开始时，", new Dictionary<string, int>()));
+        var repeatedNextTurnTrigger = Structured(new GeneratorOperation("D:NextTurnsStart",
+            OperationScope.ConditionalTrigger, "在接下来的2个回合开始时，",
+            new Dictionary<string, int> { ["duration"] = 2 }));
+        var linkedAutoplay = autoplay with
+        {
+            Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 }
+        };
+        var linkedBlock = Structured(new GeneratorOperation("N:B", OperationScope.NonTargeted,
+            "获得5点格挡。", new Dictionary<string, int> { ["triggerIndex"] = 0 }));
+        if (!ChaosCompositePower.StartTriggerNeedsPlayerChoice([nextTurnTrigger, linkedAutoplay],
+                ["next_turn_start"])
+            || !ChaosCompositePower.StartTriggerNeedsPlayerChoice([repeatedNextTurnTrigger, linkedAutoplay],
+                ["next_turns_start"])
+            || ChaosCompositePower.StartTriggerNeedsPlayerChoice([nextTurnTrigger, linkedBlock],
+                ["next_turn_start"]))
+            throw new InvalidOperationException("Delayed turn-start PlayerChoiceContext routing audit failed.");
         if (ChaosOperationExecutor.RandomDrawAutoplayLimit(2) != 2
             || ChaosOperationExecutor.RandomDrawAutoplayLimit(0) != 1)
             throw new InvalidOperationException("Random draw-pile Attack autoplay ignores its printed amount.");
