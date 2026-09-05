@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -20,6 +21,8 @@ using MegaCrit.Sts2.Core.Models.CardPools;
 using MegaCrit.Sts2.Core.Models.Enchantments;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Orbs;
+using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
+using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Rooms;
@@ -60,6 +63,11 @@ internal sealed class ChaosExecutionState
 
 internal static class ChaosOperationExecutor
 {
+    private static readonly System.Reflection.MethodInfo? FinishHandSelectionVisuals =
+        HarmonyLib.AccessTools.Method(typeof(NPlayerHand), "OnSelectModeSourceFinished");
+    private static readonly System.Reflection.MethodInfo? CancelHandSelectionVisuals =
+        HarmonyLib.AccessTools.Method(typeof(NPlayerHand), "CancelHandSelectionIfNecessary");
+
     private static readonly HashSet<string> GeneratedValueProxyTemplates = new(StringComparer.Ordinal)
     {
         "A:ProxyAtomic_Buffer", "A:ProxyAtomic_Calcify", "A:ProxyAtomic_Lethality",
@@ -3323,7 +3331,17 @@ internal static class ChaosOperationExecutor
         // pile mutation explicitly. It therefore does not need source-lifetime visual retention. Passing no source
         // makes NPlayerHand return the holder as part of completing the same selection transaction, on both peers,
         // before the interpreter applies Exhaust/Discard/Transform/Move/Upgrade.
-        var selected = (await CardSelectCmd.FromHand(context, player, prefs, filter, null!)).ToArray();
+        CardModel[] selected;
+        try
+        {
+            selected = (await CardSelectCmd.FromHand(context, player, prefs, filter, null!)).ToArray();
+        }
+        catch
+        {
+            CloseFailedHandSelection(player, source);
+            throw;
+        }
+        ReleaseOrphanedHandSelectionHolders(player, selected, source);
         var completed = CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
         if (completed.Count > selected.Distinct().Count())
             Log.Warn($"[AutoAnthony] Hand selector returned {selected.Length} card(s) for mandatory "
@@ -3342,8 +3360,68 @@ internal static class ChaosOperationExecutor
             return SelectAutomatically(player, candidates, prefs);
         // See SelectFromHandIfAny: generated selections must close their holder transaction immediately instead of
         // coupling it to a proxy/source model's ExecutionFinished event across multiplayer action queues.
-        var selected = (await CardSelectCmd.FromHandForDiscard(context, player, prefs, filter, null!)).ToArray();
+        CardModel[] selected;
+        try
+        {
+            selected = (await CardSelectCmd.FromHandForDiscard(context, player, prefs, filter, null!)).ToArray();
+        }
+        catch
+        {
+            CloseFailedHandSelection(player, source);
+            throw;
+        }
+        ReleaseOrphanedHandSelectionHolders(player, selected, source);
         return CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
+    }
+
+    /// <summary>
+    /// A completed hand selector must leave every selected model either back in the ordinary hand container or ready
+    /// for the interpreter's explicit pile mutation. NPlayerHand normally performs that cleanup immediately when the
+    /// selector source is null. Keep this postcondition explicit because a cancelled/resumed multiplayer choice or a
+    /// reconstructed trigger source can otherwise leave the backend card in Hand while its holder remains in the
+    /// centre selection container, making the card impossible to play.
+    /// </summary>
+    private static void ReleaseOrphanedHandSelectionHolders(Player player, IReadOnlyList<CardModel> selected,
+        AbstractModel source)
+    {
+        if (!LocalContext.IsMe(player) || selected.Count == 0 || NPlayerHand.Instance is not { } hand) return;
+        var stranded = selected.Where(candidate =>
+        {
+            if (!ReferenceEquals(candidate.Owner, player) || candidate.Pile?.Type != PileType.Hand) return false;
+            var holder = hand.GetCardHolder(candidate);
+            return holder is NSelectedHandCardHolder || holder is null;
+        }).ToArray();
+        if (stranded.Length == 0) return;
+
+        try
+        {
+            if (FinishHandSelectionVisuals is null)
+                throw new MissingMethodException(typeof(NPlayerHand).FullName, "OnSelectModeSourceFinished");
+            FinishHandSelectionVisuals.Invoke(hand, [null]);
+            Log.Warn($"[AutoAnthony] Recovered {stranded.Length} selected Hand card holder(s) left detached after "
+                     + $"{source.Id}; cards=[{string.Join(',', stranded.Select(card => card.Id.Entry))}].");
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"[AutoAnthony] Could not recover detached Hand selection holders after {source.Id}: "
+                      + exception);
+        }
+    }
+
+    private static void CloseFailedHandSelection(Player player, AbstractModel source)
+    {
+        if (!LocalContext.IsMe(player) || NPlayerHand.Instance is not { IsInCardSelection: true } hand) return;
+        try
+        {
+            if (CancelHandSelectionVisuals is null)
+                throw new MissingMethodException(typeof(NPlayerHand).FullName, "CancelHandSelectionIfNecessary");
+            CancelHandSelectionVisuals.Invoke(hand, null);
+            Log.Warn($"[AutoAnthony] Closed a Hand selection UI after its operation failed for {source.Id}.");
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"[AutoAnthony] Could not close failed Hand selection UI for {source.Id}: {exception}");
+        }
     }
 
     private static async Task<IEnumerable<CardModel>> SelectFromCombatPileIfAny(PlayerChoiceContext context,
@@ -3451,12 +3529,12 @@ internal static class ChaosOperationExecutor
     private static CardPreviewStyle TransformPreviewStyle(PlayerChoiceContext context) =>
         context is ThrowingPlayerChoiceContext ? CardPreviewStyle.None : CardPreviewStyle.HorizontalLayout;
 
-    private static Task<CardModel?> SelectFromHandForUpgradeIfAny(PlayerChoiceContext context, Player player,
+    private static async Task<CardModel?> SelectFromHandForUpgradeIfAny(PlayerChoiceContext context, Player player,
         AbstractModel source)
     {
         var candidates = PileType.Hand.GetPile(player).Cards.Where(candidate => candidate.IsUpgradable).ToList();
         if (candidates.Count == 0)
-            return Task.FromResult<CardModel?>(null);
+            return null;
         // Some engine hooks explicitly prohibit opening a UI choice. Current generation does not attach Armaments-
         // style selection to those hooks, but an older saved snapshot can. Resolve it deterministically instead of
         // passing ThrowingPlayerChoiceContext into the vanilla selector and aborting the trigger/card-play task.
@@ -3467,11 +3545,22 @@ internal static class ChaosOperationExecutor
                 : candidates.StableShuffle(player.RunState.Rng.CombatCardSelection).First();
             if (ChaosDiagnostics.VerboseRuntime)
                 Log.Warn($"[AutoAnthony] Auto-selected {selected.Id} for an upgrade effect running without a choice context.");
-            return Task.FromResult<CardModel?>(selected);
+            return selected;
         }
         // The returned model is upgraded in-place after this task completes; retaining its holder until an external
         // source event is unnecessary and can strand it when a multiplayer choice branches to another queue.
-        return CardSelectCmd.FromHandForUpgrade(context, player, null!);
+        CardModel? result;
+        try
+        {
+            result = await CardSelectCmd.FromHandForUpgrade(context, player, null!);
+        }
+        catch
+        {
+            CloseFailedHandSelection(player, source);
+            throw;
+        }
+        if (result is not null) ReleaseOrphanedHandSelectionHolders(player, [result], source);
+        return result;
     }
 
     private static void UpgradeExistingCombatCard(CardModel card, string operationTemplate)
