@@ -124,6 +124,8 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
             "AUTO_ANTHONY_CATEGORY_DISPLAY");
         ChaosSettingsToggle.RandomCardArtInstance = AddOption(display.Content, optionTemplate,
             ChaosSettingsToggle.RandomCardArtLineName, "AUTO_ANTHONY_RANDOM_CARD_ART");
+        ChaosSettingsToggle.GenerationModeHoverTipsInstance = AddOption(display.Content, optionTemplate,
+            ChaosSettingsToggle.GenerationModeHoverTipsLineName, "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS");
         ChaosSettingsToggle.CardInternalIdsInstance = AddOption(display.Content, optionTemplate,
             ChaosSettingsToggle.CardInternalIdsLineName, "AUTO_ANTHONY_CARD_INTERNAL_IDS");
         ChaosSettingsToggle.SurpriseModeInstance = AddOption(display.Content, optionTemplate,
@@ -163,6 +165,7 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
                      ChaosSettingsToggle.ReplaceStartingCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
                      ChaosSettingsToggle.RandomCardArtInstance,
+                     ChaosSettingsToggle.GenerationModeHoverTipsInstance,
                      ChaosSettingsToggle.CardInternalIdsInstance, ChaosSettingsToggle.SurpriseModeInstance,
                      ChaosSettingsToggle.SurpriseModeLiteInstance, ChaosSettingsToggle.SurpriseModeProInstance
                  })
@@ -186,6 +189,7 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
                      ChaosSettingsToggle.ReplaceStartingCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
                      ChaosSettingsToggle.RandomCardArtInstance,
+                     ChaosSettingsToggle.GenerationModeHoverTipsInstance,
                      ChaosSettingsToggle.CardInternalIdsInstance, ChaosSettingsToggle.SurpriseModeInstance,
                      ChaosSettingsToggle.SurpriseModeLiteInstance, ChaosSettingsToggle.SurpriseModeProInstance
                  })

@@ -8,7 +8,7 @@ internal static class ChaosModSettings
 {
     private sealed class SettingsData
     {
-        public int Schema { get; set; } = 12;
+        public int Schema { get; set; } = 13;
         public bool Enabled { get; set; } = true;
         public bool ReplaceStartingCards { get; set; } = true;
         public bool UltimateChaos { get; set; }
@@ -16,6 +16,7 @@ internal static class ChaosModSettings
         public bool NumericRandomMode { get; set; }
         public bool PreserveOriginalCards { get; set; }
         public bool RandomCardArt { get; set; }
+        public bool ShowGenerationModeHoverTips { get; set; } = true;
         public bool ShowCardInternalIds { get; set; }
         public bool SurpriseMode { get; set; }
         public bool SurpriseModeLite { get; set; }
@@ -33,6 +34,7 @@ internal static class ChaosModSettings
     private static bool _numericRandomMode;
     private static bool _preserveOriginalCards;
     private static bool _randomCardArt;
+    private static bool _showGenerationModeHoverTips = true;
     private static bool _showCardInternalIds;
     private static bool _surpriseMode;
     private static bool _surpriseModeLite;
@@ -173,6 +175,23 @@ internal static class ChaosModSettings
         }
     }
 
+    internal static bool ShowGenerationModeHoverTips
+    {
+        get
+        {
+            EnsureLoaded();
+            return _showGenerationModeHoverTips;
+        }
+        set
+        {
+            EnsureLoaded();
+            if (_showGenerationModeHoverTips == value) return;
+            _showGenerationModeHoverTips = value;
+            Save();
+            Log.Info($"[AutoAnthony] Generated-card mode hover tips {(value ? "enabled" : "disabled")}.");
+        }
+    }
+
     internal static bool SurpriseMode
     {
         get
@@ -256,6 +275,8 @@ internal static class ChaosModSettings
             _numericRandomMode = ParseBooleanSetting(json, false, "NumericRandomMode", "numeric_random_mode");
             _preserveOriginalCards = ParseBooleanSetting(json, false, "PreserveOriginalCards", "preserve_original_cards");
             _randomCardArt = ParseBooleanSetting(json, false, "RandomCardArt", "random_card_art");
+            _showGenerationModeHoverTips = ParseBooleanSetting(json, true,
+                "ShowGenerationModeHoverTips", "show_generation_mode_hover_tips");
             _showCardInternalIds = ParseShowCardInternalIds(json);
             _surpriseMode = ParseSurpriseMode(json);
             _surpriseModeLite = ParseSurpriseModeLite(json);
@@ -272,6 +293,7 @@ internal static class ChaosModSettings
             _numericRandomMode = false;
             _preserveOriginalCards = false;
             _randomCardArt = false;
+            _showGenerationModeHoverTips = true;
             _showCardInternalIds = false;
             _surpriseMode = false;
             _surpriseModeLite = false;
@@ -296,6 +318,7 @@ internal static class ChaosModSettings
                     NumericRandomMode = _numericRandomMode,
                     PreserveOriginalCards = _preserveOriginalCards,
                     RandomCardArt = _randomCardArt,
+                    ShowGenerationModeHoverTips = _showGenerationModeHoverTips,
                     ShowCardInternalIds = _showCardInternalIds,
                     SurpriseMode = _surpriseMode,
                     SurpriseModeLite = _surpriseModeLite,
@@ -553,7 +576,10 @@ internal static class ChaosModSettings
         if (!ParseBooleanSetting("{\"NumericRandomMode\":true}", false, "NumericRandomMode")
             || ParseBooleanSetting("{\"Schema\":10}", false, "NumericRandomMode")
             || !ParseBooleanSetting("{\"preserve_original_cards\":1}", false, "PreserveOriginalCards", "preserve_original_cards")
-            || !ParseBooleanSetting("{\"random_card_art\":1}", false, "RandomCardArt", "random_card_art"))
+            || !ParseBooleanSetting("{\"random_card_art\":1}", false, "RandomCardArt", "random_card_art")
+            || !ParseBooleanSetting("{\"Schema\":12}", true, "ShowGenerationModeHoverTips")
+            || ParseBooleanSetting("{\"show_generation_mode_hover_tips\":false}", true,
+                "ShowGenerationModeHoverTips", "show_generation_mode_hover_tips"))
             throw new InvalidOperationException("New generation-setting compatibility audit failed.");
         if (!ParseReplaceStartingCards("{\"ReplaceStartingCards\":true}")
             || ParseReplaceStartingCards("{\"replace_starting_cards\":0}")
