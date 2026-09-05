@@ -1976,7 +1976,7 @@ public static class GeneratorSelfTest
         if (ordinaryStatusCandidates.Any(DerivativeSlotCatalog.IsCurse))
             throw new InvalidOperationException("诅咒进入了普通状态牌槽候选池。");
         var curseDefinitions = DerivativeSlotCatalog.All.Where(DerivativeSlotCatalog.IsCurse).ToArray();
-        if (curseDefinitions.Length != 10
+        if (curseDefinitions.Length != 18
             || curseDefinitions.Any(definition =>
                 !DerivativeSlotCatalog.CanUseAssigned("D:CreateDazedInDiscard", definition)
                 || DerivativeSlotCatalog.CanUse("D:CreateDazedInDiscard", definition)))
@@ -1991,6 +1991,32 @@ public static class GeneratorSelfTest
             || rolledCurses.Select(definition => definition.Id).Distinct().Count() != curseDefinitions.Length)
             throw new InvalidOperationException(
                 $"状态牌诅咒彩蛋没有保持约1%概率或未覆盖全部普通诅咒：{rolledCurses.Length}/100000。");
+        var ordinaryCurse = new GeneratorOperation("D:CreateDazedInDiscard", OperationScope.NonTargeted,
+            "将1张笨拙放入弃牌堆。", new Dictionary<string, int>(), DerivativeId: "curse_clumsy");
+        var severeCurse = ordinaryCurse with { DerivativeId = "curse_debt" };
+        var extremeCurse = ordinaryCurse with { DerivativeId = "curse_normality" };
+        var fillWithExtremeCurse = new GeneratorOperation("R:FillHandWithDebris", OperationScope.NonTargeted,
+            "将凡庸加入你的手牌，直到手牌已满。", new Dictionary<string, int>(),
+            DerivativeId: "curse_normality");
+        var repeatedCurse = ordinaryCurse with
+        {
+            Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 }
+        };
+        var curseTurnStartTrigger = new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
+            "在你的回合开始时。", new Dictionary<string, int>());
+        var ordinaryCurseValue = NegativeEffectTuning.LinearCompensationValue(ordinaryCurse);
+        var severeCurseValue = NegativeEffectTuning.LinearCompensationValue(severeCurse);
+        var extremeCurseValue = NegativeEffectTuning.LinearCompensationValue(extremeCurse);
+        var fillCurseValue = NegativeEffectTuning.LinearCompensationValue(fillWithExtremeCurse);
+        var repeatedCurseValue = NegativeEffectTuning.LinearCompensationValue(repeatedCurse,
+            [curseTurnStartTrigger, repeatedCurse], 1);
+        var curseMultiplier = NegativeEffectTuning.BaseMultiplier(ordinaryCurse);
+        if (ordinaryCurseValue != 550d || severeCurseValue != 1_400d || extremeCurseValue != 3_000d
+            || fillCurseValue != 15_000d || repeatedCurseValue <= 550d || curseMultiplier != 1.14d)
+            throw new InvalidOperationException(
+                $"诅咒彩蛋未按严重度、数量或重复触发频率获得额外负面预算："
+                + $"ordinary={ordinaryCurseValue}, severe={severeCurseValue}, extreme={extremeCurseValue}, "
+                + $"fill={fillCurseValue}, repeated={repeatedCurseValue}, multiplier={curseMultiplier}。 ");
         var allDerivatives = DerivativeSlotCatalog.All.Count(definition =>
             !DerivativeSlotCatalog.IsStatus(definition) && !DerivativeSlotCatalog.IsCurse(definition));
         if (DerivativeSlotCatalog.Candidates(GeneratedCharacter.Ironclad, true, "I:Transform").Count != allDerivatives)

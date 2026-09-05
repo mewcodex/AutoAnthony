@@ -4781,13 +4781,13 @@ public static class CardEffectRules
         ComponentValuationApi.IsNegative(OperationRuntimeSpecCompiler.GetOrCompile(atom))
         || OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains(ComponentSemanticFlags.Negative)
         || OperationRuntimeSpecCompiler.IsIntrinsicNegative(atom)
-        || DerivativeSlotCatalog.ProducesStatus(atom);
+        || DerivativeSlotCatalog.ProducesNegativeCard(atom);
 
     public static bool IsNegativeEffect(GeneratorOperation operation) =>
         ComponentValuationApi.IsNegative(OperationRuntimeSpecCompiler.GetOrCompile(operation))
         || OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains(ComponentSemanticFlags.Negative)
         || OperationRuntimeSpecCompiler.IsIntrinsicNegative(operation)
-        || DerivativeSlotCatalog.ProducesStatus(operation);
+        || DerivativeSlotCatalog.ProducesNegativeCard(operation);
 
     public static bool HasNegativeKeyword(IEnumerable<CardTag> tags) =>
         tags.Any(tag => tag is CardTag.Exhaust or CardTag.Ethereal);

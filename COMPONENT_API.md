@@ -272,12 +272,21 @@ During that mod's initializer it registers:
 3. optional custom referenced-card/named-mechanic tips through `ComponentPresentationApi.RegisterPackage`;
 4. one `ExternalComponentCharacterRegistration`, whose profile ID, balance archetype and energy-icon prefix are
    stable across versions; it may also include an `IExternalAncientRelicAdapter` for Archaic Tooth and Dusty Tome.
+5. optionally, an `ExternalComponentCharacterRuntimeRegistration` with its fixed slot types, active-run predicate,
+   and generated pool.
 
 The external mod declares fixed slot card classes derived from `ExternalChaosCardModel` and overrides only
 `ComponentProfileId`, `Slot` and `Pool`. At new-run/restore time it generates or deserializes complete
 `ChaosCardDefinition` records and calls `ExternalComponentCharacterApi.InstallDefinitions`. Definition slots must be
 contiguous, every operation must have a validated RuntimeSpec, and every card must use the registered balance
 archetype. `ClearDefinitions` is run-scoped cleanup.
+
+The optional runtime registration lets the core reconstruct an external concrete card when a persistent Power
+fires and adds active external pools to cross-pool events. `ComponentTriggerApi` is the supported entry point for
+character-specific combat hooks; `ComponentRunSettingsApi`, `ComponentGenerationProgressApi`,
+`ComponentSurpriseApi`, and `CardNameGenerator.RegisterExternalParts` replace the corresponding private-reflection
+bridges used by early adapters. The original API-v2 character registration constructor and internal compatibility
+targets remain intact for precompiled adapters.
 
 AutoAnthony carries the external profile ID into `ChaosCompositePower` saved properties and multiplayer checksums,
 so delayed/continuous effects resolve the same external definition after save/load or reconnect. The owning mod must

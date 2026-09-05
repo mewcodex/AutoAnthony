@@ -48,6 +48,12 @@ internal static class WatcherAutoAnthonyAdapter
             ComponentKeywordRuntimeApi.RegisterPackage("watcher:autoanthony:keywords", keywordRuntime);
         ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
             ProfileId, GeneratedCharacter.Regent, "watcher"));
+        ExternalComponentCharacterApi.RegisterRuntime(new ExternalComponentCharacterRuntimeRegistration(
+            ProfileId,
+            WatcherChaosCardRegistry.CardTypes.Count,
+            slot => WatcherChaosCardRegistry.CardTypes[slot],
+            () => WatcherChaosRun.IsRunActive,
+            () => ModelDb.CardPool<WatcherCardPool>()));
     }
 
     // The Watcher mod owns seed choice, rarity counts, portraits, fx and snapshot synchronization.
@@ -61,6 +67,10 @@ internal static class WatcherAutoAnthonyAdapter
     private static int StableSeed(string seed) =>
         BitConverter.ToInt32(SHA256.HashData(Encoding.UTF8.GetBytes(ProfileId + "|" + seed)), 0);
 }
+
+// At multiplayer run start, resolve every host-owned option rather than reading local settings independently:
+// ComponentRunSettingsApi.TryResolveMultiplayer(modifiers, out var settings);
+// Character-specific hooks can use ComponentTriggerApi.FirePlayerAsync / FireCardAsync.
 
 internal sealed class WatcherStanceValuation : IComponentValuation
 {

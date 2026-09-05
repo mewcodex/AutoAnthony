@@ -741,6 +741,13 @@ public sealed class ChaosCompositePower : PowerModel
         return creature != Owner || !HasRule("retain_block_between_turns");
     }
 
+    public override bool ShouldFlush(Player player)
+    {
+        // Keep the generated rule self-contained instead of relying on WellLaidPlansPower's
+        // version-specific implementation. Only this Power's owner keeps their entire hand.
+        return player != Owner.Player || !HasRule("retain_hand_at_turn_end");
+    }
+
     public override decimal ModifyBlockMultiplicative(Creature target, decimal block, ValueProp props, CardModel? cardSource, CardPlay? cardPlay)
     {
         if (target != Owner || cardSource is null || !HasRule("first_card_block_doubled_each_turn")) return 1m;
@@ -1051,6 +1058,11 @@ public sealed class ChaosCompositePower : PowerModel
     private async Task FireTriggers(string kind, PlayerChoiceContext choiceContext, CardPlay? sourcePlay = null,
         CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0)
         => await FireTriggersAny([kind], choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
+
+    internal Task FireExternalTriggerAsync(string kind, PlayerChoiceContext choiceContext,
+        CardPlay? sourcePlay = null, CardModel? eventCard = null, Creature? eventCreature = null,
+        decimal eventAmount = 0)
+        => FireTriggers(kind, choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
 
     private async Task FireTriggersAny(IReadOnlyCollection<string> kinds,
         PlayerChoiceContext choiceContext, CardPlay? sourcePlay = null,

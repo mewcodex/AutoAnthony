@@ -997,6 +997,14 @@ public static class CardUpgradeGenerator
 
 internal sealed record NameParts(string Id, IReadOnlyList<string> ChineseParts, string EnglishPrefix, string EnglishMiddle, string EnglishSuffix);
 
+/// <summary>Reviewed name morphology for one card in an external component catalog.</summary>
+public sealed record ComponentCardNameParts(
+    string CardId,
+    IReadOnlyList<string> ChineseParts,
+    string EnglishPrefix,
+    string EnglishMiddle,
+    string EnglishSuffix);
+
 public static class CardNameGenerator
 {
     // Chinese names are reviewed into meaningful chunks of at most two characters. Slashes exist only in the source
@@ -1031,6 +1039,8 @@ public static class CardNameGenerator
     };
 
     private static readonly IReadOnlyDictionary<string, NameParts> Parts = BuildParts().ToDictionary(part => part.Id);
+    private static readonly HashSet<string> ExternalNamePackages = new(StringComparer.Ordinal);
+    private static readonly object ExternalNameSync = new();
     private static readonly ConditionalWeakTable<IComponentCatalog, RelationIndex> RelationIndexes = new();
 
     private sealed class RelationIndex
@@ -1069,6 +1079,52 @@ public static class CardNameGenerator
     }
 
     private readonly record struct WeightedNameSource(NameParts Parts, long Weight);
+
+    /// <summary>
+    /// Atomically registers reviewed name parts for an external catalog. This replaces reflection-based mutation
+    /// of the private name table while preserving the exact same generation path and special Strike/Form rules.
+    /// </summary>
+    public static void RegisterExternalParts(string packageId, IEnumerable<ComponentCardNameParts> entries)
+    {
+        if (string.IsNullOrWhiteSpace(packageId) || packageId.Any(character => character > 0x7f))
+            throw new ArgumentException("Name-part package IDs must be non-empty ASCII strings.", nameof(packageId));
+        ArgumentNullException.ThrowIfNull(entries);
+        var values = entries.ToArray();
+        if (values.Length == 0)
+            throw new ArgumentException("A name-part package must contain at least one entry.", nameof(entries));
+        var pending = new Dictionary<string, NameParts>(StringComparer.Ordinal);
+        foreach (var entry in values)
+        {
+            ArgumentNullException.ThrowIfNull(entry);
+            if (string.IsNullOrWhiteSpace(entry.CardId) || entry.CardId.Any(character => character > 0x7f))
+                throw new ArgumentException("External card-name IDs must be non-empty ASCII strings.", nameof(entries));
+            if (entry.ChineseParts is null || entry.ChineseParts.Count == 0
+                || entry.ChineseParts.Any(string.IsNullOrWhiteSpace)
+                || entry.ChineseParts.Any(part => part.EnumerateRunes().Count() > 2))
+                throw new ArgumentException(
+                    $"External card name '{entry.CardId}' needs non-empty Chinese chunks of at most two characters.",
+                    nameof(entries));
+            if (string.IsNullOrWhiteSpace(entry.EnglishMiddle) || entry.EnglishMiddle.Contains(' '))
+                throw new ArgumentException(
+                    $"External card name '{entry.CardId}' needs a non-empty, space-free English middle.",
+                    nameof(entries));
+            if (!pending.TryAdd(entry.CardId, new NameParts(entry.CardId, entry.ChineseParts.ToArray(),
+                    entry.EnglishPrefix ?? string.Empty, entry.EnglishMiddle, entry.EnglishSuffix ?? string.Empty)))
+                throw new ArgumentException($"Name-part package repeats card ID '{entry.CardId}'.", nameof(entries));
+        }
+
+        lock (ExternalNameSync)
+        {
+            if (ExternalNamePackages.Contains(packageId))
+                throw new InvalidOperationException($"Name-part package '{packageId}' is already registered.");
+            var duplicate = pending.Keys.FirstOrDefault(Parts.ContainsKey);
+            if (duplicate is not null)
+                throw new InvalidOperationException($"Card-name parts for '{duplicate}' are already registered.");
+            var dictionary = (IDictionary<string, NameParts>)Parts;
+            foreach (var (id, parts) in pending) dictionary.Add(id, parts);
+            ExternalNamePackages.Add(packageId);
+        }
+    }
 
     private sealed class WeightedNameSourcePool
     {

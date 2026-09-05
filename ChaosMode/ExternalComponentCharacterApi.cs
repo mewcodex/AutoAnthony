@@ -1,5 +1,7 @@
 using ChaosCardGenerator;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
 
@@ -14,6 +16,19 @@ public sealed record ExternalComponentCharacterRegistration(
     GeneratedCharacter BalanceArchetype,
     string EnergyIconPrefix,
     IExternalAncientRelicAdapter? AncientRelics = null);
+
+/// <summary>
+/// Optional runtime host supplied by an external character adapter. The original four-argument character
+/// registration deliberately remains unchanged for binary compatibility. Registering this companion object lets
+/// AutoAnthony reconstruct the owning mod's concrete card type when a persistent Power fires later, and exposes
+/// the active generated pool to vanilla events without either mod patching AutoAnthony's private methods.
+/// </summary>
+public sealed record ExternalComponentCharacterRuntimeRegistration(
+    string ProfileId,
+    int CardCount,
+    Func<int, Type> CardTypeForSlot,
+    Func<bool> IsRunActive,
+    Func<CardPoolModel> CardPool);
 
 /// <summary>
 /// Optional bridge for Archaic Tooth and Dusty Tome. The character mod remains authoritative for deciding whether
@@ -33,11 +48,13 @@ public interface IExternalAncientRelicAdapter
 /// </summary>
 public static class ExternalComponentCharacterApi
 {
-    public const int ApiVersion = 2;
+    public const int ApiVersion = 3;
     private static readonly object Sync = new();
     private static readonly Dictionary<string, ExternalComponentCharacterRegistration> Registrations =
         new(StringComparer.Ordinal);
     private static readonly Dictionary<string, IReadOnlyList<ChaosCardDefinition>> Definitions =
+        new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, ExternalComponentCharacterRuntimeRegistration> RuntimeHosts =
         new(StringComparer.Ordinal);
     private static bool _registrationsFrozen;
 
@@ -66,6 +83,77 @@ public static class ExternalComponentCharacterApi
         }
     }
 
+    /// <summary>
+    /// Registers the optional game-facing half of an external character integration. This is separate from
+    /// <see cref="Register(ExternalComponentCharacterRegistration)"/> so adapters compiled against API v2 keep
+    /// their original constructor and behavior.
+    /// </summary>
+    public static void RegisterRuntime(ExternalComponentCharacterRuntimeRegistration registration)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        ValidateId(registration.ProfileId, nameof(registration.ProfileId));
+        ArgumentNullException.ThrowIfNull(registration.CardTypeForSlot);
+        ArgumentNullException.ThrowIfNull(registration.IsRunActive);
+        ArgumentNullException.ThrowIfNull(registration.CardPool);
+        if (registration.CardCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(registration.CardCount),
+                "An external character runtime host must expose at least one card slot.");
+
+        // Resolve the types during initialization, before mutating the registry. This catches incomplete slot
+        // tables atomically while avoiding ModelDb/card construction before the database is ready.
+        for (var slot = 0; slot < registration.CardCount; slot++)
+        {
+            var cardType = registration.CardTypeForSlot(slot)
+                           ?? throw new ArgumentException($"External slot {slot} returned no card type.",
+                               nameof(registration));
+            if (!typeof(ExternalChaosCardModel).IsAssignableFrom(cardType) || cardType.IsAbstract)
+                throw new ArgumentException(
+                    $"External slot {slot} type '{cardType.FullName}' must be a concrete ExternalChaosCardModel.",
+                    nameof(registration));
+        }
+
+        lock (Sync)
+        {
+            _ = GetRegistrationLocked(registration.ProfileId);
+            if (_registrationsFrozen)
+                throw new InvalidOperationException(
+                    "External runtime registration must finish before definitions are installed or read.");
+            if (!RuntimeHosts.TryAdd(registration.ProfileId, registration))
+                throw new InvalidOperationException(
+                    $"External component runtime host '{registration.ProfileId}' is already registered.");
+        }
+    }
+
+    public static IReadOnlyList<ExternalComponentCharacterRuntimeRegistration> RegisteredRuntimeHosts
+    {
+        get
+        {
+            lock (Sync)
+                return RuntimeHosts.Values.OrderBy(value => value.ProfileId, StringComparer.Ordinal).ToArray();
+        }
+    }
+
+    /// <summary>Returns active external generated pools in stable profile-ID order.</summary>
+    public static IReadOnlyList<CardPoolModel> GetActiveCardPools()
+    {
+        ExternalComponentCharacterRuntimeRegistration[] hosts;
+        lock (Sync) hosts = RuntimeHosts.Values.OrderBy(value => value.ProfileId, StringComparer.Ordinal).ToArray();
+        var pools = new List<CardPoolModel>(hosts.Length);
+        foreach (var host in hosts)
+        {
+            // Do not execute another mod's delegates while holding the registry lock.
+            try
+            {
+                if (host.IsRunActive()) pools.Add(host.CardPool());
+            }
+            catch (Exception exception)
+            {
+                Log.Error($"[AutoAnthony] External runtime host '{host.ProfileId}' failed to expose its card pool: {exception}");
+            }
+        }
+        return pools;
+    }
+
     public static void InstallDefinitions(string profileId, IEnumerable<ChaosCardDefinition> definitions)
     {
         ValidateId(profileId, nameof(profileId));
@@ -74,6 +162,11 @@ public static class ExternalComponentCharacterApi
         lock (Sync)
         {
             var registration = GetRegistrationLocked(profileId);
+            if (RuntimeHosts.TryGetValue(profileId, out var runtimeHost)
+                && materialized.Length != runtimeHost.CardCount)
+                throw new ArgumentException(
+                    $"External definitions for '{profileId}' contain {materialized.Length} slots; "
+                    + $"the runtime host declared {runtimeHost.CardCount}.", nameof(definitions));
             if (materialized.Length == 0)
                 throw new ArgumentException("At least one external generated-card definition is required.",
                     nameof(definitions));
@@ -145,6 +238,49 @@ public static class ExternalComponentCharacterApi
         lock (Sync) return GetRegistrationLocked(profileId).EnergyIconPrefix;
     }
 
+    internal static bool TryCreateTriggeredCard(string profileId, int slot, ICombatState combatState, Player owner,
+        out ChaosCardModel? card)
+    {
+        ExternalComponentCharacterRuntimeRegistration? host;
+        lock (Sync) RuntimeHosts.TryGetValue(profileId, out host);
+        if (host is null || (uint)slot >= (uint)host.CardCount)
+        {
+            card = null;
+            return false;
+        }
+
+        try
+        {
+            var cardType = host.CardTypeForSlot(slot);
+            var canonical = ModelDb.GetById<CardModel>(ModelDb.GetId(cardType));
+            card = combatState.CreateCard(canonical, owner) as ChaosCardModel;
+            return card is not null;
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"[AutoAnthony] External runtime host '{profileId}' could not create slot {slot}: {exception}");
+            card = null;
+            return false;
+        }
+    }
+
+    internal static bool IsExternalRunActive(CardModel? card)
+    {
+        if (card is not ExternalChaosCardModel external) return false;
+        ExternalComponentCharacterRuntimeRegistration? host;
+        lock (Sync) RuntimeHosts.TryGetValue(external.ExternalProfileId, out host);
+        if (host is null) return false;
+        try
+        {
+            return host.IsRunActive();
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"[AutoAnthony] External runtime host '{host.ProfileId}' failed its run-active query: {exception}");
+            return false;
+        }
+    }
+
     public static bool TryGetAncientRelicAdapter(Player player, out IExternalAncientRelicAdapter adapter)
     {
         ArgumentNullException.ThrowIfNull(player);
@@ -183,6 +319,7 @@ public static class ExternalComponentCharacterApi
 public abstract class ExternalChaosCardModel : ChaosCardModel
 {
     protected abstract string ComponentProfileId { get; }
+    internal string ExternalProfileId => ComponentProfileId;
     protected sealed override string? DefinitionProfileId => ComponentProfileId;
     protected sealed override GeneratedCharacter Character =>
         ExternalComponentCharacterApi.BalanceArchetype(ComponentProfileId);

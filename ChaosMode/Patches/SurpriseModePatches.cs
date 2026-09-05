@@ -41,14 +41,14 @@ internal static class SurpriseModeUi
 
     internal static bool ShouldConceal(CardModel? card) => card is not null
         && ChaosModSettings.AnySurpriseMode
-        && ChaosRunDefinitions.IsRunActive
+        && (ChaosRunDefinitions.IsRunActive || ExternalComponentCharacterApi.IsExternalRunActive(card))
         && !SurpriseCardKnowledge.IsKnown(card);
 
     internal static bool IsGenerated(CardModel? card) => card?.Id is { } id
-        && ChaosCardRegistry.IsGeneratedCardId(id);
+        && (ChaosCardRegistry.IsGeneratedCardId(id) || card is ExternalChaosCardModel);
 
     internal static bool HasBeenObtained(CardModel card) => SurpriseCardKnowledge.IsKnown(card)
-        || !ChaosRunDefinitions.IsRunActive
+        || !(ChaosRunDefinitions.IsRunActive || ExternalComponentCharacterApi.IsExternalRunActive(card))
         && SaveManager.Instance?.Progress.DiscoveredCards.Contains(card.Id) == true;
 
     internal static bool ShouldConcealDescription(CardModel? card, Node owner) =>

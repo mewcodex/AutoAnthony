@@ -195,15 +195,23 @@ public static class DerivativeSlotCatalog
             new DerivativeSlotDefinition("minion_strike", GeneratedCharacter.Regent, "仆从打击", "Minion Strike", "Minion Strikes", true, true, true, true, true, true, false),
             new DerivativeSlotDefinition("minion_dive", GeneratedCharacter.Regent, "仆从俯冲", "Minion Dive Bomb", "Minion Dive Bombs", true, true, true, true, true, true, false),
             new DerivativeSlotDefinition("minion_sacrifice", GeneratedCharacter.Regent, "仆从捐躯", "Minion Sacrifice", "Minion Sacrifices", true, true, false, false, true, true, true),
+            new DerivativeSlotDefinition("curse_ascenders_bane", GeneratedCharacter.Colorless, "进阶之灾", "Ascender's Bane", "Ascender's Bane", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_bad_luck", GeneratedCharacter.Colorless, "霉运", "Bad Luck", "Bad Luck", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_clumsy", GeneratedCharacter.Colorless, "笨拙", "Clumsy", "Clumsy", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_bell", GeneratedCharacter.Colorless, "铃铛的诅咒", "Curse of the Bell", "Curse of the Bell", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_debt", GeneratedCharacter.Colorless, "债务", "Debt", "Debt", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_decay", GeneratedCharacter.Colorless, "腐朽", "Decay", "Decay", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_doubt", GeneratedCharacter.Colorless, "疑虑", "Doubt", "Doubt", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_enthralled", GeneratedCharacter.Colorless, "执迷", "Enthralled", "Enthralled", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_folly", GeneratedCharacter.Colorless, "愚行", "Folly", "Folly", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_greed", GeneratedCharacter.Colorless, "贪婪", "Greed", "Greed", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_guilty", GeneratedCharacter.Colorless, "愧疚", "Guilty", "Guilty", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_injury", GeneratedCharacter.Colorless, "受伤", "Injury", "Injury", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_normality", GeneratedCharacter.Colorless, "凡庸", "Normality", "Normality", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_poor_sleep", GeneratedCharacter.Colorless, "睡眠不佳", "Poor Sleep", "Poor Sleep", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_regret", GeneratedCharacter.Colorless, "悔恨", "Regret", "Regret", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_shame", GeneratedCharacter.Colorless, "羞耻", "Shame", "Shame", false, false, false, false, false, false, false),
+            new DerivativeSlotDefinition("curse_spore_mind", GeneratedCharacter.Colorless, "孢子心灵", "Spore Mind", "Spore Mind", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_writhe", GeneratedCharacter.Colorless, "苦恼", "Writhe", "Writhe", false, false, false, false, false, false, false)
         }.ToDictionary(definition => definition.Id, StringComparer.Ordinal);
 
@@ -353,6 +361,17 @@ public static class DerivativeSlotCatalog
 
     public static bool ProducesStatus(GeneratorOperation operation) =>
         Resolve(operation.DerivativeId, operation.Template) is { } derivative && IsStatus(derivative);
+
+    public static bool ProducesCurse(ComponentAtom atom) =>
+        Resolve(null, atom.Template) is { } derivative && IsCurse(derivative);
+
+    public static bool ProducesCurse(GeneratorOperation operation) =>
+        Resolve(operation.DerivativeId, operation.Template) is { } derivative && IsCurse(derivative);
+
+    public static bool ProducesNegativeCard(ComponentAtom atom) => ProducesStatus(atom) || ProducesCurse(atom);
+
+    public static bool ProducesNegativeCard(GeneratorOperation operation) =>
+        ProducesStatus(operation) || ProducesCurse(operation);
 
     // "ink" is accepted only to migrate v0.1.65 snapshots; new generation always stores shiv + inky.
     public static bool IsKnownId(string derivativeId) => Definitions.ContainsKey(derivativeId) || derivativeId == "ink";

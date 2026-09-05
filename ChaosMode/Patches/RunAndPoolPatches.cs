@@ -1205,7 +1205,10 @@ internal static class ChaosModelDbReadyPatch
             OperationScope.AbilityRule, "受到未被格挡的攻击伤害时，立即死亡。", new Dictionary<string, int>()));
         var immediateAbilityRule = Structured(new GeneratorOperation("A:ProxyAtomic_Buffer",
             OperationScope.AbilityRule, "阻止下一次生命损伤。", new Dictionary<string, int>()));
+        var retainWholeHandRule = Structured(new GeneratorOperation("A:ruleRetainHand",
+            OperationScope.AbilityRule, "在你的回合结束时，不再丢弃你的手牌。", new Dictionary<string, int>()));
         if (!ChaosOperationExecutor.RequiresCompositePower(fatalUnblockedDamage)
+            || !ChaosOperationExecutor.RequiresCompositePower(retainWholeHandRule)
             || ChaosOperationExecutor.RequiresCompositePower(immediateAbilityRule))
             throw new InvalidOperationException(
                 "The Gambit persistent-rule Power arming audit failed.");
@@ -2296,6 +2299,8 @@ internal static class ColorfulPhilosophersChaosPoolPatch
         yield return ModelDb.CardPool<ChaosRegentCardPool>();
         yield return ModelDb.CardPool<ChaosSilentCardPool>();
         yield return ModelDb.CardPool<ChaosDefectCardPool>();
+        foreach (var pool in ExternalComponentCharacterApi.GetActiveCardPools())
+            yield return pool;
     }
 
     private static Task OfferRewards(ColorfulPhilosophers instance, CardPoolModel pool) =>

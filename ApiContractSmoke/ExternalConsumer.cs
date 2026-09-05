@@ -3,6 +3,7 @@ using ChaosCardGenerator;
 using Godot;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 
 namespace ApiContractSmoke;
@@ -42,6 +43,13 @@ public static class ExternalConsumer
             [new ComponentKeywordRuntimeRegistration("api_smoke:charged", new SmokeKeywordAdapter())]);
         ExternalComponentCharacterApi.Register(new ExternalComponentCharacterRegistration(
             profileId, GeneratedCharacter.Ironclad, "api_smoke", new SmokeAncientRelicAdapter()));
+        ExternalComponentCharacterApi.RegisterRuntime(new ExternalComponentCharacterRuntimeRegistration(
+            profileId, 1, _ => typeof(SmokeExternalCard000), () => false,
+            () => ModelDb.CardPool<SmokeCardPool>()));
+        CardNameGenerator.RegisterExternalParts("api_smoke:names",
+        [
+            new ComponentCardNameParts("ApiSmokeCard", ["测", "试"], "", "Test", " Card")
+        ]);
         _ = ComponentPresentationApi.RegisteredRoutes;
         _ = ComponentPresentationApi.RegisteredPackages;
         _ = ComponentKeywordRuntimeApi.RegisteredKeywordIds;
@@ -49,6 +57,20 @@ public static class ExternalConsumer
         _ = new RandomCardGenerator(request, 12345, balancedValues: true);
         _ = new RandomCardGenerator(new ComponentProfileRequest(profileId, GeneratedCharacter.Ironclad, true),
             12345, balancedValues: true);
+        _ = ComponentRunSettingsApi.Local;
+        _ = ComponentRunSettingsApi.TryResolveMultiplayer([], out _);
+        using var progress = ComponentGenerationProgressApi.Create(1);
+        progress.Report(1);
+        _ = ComponentSurpriseApi.IsGenerated(null);
+    }
+
+    public static async Task CompileTriggerBridge(ChaosCardModel card, Player player,
+        PlayerChoiceContext choiceContext)
+    {
+        _ = ComponentTriggerApi.HasCardTrigger(card, "api_smoke:trigger");
+        _ = ComponentTriggerApi.EffectiveOperationAmount(card, 0);
+        await ComponentTriggerApi.FireCardAsync(card, choiceContext, "api_smoke:trigger");
+        await ComponentTriggerApi.FirePlayerAsync(player, choiceContext, "api_smoke:trigger");
     }
 }
 

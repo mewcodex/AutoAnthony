@@ -205,10 +205,22 @@ internal static class ChaosOperationExecutor
     internal static async Task ExecuteTriggered(ChaosCompositePower power, int triggerIndex, PlayerChoiceContext choiceContext,
         CardPlay? sourcePlay = null, CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0)
     {
-        var canonical = ChaosCardRegistry.Canonical(power.Character, power.Slot);
         var owner = power.Owner.Player;
         if (owner is null) return;
-        var source = power.CombatState.CreateCard(canonical, owner) as ChaosCardModel;
+        ChaosCardModel? source;
+        if (string.IsNullOrEmpty(power.ProfileId))
+        {
+            var canonical = ChaosCardRegistry.Canonical(power.Character, power.Slot);
+            source = power.CombatState.CreateCard(canonical, owner) as ChaosCardModel;
+        }
+        else if (!ExternalComponentCharacterApi.TryCreateTriggeredCard(power.ProfileId, power.Slot,
+                     power.CombatState, owner, out source))
+        {
+            // API-v2 adapters may still intercept this method to construct their concrete card type. Reaching this
+            // branch means no v3 runtime host was registered, so fail closed rather than creating the wrong
+            // built-in archetype card for an external definition.
+            return;
+        }
         if (source is null) return;
         source.ResolvedSpecialXValue = power.SpecialXValue;
         source.SetResolvedXValues(power.ResolvedEnergyXValue, power.ResolvedStarXValue);
@@ -712,6 +724,13 @@ internal static class ChaosOperationExecutor
 
         switch (spec.Opcode, spec.Variant)
         {
+            case ("exhaust_card", "selected") when spec.SourceZone is "draw" or "discard":
+            {
+                var pileType = spec.SourceZone == "draw" ? PileType.Draw : PileType.Discard;
+                var count = Math.Max(1, RuntimeSpecValue(card, operationIndex, "count", amount));
+                await ExhaustSelectedCombatPileCards(choiceContext, card.Owner, pileType, count);
+                return true;
+            }
             case ("gain_block", "immediate"):
             {
                 var block = ApplyBlockModifiers(card, amount, operationIndex, state.Target);
@@ -1551,9 +1570,7 @@ internal static class ChaosOperationExecutor
                 return;
             case "NCR:ExhaustSelectedDrawCard":
             {
-                var selected = (await SelectFromCombatPileIfAny(choiceContext, PileType.Draw.GetPile(card.Owner), card.Owner,
-                    new CardSelectorPrefs(CardSelectorPrefs.ExhaustSelectionPrompt, 1))).FirstOrDefault();
-                if (selected is not null) await CardCmd.Exhaust(choiceContext, selected);
+                await ExhaustSelectedCombatPileCards(choiceContext, card.Owner, PileType.Draw, 1);
                 return;
             }
             case "NCR:ApplyDoomAll":
@@ -2669,8 +2686,9 @@ internal static class ChaosOperationExecutor
         // exposes its raw percentage as a Counter amount (visually resembling "50x") and separates it from the
         // generated card's own Power description.
         else if (operation.Template == "A:ruleWeakEnemiesTakeMoreAttackDamage") { }
-        else if (operation.Template == "A:ruleRetainHand")
-            await ApplyBoundPower<WellLaidPlansPower>(card, choiceContext, 1m);
+        // The composite Power owns the complete-hand retention rule so its behavior cannot drift with
+        // WellLaidPlansPower across game versions.
+        else if (operation.Template == "A:ruleRetainHand") { }
         else if (operation.Template == "I:FreeHandThisTurn")
         {
             foreach (var handCard in PileType.Hand.GetPile(card.Owner).Cards)
@@ -3345,6 +3363,30 @@ internal static class ChaosOperationExecutor
         return completed;
     }
 
+    private static async Task<IReadOnlyList<CardModel>> ExhaustSelectedCombatPileCards(
+        PlayerChoiceContext context, Player player, PileType sourcePileType, int requestedCount)
+    {
+        var sourcePile = sourcePileType.GetPile(player);
+        var count = Math.Min(Math.Max(1, requestedCount), sourcePile.Cards.Count);
+        if (count == 0) return Array.Empty<CardModel>();
+
+        var selected = (await SelectFromCombatPileIfAny(context, sourcePile, player,
+            new CardSelectorPrefs(CardSelectorPrefs.ExhaustSelectionPrompt, count))).ToArray();
+        var exhausted = new List<CardModel>(selected.Length);
+        foreach (var candidate in selected)
+        {
+            // Multiplayer choices may arrive after another action moved the card. Never exhaust a stale object
+            // from an unrelated zone, and suppress the cross-pile tween that can strand the selector holder.
+            if (!ReferenceEquals(candidate.Pile, sourcePile)) continue;
+            await CardCmd.Exhaust(context, candidate, skipVisuals: true);
+            if (candidate.Pile?.Type == PileType.Exhaust)
+                exhausted.Add(candidate);
+            else
+                Log.Error($"[AutoAnthony] Selected {sourcePileType} card {candidate.Id} did not enter Exhaust.");
+        }
+        return exhausted;
+    }
+
     /// <summary>
     /// Exact-count selectors are an execution contract, not merely a UI hint. A stale multiplayer response or a
     /// selector implementation returning a partial result must not silently turn "2 cards" into one. Preserve all
@@ -3485,7 +3527,8 @@ internal static class ChaosOperationExecutor
         operation.Scope == OperationScope.AbilityTrigger
         || operation.Scope == OperationScope.AbilityRule && operation.Template is
             "A:rule" or "A:ruleShivsRetain" or "A:ruleFirstShivBonusDamage"
-                or "A:ruleWeakEnemiesTakeMoreAttackDamage" or "CL:DieOnUnblockedAttack"
+                or "A:ruleWeakEnemiesTakeMoreAttackDamage" or "A:ruleRetainHand"
+                or "CL:DieOnUnblockedAttack"
         || IsCompositePowerTrigger(operation);
 
     internal static OperationRuntimeSpec EffectiveRuntimeSpec(ChaosCardModel card, int operationIndex)

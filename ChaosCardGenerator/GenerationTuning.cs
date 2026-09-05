@@ -768,7 +768,7 @@ internal static class NegativeEffectTuning
     internal static double LinearCompensationValue(GeneratorOperation operation,
         IReadOnlyList<GeneratorOperation>? operations = null, int operationIndex = -1)
     {
-        var amount = Math.Max(1, OperationRuntimeSpecCompiler.PrimaryStaticLiteralValue(operation, 1));
+        var amount = NegativeCardPayloadCount(operation);
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         ComponentValuationApi.TryGetNegativePricing(spec, out var customLinearValue, out _);
         var unitValue = customLinearValue > 0d ? customLinearValue : operation.Template switch
@@ -797,7 +797,9 @@ internal static class NegativeEffectTuning
             // substantial additive payment, but do not let one stack buy an entire 1-Energy Uncommon card.
             "T:Apply" when CardEffectRules.IsEnemyStrengthGain(operation) => 1_000d,
             "R:AddDebrisToHand" => StatusUnitValue(operation),
-            _ when DerivativeSlotCatalog.ProducesStatus(operation)
+            "R:FillHandWithDebris" when DerivativeSlotCatalog.ProducesCurse(operation) =>
+                StatusUnitValue(operation),
+            _ when DerivativeSlotCatalog.ProducesNegativeCard(operation)
                 && operation.Template != "R:FillHandWithDebris" => StatusUnitValue(operation),
             _ => 0d
         };
@@ -827,7 +829,7 @@ internal static class NegativeEffectTuning
     {
         var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
         if (derivative is not null && DerivativeSlotCatalog.IsCurse(derivative))
-            return 0d; // The curse easter egg already owns a separate large whole-card compensation path.
+            return CurseUnitValue(derivative.Id);
         return derivative?.Id switch
         {
             "dazed" or "burn" => 50d,
@@ -847,6 +849,28 @@ internal static class NegativeEffectTuning
         };
     }
 
+    // The status-to-curse Easter egg keeps its authored extra lines, resource discount, numeric boost and relaxed
+    // upper envelope. This is the ordinary per-card downside budget layered underneath those bonuses. Values are
+    // deliberately grouped by gameplay severity rather than by source operation, so fixed counts, fill-Hand
+    // payloads and repeated triggers all use the same multiplication path.
+    private static double CurseUnitValue(string derivativeId) => derivativeId switch
+    {
+        // These can disable almost an entire turn or inflict exceptional unavoidable damage.
+        "curse_normality" or "curse_enthralled" or "curse_bad_luck" => 3_000d,
+        // Persistent hand pressure or scaling end-of-turn loss is still much worse than an ordinary Status.
+        "curse_debt" or "curse_regret" or "curse_poor_sleep" => 1_400d,
+        // The remaining curses use the same budget as the harshest ordinary generated Status (Void).
+        _ => 550d
+    };
+
+    private static int NegativeCardPayloadCount(GeneratorOperation operation)
+    {
+        // "Fill your Hand" has no printed numeric slot. Five cards is the shared expected payload used for
+        // valuation; the actual combat count remains bounded by current hand space.
+        if (operation.Template == "R:FillHandWithDebris") return 5;
+        return Math.Max(1, OperationRuntimeSpecCompiler.PrimaryStaticLiteralValue(operation, 1));
+    }
+
     /// <summary>
     /// Direct whole-card multiplier owned by one non-linear downside. Additive payments return 1 here and are
     /// priced only by LinearCompensationValue. This deliberately replaces the former severity integer and lookup
@@ -855,14 +879,17 @@ internal static class NegativeEffectTuning
     internal static double BaseMultiplier(GeneratorOperation operation)
     {
         if (!CardEffectRules.IsNegativeEffect(operation)) return 1d;
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
+        // Preserve the small pre-existing curse Easter-egg multiplier in addition to the new per-card linear
+        // downside value. Ordinary Statuses remain purely linear unless their operation owns a multiplier below.
+        if (derivative is not null && DerivativeSlotCatalog.IsCurse(derivative)) return 1.14d;
         if (LinearCompensationValue(operation) > 0d) return 1d;
 
         var amount = Math.Max(1, OperationRuntimeSpecCompiler.PrimaryStaticLiteralValue(operation, 1));
-        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         if (ComponentValuationApi.TryGetNegativePricing(spec, out _, out var customMultiplier)
             && customMultiplier > 1d)
             return customMultiplier;
-        var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
         return operation.Template switch
         {
             // Extreme lifecycle restrictions retain their native whole-card anchors instead of receiving a
@@ -886,10 +913,6 @@ internal static class NegativeEffectTuning
             // This modifier owns a contextual multiplier in EffectiveMultiplier: its cost depends on both the
             // printed penalty and the number/type of damage hosts it weakens.
             "M:DamageMinusPerCardInHand" => 1d,
-            // The curse-status Easter egg has additional authored generation bonuses. Retain the small ordinary
-            // status multiplier it historically received, but make it explicit instead of falling through a
-            // generic minimum bucket.
-            _ when derivative is not null && DerivativeSlotCatalog.IsCurse(derivative) => 1.14d,
             // A new nonlinear downside must be deliberately priced. Silently inheriting a generic multiplier
             // recreates the old severity-table problem and makes reverse-fitting impossible.
             _ => throw new InvalidOperationException(
