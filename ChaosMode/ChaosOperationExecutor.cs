@@ -2065,15 +2065,18 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "D:EvokeRightmostOrb":
-                var evokeCount = ExecutableOrbRepeatCount(amount);
+                var evokeCount = OrbEvokeRepeatCount(operation, amount);
                 if (evokeCount == 0 || playerCombatState?.OrbQueue.Orbs.Count is null or 0) return;
                 for (var i = 0; i < evokeCount; i++)
                     await OrbCmd.EvokeNext(choiceContext, card.Owner, dequeue: i == evokeCount - 1);
                 return;
             case "D:EvokeLeftmostOrb":
-                if (ExecutableOrbRepeatCount(amount) == 0 || playerCombatState?.OrbQueue.Orbs.Count is null or 0) return;
-                for (var i = 0; i < amount; i++)
-                    await OrbCmd.EvokeNext(choiceContext, card.Owner);
+                evokeCount = OrbEvokeRepeatCount(operation, amount);
+                if (evokeCount == 0 || playerCombatState?.OrbQueue.Orbs.Count is null or 0) return;
+                // Consuming Shadow has no numeric slot: its printed action means one activation. The game's Orb
+                // queue stores the visually leftmost Orb at the back, while EvokeNext addresses the rightmost one.
+                for (var i = 0; i < evokeCount; i++)
+                    await OrbCmd.EvokeLast(choiceContext, card.Owner, dequeue: i == evokeCount - 1);
                 return;
             case "D:GainTemporaryFocusPerUniqueOrb":
             {
@@ -3666,6 +3669,17 @@ internal static class ChaosOperationExecutor
     internal static int FillHandTargetCount(bool returnsThisToHand) =>
         Math.Max(0, CardPile.MaxCardsInHand - (returnsThisToHand ? 1 : 0));
     internal static int ExecutableOrbRepeatCount(int amount) => Math.Max(0, amount);
+
+    internal static int OrbEvokeRepeatCount(GeneratorOperation operation, int amount)
+    {
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+        // The native Consuming Shadow action has no amount variable at all. OperationAmount therefore correctly
+        // returns zero for storage purposes, but execution must distinguish that fixed one-shot action from an
+        // X-scaled activation whose resolved payment is genuinely zero.
+        return operation.Template == "D:EvokeLeftmostOrb" && spec.Values.Count == 0
+            ? 1
+            : ExecutableOrbRepeatCount(amount);
+    }
     internal static int ExecutableGeneratedCardCount(int amount) => Math.Max(0, amount);
     internal static int ExecutableOperationCount(GeneratorOperation operation, int amount)
     {

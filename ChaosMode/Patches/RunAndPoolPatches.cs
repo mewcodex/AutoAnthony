@@ -1326,6 +1326,14 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.ExecutableOrbRepeatCount(0) != 0
             || ChaosOperationExecutor.ExecutableOrbRepeatCount(-1) != 0)
             throw new InvalidOperationException("X-scaled orb operations do not treat zero payment as a no-op.");
+        var fixedLeftmostEvoke = Structured(new GeneratorOperation("D:EvokeLeftmostOrb",
+            OperationScope.NonTargeted, "激发最左侧的充能球。", new Dictionary<string, int>()));
+        var numericRightmostEvoke = Structured(new GeneratorOperation("D:EvokeRightmostOrb",
+            OperationScope.NonTargeted, "激发最右侧的充能球2次。", new Dictionary<string, int>()));
+        if (ChaosOperationExecutor.OrbEvokeRepeatCount(fixedLeftmostEvoke, 0) != 1
+            || ChaosOperationExecutor.OrbEvokeRepeatCount(numericRightmostEvoke, 2) != 2
+            || ChaosOperationExecutor.OrbEvokeRepeatCount(numericRightmostEvoke, 0) != 0)
+            throw new InvalidOperationException("Fixed leftmost Orb evoke was confused with a zero-count numeric evoke.");
         if (!ChaosOperationExecutor.ExhaustedCardMatchesTrigger("for_each_exhausted_status", CardType.Status)
             || ChaosOperationExecutor.ExhaustedCardMatchesTrigger("for_each_exhausted_status", CardType.Skill)
             || ChaosOperationExecutor.ExhaustedCardMatchesTrigger("for_each_exhausted_non_attack", CardType.Attack)
