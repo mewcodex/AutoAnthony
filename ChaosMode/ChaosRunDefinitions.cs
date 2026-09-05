@@ -1536,6 +1536,14 @@ public static class ChaosRunDefinitions
     public static IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> GetAllCards() =>
         SupportedPools.ToDictionary(character => character, GetCards);
 
+    internal static bool UsesNumericRandomValues(GeneratedCharacter character)
+    {
+        lock (Gate)
+            return DefinitionNumericRandomModes.TryGetValue(character, out var enabled)
+                ? enabled
+                : ActiveNumericRandomMode;
+    }
+
     public static ChaosCardDefinition ForSlot(int slot) => ForSlot(GeneratedCharacter.Ironclad, slot);
 
     public static ChaosCardDefinition ForSlot(GeneratedCharacter character, int slot)

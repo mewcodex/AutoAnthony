@@ -28,7 +28,7 @@
   "AUTO_ANTHONY_CARD_INTERNAL_IDS_ON": "Card internal IDs are now shown.",
   "AUTO_ANTHONY_CARD_INTERNAL_IDS_OFF": "Card internal IDs are now hidden.",
   "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS": "Show Card Mode Tips",
-  "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS_DESCRIPTION": "Shows Random Mode or Chaos Mode as the first hover tip on generated cards.",
+  "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS_DESCRIPTION": "Shows active Chaos Mode and Numeric Random Mode generation rules as the first hover tip on generated cards.",
   "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS_ON": "Card mode hover tips are now shown.",
   "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS_OFF": "Card mode hover tips are now hidden.",
   "AUTO_ANTHONY_SURPRISE_MODE": "Surprise Mode",
@@ -65,8 +65,10 @@
   "AUTO_ANTHONY_OPTIMIZE_HISTORY_DONE": "Old run history has been optimized.",
   "AUTO_ANTHONY_OPTIMIZE_HISTORY_FAILED": "Some histories could not be optimized. Every original was preserved; check the log and retry.",
   "AUTO_ANTHONY_CARD_INTERNAL_ID_HOVER_TITLE": "Internal ID",
-  "AUTO_ANTHONY_RANDOM_MODE_HOVER_TITLE": "Random Mode",
-  "AUTO_ANTHONY_RANDOM_MODE_HOVER_DESCRIPTION": "This card was generated from its character's component pool for this run.",
+  "AUTO_ANTHONY_NUMERIC_RANDOM_MODE_HOVER_TITLE": "Numeric Random Mode",
+  "AUTO_ANTHONY_NUMERIC_RANDOM_MODE_HOVER_DESCRIPTION": "This card's non-cost values were independently randomized after generation.",
   "AUTO_ANTHONY_CHAOS_MODE_HOVER_TITLE": "Chaos Mode",
-  "AUTO_ANTHONY_CHAOS_MODE_HOVER_DESCRIPTION": "This card was generated from the shared component pool without character restrictions."
+  "AUTO_ANTHONY_CHAOS_MODE_HOVER_DESCRIPTION": "This card was generated from the shared component pool without character restrictions.",
+  "AUTO_ANTHONY_CHAOS_AND_NUMERIC_RANDOM_MODE_HOVER_TITLE": "Chaos Mode / Numeric Random Mode",
+  "AUTO_ANTHONY_CHAOS_AND_NUMERIC_RANDOM_MODE_HOVER_DESCRIPTION": "This card was generated from the unrestricted shared component pool, then had its non-cost values independently randomized."
 }
