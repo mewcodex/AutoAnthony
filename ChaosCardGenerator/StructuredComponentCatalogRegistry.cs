@@ -11,6 +11,31 @@ namespace ChaosCardGenerator;
 /// </summary>
 internal static class StructuredComponentCatalogRegistry
 {
+    // These spellings remain accepted by the runtime compiler for old run/history snapshots, but new reviewed
+    // recipes must use the shared authoring component. Keeping this boundary explicit prevents a sixth pool from
+    // accidentally cloning an existing operation under a character-prefixed name.
+    private static readonly HashSet<string> LegacyAuthoringAliases = new(StringComparer.Ordinal)
+    {
+        "D:GainEnergy", "NCR:GainEnergy", "R:GainEnergy",
+        "D:NextTurnEnergy", "NCR:NextTurnEnergy", "N:NextTurnEnergy", "N:NextTurnBlock",
+        "D:IfFatal", "R:IfFatal", "CL:IfFatal",
+        "CL:AtNextTurnStart", "NCR:NextTurn", "R:NextTurn", "D:NextTurnsStart",
+        "D:ExhaustSelectedHandCard", "NCR:TargetHpLoss",
+        "I:GainTemporaryStrength", "R:GainStrengthThisTurn",
+        "R:GainVigor", "CL:GainVigor",
+        "R:ApplyWeakAll", "NCR:ApplyWeakAll", "CL:ApplyWeakAll",
+        "R:ApplyVulnerableAll", "NCR:ApplyVulnerableAll", "CL:ApplyVulnerableAll",
+        "R:EnemiesLoseStrengthThisTurn", "R:TargetLoseStrengthThisTurn",
+        "NCR:TargetLoseStrengthThisTurn", "CL:TargetLoseStrengthThisTurn",
+        "D:RepeatDamage", "R:RepeatDamage",
+        "CL:AddRandomColorlessToHand", "R:AddRandomColorlessToHand",
+        "D:MoveDiscardCardToHand", "NCR:MoveDiscardCardToHand",
+        "D:GainStrength", "D:GainDexterity", "R:GainStrength",
+        "CL:RetainHandThisTurn", "R:RetainHandThisTurn", "NCR:CreateCopyInDiscard",
+        "A:when", "A:whenAttackDealsDamage", "C:if", "C:after", "C:untilTurnEnd", "C:forEach",
+        "NCR:WheneverCardPlayedThisTurn", "NCR:ApplyPower_OblivionPower", "T:Strangle"
+    };
+
     internal sealed record AtomEntry(
         string SemanticId,
         string Template,
@@ -101,13 +126,39 @@ internal static class StructuredComponentCatalogRegistry
             ?? throw new InvalidDataException("Embedded structured component catalog is empty.");
 
         var semanticIds = entries.SelectMany(entry => entry.Atoms).Select(atom => atom.SemanticId).ToArray();
-        if (entries.Length != 481 || semanticIds.Length != 929
+        if (entries.Length != 481 || semanticIds.Length != 937
             || semanticIds.Any(string.IsNullOrWhiteSpace)
             || semanticIds.Any(id => id.Any(value => value > 0x7f))
             || semanticIds.Distinct(StringComparer.Ordinal).Count() != semanticIds.Length)
             throw new InvalidDataException($"Structured catalog totals or semantic IDs drifted: "
                 + $"recipes={entries.Length}, operations={semanticIds.Length}.");
+        ValidateCanonicalAuthoring(entries);
         return entries;
+    }
+
+    private static void ValidateCanonicalAuthoring(IReadOnlyList<RecipeEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            for (var triggerIndex = 0; triggerIndex < entry.Atoms.Count; triggerIndex++)
+            {
+                var atom = entry.Atoms[triggerIndex];
+                if (LegacyAuthoringAliases.Contains(atom.Template))
+                    throw new InvalidDataException($"Reviewed catalog {atom.SemanticId} uses legacy authoring "
+                        + $"alias {atom.Template}; use its shared component instead.");
+
+                var spec = CatalogRuntimeSpecRegistry.Get(atom.SemanticId);
+                if (spec.Trigger?.Kind is not ("next_turn_start" or "next_turns_start" or "card_played"))
+                    continue;
+                if (atom.Template is not ("C:NextTurnStart" or "C:NextTurnsStart"
+                        or "C:untilTurnEndCardPlayed"))
+                    continue;
+
+                var linkedCount = entry.Atoms.Count(candidate => candidate.TriggerOwner == triggerIndex);
+                if (linkedCount == 0)
+                    throw new InvalidDataException($"Shared trigger {atom.SemanticId} has no linked effect.");
+            }
+        }
     }
 
     private static IComponentCatalog LoadCharacter(GeneratedCharacter character)

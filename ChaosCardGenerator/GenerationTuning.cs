@@ -357,7 +357,7 @@ internal static class NumericGenerationTuning
         "NCR:ApplyDoom" or "NCR:ApplyDoomAll" => 5,
         // Terraforming's native 7 Vigor remains reconstructible, but it is an outlier rather than the center of
         // the recombined scalar distribution. Most Vigor instances use the temporary-Strength-sized budget.
-        "R:GainVigor" or "CL:GainVigor" => 2,
+        "N:Vigor" or "R:GainVigor" or "CL:GainVigor" => 2,
         "A:whenEnergyCostAtLeast" or "NCR:WheneverHighCostCardPlayed"
             or "NCR:IncreaseAllCardCostsThisTurn" or "D:IncreaseThisCardCost" => 0,
         _ when CardEffectRules.IsRandomCardGeneration(atom) => 2,
@@ -489,7 +489,7 @@ internal static class NumericGenerationTuning
             return Math.Clamp(value, 1, 5);
         if (slot == 0 && CardEffectRules.IsEnergyGainOperation(atom))
             return Math.Clamp(value, 1, 4);
-        if (slot == 0 && atom.Template is "R:GainVigor" or "CL:GainVigor")
+        if (slot == 0 && atom.Template is "N:Vigor" or "R:GainVigor" or "CL:GainVigor")
             // Recombined values stay close to temporary Strength. Terraforming's exact native 7 remains reachable
             // through the deliberately small preserve-original branch above, which returns before this clamp.
             return Math.Clamp(value, 1, 4);
@@ -599,7 +599,8 @@ internal static class NumericGenerationTuning
             || spec.Values.Any(value => value.Source is "energy_x" or "star_x" or "special_x")) return null;
         if (spec.Flags.Contains("vulnerable_reference")
             && (spec.Flags.Contains("apply_status_reference")
-                || template is "R:ApplyVulnerableAll" or "NCR:ApplyVulnerableAll" or "CL:ApplyVulnerableAll"))
+                || template is "N:AllVulnerable" or "R:ApplyVulnerableAll"
+                    or "NCR:ApplyVulnerableAll" or "CL:ApplyVulnerableAll"))
             return ultimateChaos || character == GeneratedCharacter.Ironclad ? 6 : 4;
         if (spec.Flags.Contains("weak_reference")
             && (spec.Flags.Contains("apply_status_reference")
@@ -759,6 +760,22 @@ internal static class NegativeEffectTuning
     internal const int ExactReconstructionChance = 3;
 
     /// <summary>
+    /// Minimum rarity scaling for additive payments. Values are the one-Energy whole-card centers relative to
+    /// Common (600/1200, 1200/1200, 1400/1200, 1900/1200, 2400/1200). A downside therefore cannot buy the same
+    /// absolute reward on a Basic card and an Ancient card. Individual unit prices below are normalized back to a
+    /// Common anchor so native cards that supplied their calibration do not receive the rarity increase twice.
+    /// </summary>
+    internal static double LinearRarityMultiplier(GeneratedRarity rarity) => rarity switch
+    {
+        GeneratedRarity.Basic => 0.50d,
+        GeneratedRarity.Common => 1.00d,
+        GeneratedRarity.Uncommon => 7d / 6d,
+        GeneratedRarity.Rare => 19d / 12d,
+        GeneratedRarity.Ancient => 2.00d,
+        _ => 1.00d
+    };
+
+    /// <summary>
     /// Stackable payments which do not prevent this card itself from resolving buy a fixed amount of positive
     /// budget per stack.  Keeping this value additive is important: losing two Strength is exactly two copies of
     /// losing one Strength, and the same payment does not become proportionally larger merely because the card is
@@ -775,17 +792,20 @@ internal static class NegativeEffectTuning
         {
             // Native 1-3 HP anchors imply a modest, nearly additive premium. Repeated HP loss is multiplied by
             // its expected resolutions below rather than sent through the old nonlinear severity curve.
-            "N:HP-" => 100d,
+            // Bloodletting anchors three HP at 300 Uncommon value.
+            "N:HP-" => 600d / 7d,
             // Temporary Focus can usually be sequenced after Orb use; permanent losses are substantially larger.
-            "D:LoseTemporaryFocus" => 85d,
-            "D:LoseFocus" => 1_900d,
+            "D:LoseTemporaryFocus" => 55d,
+            "D:LoseFocus" => 950d,
             // Jointly reverse-fit with Intangible from Wraith Form. Repeated turn-start loss is multiplied by its
             // expected 2.4 resolutions, so one printed Dexterity loss contributes 2,760 compensation there.
-            "N:LoseDex" => 1_150d,
-            "D:LoseOrbSlots" => 1_800d,
-            "NCR:LoseStrength" => 735d,
-            "NCR:ApplySelfDoom" => 650d,
-            "NCR:IncreaseAllCardCostsThisTurn" => 300d,
+            "N:LoseDex" => 575d,
+            "D:LoseOrbSlots" => 10_800d / 7d,
+            "NCR:LoseStrength" => 630d,
+            // Neurosurge's former 650-point unit price overcharged its repeated self-Doom by roughly 1.8x in the
+            // native residual audit. The Rare-scaled value is now about 356 before trigger frequency.
+            "NCR:ApplySelfDoom" => 225d,
+            "NCR:IncreaseAllCardCostsThisTurn" => 1_480d / 7d,
             "R:DiscardTopOfDraw" => 100d,
             // Random or automatic consumption is an additive payment. Player-selected and "up to" Exhaust is
             // controlled deck-thinning and is priced as a positive effect instead.
@@ -795,7 +815,9 @@ internal static class NegativeEffectTuning
             "I:ExhaustRandomAttack" => 100d,
             // Front-loaded damage can kill the buffed target before the permanent Strength matters. Keep this a
             // substantial additive payment, but do not let one stack buy an entire 1-Energy Uncommon card.
-            "T:Apply" when CardEffectRules.IsEnemyStrengthGain(operation) => 1_000d,
+            // Fight Me supplies the cleanest native shell: its one permanent enemy Strength is worth about 1,690
+            // at Uncommon, which normalizes to 1,450 before the shared rarity multiplier.
+            "T:Apply" when CardEffectRules.IsEnemyStrengthGain(operation) => 1_450d,
             "R:AddDebrisToHand" => StatusUnitValue(operation),
             "R:FillHandWithDebris" when DerivativeSlotCatalog.ProducesCurse(operation) =>
                 StatusUnitValue(operation),
@@ -825,6 +847,19 @@ internal static class NegativeEffectTuning
         return total;
     }
 
+    internal static double LinearCompensationValue(GeneratorOperation operation, GeneratedRarity rarity,
+        IReadOnlyList<GeneratorOperation>? operations = null, int operationIndex = -1) =>
+        LinearCompensationValue(operation, operations, operationIndex) * LinearRarityMultiplier(rarity);
+
+    internal static double TotalLinearCompensationValue(IReadOnlyList<GeneratorOperation> operations,
+        GeneratedRarity rarity)
+    {
+        var total = 0d;
+        for (var index = 0; index < operations.Count; index++)
+            total += LinearCompensationValue(operations[index], rarity, operations, index);
+        return total;
+    }
+
     private static double StatusUnitValue(GeneratorOperation operation)
     {
         var derivative = DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template);
@@ -832,15 +867,17 @@ internal static class NegativeEffectTuning
             return CurseUnitValue(derivative.Id);
         return derivative?.Id switch
         {
-            "dazed" or "burn" => 50d,
-            "wound" => 80d,
+            "dazed" => 50d,
+            "burn" => 45d,
+            "wound" => 480d / 7d,
             "slimed" => 200d,
             "void" => 550d,
             "debris" => 250d,
             _ => operation.Template switch
             {
-                "D:CreateDazedInDiscard" or "D:CreateBurnInDiscard" => 50d,
-                "D:CreateTwoWoundsInDiscard" => 80d,
+                "D:CreateDazedInDiscard" => 50d,
+                "D:CreateBurnInDiscard" => 45d,
+                "D:CreateTwoWoundsInDiscard" => 480d / 7d,
                 "D:CreateSlimeInDiscard" => 200d,
                 "D:CreateVoidInDiscard" => 550d,
                 "R:AddDebrisToHand" => 250d,
@@ -1201,7 +1238,7 @@ internal static class CardAcceptanceTuning
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         var familyMatches = spec.Opcode == "gain_block" && spec.Variant == "immediate"
             || CardEffectRules.IsEnemyDamage(operation)
-            || operation.Template is "R:GainVigor" or "CL:GainVigor" or "NCR:Summon";
+            || operation.Template is "N:Vigor" or "R:GainVigor" or "CL:GainVigor" or "NCR:Summon";
         if (!familyMatches) return false;
 
         // A low per-hit number on a genuine multi-hit attack is intentional. Static/dynamic hit modifiers also

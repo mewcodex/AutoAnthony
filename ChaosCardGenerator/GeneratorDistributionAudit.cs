@@ -58,8 +58,10 @@ public static class GeneratorDistributionAudit
             energyCost != 0 || recipe.StarCost > 0, recipe.Type, character);
         var linearDownside = CardEffectRules.NegativeEffectLinearCompensationValue(operations);
         var power = ComponentAssemblyGenerator.PowerOneShotBudgetFactor(operations, recipe.Type);
-        var normalized = (positive - linearDownside)
-            / (Math.Max(100, downside) / 100d) / Math.Max(1d, power);
+        var normalized = EffectBalanceModel.EstimatedNetCardValue(operations,
+                energyCost != 0 || recipe.StarCost > 0, recipe.Type, recipe.Tags,
+                recipe.OriginalRarity, character)
+            / Math.Max(1d, power);
         return (character, recipe.Id, recipe.Type, recipe.OriginalRarity,
             Math.Clamp((int)Math.Round(effectiveCost, MidpointRounding.AwayFromZero), 0, 4),
             EffectBalanceModel.PositiveRewardFieldCount(operations, energyCost != 0 || recipe.StarCost > 0,

@@ -646,7 +646,7 @@
       },
       {
         "SemanticId": "ironclad/colossus/1",
-        "Template": "C:untilTurnEnd",
+        "Template": "C:VulnerableEnemyDamageReductionThisTurn",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u5728\u672C\u56DE\u5408\u4E2D\uFF0C\u6709\u6613\u4F24\u72B6\u6001\u7684\u654C\u4EBA\u5BF9\u4F60\u9020\u6210\u7684\u4F24\u5BB3\u964D\u4F4E50%\u3002",
         "EnglishText": "You receive 50% less damage from Vulnerable enemies this turn.",
@@ -811,7 +811,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/darkembrace/0",
-        "Template": "A:when",
+        "Template": "A:whenCardExhausted",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u6709\u4E00\u5F20\u724C\u88AB\u6D88\u8017\u65F6\u3002",
         "EnglishText": "Whenever a card is Exhausted.",
@@ -918,7 +918,7 @@
       },
       {
         "SemanticId": "ironclad/dismantle/1",
-        "Template": "C:if",
+        "Template": "C:ifTargetVulnerable",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u82E5\u8BE5\u654C\u4EBA\u62E5\u6709\u6613\u4F24\u3002",
         "EnglishText": "If the enemy is Vulnerable.",
@@ -1000,7 +1000,7 @@
       },
       {
         "SemanticId": "ironclad/drumofbattle/1",
-        "Template": "C:after",
+        "Template": "C:whenThisCardExhausted",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u8FD9\u5F20\u724C\u88AB\u6D88\u8017\u65F6\u3002",
         "EnglishText": "When this card is Exhausted.",
@@ -1045,7 +1045,7 @@
       },
       {
         "SemanticId": "ironclad/evileye/1",
-        "Template": "C:if",
+        "Template": "C:ifCardExhaustedThisTurn",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u82E5\u672C\u56DE\u5408\u66FE\u6D88\u8017\u8FC7\u724C\u3002",
         "EnglishText": "If you Exhausted a card this turn.",
@@ -1127,7 +1127,7 @@
       },
       {
         "SemanticId": "ironclad/feed/1",
-        "Template": "C:if",
+        "Template": "C:ifFatal",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u65A9\u6740\u65F6\u3002",
         "EnglishText": "If this kills.",
@@ -1162,7 +1162,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/feelnopain/0",
-        "Template": "A:when",
+        "Template": "A:whenCardExhausted",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u6709\u4E00\u5F20\u724C\u88AB\u6D88\u8017\u65F6\u3002",
         "EnglishText": "Whenever a card is Exhausted.",
@@ -1209,7 +1209,7 @@
       },
       {
         "SemanticId": "ironclad/fiendfire/1",
-        "Template": "C:forEach",
+        "Template": "C:forEachExhaustedCard",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u6BCF\u6D88\u8017\u4E00\u5F20\u724C\u3002",
         "EnglishText": "For each card Exhausted.",
@@ -1309,10 +1309,10 @@
       },
       {
         "SemanticId": "ironclad/flamebarrier/1",
-        "Template": "C:untilTurnEnd",
+        "Template": "C:untilTurnEndAttackReceived",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u672C\u56DE\u5408\u6BCF\u5F53\u4F60\u53D7\u5230\u4E00\u6B21\u653B\u51FB\u65F6\u3002",
-        "EnglishText": "Whenever you are attacked this turn.",
+        "ChineseText": "\u672C\u56DE\u5408\u6BCF\u5F53\u4F60\u53D7\u5230\u4E00\u6B21\u653B\u51FB\u65F6\uFF0C",
+        "EnglishText": "Whenever you are attacked this turn,",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -1321,8 +1321,8 @@
         "SemanticId": "ironclad/flamebarrier/2",
         "Template": "N:RetaliateDamage",
         "Scope": "NonTargeted",
-        "ChineseText": "\u672C\u56DE\u5408\u6BCF\u5F53\u4F60\u53D7\u5230\u4E00\u6B21\u653B\u51FB\uFF0C\u5BF9\u653B\u51FB\u8005\u9020\u62104\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Whenever you are attacked this turn, deal 4 damage to the attacker.",
+        "ChineseText": "\u5BF9\u653B\u51FB\u8005\u9020\u62104\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 4 damage to the attacker.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 1
@@ -1431,7 +1431,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/hellraiser/0",
-        "Template": "A:when",
+        "Template": "A:whenStrikeCardDrawn",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u62BD\u5230\u540D\u5B57\u4E2D\u6709\u201C\u6253\u51FB\u201D\u7684\u724C\u65F6\u3002",
         "EnglishText": "Whenever you draw a card containing \u201CStrike\u201D.",
@@ -1511,7 +1511,7 @@
       },
       {
         "SemanticId": "ironclad/howlfrombeyond/1",
-        "Template": "C:after",
+        "Template": "C:AtTurnEndIfInExhaust",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u5728\u4F60\u7684\u56DE\u5408\u7ED3\u675F\u65F6\uFF0C\u5982\u679C\u8FD9\u5F20\u724C\u5728\u4F60\u7684\u6D88\u8017\u724C\u5806\u4E2D\u3002",
         "EnglishText": "At the end of your turn, if this is in your Exhaust Pile.",
@@ -1620,7 +1620,7 @@
       },
       {
         "SemanticId": "ironclad/inferno/2",
-        "Template": "A:when",
+        "Template": "A:whenOwnerHpLostDuringTurn",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u5728\u56DE\u5408\u5185\u5931\u53BB\u751F\u547D\u65F6\u3002",
         "EnglishText": "Whenever you lose HP during your turn.",
@@ -1715,7 +1715,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/juggernaut/0",
-        "Template": "A:when",
+        "Template": "A:whenBlockGained",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u83B7\u5F97\u683C\u6321\u65F6\u3002",
         "EnglishText": "Whenever you gain Block.",
@@ -1750,7 +1750,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/juggling/0",
-        "Template": "A:when",
+        "Template": "A:whenNthAttackPlayed",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u56DE\u5408\u4E2D\uFF0C\u5F53\u4F60\u6253\u51FA\u7B2C3\u5F20\u653B\u51FB\u724C\u65F6\u3002",
         "EnglishText": "Whenever you play your third Attack each turn.",
@@ -1795,10 +1795,10 @@
       },
       {
         "SemanticId": "ironclad/mangle/1",
-        "Template": "T:Apply",
+        "Template": "T:TempStrengthLoss",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u4F7F\u8BE5\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB10\u70B9\u529B\u91CF\u3002",
-        "EnglishText": "The enemy loses 10 Strength this turn.",
+        "ChineseText": "\u8BE5\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB10\u70B9\u529B\u91CF\u3002",
+        "EnglishText": "That enemy loses 10 Strength this turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -1966,7 +1966,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/pactsend/0",
-        "Template": "C:if",
+        "Template": "C:ifExhaustPileAtLeast",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u82E5\u6D88\u8017\u724C\u5806\u4E2D\u81F3\u5C11\u67093\u5F20\u724C\u3002",
         "EnglishText": "If you have at least 3 cards in your Exhaust pile.",
@@ -2170,7 +2170,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/rage/0",
-        "Template": "C:untilTurnEnd",
+        "Template": "C:untilTurnEndAttackPlayed",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u672C\u56DE\u5408\u6BCF\u5F53\u4F60\u6253\u51FA\u4E00\u5F20\u653B\u51FB\u724C\u65F6\u3002",
         "EnglishText": "Whenever you play an Attack this turn.",
@@ -2240,7 +2240,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/rupture/0",
-        "Template": "A:when",
+        "Template": "A:whenOwnerHpLostDuringTurn",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u5728\u56DE\u5408\u5185\u5931\u53BB\u751F\u547D\u65F6\u3002",
         "EnglishText": "Whenever you lose HP during your turn.",
@@ -2285,7 +2285,7 @@
       },
       {
         "SemanticId": "ironclad/secondwind/1",
-        "Template": "C:forEach",
+        "Template": "C:forEachExhaustedNonAttack",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u6BCF\u6D88\u8017\u4E00\u5F20\u624B\u724C\u4E2D\u7684\u975E\u653B\u51FB\u724C\u65F6\u3002",
         "EnglishText": "For each non-Attack card Exhausted from your hand.",
@@ -2332,8 +2332,8 @@
       },
       {
         "SemanticId": "ironclad/setupstrike/1",
-        "Template": "I:GainTemporaryStrength",
-        "Scope": "Independent",
+        "Template": "N:TempStrength",
+        "Scope": "NonTargeted",
         "ChineseText": "\u672C\u56DE\u5408\u83B7\u5F972\u70B9\u529B\u91CF\u3002",
         "EnglishText": "Gain 2 Strength this turn.",
         "RequiresSingleTarget": false,
@@ -2402,7 +2402,7 @@
       },
       {
         "SemanticId": "ironclad/spite/1",
-        "Template": "C:if",
+        "Template": "C:ifOwnerLostHpThisTurn",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u82E5\u4F60\u672C\u56DE\u5408\u5931\u53BB\u8FC7\u751F\u547D\u3002",
         "EnglishText": "If you lost HP this turn.",
@@ -2482,7 +2482,7 @@
       },
       {
         "SemanticId": "ironclad/stoke/1",
-        "Template": "C:forEach",
+        "Template": "C:forEachExhaustedCard",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u6BCF\u6D88\u8017\u4E00\u5F20\u724C\u3002",
         "EnglishText": "For each card Exhausted.",
@@ -3003,7 +3003,7 @@
     "Atoms": [
       {
         "SemanticId": "ironclad/vicious/0",
-        "Template": "A:when",
+        "Template": "A:whenVulnerableApplied",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u65BD\u52A0\u6613\u4F24\u65F6\u3002",
         "EnglishText": "Whenever you apply Vulnerable.",
@@ -3879,13 +3879,23 @@
       },
       {
         "SemanticId": "silent/dodgeandroll/1",
-        "Template": "N:NextTurnBlock",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\uFF0C\u83B7\u5F974\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Next turn, gain 4 Block.",
+        "Template": "C:NextTurnStart",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "silent/dodgeandroll/2",
+        "Template": "N:B",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F974\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 4 Block.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 1
       }
     ]
   },
@@ -3939,13 +3949,23 @@
     "Atoms": [
       {
         "SemanticId": "silent/envenom/0",
-        "Template": "A:ruleUnblockedAttackPoison",
-        "Scope": "AbilityRule",
-        "ChineseText": "\u6BCF\u6709\u4E00\u6B21\u653B\u51FB\u9020\u6210\u672A\u88AB\u683C\u6321\u7684\u4F24\u5BB3\uFF0C\u5C31\u7ED9\u4E881\u5C42\u4E2D\u6BD2\u3002",
-        "EnglishText": "Whenever an Attack deals unblocked damage, apply 1 Poison.",
+        "Template": "A:whenAttackDealsUnblockedDamage",
+        "Scope": "AbilityTrigger",
+        "ChineseText": "\u6BCF\u5F53\u4F60\u7684\u653B\u51FB\u9020\u6210\u672A\u88AB\u683C\u6321\u7684\u4F24\u5BB3\u65F6\u3002",
+        "EnglishText": "Whenever your Attack deals unblocked damage.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "silent/envenom/1",
+        "Template": "T:Poison",
+        "Scope": "SingleEnemyOnly",
+        "ChineseText": "\u7ED9\u4E881\u5C42\u4E2D\u6BD2\u3002",
+        "EnglishText": "Apply 1 Poison.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 0
       }
     ]
   },
@@ -4203,13 +4223,23 @@
     "Atoms": [
       {
         "SemanticId": "silent/sidestep/0",
-        "Template": "N:NextTurnEnergy",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\uFF0C\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
-        "EnglishText": "Next turn, gain 1 Energy.",
+        "Template": "C:NextTurnStart",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "silent/sidestep/1",
+        "Template": "N:E",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
+        "EnglishText": "Gain 1 Energy.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 0
       }
     ]
   },
@@ -5028,13 +5058,23 @@
       },
       {
         "SemanticId": "silent/predator/1",
-        "Template": "N:NextTurnDraw",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\uFF0C\u62BD2\u5F20\u724C\u3002",
-        "EnglishText": "Next turn, draw 2 cards.",
+        "Template": "C:NextTurnStart",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "silent/predator/2",
+        "Template": "N:Draw",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u62BD2\u5F20\u724C\u3002",
+        "EnglishText": "Draw 2 cards.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 1
       }
     ]
   },
@@ -5404,13 +5444,23 @@
       },
       {
         "SemanticId": "silent/strangle/1",
-        "Template": "T:Strangle",
-        "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u672C\u56DE\u5408\u4F60\u6BCF\u6253\u51FA\u4E00\u5F20\u724C\uFF0C\u8BE5\u654C\u4EBA\u5931\u53BB2\u70B9\u751F\u547D\u3002",
-        "EnglishText": "Whenever you play a card this turn, that enemy loses 2 HP.",
-        "RequiresSingleTarget": false,
+        "Template": "C:untilTurnEndCardPlayed",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u6253\u51FA\u6B64\u724C\u540E\uFF0C\u4F60\u5728\u672C\u56DE\u5408\u6BCF\u6253\u51FA\u4E00\u5F20\u724C\u65F6\uFF0C",
+        "EnglishText": "After you play this card, whenever you play a card this turn,",
+        "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "silent/strangle/2",
+        "Template": "T:LoseHp",
+        "Scope": "SingleEnemyOnly",
+        "ChineseText": "\u8BE5\u654C\u4EBA\u5931\u53BB2\u70B9\u751F\u547D\u3002",
+        "EnglishText": "That enemy loses 2 HP.",
+        "RequiresSingleTarget": true,
+        "CardReference": "None",
+        "TriggerOwner": 1
       }
     ]
   },
@@ -6159,7 +6209,7 @@
     "Atoms": [
       {
         "SemanticId": "defect/bulkup/0",
-        "Template": "D:GainStrength",
+        "Template": "N:Self",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u529B\u91CF\u3002",
         "EnglishText": "Gain 2 Strength.",
@@ -6169,7 +6219,7 @@
       },
       {
         "SemanticId": "defect/bulkup/1",
-        "Template": "D:GainDexterity",
+        "Template": "N:Dex",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u654F\u6377\u3002",
         "EnglishText": "Gain 2 Dexterity.",
@@ -6264,13 +6314,23 @@
       },
       {
         "SemanticId": "defect/chargebattery/1",
-        "Template": "D:NextTurnEnergy",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
-        "EnglishText": "Next turn, gain 1 Energy.",
+        "Template": "C:NextTurnStart",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "defect/chargebattery/2",
+        "Template": "N:E",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
+        "EnglishText": "Gain 1 Energy.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 1
       }
     ]
   },
@@ -7198,7 +7258,7 @@
       },
       {
         "SemanticId": "defect/gunkup/1",
-        "Template": "D:RepeatDamage",
+        "Template": "M:repeat",
         "Scope": "Modifier",
         "ChineseText": "\u8FD9\u5F20\u724C\u989D\u5916\u9020\u62102\u6B21\u4F24\u5BB3\u3002",
         "EnglishText": "This card deals damage 2 additional times.",
@@ -7325,7 +7385,7 @@
       },
       {
         "SemanticId": "defect/hologram/1",
-        "Template": "D:MoveDiscardCardToHand",
+        "Template": "N:MoveDiscardCardToHand",
         "Scope": "NonTargeted",
         "ChineseText": "\u5C06\u5F03\u724C\u5806\u4E2D\u7684\u4E00\u5F20\u724C\u653E\u5165\u624B\u724C\u3002",
         "EnglishText": "Put a card from your discard pile into your hand.",
@@ -7517,7 +7577,7 @@
       },
       {
         "SemanticId": "defect/lightningrod/1",
-        "Template": "D:NextTurnsStart",
+        "Template": "C:NextTurnsStart",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u5728\u63A5\u4E0B\u6765\u76842\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of each of your next 2 turns.",
@@ -7965,7 +8025,7 @@
       },
       {
         "SemanticId": "defect/refract/1",
-        "Template": "D:RepeatDamage",
+        "Template": "M:repeat",
         "Scope": "Modifier",
         "ChineseText": "\u8FD9\u5F20\u724C\u989D\u5916\u9020\u62101\u6B21\u4F24\u5BB3\u3002",
         "EnglishText": "This card deals damage 1 additional time.",
@@ -8055,7 +8115,7 @@
     "Atoms": [
       {
         "SemanticId": "defect/scavenge/0",
-        "Template": "D:ExhaustSelectedHandCard",
+        "Template": "N:Exhaust",
         "Scope": "NonTargeted",
         "ChineseText": "\u6D88\u8017\u624B\u724C\u4E2D\u7684\u4E00\u5F20\u724C\u3002",
         "EnglishText": "Exhaust a card in your hand.",
@@ -8065,13 +8125,23 @@
       },
       {
         "SemanticId": "defect/scavenge/1",
-        "Template": "D:NextTurnEnergy",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\u83B7\u5F972\u70B9\u80FD\u91CF\u3002",
-        "EnglishText": "Next turn, gain 2 Energy.",
+        "Template": "C:NextTurnStart",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "defect/scavenge/2",
+        "Template": "N:E",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F972\u70B9\u80FD\u91CF\u3002",
+        "EnglishText": "Gain 2 Energy.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 1
       }
     ]
   },
@@ -8391,7 +8461,7 @@
       },
       {
         "SemanticId": "defect/subroutine/1",
-        "Template": "D:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -8426,7 +8496,7 @@
       },
       {
         "SemanticId": "defect/sunder/1",
-        "Template": "D:IfFatal",
+        "Template": "C:ifFatal",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u65A9\u6740\u65F6\u3002",
         "EnglishText": "If this kills.",
@@ -8436,7 +8506,7 @@
       },
       {
         "SemanticId": "defect/sunder/2",
-        "Template": "D:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F973\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 3 Energy.",
@@ -8463,7 +8533,7 @@
     "Atoms": [
       {
         "SemanticId": "defect/supercritical/0",
-        "Template": "D:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F974\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 4 Energy.",
@@ -8723,7 +8793,7 @@
     "Atoms": [
       {
         "SemanticId": "defect/turbo/0",
-        "Template": "D:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 2 Energy.",
@@ -8768,7 +8838,7 @@
       },
       {
         "SemanticId": "defect/uproar/1",
-        "Template": "D:RepeatDamage",
+        "Template": "M:repeat",
         "Scope": "Modifier",
         "ChineseText": "\u8FD9\u5F20\u724C\u989D\u5916\u9020\u62101\u6B21\u4F24\u5BB3\u3002",
         "EnglishText": "This card deals damage 1 additional time.",
@@ -9073,7 +9143,7 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/borrowedtime/0",
-        "Template": "NCR:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F974\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 4 Energy.",
@@ -9193,9 +9263,9 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/capturespirit/0",
-        "Template": "NCR:TargetHpLoss",
+        "Template": "T:LoseHp",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u654C\u4EBA\u5931\u53BB3\u70B9\u751F\u547D\u3002",
+        "ChineseText": "\u8BE5\u654C\u4EBA\u5931\u53BB3\u70B9\u751F\u547D\u3002",
         "EnglishText": "The enemy loses 3 HP.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
@@ -9388,7 +9458,7 @@
       },
       {
         "SemanticId": "necrobinder/deathbringer/1",
-        "Template": "NCR:ApplyWeakAll",
+        "Template": "N:AllWeak",
         "Scope": "NonTargeted",
         "ChineseText": "\u7ED9\u4E88\u6240\u6709\u654C\u4EBA1\u5C42\u865A\u5F31\u3002",
         "EnglishText": "Apply 1 Weak to ALL enemies.",
@@ -9594,13 +9664,23 @@
       },
       {
         "SemanticId": "necrobinder/delay/1",
-        "Template": "NCR:NextTurnEnergy",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
-        "EnglishText": "Next turn, gain 1 Energy.",
+        "Template": "C:NextTurnStart",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "necrobinder/delay/2",
+        "Template": "N:E",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
+        "EnglishText": "Gain 1 Energy.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 1
       }
     ]
   },
@@ -9631,7 +9711,7 @@
       },
       {
         "SemanticId": "necrobinder/demesne/1",
-        "Template": "NCR:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -9864,7 +9944,7 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/enfeeblingtouch/0",
-        "Template": "NCR:TargetLoseStrengthThisTurn",
+        "Template": "T:TempStrengthLoss",
         "Scope": "SingleEnemyOnly",
         "ChineseText": "\u8BE5\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB8\u70B9\u529B\u91CF\u3002",
         "EnglishText": "The enemy loses 8 Strength this turn.",
@@ -10084,7 +10164,7 @@
       },
       {
         "SemanticId": "necrobinder/friendship/1",
-        "Template": "NCR:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -10166,7 +10246,7 @@
       },
       {
         "SemanticId": "necrobinder/graveblast/1",
-        "Template": "NCR:MoveDiscardCardToHand",
+        "Template": "N:MoveDiscardCardToHand",
         "Scope": "NonTargeted",
         "ChineseText": "\u5C06\u5F03\u724C\u5806\u4E2D\u7684\u4E00\u5F20\u724C\u653E\u5165\u624B\u724C\u3002",
         "EnglishText": "Put a card from your discard pile into your hand.",
@@ -10236,7 +10316,7 @@
       },
       {
         "SemanticId": "necrobinder/haunt/1",
-        "Template": "NCR:TargetHpLoss",
+        "Template": "T:LoseHp",
         "Scope": "SingleEnemyOnly",
         "ChineseText": "\u968F\u673A\u4E00\u540D\u654C\u4EBA\u5931\u53BB7\u70B9\u751F\u547D\u3002",
         "EnglishText": "A random enemy loses 7 HP.",
@@ -10273,7 +10353,7 @@
       },
       {
         "SemanticId": "necrobinder/highfive/1",
-        "Template": "NCR:ApplyVulnerableAll",
+        "Template": "N:AllVulnerable",
         "Scope": "NonTargeted",
         "ChineseText": "\u7ED9\u4E88\u6240\u6709\u654C\u4EBA2\u5C42\u6613\u4F24\u3002",
         "EnglishText": "Apply 2 Vulnerable to ALL enemies.",
@@ -10298,10 +10378,10 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/invoke/0",
-        "Template": "NCR:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u5728\u4E0B\u4E2A\u56DE\u5408\u3002",
-        "EnglishText": "Next turn.",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -10318,7 +10398,7 @@
       },
       {
         "SemanticId": "necrobinder/invoke/2",
-        "Template": "NCR:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 2 Energy.",
@@ -10560,7 +10640,7 @@
       },
       {
         "SemanticId": "necrobinder/neurosurge/2",
-        "Template": "NCR:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F973\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 3 Energy.",
@@ -10640,23 +10720,23 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/oblivion/0",
-        "Template": "NCR:WheneverCardPlayedThisTurn",
-        "Scope": "Modifier",
-        "ChineseText": "\u672C\u56DE\u5408\u6BCF\u5F53\u4F60\u6253\u51FA\u4E00\u5F20\u724C\u65F6\uFF0C",
-        "EnglishText": "Whenever you play a card this turn,",
-        "RequiresSingleTarget": false,
+        "Template": "C:untilTurnEndCardPlayed",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u6253\u51FA\u6B64\u724C\u540E\uFF0C\u4F60\u5728\u672C\u56DE\u5408\u6BCF\u6253\u51FA\u4E00\u5F20\u724C\u65F6\uFF0C",
+        "EnglishText": "After you play this card, whenever you play a card this turn,",
+        "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
       },
       {
         "SemanticId": "necrobinder/oblivion/1",
-        "Template": "NCR:ApplyPower_OblivionPower",
+        "Template": "NCR:ApplyDoom",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u7ED9\u4E88\u8BE5\u654C\u4EBA3\u5C42\u707E\u5384\u3002",
-        "EnglishText": "Apply 3 Doom to that enemy.",
+        "ChineseText": "\u7ED9\u4E883\u5C42\u707E\u5384\u3002",
+        "EnglishText": "Apply 3 Doom.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
-        "TriggerOwner": -1
+        "TriggerOwner": 0
       }
     ]
   },
@@ -11019,7 +11099,7 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/reaperform/0",
-        "Template": "A:whenAttackDealsDamage",
+        "Template": "A:whenAttackDealsUnblockedDamage",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u7684\u653B\u51FB\u9020\u6210\u4F24\u5BB3\u65F6\u3002",
         "EnglishText": "Whenever your Attack deals damage.",
@@ -11880,7 +11960,7 @@
       },
       {
         "SemanticId": "necrobinder/undeath/1",
-        "Template": "NCR:CreateCopyInDiscard",
+        "Template": "N:Create",
         "Scope": "NonTargeted",
         "ChineseText": "\u5C06\u6B64\u724C\u7684\u4E00\u5F20\u590D\u5236\u52A0\u5165\u5F03\u724C\u5806\u3002",
         "EnglishText": "Add a copy of this card to your discard pile.",
@@ -11979,7 +12059,7 @@
     "Atoms": [
       {
         "SemanticId": "necrobinder/wisp/0",
-        "Template": "NCR:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -12004,7 +12084,7 @@
     "Atoms": [
       {
         "SemanticId": "regent/alignment/0",
-        "Template": "R:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 2 Energy.",
@@ -12039,7 +12119,7 @@
       },
       {
         "SemanticId": "regent/arsenal/1",
-        "Template": "R:GainStrength",
+        "Template": "N:Self",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u529B\u91CF\u3002",
         "EnglishText": "Gain 1 Strength.",
@@ -12171,7 +12251,7 @@
       },
       {
         "SemanticId": "regent/bigbang/1",
-        "Template": "R:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -12335,7 +12415,7 @@
     "Atoms": [
       {
         "SemanticId": "regent/bundleofjoy/0",
-        "Template": "R:AddRandomColorlessToHand",
+        "Template": "N:AddRandomColorlessToHand",
         "Scope": "NonTargeted",
         "ChineseText": "\u5C063\u5F20\u968F\u673A\u65E0\u8272\u724C\u52A0\u5165\u624B\u724C\u3002",
         "EnglishText": "Add 3 random Colorless cards to your Hand.",
@@ -12370,7 +12450,7 @@
       },
       {
         "SemanticId": "regent/celestialmight/1",
-        "Template": "R:RepeatDamage",
+        "Template": "M:repeat",
         "Scope": "Modifier",
         "ChineseText": "\u8FD9\u5F20\u724C\u989D\u5916\u9020\u62102\u6B21\u4F24\u5BB3\u3002",
         "EnglishText": "This card deals damage 2 additional times.",
@@ -12595,9 +12675,9 @@
     "Atoms": [
       {
         "SemanticId": "regent/convergence/0",
-        "Template": "R:RetainHandThisTurn",
+        "Template": "N:RetainHandThisTurn",
         "Scope": "NonTargeted",
-        "ChineseText": "\u672C\u56DE\u5408\u4FDD\u7559\u4F60\u7684\u624B\u724C\u3002",
+        "ChineseText": "\u5728\u672C\u56DE\u5408\u4FDD\u7559\u4F60\u7684\u624B\u724C\u3002",
         "EnglishText": "Retain your hand this turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -12605,9 +12685,9 @@
       },
       {
         "SemanticId": "regent/convergence/1",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -12615,7 +12695,7 @@
       },
       {
         "SemanticId": "regent/convergence/2",
-        "Template": "R:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -12775,9 +12855,9 @@
       },
       {
         "SemanticId": "regent/crushunder/1",
-        "Template": "R:EnemiesLoseStrengthThisTurn",
+        "Template": "N:AllTempStrengthLoss",
         "Scope": "NonTargeted",
-        "ChineseText": "\u672C\u56DE\u5408\u6240\u6709\u654C\u4EBA\u5931\u53BB1\u70B9\u529B\u91CF\u3002",
+        "ChineseText": "\u6240\u6709\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB1\u70B9\u529B\u91CF\u3002",
         "EnglishText": "ALL enemies lose 1 Strength this turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -12901,9 +12981,9 @@
       },
       {
         "SemanticId": "regent/dyingstar/1",
-        "Template": "R:EnemiesLoseStrengthThisTurn",
+        "Template": "N:AllTempStrengthLoss",
         "Scope": "NonTargeted",
-        "ChineseText": "\u672C\u56DE\u5408\u6240\u6709\u654C\u4EBA\u5931\u53BB1\u70B9\u529B\u91CF\u3002",
+        "ChineseText": "\u6240\u6709\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB1\u70B9\u529B\u91CF\u3002",
         "EnglishText": "ALL enemies lose 1 Strength this turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -13191,9 +13271,9 @@
       },
       {
         "SemanticId": "regent/glitterstream/1",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -13246,9 +13326,9 @@
       },
       {
         "SemanticId": "regent/glow/2",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -13318,9 +13398,9 @@
       },
       {
         "SemanticId": "regent/guidingstar/1",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -13398,9 +13478,9 @@
       },
       {
         "SemanticId": "regent/hegemony/1",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -13408,7 +13488,7 @@
       },
       {
         "SemanticId": "regent/hegemony/2",
-        "Template": "R:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 2 Energy.",
@@ -13478,9 +13558,9 @@
       },
       {
         "SemanticId": "regent/hiddencache/1",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -13658,7 +13738,7 @@
       },
       {
         "SemanticId": "regent/knockoutblow/1",
-        "Template": "R:IfFatal",
+        "Template": "C:ifFatal",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u65A9\u6740\u65F6\u3002",
         "EnglishText": "If this kills.",
@@ -13820,10 +13900,10 @@
       },
       {
         "SemanticId": "regent/manifestauthority/1",
-        "Template": "R:AddRandomColorlessToHand",
+        "Template": "N:AddRandomColorlessToHand",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5C06\u4E00\u5F20\u968F\u673A\u65E0\u8272\u724C\u52A0\u5165\u624B\u724C\u3002",
-        "EnglishText": "Add a random Colorless card to your hand.",
+        "ChineseText": "\u5C061\u5F20\u968F\u673A\u65E0\u8272\u724C\u52A0\u5165\u624B\u724C\u3002",
+        "EnglishText": "Add 1 random Colorless card to your Hand.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -13855,7 +13935,7 @@
       },
       {
         "SemanticId": "regent/meteorshower/1",
-        "Template": "R:ApplyWeakAll",
+        "Template": "N:AllWeak",
         "Scope": "NonTargeted",
         "ChineseText": "\u7ED9\u4E88\u6240\u6709\u654C\u4EBA2\u5C42\u865A\u5F31\u3002",
         "EnglishText": "Apply 2 Weak to ALL enemies.",
@@ -13865,7 +13945,7 @@
       },
       {
         "SemanticId": "regent/meteorshower/2",
-        "Template": "R:ApplyVulnerableAll",
+        "Template": "N:AllVulnerable",
         "Scope": "NonTargeted",
         "ChineseText": "\u7ED9\u4E88\u6240\u6709\u654C\u4EBA2\u5C42\u6613\u4F24\u3002",
         "EnglishText": "Apply 2 Vulnerable to ALL enemies.",
@@ -13890,7 +13970,7 @@
     "Atoms": [
       {
         "SemanticId": "regent/monarchsgaze/0",
-        "Template": "A:whenAttackDealsDamage",
+        "Template": "A:whenAttackDamagesEnemy",
         "Scope": "AbilityTrigger",
         "ChineseText": "\u6BCF\u5F53\u4F60\u7684\u653B\u51FB\u5BF9\u4E00\u540D\u654C\u4EBA\u9020\u6210\u4F24\u5BB3\u65F6\u3002",
         "EnglishText": "Whenever your Attack deals damage to an enemy.",
@@ -13900,7 +13980,7 @@
       },
       {
         "SemanticId": "regent/monarchsgaze/1",
-        "Template": "R:TargetLoseStrengthThisTurn",
+        "Template": "T:TempStrengthLoss",
         "Scope": "SingleEnemyOnly",
         "ChineseText": "\u8BE5\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB1\u70B9\u529B\u91CF\u3002",
         "EnglishText": "That enemy loses 1 Strength this turn.",
@@ -13925,17 +14005,17 @@
     "Atoms": [
       {
         "SemanticId": "regent/monologue/0",
-        "Template": "C:untilTurnEnd",
+        "Template": "C:untilTurnEndCardPlayed",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u672C\u56DE\u5408\u6BCF\u5F53\u4F60\u6253\u51FA\u4E00\u5F20\u724C\u65F6\u3002",
-        "EnglishText": "Whenever you play a card this turn.",
+        "ChineseText": "\u6253\u51FA\u6B64\u724C\u540E\uFF0C\u4F60\u5728\u672C\u56DE\u5408\u6BCF\u6253\u51FA\u4E00\u5F20\u724C\u65F6\uFF0C",
+        "EnglishText": "After you play this card, whenever you play a card this turn,",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
       },
       {
         "SemanticId": "regent/monologue/1",
-        "Template": "R:GainStrengthThisTurn",
+        "Template": "N:TempStrength",
         "Scope": "NonTargeted",
         "ChineseText": "\u672C\u56DE\u5408\u83B7\u5F971\u70B9\u529B\u91CF\u3002",
         "EnglishText": "Gain 1 Strength this turn.",
@@ -13995,7 +14075,7 @@
       },
       {
         "SemanticId": "regent/orbit/1",
-        "Template": "R:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -14135,7 +14215,7 @@
       },
       {
         "SemanticId": "regent/patter/1",
-        "Template": "R:GainVigor",
+        "Template": "N:Vigor",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F972\u70B9\u6D3B\u529B\u3002",
         "EnglishText": "Gain 2 Vigor.",
@@ -14345,9 +14425,9 @@
       },
       {
         "SemanticId": "regent/refineblade/1",
-        "Template": "R:NextTurn",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
+        "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
@@ -14355,7 +14435,7 @@
       },
       {
         "SemanticId": "regent/refineblade/2",
-        "Template": "R:GainEnergy",
+        "Template": "N:E",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u80FD\u91CF\u3002",
         "EnglishText": "Gain 1 Energy.",
@@ -14415,7 +14495,7 @@
     "Atoms": [
       {
         "SemanticId": "regent/resonance/0",
-        "Template": "R:GainStrength",
+        "Template": "N:Self",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F971\u70B9\u529B\u91CF\u3002",
         "EnglishText": "Gain 1 Strength.",
@@ -14656,7 +14736,7 @@
       },
       {
         "SemanticId": "regent/spectrumshift/1",
-        "Template": "R:AddRandomColorlessToHand",
+        "Template": "N:AddRandomColorlessToHand",
         "Scope": "NonTargeted",
         "ChineseText": "\u5C061\u5F20\u968F\u673A\u65E0\u8272\u724C\u52A0\u5165\u624B\u724C\u3002",
         "EnglishText": "Add 1 random Colorless card to your Hand.",
@@ -14873,7 +14953,7 @@
     "Atoms": [
       {
         "SemanticId": "regent/terraforming/0",
-        "Template": "R:GainVigor",
+        "Template": "N:Vigor",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F977\u70B9\u6D3B\u529B\u3002",
         "EnglishText": "Gain 7 Vigor.",
@@ -15224,7 +15304,7 @@
       },
       {
         "SemanticId": "colorless/bolas/1",
-        "Template": "CL:AtNextTurnStart",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",
@@ -15321,10 +15401,10 @@
     "Atoms": [
       {
         "SemanticId": "colorless/darkshackles/0",
-        "Template": "CL:TargetLoseStrengthThisTurn",
+        "Template": "T:TempStrengthLoss",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u4F7F\u8BE5\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB9\u70B9\u529B\u91CF\u3002",
-        "EnglishText": "Enemy loses 9 Strength this turn.",
+        "ChineseText": "\u8BE5\u654C\u4EBA\u5728\u672C\u56DE\u5408\u5931\u53BB9\u70B9\u529B\u91CF\u3002",
+        "EnglishText": "That enemy loses 9 Strength this turn.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -15448,7 +15528,7 @@
       },
       {
         "SemanticId": "colorless/equilibrium/1",
-        "Template": "CL:RetainHandThisTurn",
+        "Template": "N:RetainHandThisTurn",
         "Scope": "NonTargeted",
         "ChineseText": "\u5728\u672C\u56DE\u5408\u4FDD\u7559\u4F60\u7684\u624B\u724C\u3002",
         "EnglishText": "Retain your Hand this turn.",
@@ -15638,10 +15718,10 @@
       },
       {
         "SemanticId": "colorless/handofgreed/1",
-        "Template": "CL:IfFatal",
+        "Template": "C:ifFatal",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u65A9\u6740\u65F6\u3002",
-        "EnglishText": "If Fatal.",
+        "EnglishText": "If this kills.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -15735,7 +15815,7 @@
     "Atoms": [
       {
         "SemanticId": "colorless/jackofalltrades/0",
-        "Template": "CL:AddRandomColorlessToHand",
+        "Template": "N:AddRandomColorlessToHand",
         "Scope": "NonTargeted",
         "ChineseText": "\u5C061\u5F20\u968F\u673A\u65E0\u8272\u724C\u52A0\u5165\u624B\u724C\u3002",
         "EnglishText": "Add 1 random Colorless card into your Hand.",
@@ -16046,7 +16126,7 @@
       },
       {
         "SemanticId": "colorless/preptime/1",
-        "Template": "CL:GainVigor",
+        "Template": "N:Vigor",
         "Scope": "NonTargeted",
         "ChineseText": "\u83B7\u5F973\u70B9\u6D3B\u529B\u3002",
         "EnglishText": "Gain 3 Vigor.",
@@ -16327,7 +16407,7 @@
       },
       {
         "SemanticId": "colorless/salvo/1",
-        "Template": "CL:RetainHandThisTurn",
+        "Template": "N:RetainHandThisTurn",
         "Scope": "NonTargeted",
         "ChineseText": "\u5728\u672C\u56DE\u5408\u4FDD\u7559\u4F60\u7684\u624B\u724C\u3002",
         "EnglishText": "Retain your Hand this turn.",
@@ -16472,7 +16552,7 @@
     "Atoms": [
       {
         "SemanticId": "colorless/shockwave/0",
-        "Template": "CL:ApplyWeakAll",
+        "Template": "N:AllWeak",
         "Scope": "NonTargeted",
         "ChineseText": "\u7ED9\u4E88\u6240\u6709\u654C\u4EBA3\u5C42\u865A\u5F31\u3002",
         "EnglishText": "Apply 3 Weak to ALL enemies.",
@@ -16482,7 +16562,7 @@
       },
       {
         "SemanticId": "colorless/shockwave/1",
-        "Template": "CL:ApplyVulnerableAll",
+        "Template": "N:AllVulnerable",
         "Scope": "NonTargeted",
         "ChineseText": "\u7ED9\u4E88\u6240\u6709\u654C\u4EBA3\u5C42\u6613\u4F24\u3002",
         "EnglishText": "Apply 3 Vulnerable to ALL enemies.",
@@ -16684,7 +16764,7 @@
       },
       {
         "SemanticId": "colorless/thrumminghatchet/1",
-        "Template": "CL:AtNextTurnStart",
+        "Template": "C:NextTurnStart",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u5728\u4F60\u7684\u4E0B\u4E2A\u56DE\u5408\u5F00\u59CB\u65F6\u3002",
         "EnglishText": "At the start of your next turn.",

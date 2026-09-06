@@ -119,7 +119,8 @@ internal static class NativeCardValuationAudit
         var effectiveCost = EffectiveCost(recipe, resolvedOperations);
         var hasPrintedResourceCost = valuationEnergyCost != 0 || recipe.StarCost > 0
             || recipe.Cost < 0 || recipe.HasStarCostX;
-        var full = Evaluate(resolvedOperations, recipe.Tags, hasPrintedResourceCost, recipe.Type, character);
+        var full = Evaluate(resolvedOperations, recipe.Tags, hasPrintedResourceCost, recipe.Type,
+            recipe.OriginalRarity, character);
         var target = GeneratorTargetCenter(recipe, resolvedOperations, effectiveCost);
         var ratio = full.Normalized / Math.Max(1d, target);
         var cardKey = $"{character}:{recipe.Id}";
@@ -163,7 +164,8 @@ internal static class NativeCardValuationAudit
         foreach (var group in groups)
         {
             var retained = RemoveOperations(resolvedOperations, group.Indices);
-            var without = Evaluate(retained, recipe.Tags, hasPrintedResourceCost, recipe.Type, character);
+            var without = Evaluate(retained, recipe.Tags, hasPrintedResourceCost, recipe.Type,
+                recipe.OriginalRarity, character);
             var currentMarginal = full.Normalized - without.Normalized;
             var impliedMarginal = target - without.Normalized;
             var marginalRatio = ComparableRatio(currentMarginal, impliedMarginal);
@@ -190,7 +192,8 @@ internal static class NativeCardValuationAudit
         foreach (var tag in recipe.Tags.Distinct())
         {
             var reducedTags = recipe.Tags.Where(candidate => candidate != tag).ToArray();
-            var without = Evaluate(resolvedOperations, reducedTags, hasPrintedResourceCost, recipe.Type, character);
+            var without = Evaluate(resolvedOperations, reducedTags, hasPrintedResourceCost, recipe.Type,
+                recipe.OriginalRarity, character);
             var currentMarginal = full.Normalized - without.Normalized;
             var impliedMarginal = target - without.Normalized;
             var marginalRatio = ComparableRatio(currentMarginal, impliedMarginal);
@@ -291,16 +294,17 @@ internal static class NativeCardValuationAudit
 
     private static Evaluation Evaluate(IReadOnlyList<GeneratorOperation> operations,
         IReadOnlyCollection<CardTag> tags, bool hasPrintedResourceCost, GeneratedCardType type,
-        GeneratedCharacter character)
+        GeneratedRarity rarity, GeneratedCharacter character)
     {
         var positive = EffectBalanceModel.EstimatedPositiveCardValue(operations,
             hasPrintedResourceCost, type, tags);
         var downside = CardEffectRules.NegativeEffectCompensationPercent(operations, tags,
             hasPrintedResourceCost, type, character);
-        var linearDownside = CardEffectRules.NegativeEffectLinearCompensationValue(operations);
+        var linearDownside = NegativeEffectTuning.TotalLinearCompensationValue(operations, rarity);
         var power = ComponentAssemblyGenerator.PowerOneShotBudgetFactor(operations, type);
-        var normalized = (positive - linearDownside)
-            / (Math.Max(100, downside) / 100d) / Math.Max(1d, power);
+        var normalized = EffectBalanceModel.EstimatedNetCardValue(operations,
+                hasPrintedResourceCost, type, tags, rarity, character)
+            / Math.Max(1d, power);
         return new Evaluation(positive, downside, power, linearDownside, normalized);
     }
 

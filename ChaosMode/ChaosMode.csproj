@@ -33,6 +33,7 @@
     <Compile Include="..\ChaosCardGenerator\ComponentApi.cs" Link="Generator\ComponentApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentPackageApi.cs" Link="Generator\ComponentPackageApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentValuationApi.cs" Link="Generator\ComponentValuationApi.cs" />
+    <Compile Include="..\ChaosCardGenerator\CardTinkeringApi.cs" Link="Generator\CardTinkeringApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ImmutableComponentCatalog.cs" Link="Generator\ImmutableComponentCatalog.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentPolicy.cs" Link="Generator\ComponentPolicy.cs" />
     <Compile Include="..\ChaosCardGenerator\NativeComponentFrequencyTracker.cs" Link="Generator\NativeComponentFrequencyTracker.cs" />

@@ -63,6 +63,54 @@ and RuntimeSpec JSON -> `StructuredComponentCatalogRegistry` -> `ImmutableCompon
 decomposed from localized card prose at runtime. Run `--catalog-ownership-audit` in the standalone generator to
 inspect recipe, occurrence, schema, and cross-role sharing counts.
 
+### Trigger composition and atomic boundaries
+
+Reviewed recipes use one shared authoring component for semantically identical actions. Character-prefixed legacy
+aliases are accepted only while hydrating old snapshots. A build-time catalog invariant rejects those aliases if
+they reappear in new reviewed recipes, and rejects a shared trigger that has no linked payoff.
+
+The common delayed/event composition surface is:
+
+| Trigger component | Runtime trigger | Pricing cadence |
+| --- | --- | --- |
+| `C:NextTurnStart` | `next_turn_start` | `0.50` resolution |
+| `C:NextTurnsStart` | `next_turns_start` | `duration * 0.50` resolutions |
+| `C:untilTurnEndCardPlayed` | `card_played`, armed for this turn | `3.20` resolutions |
+
+The linked payoff is an ordinary component such as `N:B`, `N:Draw`, `N:E`, `R:GainStars`, `T:LoseHp`, Poison,
+Doom, Summon, or an Orb action. It keeps exactly the same executor route and per-unit value as its immediate form;
+only the trigger cadence changes its total value. Resource refunds use the same delayed cadence instead of a
+separate Energy-only discount.
+
+Shared immediate authoring IDs now also cover permanent Strength (`N:Self`), permanent Dexterity (`N:Dex`),
+temporary enemy Strength loss (`T:TempStrengthLoss`), retain-hand-this-turn (`N:RetainHandThisTurn`), a random
+Colorless card (`N:AddRandomColorlessToHand`), selected discard-to-hand movement (`N:MoveDiscardCardToHand`),
+self-copy-to-discard (`N:Create`), and static extra hits (`M:repeat`). Character-prefixed spellings remain readable
+only as snapshot aliases. The balance self-test compares representative aliases against their shared replacement,
+so an execution merge cannot silently leave two prices behind.
+
+An effect remains atomic when splitting would discard runtime payload or change when state is captured. Current
+intentional examples are Nightmare (the selected card must survive until next turn), Prolong (current Block is
+snapshotted now), Wraith/Shadow-style next-turn rule powers, timed debuff-rule powers, and delayed player-choice
+transactions. Nested delayed effects inside an already firing Power also remain atomic until the composite runtime
+can arm child triggers dynamically. These are transactions/state objects, not hidden reusable trigger+payoff pairs.
+Target-Vulnerable-to-Strength also remains atomic: high Vulnerable stacks have diminishing practical Strength
+value, so treating it as a freely exchangeable linear `for each stack` trigger would misprice both halves.
+
+Targeted Poison is the reusable `T:Poison` component in both ordinary and triggered contexts. On a targeted card it
+uses the selected enemy; below a compatible enemy-event trigger it uses that event's enemy. Do not create a second
+“apply Poison to that enemy” component. The same rule applies to an external payoff whose RuntimeSpec explicitly
+declares event-target compatibility.
+
+Built-in legacy Template aliases remain accepted only for supported run/history snapshots. New packages should
+match components by structured opcode/variant/target/slot schema and use the current shared authoring Template rather
+than copying a character-prefixed alias.
+
+`Template` is a stable authoring/compatibility ID; semantic identity for sharing, execution and Card Tinkering is
+the structured `RuntimeSpec` schema key. Two source occurrences with the same schema share the implementation while
+retaining separate native occurrence and numeric evidence. Different targets, event-payload requirements, source
+zones or lifetimes intentionally produce different schema keys even when their rendered verbs look alike.
+
 ## Occurrence model
 
 For a requested rarity, card type and semantic role, `NativeComponentFrequencyTracker` computes a direct source
@@ -385,3 +433,24 @@ live saves are migrated card-by-card; schema 10 is the current structured format
 - Adding enum values must append them; serialized numeric enum values must not be reordered.
 - API consumers must not assume a generated card is accepted merely because a component was sampled.
 - Balance calibration uses numeric-balanced mode unless a test explicitly targets aggressive mode.
+
+## Card-editor and settings services
+
+`CardTinkeringApi` is the localization-independent integration surface for companion editors. Its API version is
+`3`. It serializes the complete structured card payload, evaluates the production whole-card budget, validates a
+replacement operation list, and rebuilds descriptions/upgrades without parsing rendered prose. Values use the
+generator's native currency: `100` units equal one point of ordinary single-target damage.
+
+Prefer `EvaluateBudget` when an editor needs the exact production inequality. It exposes positive value, linear
+downside compensation, multiplicative downside capacity, net value, and the ordinary shell upper bound.
+`EvaluateComponent` is intentionally context-free: moving a component does not preserve a discount inherited from
+its old trigger. Call `Validate` before `Rebuild`; a failed result is a user-facing invalid composition, not an
+operation that should be installed and repaired at runtime.
+
+`SerializeCard`/`DeserializeCard` preserve RuntimeSpecs, named localization and upgrade value-slot identities. They
+are suitable for an editor's own persistence and multiplayer payload, but AutoAnthony does not synchronize that
+payload for the editor.
+
+`AutoAnthonySettingsApi` v1 is a small read-only runtime view. `Enabled` reports the master switch and
+`AnytimeCardEditing` reports whether the user permits the companion editor outside combat. It deliberately does not
+expose mutable settings or next-run generation options.

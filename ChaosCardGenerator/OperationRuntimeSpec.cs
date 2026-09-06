@@ -356,7 +356,8 @@ public static class OperationRuntimeSpecCompiler
     public static bool IsIntrinsicNegative(GeneratorOperation operation)
     {
         var spec = GetOrCompile(operation);
-        if (spec.Opcode is "lose_hp" or "discard_card") return true;
+        if (spec.Opcode == "lose_hp") return spec.Target == "self";
+        if (spec.Opcode == "discard_card") return true;
         // A player-selected Exhaust is controlled combat deck-thinning. Native Burning Pact, Scavenge,
         // Cleanse and Purity all spend card budget on that utility; only random/all/referenced Exhaust remains
         // an intrinsic payment. Mandatory selection count still keeps its special upgrade/count safeguards.
@@ -606,18 +607,29 @@ public static class OperationRuntimeSpecCompiler
     {
         spec = operation.Template switch
         {
-            "T:Apply" => CompileTargetPower(operation),
+            "T:Apply" or "T:TempStrengthLoss" => CompileTargetPower(operation),
             "N:Self" or "N:StrengthPerTargetVulnerable" => CompileSelfPower(operation),
             "N:Create" or "N:CreateCurrentCharacterCardInHand" => CompileCreate(operation),
+            "N:AddRandomColorlessToHand" => Spec("create_card", "random_colorless", "generated_card",
+                sourceZone: "colorless_pool", destinationZone: "hand",
+                flags: operation.ChineseText.Contains("升级过", StringComparison.Ordinal)
+                    ? ["replenishes_hand", "upgrade_generated"] : ["replenishes_hand"],
+                values: [Count(FirstNumber(operation.ChineseText, 1), Number.IsMatch(operation.ChineseText))]),
             "I:Create" => Spec("create_card", "random_attack_zero_cost_this_turn", "generated_card",
                 sourceZone: "current_character_pool", destinationZone: "hand", cardFilter: "attack",
                 flags: ["set_cost_zero_this_turn"], values:
                 [Count(1, explicitValue: false),
                     new RuntimeValueSlot("cost_marker", 0, Upgradable: false)]),
             "N:Move" => CompileMove(operation),
+            "N:MoveDiscardCardToHand" => Spec("move_card", "selected", "selected_card",
+                sourceZone: "discard", destinationZone: "hand",
+                flags: ["requires_player_choice", "replenishes_hand"],
+                values: [Count(1, explicitValue: false)]),
+            "N:RetainHandThisTurn" => Spec("apply_power", "retain_hand_this_turn", "self"),
             "N:Exhaust" => CompileExhaust(operation),
             "N:AllD" or "N:RandomD" => CompileMultiDamage(operation),
             "T:D" or "T:DX" or "T:D_EnergyX" => CompileTargetDamage(operation),
+            "T:LoseHp" or "NCR:TargetHpLoss" => CompileEnemyHpLoss(operation),
             "CL:DamageEqualCardsPlayedCombat" => Spec("deal_damage", "cards_played_combat",
                 "selected_enemy", flags:
                 ["requires_single_target", "damage_budget_effect", ComponentSemanticFlags.EnemyDamage]),
@@ -635,6 +647,18 @@ public static class OperationRuntimeSpecCompiler
             "N_EXHAUST_SELECTED" or "D:ExhaustSelectedHandCard" or "NCR:ExhaustSelectedDrawCard"
                 or "R:DiscardTopOfDraw" => CompileCardPayment(operation),
             "N:RandomPoison" => CompileRandomPoison(operation),
+            "N:Dex" => CompileSharedPowerAction(operation, "dexterity_gain", "self"),
+            "N:Vigor" or "R:GainVigor" or "CL:GainVigor" =>
+                CompileSharedPowerAction(operation, "vigor", "self"),
+            "N:TempStrength" or "R:GainStrengthThisTurn" or "I:GainTemporaryStrength" =>
+                CompileSharedPowerAction(operation, "strength_this_turn", "self"),
+            "N:AllWeak" or "R:ApplyWeakAll" or "NCR:ApplyWeakAll" or "CL:ApplyWeakAll" =>
+                CompileSharedPowerAction(operation, "weak", "all_enemies"),
+            "N:AllVulnerable" or "R:ApplyVulnerableAll" or "NCR:ApplyVulnerableAll"
+                or "CL:ApplyVulnerableAll" =>
+                CompileSharedPowerAction(operation, "vulnerable", "all_enemies"),
+            "N:AllTempStrengthLoss" or "R:EnemiesLoseStrengthThisTurn" =>
+                CompileSharedPowerAction(operation, "strength_loss_this_turn", "all_enemies"),
             "CL:AddRandomZeroCostCardsToHand" => CompileRandomZeroCostCards(operation),
             "CL:ProxyAtomic_Discovery" or "CL:ProxyAtomic_Splash" or "I:ProxyAtomic_Quasar" =>
                 CompileCardChoice(operation),
@@ -726,6 +750,11 @@ public static class OperationRuntimeSpecCompiler
             || text.Contains("该敌人", StringComparison.Ordinal)
             || text.Contains("那名敌人", StringComparison.Ordinal)
             || text.Contains("被命中的敌人", StringComparison.Ordinal))
+            flags.Add("event_enemy_reference");
+        // Targeted Poison is one reusable operation: an ordinary card applies it to the selected enemy, while a
+        // linked enemy-event trigger supplies that same operation's target. Keep this capability structural so
+        // authoring text never has to create a separate "that enemy" Poison component.
+        if (operation.Template is "T:Poison" or "NCR:ApplyDoom")
             flags.Add("event_enemy_reference");
         if (text.Contains("被命中的敌人", StringComparison.Ordinal))
             flags.Add("hit_enemy_reference");
@@ -1669,6 +1698,7 @@ public static class OperationRuntimeSpecCompiler
                 || spec.Values.Any(value => value.Source is "energy_x" or "star_x" or "special_x"));
             Check("for_each_exhaust", operation,
                 operation.Template == "D:ForEachExhaustedStatus"
+                || operation.Template is "C:forEachExhaustedCard" or "C:forEachExhaustedNonAttack"
                 || operation.Template == "C:forEach"
                     && operation.ChineseText is "每消耗一张牌。" or "每消耗一张手牌中的非攻击牌时。",
                 spec.Trigger?.Kind is "for_each_exhausted_status" or "for_each_exhausted_card"
@@ -1771,6 +1801,7 @@ public static class OperationRuntimeSpecCompiler
                 CardEffectRules.IsDamageTypeSuppressingConditionBySpec(operation));
             var legacyRandomGeneration = operation.Template is
                     "CL:AddRandomAttackToHand" or "CL:AddRandomColorlessToHand"
+                    or "N:AddRandomColorlessToHand"
                     or "CL:AddRandomZeroCostCardsToHand" or "NCR:AddRandomEtherealCardToHand"
                     or "D:AddRandomPowerToHand" or "R:AddRandomColorlessToHand" or "I_CREATE_RANDOM_ATTACK"
                     or "I:ProxyAtomic_WhiteNoise" or "CL:ProxyAtomic_Discovery" or "I:ProxyAtomic_Quasar"
@@ -1803,14 +1834,18 @@ public static class OperationRuntimeSpecCompiler
                 operation.ChineseText.Contains("随机", StringComparison.Ordinal)
                 && operation.ChineseText.Contains("敌人", StringComparison.Ordinal),
                 CardEffectRules.UsesExplicitRandomEnemyTargetBySpec(operation));
-            var legacyEventEnemy = operation.ChineseText.Contains("该目标", StringComparison.Ordinal)
+            // T:Poison intentionally gained structural event-target support while retaining its ordinary card
+            // wording, so it is the one reviewed migration whose capability is no longer text-derived.
+            var legacyEventEnemy = operation.Template is "T:Poison" or "NCR:ApplyDoom"
+                || operation.ChineseText.Contains("该目标", StringComparison.Ordinal)
                 || operation.ChineseText.Contains("该敌人", StringComparison.Ordinal)
                 || operation.ChineseText.Contains("那名敌人", StringComparison.Ordinal)
                 || operation.ChineseText.Contains("被命中的敌人", StringComparison.Ordinal);
             Check("explicit_event_enemy", operation, legacyEventEnemy,
                 CardEffectRules.UsesExplicitEventEnemyTargetBySpec(operation));
             var legacyDelayed = operation.Template is
-                    "R:NextTurn" or "NCR:NextTurn" or "D:NextTurnsStart" or "CL:AtNextTurnStart"
+                    "C:NextTurnStart" or "C:NextTurnsStart"
+                    or "R:NextTurn" or "NCR:NextTurn" or "D:NextTurnsStart" or "CL:AtNextTurnStart"
                     or "CL:AfterTurns" or "N:NextTurnBlock" or "N:NextTurnEnergy" or "N:NextTurnDraw"
                     or "N:KeepBlockNextTurn" or "D:NextTurnEnergy" or "NCR:NextTurnEnergy"
                     or "I:CopySelectedCardNextTurn" or "I:DoubleAttackDamageNextTurn"
@@ -1838,9 +1873,10 @@ public static class OperationRuntimeSpecCompiler
                 || operation.ChineseText.Contains("放入手牌", StringComparison.Ordinal),
                 spec.Flags.Contains("replenishes_hand"));
             Check("exhaust_pile_turn_end_trigger", operation,
-                operation.Template == "C:after"
-                && operation.ChineseText.Contains("回合结束时", StringComparison.Ordinal)
-                && operation.ChineseText.Contains("消耗牌堆", StringComparison.Ordinal),
+                operation.Template == "C:AtTurnEndIfInExhaust"
+                || operation.Template == "C:after"
+                    && operation.ChineseText.Contains("回合结束时", StringComparison.Ordinal)
+                    && operation.ChineseText.Contains("消耗牌堆", StringComparison.Ordinal),
                 CardEffectRules.IsExhaustPileTurnEndTrigger(operation));
             var legacyAttackCostReduction = operation.Template is
                     "C:whileInCombat" or "C:whileInCombatSkillCostReduction"
@@ -2005,7 +2041,8 @@ public static class OperationRuntimeSpecCompiler
     private static bool LegacyTriggerSupportsChoiceContext(GeneratorOperation trigger)
     {
         if (trigger.Template == "A:turnStart") return true;
-        if (trigger.Template is "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart"
+        if (trigger.Template is "C:NextTurnStart" or "C:NextTurnsStart"
+            or "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart"
             or "A:whenEnergyCostAtLeast" or "A:whenEnergySpent" or "A:whenOneStarSpent"
             or "A:whenOstyLosesHp" or "D:ForEachEnergySpentThisTurn") return false;
         return !trigger.ChineseText.Contains("获得格挡", StringComparison.Ordinal)
@@ -2024,7 +2061,7 @@ public static class OperationRuntimeSpecCompiler
             or "R:MoveDiscardCardToDrawTop" or "R:PlaySelectedSkillMultipleTimes"
             or "R:PutSelectedHandCardsOnDraw" or "R:PutSelectedHandCardOnDraw"
             or "R:CopySelectedColorlessCard" or "NCR:ExhaustSelectedDrawCard"
-            or "NCR:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
+            or "N:MoveDiscardCardToHand" or "NCR:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
             or "I:GrantSlyToHandSkillThisTurn" or "I:CopySelectedCardNextTurn"
             or "I:PlayTopCardAndExhaust" or "I:PlayTopXCards" or "CL:PlayTopDrawCard"
             or "D:AutoPlayRandomAttackFromDraw" or "I:AutoPlayRandomAttackFromHand"
@@ -2267,6 +2304,19 @@ public static class OperationRuntimeSpecCompiler
                 new RuntimeValueSlot("hits", hits, Explicit: hitsMatch.Success)]);
     }
 
+    private static OperationRuntimeSpec CompileEnemyHpLoss(GeneratorOperation operation)
+    {
+        var random = operation.ChineseText.Contains("随机", StringComparison.Ordinal);
+        return Spec("lose_hp", "immediate", random ? "random_enemy" : "selected_enemy",
+            flags: random ? [] : ["event_enemy_reference"],
+            values: [new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, 1))]);
+    }
+
+    private static OperationRuntimeSpec CompileSharedPowerAction(GeneratorOperation operation,
+        string variant, string target) =>
+        Spec("apply_power", variant, target,
+            values: [new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, 1))]);
+
     private static OperationRuntimeSpec CompileProxyXDamage(GeneratorOperation operation)
     {
         var source = operation.Template.StartsWith("N:ProxyDamage_Atomic_StarX_", StringComparison.Ordinal)
@@ -2482,6 +2532,14 @@ public static class OperationRuntimeSpecCompiler
             "A:firstZeroCostAttackPlayedEachTurn" => "first_zero_cost_attack_played_each_turn",
             "A:whenCardDrawnDuringTurn" => "card_drawn_during_turn",
             "A:whenCardPlayed" => "card_played",
+            "A:whenCardExhausted" => "card_exhausted",
+            "A:whenStrikeCardDrawn" => "strike_card_drawn",
+            "A:whenOwnerHpLostDuringTurn" => "owner_hp_lost_during_turn",
+            "A:whenBlockGained" => "block_gained",
+            "A:whenNthAttackPlayed" => "nth_attack_played_this_turn",
+            "A:whenVulnerableApplied" => "vulnerable_applied",
+            "A:whenAttackDealsUnblockedDamage" => "attack_dealt_damage",
+            "A:whenAttackDamagesEnemy" => "attack_damaged_enemy",
             "A:whenAttackDealsDamage" => operation.ChineseText.Contains("一名敌人", StringComparison.Ordinal)
                 ? "attack_damaged_enemy" : "attack_dealt_damage",
             "A:whenCardGenerated" => "card_generated",
@@ -2523,14 +2581,17 @@ public static class OperationRuntimeSpecCompiler
             : "combat";
         var hasThreshold = operation.Template is "A:whenEnergyCostAtLeast" or "NCR:WheneverHighCostCardPlayed"
             or "A:whenEnergySpent"
-            or "A:whenOneStarSpent" or "CL:AfterTurns" or "CL:EveryCardsDrawn"
+            or "A:whenOneStarSpent" or "A:whenNthAttackPlayed" or "CL:AfterTurns" or "CL:EveryCardsDrawn"
             or "CL:EveryCardsPlayedThisTurn" || kind == "nth_attack_played_this_turn";
         var values = hasThreshold
             ? new[] { new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1)) }
             : kind == "first_zero_cost_attack_played_each_turn"
                 ? new[] { new RuntimeValueSlot("cost_marker", 0, Upgradable: false) }
                 : Array.Empty<RuntimeValueSlot>();
-        return Spec("trigger", "event", "self", values: values,
+        var flags = operation.Template == "NCR:WheneverHighCostCardPlayed"
+            ? new[] { "host_discard_lifecycle" }
+            : Array.Empty<string>();
+        return Spec("trigger", "event", "self", flags: flags, values: values,
             trigger: new RuntimeTriggerSpec(kind, lifetime,
                 hasThreshold ? "threshold" : null));
     }
@@ -2555,6 +2616,12 @@ public static class OperationRuntimeSpecCompiler
         var kind = operation.Template switch
         {
             "C:untilTurnEndCardDrawn" => "card_drawn",
+            "C:untilTurnEndCardPlayed" => "card_played",
+            "C:untilTurnEndAttackPlayed" => "attack_played",
+            "C:untilTurnEndAttackReceived" => "attack_received",
+            "C:VulnerableEnemyDamageReductionThisTurn" => "vulnerable_enemy_damage_reduction",
+            "C:whenThisCardExhausted" => "self_exhausted",
+            "C:AtTurnEndIfInExhaust" => "turn_end_if_self_in_exhaust",
             "C:forEachDiscarded" => "for_each_discarded_card",
             "C:grantNextAttack" => "next_attack",
             "C:for" => "next_attack",
@@ -2565,14 +2632,17 @@ public static class OperationRuntimeSpecCompiler
             "C:ifLastDrawnSkill" => "last_drawn_card_is_skill",
             "C:ifTargetPoisoned" => "target_has_poison",
             "C:ifTargetVulnerable" => "target_has_vulnerable",
+            "C:ifCardExhaustedThisTurn" => "card_exhausted_this_turn",
+            "C:ifOwnerLostHpThisTurn" => "owner_lost_hp_this_turn",
+            "C:ifExhaustPileAtLeast" => "exhaust_pile_minimum",
             "C:playableIfDrawPileEmpty" => "draw_pile_empty",
-            "CL:AtNextTurnStart" or "NCR:NextTurn" or "R:NextTurn" => "next_turn_start",
+            "C:NextTurnStart" or "CL:AtNextTurnStart" or "NCR:NextTurn" or "R:NextTurn" => "next_turn_start",
             "CL:IfHandEmpty" => "hand_empty",
             "CL:IfNoAttacksInHand" => "no_attacks_in_hand",
             "D:ForEachExhaustedStatus" => "for_each_exhausted_status",
             "D:IfCardsPlayedBelow" => "cards_played_this_turn_below",
             "D:IfEnemyIntendsAttack" => "enemy_intends_attack",
-            "D:NextTurnsStart" => "next_turns_start",
+            "C:NextTurnsStart" or "D:NextTurnsStart" => "next_turns_start",
             "NCR:IfDoomAppliedThisTurn" => "doom_applied_this_turn",
             "NCR:IfFirstPlayThisTurn" => "first_play_of_this_card_this_turn",
             "NCR:IfOstyAlive" => "osty_alive",
@@ -2585,6 +2655,8 @@ public static class OperationRuntimeSpecCompiler
             "C:untilTurnEnd" => CompileUntilTurnEndKind(operation.ChineseText),
             "C:after" => operation.ChineseText.Contains("回合结束", StringComparison.Ordinal)
                 ? "turn_end_if_self_in_exhaust" : "self_exhausted",
+            "C:forEachExhaustedCard" => "for_each_exhausted_card",
+            "C:forEachExhaustedNonAttack" => "for_each_exhausted_non_attack",
             "C:forEach" => operation.ChineseText.Contains("非攻击牌", StringComparison.Ordinal)
                 ? "for_each_exhausted_non_attack" : "for_each_exhausted_card",
             "C:if" => CompileLegacyConditionKind(operation.ChineseText),
@@ -2593,13 +2665,14 @@ public static class OperationRuntimeSpecCompiler
         if (kind is null) return null;
         var isCondition = operation.Template is "C:if" or "C:ifFatal" or "C:ifLastDrawnSkill"
             or "C:ifTargetPoisoned" or "C:ifTargetVulnerable" or "C:playableIfDrawPileEmpty"
+            or "C:ifCardExhaustedThisTurn" or "C:ifOwnerLostHpThisTurn" or "C:ifExhaustPileAtLeast"
             or "CL:IfFatal" or "CL:IfHandEmpty"
             or "CL:IfNoAttacksInHand" or "D:IfCardsPlayedBelow" or "D:IfEnemyIntendsAttack" or "D:IfFatal"
             or "NCR:IfDoomAppliedThisTurn" or "NCR:IfFirstPlayThisTurn" or "NCR:IfOstyAlive"
             or "NCR:IfOstyAttackedThisTurn" or "R:IfFatal";
         var hasThreshold = operation.Template is "C:grantNextAttacksThisTurn" or "D:IfCardsPlayedBelow"
             || kind == "exhaust_pile_minimum";
-        var hasDuration = operation.Template == "D:NextTurnsStart";
+        var hasDuration = operation.Template is "C:NextTurnsStart" or "D:NextTurnsStart";
         var hasPercentage = kind == "vulnerable_enemy_damage_reduction";
         var values = hasThreshold
             ? new[] { new RuntimeValueSlot("threshold", FirstNumber(operation.ChineseText, 1)) }
@@ -2615,9 +2688,12 @@ public static class OperationRuntimeSpecCompiler
                 condition: new RuntimeConditionSpec(kind, "self", hasThreshold ? "threshold" : null));
         var lifetime = operation.Template switch
         {
-            "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:grantNextAttacksThisTurn" => "this_turn",
-            "CL:AtNextTurnStart" or "NCR:NextTurn" or "R:NextTurn" => "next_turn",
-            "D:NextTurnsStart" => "next_n_turns",
+            "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:untilTurnEndCardPlayed"
+                or "C:untilTurnEndAttackPlayed" or "C:untilTurnEndAttackReceived"
+                or "C:VulnerableEnemyDamageReductionThisTurn"
+                or "C:grantNextAttacksThisTurn" => "this_turn",
+            "C:NextTurnStart" or "CL:AtNextTurnStart" or "NCR:NextTurn" or "R:NextTurn" => "next_turn",
+            "C:NextTurnsStart" or "D:NextTurnsStart" => "next_n_turns",
             "C:for" or "C:grantNextAttack" => "combat",
             _ => "immediate"
         };
@@ -2775,7 +2851,8 @@ public static class OperationRuntimeSpecCompiler
         "NCR:IncreaseAllCardCostsThisTurn", "CL:GainGold", "A:ProxyAtomic_Royalties",
         "R:PlaySelectedSkillMultipleTimes", "D:ChannelLightning", "D:ChannelFrost", "D:ChannelDark",
         "D:ChannelPlasma", "D:ChannelGlass", "D:ChannelRandom", "D:IncreaseAllClaws",
-        "A:whenEnergyCostAtLeast", "NCR:WheneverHighCostCardPlayed", "D:NextTurnsStart", "CL:AfterTurns",
+        "A:whenEnergyCostAtLeast", "NCR:WheneverHighCostCardPlayed", "C:NextTurnStart",
+        "C:NextTurnsStart", "D:NextTurnsStart", "CL:AfterTurns",
         "C:grantNextAttacksThisTurn", "N:Draw", "N_DRAW", "N:B", "N_BLOCK", "N:HP-",
         "D:LoseTemporaryFocus", "D:LoseFocus", "N:LoseDex", "D:LoseOrbSlots", "NCR:LoseStrength"
     };

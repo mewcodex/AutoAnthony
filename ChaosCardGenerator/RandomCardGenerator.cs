@@ -1020,7 +1020,7 @@ public static class CardDescriptionRenderer
                 var triggerText = CardTextStyle.Chinese(operation).TrimEnd('。', '，', '；');
                 var separator = operation.Template == "C:playableIfDrawPileEmpty" ? "。"
                     : operation.Template == "C:untilTurnEndCardDrawn" ? "，"
-                    : operation.Template == "C:untilTurnEnd" && triggerText.Contains("受到一次攻击", StringComparison.Ordinal) ? "，都会"
+                    : OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind == "attack_received" ? "，都会"
                     : operation.Template == "C:ifLastDrawnSkill" || triggerText.StartsWith("如果", StringComparison.Ordinal) ? "，则"
                     : "，";
                 var renderedEffects = JoinTriggeredEffects(RenderEffects(effects), chinese: true);
@@ -1158,6 +1158,7 @@ public static class GeneratorSelfTest
             || customKeywordRoundTrip.Upgrade.Effects.Single().KeywordId != "selftest:charged")
             throw new InvalidOperationException("自定义关键词ID没有稳定通过卡牌/升级快照往返。");
         if (ComponentApi.ApiVersion != 3 || ComponentPackageApi.ApiVersion != 3
+            || CardTinkeringApi.ApiVersion != 3
             || !GeneratedCardTagPolicy.AddedKeywords(new CardUpgradePlan(1,
                     [new CardUpgradeEffect(CardUpgradeKind.GrantInnate)], "测试。", [], "Test."))
                 .Contains(CardTag.Innate)
@@ -1166,6 +1167,78 @@ public static class GeneratorSelfTest
                         KeywordId: "selftest:charged")], "测试。", [], "Test."))
                 .Contains("selftest:charged"))
             throw new InvalidOperationException("API v3关键词升级迁移投影不完整。");
+
+        foreach (var character in Enum.GetValues<GeneratedCharacter>())
+        {
+            var rarity = character == GeneratedCharacter.Colorless
+                ? GeneratedRarity.Uncommon : GeneratedRarity.Common;
+            var tinkeringCard = new RandomCardGenerator(character, 8_431 + (int)character).Generate(rarity);
+            var breakdown = CardTinkeringApi.Evaluate(tinkeringCard);
+            var aggressiveBreakdown = CardTinkeringApi.Evaluate(tinkeringCard, balancedValues: false);
+            var budgetBreakdown = CardTinkeringApi.EvaluateBudget(tinkeringCard);
+            var validation = CardTinkeringApi.Validate(tinkeringCard, tinkeringCard.Operations);
+            var roundTrip = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(tinkeringCard));
+            var rebuilt = CardTinkeringApi.Rebuild(roundTrip, roundTrip.Operations,
+                roundTrip.Upgrade?.Effects.Where(effect => effect.OperationIndex is not null).ToArray());
+            if (!validation.IsValid || breakdown.Components.Count != tinkeringCard.Operations.Count
+                || breakdown.ExceedsOrdinaryUpperBound
+                    != (budgetBreakdown.NetValue > budgetBreakdown.OrdinaryUpperBound + 0.0001d)
+                || aggressiveBreakdown.OrdinaryUpperBound < breakdown.OrdinaryUpperBound
+                || rebuilt.Operations.Count != tinkeringCard.Operations.Count
+                || rebuilt.Cost != tinkeringCard.Cost || rebuilt.Type != tinkeringCard.Type
+                || rebuilt.Target != tinkeringCard.Target || rebuilt.Rarity != tinkeringCard.Rarity)
+                throw new InvalidOperationException($"卡牌工匠 API 自检失败：{character}: "
+                    + string.Join("; ", validation.Errors)
+                    + $" [components={breakdown.Components.Count}/{tinkeringCard.Operations.Count}, "
+                    + $"value={breakdown.CurrentValue}/{breakdown.OrdinaryUpperBound}, "
+                    + $"net={budgetBreakdown.NetValue}/{budgetBreakdown.OrdinaryUpperBound}, "
+                    + $"exceeds={breakdown.ExceedsOrdinaryUpperBound}, "
+                    + $"aggressiveUpper={aggressiveBreakdown.OrdinaryUpperBound}, "
+                    + $"rebuilt={rebuilt.Operations.Count}/{tinkeringCard.Operations.Count}, "
+                    + $"shell={rebuilt.Cost == tinkeringCard.Cost}/"
+                    + $"{rebuilt.Type == tinkeringCard.Type}/"
+                    + $"{rebuilt.Target == tinkeringCard.Target}/"
+                    + $"{rebuilt.Rarity == tinkeringCard.Rarity}]");
+        }
+
+        var linkedValueProbe = packageCatalog.Recipes.SelectMany(recipe =>
+                recipe.Atoms.Select((atom, index) => (recipe, atom, index,
+                    owner: index < recipe.TriggerOwners.Count ? recipe.TriggerOwners[index] : -1)))
+            .FirstOrDefault(item => item.owner >= 0
+                && item.owner < item.index
+                && EffectBalanceModel.RelativeTriggerFrequency(new GeneratorOperation(
+                    item.recipe.Atoms[item.owner].Template, item.recipe.Atoms[item.owner].Scope,
+                    string.Empty, new Dictionary<string, int>(),
+                    RuntimeSpec: item.recipe.Atoms[item.owner].RuntimeSpec)) is > 0d and < 0.999d
+                && CardEffectRules.IsBeneficialEffect(new GeneratorOperation(
+                    item.atom.Template, item.atom.Scope, string.Empty,
+                    new Dictionary<string, int>(), RuntimeSpec: item.atom.RuntimeSpec))
+                && item.atom.Scope != OperationScope.Modifier
+                && EffectBalanceModel.EstimatedEffectValue(new GeneratorOperation(
+                    item.atom.Template, item.atom.Scope, string.Empty,
+                    new Dictionary<string, int>(), RuntimeSpec: item.atom.RuntimeSpec)) > 0d);
+        if (linkedValueProbe.atom is not null)
+        {
+            var triggerAtom = linkedValueProbe.recipe.Atoms[linkedValueProbe.owner];
+            var trigger = new GeneratorOperation(triggerAtom.Template, triggerAtom.Scope,
+                string.Empty, new Dictionary<string, int>(), RuntimeSpec: triggerAtom.RuntimeSpec);
+            var linked = new GeneratorOperation(linkedValueProbe.atom.Template, linkedValueProbe.atom.Scope,
+                string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 },
+                RuntimeSpec: linkedValueProbe.atom.RuntimeSpec);
+            var direct = linked with { Parameters = new Dictionary<string, int>() };
+            var shell = new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other,
+                GeneratedRarity.Common, string.Empty, [], [trigger, linked]);
+            var linkedBudget = CardTinkeringApi.EvaluateBudget(shell);
+            var directBudget = CardTinkeringApi.EvaluateBudget(shell with { Operations = [trigger, direct] });
+            if (linkedBudget.NetValue >= directBudget.NetValue)
+                throw new InvalidOperationException("卡牌工匠整卡价值没有应用触发组件显示的倍率："
+                    + $"{trigger.Template}->{linked.Template}, linked={linkedBudget.NetValue}, "
+                    + $"direct={directBudget.NetValue}, frequency={EffectBalanceModel.RelativeTriggerFrequency(trigger)}。 ");
+        }
+        else
+        {
+            throw new InvalidOperationException("卡牌工匠自检没有找到可验证的触发组件。 ");
+        }
 
         // Emergency generation must consume the active package's own structured component, never an Ironclad
         // Strike/Defend/Inflame fallback hidden in the shared assembler.
@@ -1229,10 +1302,10 @@ public static class GeneratorSelfTest
                 : new Dictionary<string, int>(),
             RequiresSingleTarget: atom.RequiresSingleTarget,
             RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom))).ToArray();
-        var wraithNormalized = (EffectBalanceModel.EstimatedPositiveCardValue(wraithOperations)
-                                - CardEffectRules.NegativeEffectLinearCompensationValue(wraithOperations))
-                               / ComponentAssemblyGenerator.PowerOneShotBudgetFactor(
-                                   wraithOperations, GeneratedCardType.Power);
+        var wraithNormalized = EffectBalanceModel.EstimatedNetCardValue(wraithOperations,
+                hasPrintedResourceCost: true, GeneratedCardType.Power, wraithRecipe.Tags,
+                GeneratedRarity.Ancient, GeneratedCharacter.Silent)
+            / ComponentAssemblyGenerator.PowerOneShotBudgetFactor(wraithOperations, GeneratedCardType.Power);
         if (Math.Abs(wraithNormalized - 8_160d) > 0.001d)
             throw new InvalidOperationException($"幽魂形态联合估值应为8160，实际为{wraithNormalized:0.###}。");
         var componentApiDamage = nativeProfile.ComponentCatalog.Atoms.First(CardEffectRules.IsEnemyDamage);
@@ -1434,8 +1507,19 @@ public static class GeneratorSelfTest
             GeneratedCharacter.Ironclad, unlockComponentRoles: true);
         foreach (var shell in ultimateCatalog.Recipes.DistinctBy(recipe => (recipe.Type, recipe.Target)))
         {
-            CardTemplateValidator.Validate(fallbackAssembler.GenerateEmergencyFallback(
-                GeneratedRarity.Uncommon, shell));
+            var uncommonFallback = fallbackAssembler.GenerateEmergencyFallback(
+                GeneratedRarity.Uncommon, shell);
+            CardTemplateValidator.Validate(uncommonFallback);
+            var uncommonFallbackCost = ResourceEconomyModel.BudgetEffectiveCost(uncommonFallback.Cost,
+                uncommonFallback.StarCost, uncommonFallback.Cost < 0, uncommonFallback.HasStarCostX,
+                uncommonFallback.Operations);
+            if (!ComponentAssemblyGenerator.IsWithinWholeCardBudgetEnvelope(uncommonFallback.Operations,
+                    uncommonFallback.Rarity, uncommonFallbackCost, uncommonFallback.Type, uncommonFallback.Tags,
+                    uncommonFallback.Cost != 0 || uncommonFallback.StarCost > 0 || uncommonFallback.HasStarCostX,
+                    balancedValues: true, uncommonFallback.Character, uncommonFallback.UnifiedChaos))
+                throw new InvalidOperationException("紧急回退牌绕过了整卡预算区间："
+                                                    + string.Join(",", uncommonFallback.Operations.Select(
+                                                        operation => operation.Template)));
             var rareFallback = fallbackAssembler.GenerateEmergencyFallback(GeneratedRarity.Rare, shell);
             CardTemplateValidator.Validate(rareFallback);
             if (!EffectBalanceModel.HasAdequateTopRarityCardValue(rareFallback.Operations, rareFallback.Rarity,
@@ -1443,6 +1527,23 @@ public static class GeneratorSelfTest
                 throw new InvalidOperationException("高稀有度紧急回退牌绕过了成品最低价值线："
                                                     + rareFallback.ChineseDescription);
         }
+        var fallbackNecrobinderCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder);
+        var necrobinderFallbackAssembler = new ComponentAssemblyGenerator(new Random(2026090501),
+            GeneratedCharacter.Necrobinder, balancedValues: true);
+        var necrobinderAttackShell = fallbackNecrobinderCatalog.Recipes.First(recipe =>
+            recipe.Type == GeneratedCardType.Attack);
+        var boostedBasicFallback = necrobinderFallbackAssembler.GenerateEmergencyFallback(
+            GeneratedRarity.Basic, necrobinderAttackShell, uniquenessBoost: 12);
+        var boostedBasicCost = ResourceEconomyModel.BudgetEffectiveCost(boostedBasicFallback.Cost,
+            boostedBasicFallback.StarCost, boostedBasicFallback.Cost < 0, boostedBasicFallback.HasStarCostX,
+            boostedBasicFallback.Operations);
+        if (!ComponentAssemblyGenerator.IsWithinWholeCardBudgetEnvelope(boostedBasicFallback.Operations,
+                GeneratedRarity.Basic, boostedBasicCost, boostedBasicFallback.Type, boostedBasicFallback.Tags,
+                hasPrintedResourceCost: true, balancedValues: true, GeneratedCharacter.Necrobinder,
+                ultimateChaos: false))
+            throw new InvalidOperationException("基础牌紧急回退的重复修复仍可绕过整卡预算上界："
+                                                + string.Join(",", boostedBasicFallback.Operations.Select(
+                                                    operation => operation.Template)));
         var forcedFallbackAssembler = new ComponentAssemblyGenerator(new Random(2026082302),
             GeneratedCharacter.Ironclad, unlockComponentRoles: true,
             specialXMode: SpecialXGenerationMode.Forced);
@@ -1638,7 +1739,9 @@ public static class GeneratorSelfTest
             || new[] { selfDoom }.Any(CardEffectRules.IsBeneficialEffect)
             || !new[] { selfDoom, ordinaryBlock }.Any(CardEffectRules.IsBeneficialEffect)
             || NegativeEffectTuning.BaseMultiplier(selfDoom) != 1d
-            || NegativeEffectTuning.LinearCompensationValue(selfDoom) != 650d)
+            || NegativeEffectTuning.LinearCompensationValue(selfDoom) != 225d
+            || Math.Abs(NegativeEffectTuning.LinearCompensationValue(
+                selfDoom, GeneratedRarity.Rare) - 356.25d) > 0.001d)
             throw new InvalidOperationException("给予自身灾厄必须是负面效果，不能单独支撑非0费牌。");
 
         _ = CharacterComponentCatalogs.Get(GeneratedCharacter.Defect);
@@ -2360,11 +2463,25 @@ public static class GeneratorSelfTest
         var allCatalogAtoms = Enum.GetValues<GeneratedCharacter>()
             .SelectMany(character => CharacterComponentCatalogs.Get(character).Atoms).ToArray();
         var everyAttackTrigger = allCatalogAtoms.First(atom => atom.Template == "CL:WheneverAttackPlayed");
-        var afterAttackDamageTrigger = allCatalogAtoms.First(atom => atom.Template == "A:whenAttackDealsDamage");
+        var afterAttackDamageTrigger = allCatalogAtoms.First(atom =>
+            OperationRuntimeSpecCompiler.GetOrCompile(atom).Trigger?.Kind == "attack_dealt_damage");
         if (!CardEffectRules.SuppliesEventAttackForDamageModifier(lethalityRecipe.Atoms[0])
             || !CardEffectRules.SuppliesEventAttackForDamageModifier(everyAttackTrigger)
             || CardEffectRules.SuppliesEventAttackForDamageModifier(afterAttackDamageTrigger))
             throw new InvalidOperationException("事件攻击增伤 modifier 未能交换到合法攻击触发器，或错误接到了伤害结算后的触发器。");
+        var envenomCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Silent);
+        var envenom = envenomCatalog.Recipes.Single(recipe => recipe.Id == "Envenom");
+        var ordinaryPoison = envenomCatalog.Recipes.Single(recipe => recipe.Id == "DeadlyPoison").Atoms.Single();
+        if (envenom.Atoms.Count != 2
+            || envenom.Atoms[0].Template != "A:whenAttackDealsUnblockedDamage"
+            || OperationRuntimeSpecCompiler.GetOrCompile(envenom.Atoms[0]).Trigger?.Kind != "attack_dealt_damage"
+            || envenom.Atoms[1].Template != "T:Poison"
+            || envenom.Atoms[1].SchemaKey != ordinaryPoison.SchemaKey
+            || !OperationRuntimeSpecCompiler.GetOrCompile(ordinaryPoison).Flags.Contains("event_enemy_reference")
+            || envenom.TriggerOwners.Count != 2 || envenom.TriggerOwners[1] != 0
+            || !new ComponentAssemblyGenerator(new Random(20260905), GeneratedCharacter.Silent)
+                .CanAssemble(envenom))
+            throw new InvalidOperationException("涂毒必须拆为未格挡攻击伤害触发器与通用的目标中毒效果。");
         var shivInFormerStatusSlot = new GeneratorOperation("R:FillHandWithDebris", OperationScope.NonTargeted,
             "将小刀加入你的手牌，直至手牌已满。", new Dictionary<string, int>(), DerivativeId: "shiv");
         var slimeInStatusSlot = new GeneratorOperation("D:CreateSlimeInDiscard", OperationScope.NonTargeted,
@@ -2607,7 +2724,8 @@ public static class GeneratorSelfTest
                 != EffectBalanceModel.SkillsCostZeroRuleValue
             || EffectBalanceModel.EstimatedEffectValue(corruptionRule)
                 <= 5 * EffectBalanceModel.OrdinaryEnergyValuePerPoint * 3
-            || Math.Abs(CardEffectRules.NegativeEffectLinearCompensationValue(corruptionOperations) - 2_262d)
+            || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
+                    corruptionOperations, GeneratedRarity.Ancient) - 2_262d)
                 > 0.001d
             || EffectBalanceModel.EstimatedEffectValue(kingsSwordHitsAll) != 1_700
             || ComponentAssemblyGenerator.ExplicitRareOperationRarityWeight(guardsAtom, GeneratedRarity.Rare) != 70
@@ -3546,6 +3664,12 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("自伤组件的1至6点平滑尾部分布失效。 ");
         var loseFocus = new GeneratorOperation("D:LoseFocus", OperationScope.NonTargeted,
             "失去1点集中。", new Dictionary<string, int>());
+        if (Math.Abs(NegativeEffectTuning.LinearRarityMultiplier(GeneratedRarity.Basic) - 0.5d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.LinearRarityMultiplier(GeneratedRarity.Common) - 1d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.LinearRarityMultiplier(GeneratedRarity.Uncommon) - 7d / 6d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.LinearRarityMultiplier(GeneratedRarity.Rare) - 19d / 12d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.LinearRarityMultiplier(GeneratedRarity.Ancient) - 2d) > 0.001d)
+            throw new InvalidOperationException("线性代价没有遵守统一的最低稀有度系数。 ");
         var exhaustStatuses = new GeneratorOperation("D:ExhaustAllStatuses", OperationScope.NonTargeted,
             "消耗所有状态牌。", new Dictionary<string, int>());
         var forEachExhaustedStatus = new GeneratorOperation("D:ForEachExhaustedStatus",
@@ -3630,7 +3754,8 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("独立涨费必须被识别为负面；高费触发门槛及重放附加涨费不能被误判。 ");
         if (CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, selfHpLoss]) != 100
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, selfHpLoss]) != 200d
+            || Math.Abs(CardEffectRules.NegativeEffectLinearCompensationValue(
+                [ordinaryBlock, selfHpLoss]) - 1_200d / 7d) > 0.001d
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, generatedStatus]) != 100
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, generatedStatus]) != 50d
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, exhaustStatuses]) != 100
@@ -3647,7 +3772,8 @@ public static class GeneratorSelfTest
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, selfCostPenaltyTwo]) != 166
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, selfCostPenaltyThree]) != 226
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, cardCostPenalty]) != 100
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, cardCostPenalty]) != 600d
+            || Math.Abs(CardEffectRules.NegativeEffectLinearCompensationValue(
+                [ordinaryBlock, cardCostPenalty]) - 2_960d / 7d) > 0.001d
             || NegativeEffectTuning.BaseMultiplier(addDebris) != 1d
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, addDebris]) != 100
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, addDebris]) != 250d
@@ -3676,7 +3802,7 @@ public static class GeneratorSelfTest
         if (!CardEffectRules.IsNegativeEffect(temporaryFocusLoss)
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, temporaryFocusLoss]) != 100
             || CardEffectRules.NegativeEffectLinearCompensationValue(
-                [ordinaryBlock, temporaryFocusLoss]) != 340d
+                [ordinaryBlock, temporaryFocusLoss]) != 220d
             || temporaryFocusUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
                 effect.OperationIndex == 1 && effect.Kind == CardUpgradeKind.IncreaseNumber))
             || !temporaryFocusUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
@@ -3703,10 +3829,19 @@ public static class GeneratorSelfTest
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, dexterityLoss]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, strengthLoss]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, orbSlotLoss]) != 100
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, loseFocus]) != 1_900d
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, dexterityLoss]) != 1_150d
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, strengthLoss]) != 1_470d
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, orbSlotLoss]) != 1_800d
+            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, loseFocus]) != 950d
+            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, dexterityLoss]) != 575d
+            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, strengthLoss]) != 1_260d
+            || Math.Abs(CardEffectRules.NegativeEffectLinearCompensationValue(
+                [ordinaryBlock, orbSlotLoss]) - 10_800d / 7d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
+                [loseFocus], GeneratedRarity.Ancient) - 1_900d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
+                [dexterityLoss], GeneratedRarity.Ancient) - 1_150d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
+                [strengthLoss], GeneratedRarity.Uncommon) - 1_470d) > 0.001d
+            || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
+                [orbSlotLoss], GeneratedRarity.Uncommon) - 1_800d) > 0.001d
             || strengthLossUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
                 effect.OperationIndex == 0 && effect.Kind == CardUpgradeKind.IncreaseNumber))
             || !strengthLossUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
@@ -4187,16 +4322,24 @@ public static class GeneratorSelfTest
         var turnLimitedNextAttack = new GeneratorOperation("C:untilTurnEnd", OperationScope.ConditionalTrigger,
             "当你打出下一张攻击牌时。", new Dictionary<string, int>());
         var persistentNextAttack = turnLimitedNextAttack with { Template = "C:for" };
-        if (CardTextStyle.Chinese(legacyNthAttack) != "每回合中，当你打出第3张攻击牌时。"
-            || CardTextStyle.Chinese(legacyVulnerableStrength)
+        var legacyNthAttackText = CardTextStyle.Chinese(legacyNthAttack);
+        var vulnerableStrengthText = CardTextStyle.Chinese(legacyVulnerableStrength);
+        var vulnerableStrengthTwice = CardTextStyle.Chinese(legacyVulnerableStrength,
+            vulnerableStrengthText);
+        var turnLimitedNextAttackText = CardTextStyle.Chinese(turnLimitedNextAttack);
+        var persistentNextAttackText = CardTextStyle.Chinese(persistentNextAttack);
+        if (legacyNthAttackText != "每回合中，当你打出第3张攻击牌时。"
+            || vulnerableStrengthText
                 != "目标敌人身上每有一层易伤，就获得1点力量。"
-            || CardTextStyle.Chinese(legacyVulnerableStrength,
-                CardTextStyle.Chinese(legacyVulnerableStrength))
+            || vulnerableStrengthTwice
                 != "目标敌人身上每有一层易伤，就获得1点力量。"
-            || CardTextStyle.Chinese(turnLimitedNextAttack)
+            || turnLimitedNextAttackText
                 != "在本回合中，当你打出下一张攻击牌时。"
-            || CardTextStyle.Chinese(persistentNextAttack) != "当你打出下一张攻击牌时。")
-            throw new InvalidOperationException("每回合第N张攻击牌或按目标易伤获得力量的规范用语失效。 ");
+            || persistentNextAttackText != "当你打出下一张攻击牌时。")
+            throw new InvalidOperationException("每回合第N张攻击牌或按目标易伤获得力量的规范用语失效："
+                + $"nth={legacyNthAttackText}; vulnerable={vulnerableStrengthText}; "
+                + $"vulnerableTwice={vulnerableStrengthTwice}; turnLimited={turnLimitedNextAttackText}; "
+                + $"persistent={persistentNextAttackText}");
         var nextTwoAttacks = new GeneratorOperation("C:grantNextAttacksThisTurn",
             OperationScope.ConditionalTrigger, "在这个回合，你打出的下2张攻击牌获得效果：",
             new Dictionary<string, int>());
@@ -4594,8 +4737,10 @@ public static class GeneratorSelfTest
             || !CardEffectRules.IsBeneficialEffect(playTopAndExhaust)
             || NegativeEffectTuning.BaseMultiplier(playTopAndExhaust) != 1d
             || NegativeEffectTuning.BaseMultiplier(enemyGainStrength) != 1d
-            || NegativeEffectTuning.LinearCompensationValue(enemyGainStrength) != 1_000d
-            || NegativeEffectTuning.LinearCompensationValue(enemyGainTwoStrength) != 2_000d
+            || NegativeEffectTuning.LinearCompensationValue(enemyGainStrength) != 1_450d
+            || NegativeEffectTuning.LinearCompensationValue(enemyGainTwoStrength) != 2_900d
+            || Math.Abs(NegativeEffectTuning.LinearCompensationValue(enemyGainStrength,
+                GeneratedRarity.Uncommon) - 1_691.6666667d) > 0.001d
             || NumericGenerationTuning.ThinEnemyStrengthGainTail(1, 99) != 1
             || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 84) != 1
             || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 85) != 2

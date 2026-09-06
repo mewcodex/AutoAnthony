@@ -17,6 +17,8 @@ Slay the Spire 2 `0.111.x`.
 - Stores complete structured card definitions in run snapshots for stable save/load and multiplayer behavior.
 - Offers Ultimate Chaos, balanced/aggressive values, numeric randomization, original-pool preservation, starting-card
   replacement, random card art, and three Surprise display modes.
+- With the Card Tinkering add-on installed, the Edit Anytime setting opens its workbench from the deck screen outside
+  combat, including post-combat reward screens.
 - Keeps generated operations independent from localized prose through versioned `OperationRuntimeSpec` records.
 - Provides Component API v3 for external character mods to register catalogs, occurrence/value/keyword policies,
   semantic flags, stable localization IDs, runtime handlers, hover tips, and generated-card slots.
@@ -58,6 +60,9 @@ Start with the [Component API Wiki](https://github.com/mewcodex/AutoAnthony/wiki
 in-repository contract is also available in [COMPONENT_API.md](COMPONENT_API.md), and
 [`examples/WatcherComponentAdapter.cs.txt`](examples/WatcherComponentAdapter.cs.txt) demonstrates a framework-neutral
 external-character adapter.
+
+Card-editor companion mods should also read the
+[Card Tinkering and Settings API](https://github.com/mewcodex/AutoAnthony/wiki/Card-Tinkering-and-Settings-API).
 
 The API uses stable ASCII identifiers and structured runtime metadata. It does not require BaseLib, RitsuLib, or a
 particular custom-character framework.

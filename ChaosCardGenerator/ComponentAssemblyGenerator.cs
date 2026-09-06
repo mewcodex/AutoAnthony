@@ -1143,12 +1143,6 @@ public sealed class ComponentAssemblyGenerator
             var boosted = new List<GeneratorOperation> { operation };
             if (ApplySingleEffectAncientBonus(boosted)) operation = boosted[0];
         }
-        if (_specialXMode != SpecialXGenerationMode.Forced && uniquenessBoost > 0
-            && OperationRuntimeSpecCompiler.TryGetPrimaryExplicitFixedValue(operation, out _, out var current)
-            && OperationRuntimeSpecCompiler.TryReplacePrimaryExplicitFixedValue(operation,
-                current + uniquenessBoost, out var uniqueOperation))
-            operation = uniqueOperation;
-
         var fallbackOperations = new List<GeneratorOperation> { operation };
         if (_specialXMode != SpecialXGenerationMode.Forced && uniquenessBoost > 0)
         {
@@ -1156,7 +1150,7 @@ public sealed class ComponentAssemblyGenerator
             // already been used, increasing that line's number cannot make the template unique; rotate through
             // legal profile-owned complements so a dense pool still terminates without weakening uniqueness.
             if (TryCreateCatalogComplement(type, target, cost, fallbackOperations,
-                    2, uniquenessBoost - 1) is { } complement)
+                    1, uniquenessBoost - 1) is { } complement)
                 fallbackOperations.Add(complement);
         }
         if (raiseAggressiveEffectFloor)
@@ -1171,6 +1165,53 @@ public sealed class ComponentAssemblyGenerator
             if (TryCreateCatalogComplement(type, target, cost, fallbackOperations,
                     2 + uniquenessBoost) is { } complement)
                 fallbackOperations.Add(complement);
+        }
+        if (_specialXMode != SpecialXGenerationMode.Forced)
+        {
+            var hasPrintedResourceCost = cost != 0 || starCost > 0;
+            var effectiveCost = ResourceEconomyModel.BudgetEffectiveCost(cost, starCost,
+                hasEnergyX: false, hasStarX: false, fallbackOperations);
+            bool TryFitBudget(IReadOnlyList<GeneratorOperation> source,
+                out List<GeneratorOperation> fitted)
+            {
+                fitted = source.ToList();
+                return ApplyWholeCardBudgetEnvelope(fitted, rarity, effectiveCost, type,
+                           Array.Empty<CardTag>(), hasPrintedResourceCost, _balancedValues, _character,
+                           _unlockComponentRoles)
+                       && ApplyWholeCardSynergyPenalties(fitted)
+                       && HasPostSynergyWholeCardBudgetFloor(fitted, rarity, effectiveCost, type,
+                           Array.Empty<CardTag>(), hasPrintedResourceCost, _balancedValues, _character,
+                           _unlockComponentRoles)
+                       && IsWithinWholeCardBudgetEnvelope(fitted, rarity, effectiveCost, type,
+                           Array.Empty<CardTag>(), hasPrintedResourceCost, _balancedValues, _character,
+                           _unlockComponentRoles);
+            }
+
+            if (!TryFitBudget(fallbackOperations, out var fittedOperations))
+            {
+                // Some indivisible rules sit just below a high-rarity floor or above its ceiling. Add one small,
+                // profile-owned scalable field and retry the same complete budget pipeline instead of accepting an
+                // invalid card or inheriting the source card's rarity-sized number at this shell's cost.
+                // If uniqueness/density repair already supplied a complement, replace that complement while
+                // searching: appending a third field can never solve an indivisible two-field overshoot.
+                fittedOperations = null!;
+                var complementBase = fallbackOperations.Count > 1
+                    ? new[] { fallbackOperations[0] }
+                    : fallbackOperations.ToArray();
+                for (var ordinal = 0; ordinal < 32; ordinal++)
+                {
+                    var complement = TryCreateCatalogComplement(type, target, cost, complementBase,
+                        preferredValue: 1, candidateOrdinal: ordinal + Math.Max(0, uniquenessBoost - 1));
+                    if (complement is null) break;
+                    if (TryFitBudget(complementBase.Append(complement).ToArray(), out fittedOperations))
+                        break;
+                    fittedOperations = null!;
+                }
+            }
+            if (fittedOperations is null)
+                throw new InvalidOperationException("Emergency fallback could not fit the whole-card budget envelope: "
+                                                    + CardDescriptionRenderer.Render(fallbackOperations));
+            fallbackOperations = fittedOperations;
         }
         GeneratedCard card = new(cost, type, target, rarity,
             CardDescriptionRenderer.Render(fallbackOperations), Array.Empty<CardTag>(), fallbackOperations,
@@ -1643,31 +1684,34 @@ public sealed class ComponentAssemblyGenerator
 
         var downsidePercent = CardEffectRules.NegativeEffectCompensationPercent(operations.ToArray(), tags,
             hasPrintedResourceCost, cardType, ultimateChaos ? null : character);
-        var downsideFlatValue = CardEffectRules.NegativeEffectLinearCompensationValue(operations.ToArray());
+        var downsideFlatValue = NegativeEffectTuning.TotalLinearCompensationValue(operations.ToArray(), rarity);
         var powerFactor = PowerOneShotBudgetFactor(operations.ToArray(), cardType);
         var (minimum, maximum) = WholeCardBudgetBounds(rarity, effectiveCost, budgetRewardFields,
-            downsidePercent, powerFactor, balancedValues, character, downsideFlatValue);
+            powerFactor: powerFactor, balancedValues: balancedValues, character: character);
         // Adaptive Strike's free discard copy is not an independent fixed-value rider: it schedules a later free
         // use of the card's complete payload. Price the payload itself halfway between its printed-cost curve and
         // the equivalent zero-cost curve, matching the paid copy and its future free copy without double-counting.
         if (operations.Any(CardEffectRules.IsZeroCostCopyThisCardToDiscard))
         {
             var zeroCostBounds = WholeCardBudgetBounds(rarity, 0d, budgetRewardFields,
-                downsidePercent, powerFactor, balancedValues, character, downsideFlatValue);
+                powerFactor: powerFactor, balancedValues: balancedValues, character: character);
             minimum = CopyThisCardValuation.BlendWithZeroCostEnvelope(minimum, zeroCostBounds.Minimum);
             maximum = CopyThisCardValuation.BlendWithZeroCostEnvelope(maximum, zeroCostBounds.Maximum);
         }
 
         for (var attempt = 0; attempt < 16; attempt++)
         {
-            var actual = EffectBalanceModel.EstimatedPositiveCardValue(operations.ToArray(),
+            var positive = EffectBalanceModel.EstimatedPositiveCardValue(operations.ToArray(),
                 hasPrintedResourceCost, cardType, tags);
+            var actual = EffectBalanceModel.EstimatedNetCardValue(operations.ToArray(),
+                hasPrintedResourceCost, cardType, tags, rarity, ultimateChaos ? null : character);
             // The curse-in-status-slot Easter egg deliberately creates exceptional outliers. It still has to clear
             // the ordinary rarity/cost floor, but its authored extra lines, cost discount and 1.75x numeric boost
             // must not be normalized back down by the ordinary whole-card ceiling.
             if (actual >= minimum && (skipUpperBound || actual <= maximum)) return true;
-            var target = actual < minimum ? minimum * 1.01d : maximum * 0.99d;
-            var scalableValue = Math.Max(1d, actual - fixedKeywordValue);
+            var targetNet = actual < minimum ? minimum * 1.01d : maximum * 0.99d;
+            var target = targetNet * Math.Max(100, downsidePercent) / 100d + downsideFlatValue;
+            var scalableValue = Math.Max(1d, positive - fixedKeywordValue);
             var remainingTarget = Math.Max(0d, target - fixedKeywordValue);
             var scale = Math.Clamp(remainingTarget / scalableValue, 0.20d, 4d);
             var changed = ScaleWholeCardNumericRewards(operations, scale, actual < minimum,
@@ -1681,8 +1725,8 @@ public sealed class ComponentAssemblyGenerator
             }
         }
 
-        var finalValue = EffectBalanceModel.EstimatedPositiveCardValue(operations.ToArray(),
-            hasPrintedResourceCost, cardType, tags);
+        var finalValue = EffectBalanceModel.EstimatedNetCardValue(operations.ToArray(),
+            hasPrintedResourceCost, cardType, tags, rarity, ultimateChaos ? null : character);
         return finalValue >= minimum && (skipUpperBound || finalValue <= maximum);
     }
 
@@ -1697,22 +1741,19 @@ public sealed class ComponentAssemblyGenerator
             hasPrintedResourceCost, cardType, tags);
         var fixedKeywordValue = EffectBalanceModel.EstimatedPositiveKeywordValue(tags);
         if (distinctRewards == 0 && fixedKeywordValue <= 0d) return true;
-        var downsidePercent = CardEffectRules.NegativeEffectCompensationPercent(operations, tags,
-            hasPrintedResourceCost, cardType, ultimateChaos ? null : character);
-        var downsideFlatValue = CardEffectRules.NegativeEffectLinearCompensationValue(operations);
         var powerFactor = PowerOneShotBudgetFactor(operations, cardType);
         var (minimum, maximum) = WholeCardBudgetBounds(rarity, effectiveCost,
-            Math.Max(1, distinctRewards), downsidePercent, powerFactor, balancedValues, character,
-            downsideFlatValue);
+            Math.Max(1, distinctRewards), powerFactor: powerFactor, balancedValues: balancedValues,
+            character: character);
         if (operations.Any(CardEffectRules.IsZeroCostCopyThisCardToDiscard))
         {
             var zeroCostBounds = WholeCardBudgetBounds(rarity, 0d, Math.Max(1, distinctRewards),
-                downsidePercent, powerFactor, balancedValues, character, downsideFlatValue);
+                powerFactor: powerFactor, balancedValues: balancedValues, character: character);
             minimum = CopyThisCardValuation.BlendWithZeroCostEnvelope(minimum, zeroCostBounds.Minimum);
             maximum = CopyThisCardValuation.BlendWithZeroCostEnvelope(maximum, zeroCostBounds.Maximum);
         }
-        var actual = EffectBalanceModel.EstimatedPositiveCardValue(operations,
-            hasPrintedResourceCost, cardType, tags);
+        var actual = EffectBalanceModel.EstimatedNetCardValue(operations,
+            hasPrintedResourceCost, cardType, tags, rarity, ultimateChaos ? null : character);
         return actual >= minimum && (skipUpperBound || actual <= maximum);
     }
 
@@ -1809,20 +1850,18 @@ public sealed class ComponentAssemblyGenerator
         var fixedKeywordValue = EffectBalanceModel.EstimatedPositiveKeywordValue(tags);
         if (distinctRewards == 0 && fixedKeywordValue <= 0d) return true;
 
-        var downsidePercent = CardEffectRules.NegativeEffectCompensationPercent(operations.ToArray(), tags,
-            hasPrintedResourceCost, cardType, ultimateChaos ? null : character);
-        var downsideFlatValue = CardEffectRules.NegativeEffectLinearCompensationValue(operations.ToArray());
         var powerFactor = PowerOneShotBudgetFactor(operations, cardType);
         var minimum = WholeCardBudgetBounds(rarity, effectiveCost, Math.Max(1, distinctRewards),
-            downsidePercent, powerFactor, balancedValues, character, downsideFlatValue).Minimum;
+            powerFactor: powerFactor, balancedValues: balancedValues, character: character).Minimum;
         if (operations.Any(CardEffectRules.IsZeroCostCopyThisCardToDiscard))
         {
             var zeroCostMinimum = WholeCardBudgetBounds(rarity, 0d, Math.Max(1, distinctRewards),
-                downsidePercent, powerFactor, balancedValues, character, downsideFlatValue).Minimum;
+                powerFactor: powerFactor, balancedValues: balancedValues, character: character).Minimum;
             minimum = CopyThisCardValuation.BlendWithZeroCostEnvelope(minimum, zeroCostMinimum);
         }
 
-        return EffectBalanceModel.EstimatedPositiveCardValue(operations, hasPrintedResourceCost, cardType, tags)
+        return EffectBalanceModel.EstimatedNetCardValue(operations, hasPrintedResourceCost, cardType, tags,
+                   rarity, ultimateChaos ? null : character)
             >= minimum;
     }
 
@@ -2320,7 +2359,11 @@ public sealed class ComponentAssemblyGenerator
         return true;
     }
 
-    private static bool HasValidOperationAssembly(IReadOnlyList<GeneratorOperation> operations) =>
+    internal static bool HasValidTinkeringAssembly(IReadOnlyList<GeneratorOperation> operations) =>
+        HasValidOperationAssembly(operations, allowAllValueBelowFailableCondition: true);
+
+    private static bool HasValidOperationAssembly(IReadOnlyList<GeneratorOperation> operations,
+        bool allowAllValueBelowFailableCondition = false) =>
         CardEffectRules.HasValidCopyThisCardAssembly(operations)
         && CardEffectRules.HasValidCurrentBlockDamageAssembly(operations)
         && CardEffectRules.HasValidRandomCardGenerationCount(operations)
@@ -2350,7 +2393,12 @@ public sealed class ComponentAssemblyGenerator
         && CardEffectRules.HasValidTriggerPayloadAssembly(operations)
         && CardEffectRules.HasValidRepeatDamageAssembly(operations)
         && CardEffectRules.HasValidNextAttackGrantAssembly(operations)
-        && CardEffectRules.HasValidFailableConditionAssembly(operations);
+        && (allowAllValueBelowFailableCondition
+            || CardEffectRules.HasValidFailableConditionAssembly(operations));
+
+    internal static double PowerOneShotBudgetFactorForTinkering(
+        IReadOnlyList<GeneratorOperation> operations, GeneratedCardType cardType) =>
+        PowerOneShotBudgetFactor(operations, cardType);
 
     private static bool NormalizeCurrentBlockDamageAnchor(IList<GeneratorOperation> operations,
         int modifierIndex)
@@ -2633,7 +2681,8 @@ public sealed class ComponentAssemblyGenerator
             && previous.LastOrDefault() is { } statePrior
             && (CardEffectRules.TriggerNeedsLinkedEffect(statePrior)
                 || CardEffectRules.IsDependencyPrefix(statePrior))
-            && !(atom.Template == "CL:ReturnThisToHand" && statePrior.Template == "CL:AtNextTurnStart"))
+            && !(atom.Template == "CL:ReturnThisToHand"
+                && CardEffectRules.IsNextTurnStartTrigger(statePrior)))
             return false;
         // EndTurn is an executable payoff rather than a card-destination hook. It may follow ordinary conditions
         // and event triggers, but never a turn-start/turn-end boundary: that combination either immediately skips
@@ -2823,7 +2872,8 @@ public sealed class ComponentAssemblyGenerator
             && !previous.Any(operation => operation.Template == "N:B"))
             return false;
         if (atom.Template == "CL:ReturnThisToHand"
-            && (previous.LastOrDefault()?.Template != "CL:AtNextTurnStart"
+            && (previous.LastOrDefault() is not { } returnTrigger
+                || !CardEffectRules.IsNextTurnStartTrigger(returnTrigger)
                 || !previous.Take(previous.Count - 1).Any(CardEffectRules.IsOrdinaryOnPlayEffect)))
             return false;
         if (atom.Template == "CL:PutEventCardOnDrawTop"
@@ -2911,7 +2961,7 @@ public sealed class ComponentAssemblyGenerator
                 or "R:MoveDiscardCardToDrawTop" or "R:PlaySelectedSkillMultipleTimes"
                 or "R:PutSelectedHandCardsOnDraw" or "R:PutSelectedHandCardOnDraw"
                 or "R:CopySelectedColorlessCard" or "NCR:ExhaustSelectedDrawCard"
-                or "NCR:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
+                or "N:MoveDiscardCardToHand" or "NCR:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
                 or "I:PlayTopCardAndExhaust" or "I:PlayTopXCards" or "CL:PlayTopDrawCard"
                 or "D:AutoPlayRandomAttackFromDraw" or "I:AutoPlayRandomAttackFromHand"
                 or "I:PlayAtRandomEnemy"
@@ -3015,7 +3065,7 @@ public sealed class ComponentAssemblyGenerator
             or "CL:ChooseFromRandomDrawCards" or "CL:ChooseDrawCardToHand"
             or "R:MoveDiscardCardToDrawTop" or "R:PlaySelectedSkillMultipleTimes"
             or "R:PutSelectedHandCardsOnDraw" or "R:PutSelectedHandCardOnDraw" or "R:CopySelectedColorlessCard"
-            or "NCR:ExhaustSelectedDrawCard" or "NCR:MoveDiscardCardToHand"
+            or "NCR:ExhaustSelectedDrawCard" or "N:MoveDiscardCardToHand" or "NCR:MoveDiscardCardToHand"
             or "D:MoveDiscardCardToHand"
             or "I:PlayTopCardAndExhaust" or "I:PlayTopXCards"
             or "CL:PlayTopDrawCard" or "D:AutoPlayRandomAttackFromDraw"
@@ -3550,7 +3600,7 @@ public sealed class ComponentAssemblyGenerator
             return DrawBudget(rarity, cost);
         if (atom.Template is "N:E" or "D:GainEnergy" or "NCR:GainEnergy" or "R:GainEnergy")
             return EnergyBudget(rarity, cost);
-        if (atom.Template is "R:GainVigor" or "CL:GainVigor")
+        if (atom.Template is "N:Vigor" or "R:GainVigor" or "CL:GainVigor")
             return StrengthBudget(rarity, cost);
         if (CardEffectRules.EffectFamily(atom) == "strength"
             && !CardEffectRules.IsEnemyStrengthReduction(atom))
@@ -3663,7 +3713,7 @@ public sealed class ComponentAssemblyGenerator
         return atom.Template is "N:DiscardAll" or "I:DrawWithRetain" or "R:FillHandWithDebris"
                 or "A:ProxyAtomic_ForbiddenGrimoire" or "I:ProxyAtomic_Transfigure"
                 or "A:ruleShivsRetain"
-            || atom.Template == "A:when" && spec.Trigger?.Kind == "owner_hp_lost_during_turn";
+            || spec.Trigger?.Kind == "owner_hp_lost_during_turn";
     }
 
     internal static bool IsExplicitRareOperation(ComponentAtom atom) =>
@@ -4220,7 +4270,8 @@ public static class CardEffectRules
     internal static bool TriggerSupportsChoiceContextBySpec(GeneratorOperation trigger)
     {
         if (trigger.Template == "A:turnStart") return true;
-        if (trigger.Template is "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart"
+        if (trigger.Template is "C:NextTurnStart" or "C:NextTurnsStart"
+            or "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart"
             or "A:whenEnergyCostAtLeast" or "A:whenEnergySpent" or "A:whenOneStarSpent"
             or "A:whenOstyLosesHp" or "D:ForEachEnergySpentThisTurn") return false;
         var kind = OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind;
@@ -4241,7 +4292,8 @@ public static class CardEffectRules
             or "CL:ChooseFromRandomDrawCards" or "CL:ChooseDrawCardToHand"
             or "R:MoveDiscardCardToDrawTop" or "R:PlaySelectedSkillMultipleTimes"
             or "R:PutSelectedHandCardsOnDraw" or "R:PutSelectedHandCardOnDraw"
-            or "R:CopySelectedColorlessCard" or "NCR:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
+            or "R:CopySelectedColorlessCard" or "N:MoveDiscardCardToHand"
+            or "NCR:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
             or "I:GrantSlyToHandSkillThisTurn" or "I:CopySelectedCardNextTurn"
             or "I:PlayTopCardAndExhaust" or "I:PlayTopXCards" or "CL:PlayTopDrawCard"
             or "D:AutoPlayRandomAttackFromDraw" or "I:AutoPlayRandomAttackFromHand"
@@ -4452,7 +4504,8 @@ public static class CardEffectRules
                 continue;
             if (triggerIndex < 0 || triggerIndex >= index) return false;
             var trigger = operations[triggerIndex];
-            if (operation.Template == "CL:ReturnThisToHand" && trigger.Template == "CL:AtNextTurnStart")
+            if (operation.Template == "CL:ReturnThisToHand"
+                && IsNextTurnStartTrigger(trigger))
                 continue;
             return false;
         }
@@ -4919,8 +4972,15 @@ public static class CardEffectRules
     /// Triggers whose linked effects are executed by a detached temporary power after the original card resolution.
     /// That power has no stable enemy identity to serialize, so it cannot reuse the card's original selected target.
     /// </summary>
-    public static bool TriggerLosesOriginalEnemyTarget(GeneratorOperation trigger) => trigger.Template is
-        "D:NextTurnsStart" or "NCR:NextTurn" or "R:NextTurn" or "CL:AtNextTurnStart" or "CL:AfterTurns";
+    public static bool TriggerLosesOriginalEnemyTarget(GeneratorOperation trigger) =>
+        IsNextTurnStartTrigger(trigger) || IsNextTurnsStartTrigger(trigger)
+        || trigger.Template == "CL:AfterTurns";
+
+    public static bool IsNextTurnStartTrigger(GeneratorOperation operation) =>
+        OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind == "next_turn_start";
+
+    public static bool IsNextTurnsStartTrigger(GeneratorOperation operation) =>
+        OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind == "next_turns_start";
 
     public static bool HasValidDeferredEnemyTargetAssembly(IReadOnlyList<GeneratorOperation> operations)
     {
@@ -5141,7 +5201,7 @@ public static class CardEffectRules
                 or "NCR:ReturnFromDiscardOnHighCostPlay" or "R:PutThisOnDraw" => "self:destination",
             "I:PreventDrawThisTurn" => "turn:no_draw",
             "I:FreeHandThisTurn" => "turn:free_hand",
-            "CL:RetainHandThisTurn" or "R:RetainHandThisTurn" => "turn:retain_hand",
+            "N:RetainHandThisTurn" or "CL:RetainHandThisTurn" or "R:RetainHandThisTurn" => "turn:retain_hand",
             "N:DiscardAll" => "clear:all_hand_discard",
             "D:ExhaustAllStatuses" => "clear:all_statuses_exhaust",
             "R:FillHandWithDebris" => "fill:hand",
@@ -5182,7 +5242,8 @@ public static class CardEffectRules
         IsDelayedEffect(operation.Template, OperationRuntimeSpecCompiler.GetOrCompile(operation));
 
     private static bool IsDelayedEffect(string template, OperationRuntimeSpec spec) => template is
-        "R:NextTurn" or "NCR:NextTurn" or "D:NextTurnsStart" or "CL:AtNextTurnStart" or "CL:AfterTurns"
+        "C:NextTurnStart" or "C:NextTurnsStart"
+        or "R:NextTurn" or "NCR:NextTurn" or "D:NextTurnsStart" or "CL:AtNextTurnStart" or "CL:AfterTurns"
         or "N:NextTurnBlock" or "N:NextTurnEnergy" or "N:NextTurnDraw" or "N:KeepBlockNextTurn"
         or "D:NextTurnEnergy" or "NCR:NextTurnEnergy" or "I:CopySelectedCardNextTurn"
         or "I:DoubleAttackDamageNextTurn"
@@ -5294,9 +5355,9 @@ public static class CardEffectRules
             var trigger = operations[triggerIndex];
             if (trigger.Scope == OperationScope.AbilityTrigger)
                 return true;
-            if (trigger.Template is "D:NextTurnsStart" or "CL:AfterTurns"
+            if (trigger.Template is "C:NextTurnsStart" or "D:NextTurnsStart" or "CL:AfterTurns"
                 && OperationRuntimeSpecCompiler.StaticLiteralValue(trigger,
-                    trigger.Template == "D:NextTurnsStart" ? "duration" : "threshold") is > 1)
+                    trigger.Template is "C:NextTurnsStart" or "D:NextTurnsStart" ? "duration" : "threshold") is > 1)
                 return true;
             current = triggerIndex;
         }
@@ -5316,7 +5377,8 @@ public static class CardEffectRules
         OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("event_enemy_reference");
 
     private static bool TriggerSuppliesEnemyTarget(GeneratorOperation trigger) => trigger.Template is
-        "A:whenLightningEvoked" or "A:whenAttackDealsDamage" or "A:whenDebuffApplied" or "A:whenDoomApplied"
+        "A:whenLightningEvoked" or "A:whenAttackDealsDamage" or "A:whenAttackDealsUnblockedDamage"
+        or "A:whenAttackDamagesEnemy" or "A:whenDebuffApplied" or "A:whenDoomApplied"
         or "NCR:FirstAttackPlayedEachTurn";
 
     internal static bool SuppliesEventAttackForDamageModifier(ComponentAtom trigger) =>
@@ -5426,12 +5488,14 @@ public static class CardEffectRules
         operation.Template, OperationRuntimeSpecCompiler.GetOrCompile(operation));
 
     internal static bool IsRandomCardGenerationBySpec(string template, OperationRuntimeSpec spec) => template is
-        "CL:AddRandomAttackToHand" or "CL:AddRandomColorlessToHand" or "CL:AddRandomZeroCostCardsToHand"
+        "CL:AddRandomAttackToHand" or "CL:AddRandomColorlessToHand" or "N:AddRandomColorlessToHand"
+        or "CL:AddRandomZeroCostCardsToHand"
         or "NCR:AddRandomEtherealCardToHand" or "D:AddRandomPowerToHand" or "R:AddRandomColorlessToHand"
         or "I_CREATE_RANDOM_ATTACK" or "I:ProxyAtomic_WhiteNoise" or "CL:ProxyAtomic_Discovery"
         or "I:ProxyAtomic_Quasar" or "CL:ProxyAtomic_Splash" or "N:CreateCurrentCharacterCardInHand"
         or "I:Create"
-        || spec.Opcode == "create_card" && spec.Variant == "current_character_random";
+        || spec.Opcode == "create_card"
+            && spec.Variant is "current_character_random" or "random_colorless";
 
     public static bool IsDirectOrbChannel(ComponentAtom atom) => IsDirectOrbChannelTemplate(atom.Template);
 
@@ -5673,12 +5737,16 @@ public static class CardEffectRules
         if (IsNegativeEffect(operation) && !IsMixedBenefitAndDownside(operation.Template)) return false;
         if (spec.Flags.Contains(ComponentSemanticFlags.Beneficial)
             || ComponentValuationApi.IsRegisteredBenefit(spec)) return true;
+        if (IsRandomCardGeneration(operation)) return true;
         if (IsPlayerSelectedExhaust(operation)) return true;
         if (operation.Template.Contains(":Proxy", StringComparison.Ordinal)) return true;
         if (IsEnemyDamage(operation)
             || operation.Template.StartsWith("N:RetaliateDamage", StringComparison.Ordinal)
             || operation.Template is "T_DAMAGE" or "N_RANDOM_DAMAGE")
             return !OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("zero_damage");
+        if (spec.Opcode == "lose_hp" && spec.Target != "self") return true;
+        if (spec.Opcode == "apply_power"
+            && spec.Target is "self" or "selected_enemy" or "all_enemies" or "random_enemy") return true;
         if (operation.Scope is OperationScope.Modifier or OperationScope.AbilityRule
             || operation.Template.StartsWith("M_", StringComparison.Ordinal)
             || operation.Template.StartsWith("A_RULE", StringComparison.Ordinal))
@@ -5700,7 +5768,8 @@ public static class CardEffectRules
                 or "CL:IfHandEmpty" or "CL:EveryCardsDrawn" or "CL:EveryCardsPlayedThisTurn"
                 or "CL:WheneverAttackPlayed" or "CL:FirstAttackOrSkillEachTurn"
                 or "CL:WheneverDrawPileShuffled" or "CL:AfterTurns" or "CL:NoBlockFromCards");
-        if (operation.Template is "T:Apply" or "T_APPLY_VULNERABLE" or "T:Poison" or "T:XWeak" or "T:XStrengthLoss" or "T:Strangle"
+        if (operation.Template is "T:Apply" or "T:TempStrengthLoss" or "T_APPLY_VULNERABLE"
+            or "T:Poison" or "T:XWeak" or "T:XStrengthLoss" or "T:Strangle"
             or "T:RemoveBlockAndArtifact")
             return !OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("legacy_enemy_strength_one");
         if (operation.Template is "N:B" or "N:Create" or "N:CreateCurrentCharacterCardInHand" or "N:Draw" or "N:E" or "N:Heal" or "N:Move" or "N:Self" or "N:StrengthPerTargetVulnerable"
@@ -5711,9 +5780,8 @@ public static class CardEffectRules
             return true;
         if (operation.Template is "C:whileInCombat" or "C:whileInCombatSkillCostReduction")
             return true;
-        if (operation.Template == "C:untilTurnEnd"
-            && OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind
-                == "vulnerable_enemy_damage_reduction")
+        if (OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind
+            == "vulnerable_enemy_damage_reduction")
             return true;
         if (operation.Template.StartsWith("I:", StringComparison.Ordinal))
             return operation.Template is not "I:PreventDrawThisTurn";
@@ -6105,7 +6173,7 @@ public static class CardEffectRules
             or "M:DamagePerExhaustCard" or "NCR:ExhaustSelectedDrawCard" or "NCR:ForEachExhaustedSoul"
             or "R:AtTurnStartIfInExhaust") result.Add("exhaust");
         if (template is "A:ruleShivsRetainAndFirstBonus" or "A:ruleShivsRetain"
-            or "CL:RetainHandThisTurn" or "I:DrawWithRetain"
+            or "N:RetainHandThisTurn" or "CL:RetainHandThisTurn" or "I:DrawWithRetain"
             or "NCR:AddRetainToSelectedHandCard" or "R:RetainHandThisTurn") result.Add("retain");
         if (template is "A:rulePlayedSkillsGainSly" or "I:GrantSlyToHandSkillThisTurn") result.Add("sly");
         if (spec.Variant is "vulnerable" or "vulnerable_double" or "strength_per_target_vulnerable"
@@ -6113,7 +6181,7 @@ public static class CardEffectRules
             or "vulnerable_enemy_damage_reduction"
             || spec.Trigger?.Kind is "vulnerable_applied" or "vulnerable_enemy_damage_reduction"
             || spec.Condition?.Kind == "target_has_vulnerable"
-            || template is "CL:ApplyVulnerableAll" or "I:ApplyToAllEnemies" or "NCR:ApplyVulnerableAll"
+            || template is "N:AllVulnerable" or "CL:ApplyVulnerableAll" or "I:ApplyToAllEnemies" or "NCR:ApplyVulnerableAll"
                 or "NCR:DoubleVulnerableWeak" or "R:ApplyVulnerableAll") result.Add("vulnerable");
         if (spec.Variant == "weak" || template is "A:ruleWeakEnemiesTakeMoreAttackDamage" or "CL:ApplyWeakAll"
             or "N:AllWeak" or "NCR:ApplyWeakAll" or "NCR:DoubleVulnerableWeak" or "R:ApplyWeakAll"
@@ -6123,6 +6191,7 @@ public static class CardEffectRules
             or "N:AllPoison" or "N:BlockEqualAllPoison" or "N:RandomPoison" or "T:Poison") result.Add("poison");
         if (spec.Variant.Contains("strength", StringComparison.Ordinal)
             || template is "CL:TargetLoseStrengthThisTurn" or "D:GainStrength" or "I:GainTemporaryStrength"
+                or "N:TempStrength"
                 or "N:AllTempStrengthLoss" or "NCR:LoseStrength" or "NCR:TargetLoseStrength"
                 or "NCR:TargetLoseStrengthThisTurn" or "R:EnemiesLoseStrength" or "R:EnemiesLoseStrengthThisTurn"
                 or "R:GainStrength" or "R:GainStrengthThisTurn" or "R:TargetLoseStrengthThisTurn"
@@ -6133,7 +6202,7 @@ public static class CardEffectRules
         if (spec.Opcode == "apply_power" && spec.Variant == "plating") result.Add("plating");
         if (template is "D:GainFocus" or "D:GainTemporaryFocus" or "D:LoseFocus" or "D:LoseTemporaryFocus")
             result.Add("focus");
-        if (template is "CL:GainVigor" or "R:GainVigor") result.Add("vigor");
+        if (template is "N:Vigor" or "CL:GainVigor" or "R:GainVigor") result.Add("vigor");
         if (spec.Condition?.Kind == "fatal") result.Add("fatal");
         if (template is "A:ProxyAtomic_SwordSage" or "CL:ProxyAtomic_HiddenGem"
             or "I:ProxyAtomic_Transfigure" or "D:ReplayEventCard") result.Add("replay");

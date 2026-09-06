@@ -11,6 +11,7 @@ using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
+using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.CardPools;
 using MegaCrit.Sts2.Core.Models.Cards;
@@ -19,11 +20,18 @@ using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.ValueProps;
 using System.Runtime.CompilerServices;
+using System.Reflection;
+using HarmonyLib;
 
 namespace AutoAnthony;
 
 public abstract class ChaosCardModel : CardModel
 {
+    private static readonly FieldInfo CardDynamicVarsField = AccessTools.Field(typeof(CardModel), "_dynamicVars");
+    private static readonly FieldInfo CardEnergyCostField = AccessTools.Field(typeof(CardModel), "_energyCost");
+    private static readonly FieldInfo CardKeywordsField = AccessTools.Field(typeof(CardModel), "_keywords");
+    private static readonly FieldInfo CardBaseStarCostField = AccessTools.Field(typeof(CardModel), "_baseStarCost");
+    private static readonly FieldInfo CardStarCostSetField = AccessTools.Field(typeof(CardModel), "_starCostSet");
     private int _extraDamage;
     private int _extraBlock;
     private int _resolvedSpecialXValue;
@@ -31,6 +39,8 @@ public abstract class ChaosCardModel : CardModel
     private int _resolvedStarXValue;
     private PileType? _postPlayExhaustMovePile;
     private readonly Dictionary<int, int> _capturedExternalDamageBonuses = [];
+    private string _tinkeredDefinitionPayload = string.Empty;
+    private GeneratedCard? _tinkeredDefinition;
 
     protected abstract int Slot { get; }
     protected virtual GeneratedCharacter Character => GeneratedCharacter.Ironclad;
@@ -40,7 +50,39 @@ public abstract class ChaosCardModel : CardModel
         ? ExternalComponentCharacterApi.ForSlot(profileId, Slot)
         : ChaosRunDefinitions.ForSlot(Character, Slot);
     public ChaosCardDefinition Definition => ResolveDefinition();
-    public GeneratedCard Generated => Definition.Card;
+    public GeneratedCard Generated => _tinkeredDefinition ?? Definition.Card;
+    /// <summary>
+    /// Optional per-instance definition supplied by a card-editor companion. The base mod does not create these
+    /// payloads, but retaining and executing one here keeps edited cards save-safe and multiplayer-serializable.
+    /// </summary>
+    [SavedProperty]
+    public string TinkeredDefinitionPayload
+    {
+        get => _tinkeredDefinitionPayload;
+        set
+        {
+            AssertMutable();
+            _tinkeredDefinitionPayload = value ?? string.Empty;
+            if (_tinkeredDefinitionPayload.Length == 0)
+            {
+                _tinkeredDefinition = null;
+                return;
+            }
+            try
+            {
+                var decoded = CardTinkeringApi.DeserializeCard(_tinkeredDefinitionPayload);
+                EnsureSameShell(Definition.Card, decoded);
+                _tinkeredDefinition = decoded;
+            }
+            catch (Exception exception)
+            {
+                _tinkeredDefinitionPayload = string.Empty;
+                _tinkeredDefinition = null;
+                Log.Warn($"[AutoAnthony] Ignoring an invalid per-card tinkering payload on {Id}: {exception.Message}");
+            }
+        }
+    }
+    public bool HasTinkeredDefinition => _tinkeredDefinition is not null;
     [SavedProperty] public int ExtraDamage { get => _extraDamage; set { AssertMutable(); _extraDamage = value; } }
     [SavedProperty] public int ExtraBlock { get => _extraBlock; set { AssertMutable(); _extraBlock = value; } }
     [SavedProperty] public int ResolvedSpecialXValue { get => _resolvedSpecialXValue; set { AssertMutable(); _resolvedSpecialXValue = value; } }
@@ -48,6 +90,73 @@ public abstract class ChaosCardModel : CardModel
     internal int ResolvedStarXValue => _resolvedStarXValue;
 
     protected ChaosCardModel() : base(0, CardType.Skill, CardRarity.Common, TargetType.Self) { }
+
+    /// <summary>
+    /// Applies or clears an editor-owned definition without changing the shared generated pool slot. Printed cost,
+    /// type, target, rarity, keywords, identity and shell-owned upgrades are immutable at this boundary.
+    /// </summary>
+    public void ApplyTinkeredDefinition(GeneratedCard? definition)
+    {
+        AssertMutable();
+        if (definition is null)
+        {
+            _tinkeredDefinition = null;
+            _tinkeredDefinitionPayload = string.Empty;
+        }
+        else
+        {
+            definition = OperationRuntimeSpecCompiler.Attach(definition);
+            EnsureSameShell(Definition.Card, definition);
+            _tinkeredDefinition = definition;
+            _tinkeredDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+        }
+        RebuildCachedCardState();
+    }
+
+    private static void EnsureSameShell(GeneratedCard original, GeneratedCard candidate)
+    {
+        var sameTags = original.Tags.SequenceEqual(candidate.Tags)
+            && (original.CustomKeywords ?? []).SequenceEqual(candidate.CustomKeywords ?? [], StringComparer.Ordinal);
+        var originalUpgrade = original.Upgrade;
+        var candidateUpgrade = candidate.Upgrade;
+        var sameShellUpgrade = originalUpgrade is null && candidateUpgrade is null
+            || originalUpgrade is not null && candidateUpgrade is not null
+            && originalUpgrade.UpgradedCost == candidateUpgrade.UpgradedCost
+            && originalUpgrade.UpgradedStarCost == candidateUpgrade.UpgradedStarCost
+            && originalUpgrade.AddedKeywords.SequenceEqual(candidateUpgrade.AddedKeywords)
+            && (originalUpgrade.RemovedKeywords ?? []).SequenceEqual(candidateUpgrade.RemovedKeywords ?? [])
+            && (originalUpgrade.AddedCustomKeywords ?? []).SequenceEqual(
+                candidateUpgrade.AddedCustomKeywords ?? [], StringComparer.Ordinal)
+            && (originalUpgrade.RemovedCustomKeywords ?? []).SequenceEqual(
+                candidateUpgrade.RemovedCustomKeywords ?? [], StringComparer.Ordinal);
+        var sameName = original.Name?.Chinese == candidate.Name?.Chinese
+            && original.Name?.English == candidate.Name?.English;
+        var sameSources = (original.Name?.SourceCardIds ?? []).SequenceEqual(
+            candidate.Name?.SourceCardIds ?? [], StringComparer.Ordinal);
+        if (original.Cost != candidate.Cost || original.StarCost != candidate.StarCost
+            || original.HasStarCostX != candidate.HasStarCostX || original.Type != candidate.Type
+            || original.Target != candidate.Target || original.Rarity != candidate.Rarity
+            || original.Character != candidate.Character || original.UnifiedChaos != candidate.UnifiedChaos
+            || !sameTags || !sameName || !sameSources || !sameShellUpgrade)
+            throw new ArgumentException("A tinkered definition may only replace effect components, not card-shell properties.",
+                nameof(candidate));
+    }
+
+    private void RebuildCachedCardState()
+    {
+        CardDynamicVarsField.SetValue(this, null);
+        CardEnergyCostField.SetValue(this, null);
+        CardKeywordsField.SetValue(this, null);
+        CardBaseStarCostField.SetValue(this, 0);
+        CardStarCostSetField.SetValue(this, false);
+        _ = DynamicVars;
+        _ = EnergyCost;
+        _ = Keywords;
+        _ = BaseStarCost;
+        if (!IsUpgraded) return;
+        OnUpgrade();
+        FinalizeUpgradeInternal();
+    }
 
     protected override int CanonicalEnergyCost => Math.Max(0, Generated.Cost);
     protected override bool HasEnergyCostX => Generated.Cost < 0;
@@ -788,6 +897,7 @@ internal enum ChaosStatPreviewKind
     Cards,
     Focus,
     Channels,
+    ChannelRepeats,
     Strength
 }
 
@@ -831,6 +941,7 @@ internal static class ChaosStatPreview
                 ChaosStatPreviewKind.Cards => $"抽{{{variable}:diff()}}张牌",
                 ChaosStatPreviewKind.Focus => $"获得{{{variable}:diff()}}点集中",
                 ChaosStatPreviewKind.Channels => $"生成{{{variable}:diff()}}个{orb?.ChineseName ?? string.Empty}充能球",
+                ChaosStatPreviewKind.ChannelRepeats => $"生成{{{variable}:diff()}}次",
                 ChaosStatPreviewKind.Strength => $"获得{{{variable}:diff()}}点力量",
                 _ => throw new ArgumentOutOfRangeException(nameof(kind))
             };
@@ -845,6 +956,7 @@ internal static class ChaosStatPreview
             ChaosStatPreviewKind.Cards => $"Draw {{{variable}:diff()}} cards",
             ChaosStatPreviewKind.Focus => $"Gain {{{variable}:diff()}} Focus",
             ChaosStatPreviewKind.Channels => $"Channel {{{variable}:diff()}} {orb?.EnglishName ?? "Orbs"}",
+            ChaosStatPreviewKind.ChannelRepeats => $"Channel {{{variable}:diff()}} times",
             ChaosStatPreviewKind.Strength => $"Gain {{{variable}:diff()}} Strength",
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
@@ -917,7 +1029,11 @@ internal static class ChaosStatPreview
             if (CardEffectRules.IsEnemyDamage(operation)) kind = ChaosStatPreviewKind.Hits;
             else if (payoffSpec.Opcode == "gain_block") kind = ChaosStatPreviewKind.Block;
             else if (payoffSpec.Opcode == "draw_cards") kind = ChaosStatPreviewKind.Cards;
-            else if (payoffSpec.Flags.Contains("orb_channel_reference")) kind = ChaosStatPreviewKind.Channels;
+            // A count prefix repeats the complete Channel action. Its parenthetical preview must show how many
+            // times that action resolves, rather than multiplying the action's own Orb amount into a second
+            // misleading "Channel N Orbs" value.
+            else if (payoffSpec.Flags.Contains("orb_channel_reference"))
+                kind = ChaosStatPreviewKind.ChannelRepeats;
             else if (payoffSpec.Variant is "focus" or "focus_this_turn") kind = ChaosStatPreviewKind.Focus;
             else if (payoffSpec.Variant is "strength" or "strength_this_turn") kind = ChaosStatPreviewKind.Strength;
             else return false;
@@ -974,6 +1090,9 @@ internal static class ChaosStatPreview
                         && ChaosOrbResolver.MatchesSource(entry.Orb, operation));
         }
 
+        if (kind == ChaosStatPreviewKind.ChannelRepeats)
+            return ChaosOperationExecutor.DependencyMultiplier(card, index, target);
+
         if (kind is ChaosStatPreviewKind.Cards or ChaosStatPreviewKind.Focus or ChaosStatPreviewKind.Channels)
             return card.OperationAmount(index)
                 * ChaosOperationExecutor.DependencyMultiplier(card, index, target);
@@ -1022,6 +1141,17 @@ internal static class ChaosStatPreview
         };
         if (!TryGetKind(uniqueOrbDraw, 1, out var drawKind) || drawKind != ChaosStatPreviewKind.Cards)
             throw new InvalidOperationException("AutoAnthony dependency statistical preview audit failed.");
+        var uniqueOrbChannel = new[]
+        {
+            Op("D:ForEachUniqueOrb", OperationScope.Modifier, "每有一种不同的充能球，"),
+            Op("D:ChannelLightning", OperationScope.NonTargeted, "生成2个闪电充能球。")
+        };
+        if (!TryGetKind(uniqueOrbChannel, 1, out var channelKind)
+            || channelKind != ChaosStatPreviewKind.ChannelRepeats
+            || !Description(channelKind, 1, true).Contains("生成{CalculatedChannelRepeats1:diff()}次",
+                StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "AutoAnthony repeated Channel dependency preview must display the live resolution count.");
         var staticRepeat = new[]
         {
             Op("D:RepeatDamage", OperationScope.Modifier, "这张牌额外造成2次伤害。")
@@ -1060,7 +1190,10 @@ internal sealed class ChaosCalculatedPreviewVar(string name, int operationIndex,
         }
 
         decimal value;
-        if (!CombatManager.Instance.IsInProgress || chaos.CombatState is null)
+        // Cards in a combat pile may expose the combat through their owner before CardModel.CombatState has been
+        // populated. Runtime dependency resolution already uses this fallback; the preview must use it as well.
+        if (!CombatManager.Instance.IsInProgress
+            || chaos.CombatState is null && chaos.Owner.Creature.CombatState is null)
             value = 0;
         else try
         {
@@ -1407,7 +1540,7 @@ internal static class ChaosRuntimeDescriptionRenderer
                         renderedEffects = renderedEffects[1..];
                     var separator = operation.Template == "C:playableIfDrawPileEmpty" ? "。"
                         : operation.Template == "C:untilTurnEndCardDrawn" ? "，就"
-                        : operation.Template == "C:untilTurnEnd" && trigger.Contains("受到一次攻击", StringComparison.Ordinal) ? "，都会"
+                        : OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger?.Kind == "attack_received" ? "，都会"
                         : operation.Template == "C:ifLastDrawnSkill" || trigger.StartsWith("如果", StringComparison.Ordinal) ? "，则"
                         : "，";
                     lines.Add($"{trigger}{separator}{renderedEffects}");

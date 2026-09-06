@@ -15,6 +15,7 @@
 - 按角色替换卡池，并保留原版稀有度数量和大体分布。
 - 将完整结构化卡牌定义写入本局快照，保证读档和联机时效果稳定。
 - 提供终极混乱、数值平衡/激进、数值随机、保留原版卡池、替换初始卡、随机卡图和三种惊喜模式。
+- 安装 Card Tinkering 衍生模组后，可在设置中开启“随时编辑”，从战斗外（包括战斗奖励页）的卡组页面进入工匠台。
 - 使用带版本的 `OperationRuntimeSpec` 执行卡牌，不依赖中文或英文描述判断游戏逻辑。
 - 提供组件 API v3，允许其他角色模组注册组件池、出率、数值与关键词策略、语义标记、稳定本地化 ID、
   运行时处理器、提示和随机卡槽位。
@@ -48,6 +49,9 @@ dotnet run --project .\ChaosCardGenerator\ChaosCardGenerator.csproj -c Release -
 请从 [组件 API Wiki 中文首页](https://github.com/mewcodex/AutoAnthony/wiki/组件-API-概览) 开始阅读。
 仓库内还提供简明契约 [COMPONENT_API.md](COMPONENT_API.md) 和不依赖角色框架的
 [`WatcherComponentAdapter.cs.txt`](examples/WatcherComponentAdapter.cs.txt) 示例。
+
+卡牌编辑类配套模组另请参阅
+[卡牌编辑与设置 API](https://github.com/mewcodex/AutoAnthony/wiki/卡牌编辑与设置-API)。
 
 API 只依赖稳定的 ASCII 标识符和结构化运行数据，不要求 BaseLib、RitsuLib 或某一种角色模组框架。
 

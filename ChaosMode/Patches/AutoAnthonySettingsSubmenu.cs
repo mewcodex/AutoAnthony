@@ -119,6 +119,10 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
             ChaosSettingsToggle.ReplaceStartingCardsLineName, "AUTO_ANTHONY_REPLACE_STARTING_CARDS");
         ChaosSettingsToggle.PreserveOriginalCardsInstance = AddOption(pool.Content, optionTemplate,
             ChaosSettingsToggle.PreserveOriginalCardsLineName, "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS");
+        ChaosSettingsToggle.AnytimeCardEditingInstance = ChaosSettingsToggle.IsCardTinkeringLoaded
+            ? AddOption(pool.Content, optionTemplate, ChaosSettingsToggle.AnytimeCardEditingLineName,
+                "AUTO_ANTHONY_ANYTIME_CARD_EDITING")
+            : null;
 
         var display = AddCategory(options, ChaosSettingsToggle.DisplayCategoryLineName,
             "AUTO_ANTHONY_CATEGORY_DISPLAY");
@@ -164,6 +168,7 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                      ChaosSettingsToggle.EnabledInstance, ChaosSettingsToggle.NumericBalanceOptimizationInstance,
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
                      ChaosSettingsToggle.ReplaceStartingCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
+                     ChaosSettingsToggle.AnytimeCardEditingInstance,
                      ChaosSettingsToggle.RandomCardArtInstance,
                      ChaosSettingsToggle.GenerationModeHoverTipsInstance,
                      ChaosSettingsToggle.CardInternalIdsInstance, ChaosSettingsToggle.SurpriseModeInstance,
@@ -188,6 +193,7 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                      ChaosSettingsToggle.EnabledInstance, ChaosSettingsToggle.NumericBalanceOptimizationInstance,
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
                      ChaosSettingsToggle.ReplaceStartingCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
+                     ChaosSettingsToggle.AnytimeCardEditingInstance,
                      ChaosSettingsToggle.RandomCardArtInstance,
                      ChaosSettingsToggle.GenerationModeHoverTipsInstance,
                      ChaosSettingsToggle.CardInternalIdsInstance, ChaosSettingsToggle.SurpriseModeInstance,

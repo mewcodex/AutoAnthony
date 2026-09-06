@@ -8,7 +8,7 @@ internal static class ChaosModSettings
 {
     private sealed class SettingsData
     {
-        public int Schema { get; set; } = 13;
+        public int Schema { get; set; } = 14;
         public bool Enabled { get; set; } = true;
         public bool ReplaceStartingCards { get; set; } = true;
         public bool UltimateChaos { get; set; }
@@ -16,6 +16,7 @@ internal static class ChaosModSettings
         public bool NumericRandomMode { get; set; }
         public bool PreserveOriginalCards { get; set; }
         public bool RandomCardArt { get; set; }
+        public bool AnytimeCardEditing { get; set; }
         public bool ShowGenerationModeHoverTips { get; set; } = true;
         public bool ShowCardInternalIds { get; set; }
         public bool SurpriseMode { get; set; }
@@ -34,6 +35,7 @@ internal static class ChaosModSettings
     private static bool _numericRandomMode;
     private static bool _preserveOriginalCards;
     private static bool _randomCardArt;
+    private static bool _anytimeCardEditing;
     private static bool _showGenerationModeHoverTips = true;
     private static bool _showCardInternalIds;
     private static bool _surpriseMode;
@@ -138,6 +140,20 @@ internal static class ChaosModSettings
             Save();
             Log.Info($"[AutoAnthony] Random Card Art {(value ? "enabled" : "disabled")}; "
                      + "the change applies to newly generated runs.");
+        }
+    }
+
+    internal static bool AnytimeCardEditing
+    {
+        get { EnsureLoaded(); return _anytimeCardEditing; }
+        set
+        {
+            EnsureLoaded();
+            if (_anytimeCardEditing == value) return;
+            _anytimeCardEditing = value;
+            Save();
+            Log.Info($"[AutoAnthony] Anytime card editing {(value ? "enabled" : "disabled")}; "
+                     + "Card Tinkering applies the change immediately outside combat.");
         }
     }
 
@@ -275,6 +291,8 @@ internal static class ChaosModSettings
             _numericRandomMode = ParseBooleanSetting(json, false, "NumericRandomMode", "numeric_random_mode");
             _preserveOriginalCards = ParseBooleanSetting(json, false, "PreserveOriginalCards", "preserve_original_cards");
             _randomCardArt = ParseBooleanSetting(json, false, "RandomCardArt", "random_card_art");
+            _anytimeCardEditing = ParseBooleanSetting(json, false,
+                "AnytimeCardEditing", "anytime_card_editing");
             _showGenerationModeHoverTips = ParseBooleanSetting(json, true,
                 "ShowGenerationModeHoverTips", "show_generation_mode_hover_tips");
             _showCardInternalIds = ParseShowCardInternalIds(json);
@@ -293,6 +311,7 @@ internal static class ChaosModSettings
             _numericRandomMode = false;
             _preserveOriginalCards = false;
             _randomCardArt = false;
+            _anytimeCardEditing = false;
             _showGenerationModeHoverTips = true;
             _showCardInternalIds = false;
             _surpriseMode = false;
@@ -318,6 +337,7 @@ internal static class ChaosModSettings
                     NumericRandomMode = _numericRandomMode,
                     PreserveOriginalCards = _preserveOriginalCards,
                     RandomCardArt = _randomCardArt,
+                    AnytimeCardEditing = _anytimeCardEditing,
                     ShowGenerationModeHoverTips = _showGenerationModeHoverTips,
                     ShowCardInternalIds = _showCardInternalIds,
                     SurpriseMode = _surpriseMode,
@@ -577,6 +597,9 @@ internal static class ChaosModSettings
             || ParseBooleanSetting("{\"Schema\":10}", false, "NumericRandomMode")
             || !ParseBooleanSetting("{\"preserve_original_cards\":1}", false, "PreserveOriginalCards", "preserve_original_cards")
             || !ParseBooleanSetting("{\"random_card_art\":1}", false, "RandomCardArt", "random_card_art")
+            || !ParseBooleanSetting("{\"anytime_card_editing\":1}", false,
+                "AnytimeCardEditing", "anytime_card_editing")
+            || ParseBooleanSetting("{\"Schema\":13}", false, "AnytimeCardEditing", "anytime_card_editing")
             || !ParseBooleanSetting("{\"Schema\":12}", true, "ShowGenerationModeHoverTips")
             || ParseBooleanSetting("{\"show_generation_mode_hover_tips\":false}", true,
                 "ShowGenerationModeHoverTips", "show_generation_mode_hover_tips"))

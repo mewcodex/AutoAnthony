@@ -72,7 +72,9 @@ internal static class EffectBalanceModel
     internal const double NextTurnTriggerFrequency = 0.50d;
     internal const int OrdinaryEnergyValuePerPoint = 650;
     internal const int SkillsCostZeroRuleValue = 10_500;
-    internal const int ReferencedSkillExhaustValuePerCard = 650;
+    // Corruption is Ancient. Normalize its former 650-point repeated Skill-exhaust payment to the Common anchor;
+    // the shared Ancient 2x linear-cost multiplier restores the native price.
+    internal const int ReferencedSkillExhaustValuePerCard = 325;
     // Gold Axe is itself a one-Energy Rare with no other text. Keep the complete dynamic-damage rule at the
     // one-Energy Rare center instead of estimating an arbitrary number of cards played this combat.
     internal const int GoldAxeDynamicDamageValue = 1_900;
@@ -94,6 +96,7 @@ internal static class EffectBalanceModel
     private const int SummonValuePerPoint = 239;
     private const int VigorValuePerPoint = 180;
     private const int VulnerableValuePerTurn = 550;
+    private const int DoubleVulnerableValue = 750;
     private const int WeakValuePerTurn = 470;
     private const int OrbSlotValuePerSlot = 650;
     private const int OstyHealValuePerPoint = 180;
@@ -139,9 +142,12 @@ internal static class EffectBalanceModel
         // Explicit prices keep them out of cheap filler slots while their separate occurrence prior preserves a
         // small reconstruction path at every rarity.
         // Molten Fist is the native anchor: 1 Energy Common, 10 Damage, Exhaust, then doubles the target's
-        // Vulnerable. Against the ordinary Common damage curve and Exhaust compensation, the rider is worth
-        // about six Damage points rather than the old 8.5-point near-card-sized price.
-        if (CardEffectRules.IsDoubleTargetVulnerable(atom)) return 600;
+        // Vulnerable. Reconstruct the complete Exhaust shell instead of pricing the rider from the reusable
+        // no-Exhaust face: 1,200 * 1.45 - 1,000 = 740. Round to 750 so removing Exhaust from a generated card
+        // containing this high-impact rider is correctly recognized as an upper-envelope upgrade rather than a
+        // cheap keyword edit. RelativeCardRewardValue applies the same whole-card rule to every other payload;
+        // expensive reusable effects therefore suppress RemoveExhaust upgrades without a component-specific path.
+        if (CardEffectRules.IsDoubleTargetVulnerable(atom)) return DoubleVulnerableValue;
         if (atom.Template == "N:StrengthPerTargetVulnerable") return 2_400;
         if (CardEffectRules.IsCopyThisCardToDiscard(atom))
             return CopyThisCardValuation.RepresentativeAtomicValue(atom);
@@ -176,7 +182,8 @@ internal static class EffectBalanceModel
         // Bundle of Joy, Spectrum Shift and Creative AI show that the produced card is close to Draw 1, with a
         // small premium for restricting the result to Powers. Keep the count live so upgrades and generated
         // amounts consume the same value that their card face advertises.
-        if (atom.Template is "CL:AddRandomColorlessToHand" or "R:AddRandomColorlessToHand")
+        if (spec is { Opcode: "create_card", Variant: "random_colorless" }
+            || atom.Template is "CL:AddRandomColorlessToHand" or "R:AddRandomColorlessToHand")
             // Output pool, not source character, determines value. Jack of All Trades, Spectrum Shift and Bundle
             // of Joy jointly place a random Colorless card near 1.9 random role-pool cards; every character that
             // accesses the Colorless pool must therefore pay the same unit price.
@@ -237,16 +244,15 @@ internal static class EffectBalanceModel
         if (atom.Template == "I:DiscardHandDrawSame") return 1_400;
         if (atom.Template == "I:DoubleAttackDamageNextTurn") return 2_800;
         // Colossus' compact atom contains the complete one-turn mitigation rule, not a bare condition.
-        if (atom.Template == "C:untilTurnEnd") return 800;
+        if (spec.Trigger?.Kind == "vulnerable_enemy_damage_reduction") return 800;
         // Expose removes two defensive resources before applying its debuff. This no-number utility is positive.
         if (atom.Template == "T:RemoveBlockAndArtifact") return 400;
         // At the ordinary ten-Max-HP Osty state, triple Max HP is approximately 30 Block.
         if (atom.Template == "NCR:BlockTripleOstyMaxHp") return 3_600;
-        if (atom.Template == "R:EnemiesLoseStrengthThisTurn") return first * 1_160;
-        if (atom.Template == "R:TargetLoseStrengthThisTurn") return first * 400;
         // This HP-loss line ignores Strength but still chooses a random enemy; retain the targeting discount used
         // by random damage instead of valuing every point as controllable single-target damage.
-        if (atom.Template == "NCR:TargetHpLoss") return first * 75;
+        if (spec is { Opcode: "lose_hp", Variant: "immediate" } && spec.Target != "self")
+            return (int)Math.Round(first * (spec.Target == "random_enemy" ? 75d : 100d));
         if (atom.Template is "CL:MoveSelectedAttackDrawToHand" or "CL:MoveSelectedSkillDrawToHand")
             return 1_500;
         // "Up to" is strictly stronger than an otherwise identical mandatory selection because the player can
@@ -307,7 +313,10 @@ internal static class EffectBalanceModel
         // roughly 1,700 for turning every later 10-damage Sovereign Blade hit into an all-enemy hit. This is above
         // the generic AbilityRule fallback while still accounting for the need to draw and play the Blade itself.
         if (atom.Template == "R:KingsSwordHitsAllEnemies") return 1_700;
-        if (atom.Template == "R:PlayThisCard") return 6_500;
+        // Playing the host card is the same payload whether its exhaust-pile trigger fires at turn start or
+        // turn end. The trigger cadence is priced separately; do not let the character-prefixed spelling make
+        // the otherwise identical replay action ten times cheaper.
+        if (atom.Template is "I:PlayThisCard" or "R:PlayThisCard") return 6_500;
         if (atom.Template == "D:ReturnZeroCostDiscardToHand") return 1_200;
         // Pounce supplies the clean native anchor: after fourteen damage, making the next Skill free accounts for
         // roughly 850 value against its native cohort. Round slightly upward because the generated component can
@@ -327,10 +336,6 @@ internal static class EffectBalanceModel
         if (atom.Template == "CL:DamageEqualCardsPlayedCombat") return GoldAxeDynamicDamageValue;
         if (atom.Template == "I:AddCardReward") return 2_500;
         if (atom.Template == "CL:ReturnThisToHand") return 1_400;
-        if (atom.Template == "CL:ApplyWeakAll")
-            return (int)Math.Round(DiminishingDurationStatusValue(first, WeakValuePerTurn) * 1.33d);
-        if (atom.Template == "CL:ApplyVulnerableAll")
-            return (int)Math.Round(DiminishingDurationStatusValue(first, VulnerableValuePerTurn) * 1.33d);
         if (atom.Template == "A:ProxyAtomic_ForbiddenGrimoire") return 2_700;
         if (atom.Template is "A:ProxyAtomic_Buffer" or "A:ruleRetainHand"
             or "A:rulePlayedSkillsGainSly" or "A:ruleUnblockedAttackPoison"
@@ -407,7 +412,8 @@ internal static class EffectBalanceModel
         if (spec.Flags.Contains("positive_focus_reference")) return first * 650;
         // Vigor is consumed by the next Attack instead of persisting through combat. Terraforming and Prep Time
         // place it close to 1.8 Damage-equivalent per point; treating it like permanent Strength overprices both.
-        if (atom.Template is "R:GainVigor" or "CL:GainVigor") return first * VigorValuePerPoint;
+        if (atom.Template is "N:Vigor" or "R:GainVigor" or "CL:GainVigor")
+            return first * VigorValuePerPoint;
         if (spec.Flags.Contains("positive_strength_dexterity_reference")) return first * 525;
         // Native anchors agree closely on roughly 3.2 damage-equivalent value per stack: Stone Armor is a
         // one-Energy Uncommon Power for 4 Plating, Eternal Armor is a three-Energy Rare for 9, and Neutron Aegis
@@ -418,9 +424,11 @@ internal static class EffectBalanceModel
         // A single smooth curve preserves the one-stack anchors while preventing 3-5 turn applications from
         // receiving linear full-combat value; it also avoids per-amount breakpoints or native-card exceptions.
         if (spec.Flags.Contains("vulnerable_reference"))
-            return DiminishingDurationStatusValue(first, VulnerableValuePerTurn);
+            return (int)Math.Round(DiminishingDurationStatusValue(first, VulnerableValuePerTurn)
+                * (spec.Flags.Contains("all_enemies_reference") ? 1.33d : 1d));
         if (spec.Flags.Contains("weak_reference"))
-            return DiminishingDurationStatusValue(first, WeakValuePerTurn);
+            return (int)Math.Round(DiminishingDurationStatusValue(first, WeakValuePerTurn)
+                * (spec.Flags.Contains("all_enemies_reference") ? 1.33d : 1d));
         if (spec.Flags.Contains("poison_reference"))
         {
             // Deadly Poison (1 Energy, 5 Poison) is the clean native anchor: one Poison is worth roughly two
@@ -666,7 +674,8 @@ internal static class EffectBalanceModel
             "A:firstZeroCostAttackPlayedEachTurn" => 0.55d,
             "A:whenSkillPlayed" => 1.45d,
             "CL:WheneverAttackPlayed" => 1.55d,
-            "A:whenAttackDealsDamage" => 1.8d,
+            "A:whenAttackDealsDamage" or "A:whenAttackDealsUnblockedDamage"
+                or "A:whenAttackDamagesEnemy" => 1.8d,
             "A:whenCardExhausted" => 1.3d,
             "A:whenCardGenerated" => 1.1d,
             "A:whenCardDrawnDuringTurn" => 4.8d,
@@ -689,15 +698,24 @@ internal static class EffectBalanceModel
             "D:ForEachEnergySpentThisTurn" => 2d / threshold,
             "D:ForEachExhaustedStatus" => ExhaustedStatusTriggerFrequency,
             "D:WheneverStatusGenerated" => 0.45d,
-            "D:NextTurnsStart" => Math.Clamp(threshold, 1, 4),
+            // Every promised turn resolves separately, but every resolution is delayed by at least one full
+            // turn. Price the shared trigger as N delayed resolutions instead of N immediate resolutions.
+            "C:NextTurnsStart" or "D:NextTurnsStart" =>
+                Math.Clamp(threshold, 1, 4) * NextTurnTriggerFrequency,
             // Unlike a persistent draw Power, this listener is installed by the source card during the turn.
             // Opening-hand draws have already happened, so use the same post-arming opportunity baseline as
             // “after you play this card, whenever you play another card” rather than the 4.8 full-turn draw rate.
             "C:untilTurnEndCardDrawn" => 3.2d,
+            "C:untilTurnEndCardPlayed" => 3.2d,
+            "C:untilTurnEndAttackPlayed" => 1.55d,
+            "C:untilTurnEndAttackReceived" => 2.5d,
+            "C:VulnerableEnemyDamageReductionThisTurn" => 1d,
+            "C:whenThisCardExhausted" => 0.7d,
+            "C:AtTurnEndIfInExhaust" => 0.35d,
             // Fiend Fire, Second Wind and Stoke resolve once for every card consumed by their immediately
             // preceding all-hand Exhaust. This is a live count, not the 0.7/turn cadence of a generic Exhaust
             // event trigger; normal hands contribute roughly three to four eligible cards.
-            "C:forEach" => 6d,
+            "C:forEach" or "C:forEachExhaustedCard" or "C:forEachExhaustedNonAttack" => 6d,
             "C:forEachDiscarded" => 1.1d,
             "C:playableIfDrawPileEmpty" => 0.08d,
             "CL:IfHandEmpty" => 0.16d,
@@ -710,7 +728,7 @@ internal static class EffectBalanceModel
             "D:IfFatal" or "C:ifFatal" or "CL:IfFatal" or "R:IfFatal" => FatalTriggerFrequency,
             "R:IfEnergyXAtLeast" => 0.45d,
             "R:AtTurnStartIfInExhaust" => 0.35d,
-            "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnTriggerFrequency,
+            "C:NextTurnStart" or "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnTriggerFrequency,
             "NCR:IfOstyAttackedThisTurn" => 0.55d,
             "NCR:IfDoomAppliedThisTurn" => 0.45d,
             "NCR:IfOstyAlive" => 0.85d,
@@ -774,7 +792,8 @@ internal static class EffectBalanceModel
             "CL:WheneverAttackPlayed" => 1.55d,
             // Attack-damage triggers can fire once per hit rather than merely once per card, so multi-hit
             // attacks push their normal cadence slightly above the generic Attack-play trigger.
-            "A:whenAttackDealsDamage" => 1.8d,
+            "A:whenAttackDealsDamage" or "A:whenAttackDealsUnblockedDamage"
+                or "A:whenAttackDamagesEnemy" => 1.8d,
             "A:whenCardExhausted" => 1.3d,
             "A:whenCardGenerated" => 1.1d,
             "A:whenCardDrawnDuringTurn" => 4.8d,
@@ -798,9 +817,16 @@ internal static class EffectBalanceModel
             "D:ForEachEnergySpentThisTurn" => 2d / threshold,
             "D:ForEachExhaustedStatus" => ExhaustedStatusTriggerFrequency,
             "D:WheneverStatusGenerated" => 0.45d,
-            "D:NextTurnsStart" => Math.Clamp(threshold, 1, 4),
+            "C:NextTurnsStart" or "D:NextTurnsStart" =>
+                Math.Clamp(threshold, 1, 4) * NextTurnTriggerFrequency,
             "C:untilTurnEndCardDrawn" => 3.2d,
-            "C:forEach" => 6d,
+            "C:untilTurnEndCardPlayed" => 3.2d,
+            "C:untilTurnEndAttackPlayed" => 1.55d,
+            "C:untilTurnEndAttackReceived" => 2.5d,
+            "C:VulnerableEnemyDamageReductionThisTurn" => 1d,
+            "C:whenThisCardExhausted" => 0.7d,
+            "C:AtTurnEndIfInExhaust" => 0.35d,
+            "C:forEach" or "C:forEachExhaustedCard" or "C:forEachExhaustedNonAttack" => 6d,
             "C:forEachDiscarded" => 1.1d,
             "C:playableIfDrawPileEmpty" => 0.08d,
             "CL:IfHandEmpty" => 0.16d,
@@ -815,7 +841,7 @@ internal static class EffectBalanceModel
             "R:AtTurnStartIfInExhaust" => 0.35d,
             // Waiting a full turn is a meaningful one-shot liability. It should print a visibly larger payoff
             // than the same immediate line instead of receiving the old default 8% premium.
-            "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnTriggerFrequency,
+            "C:NextTurnStart" or "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnTriggerFrequency,
             "NCR:IfOstyAttackedThisTurn" => 0.55d,
             "NCR:IfDoomAppliedThisTurn" => 0.45d,
             "NCR:IfOstyAlive" => 0.85d,
@@ -972,7 +998,8 @@ internal static class EffectBalanceModel
     {
         if (trigger.Scope == OperationScope.AbilityTrigger && trigger.Template != "CL:AfterTurns") return true;
         if (trigger.Template is "D:ForEachUniqueOrb" or "NCR:WheneverCardPlayedThisTurn"
-            or "C:grantNextAttacksThisTurn" or "C:untilTurnEndCardDrawn" or "D:NextTurnsStart"
+            or "C:grantNextAttacksThisTurn" or "C:untilTurnEndCardDrawn" or "C:untilTurnEndCardPlayed"
+            or "C:NextTurnsStart" or "D:NextTurnsStart"
             or "R:AtTurnStartIfInExhaust")
             return true;
         return OperationRuntimeSpecCompiler.GetOrCompile(trigger).Flags
@@ -1272,6 +1299,26 @@ internal static class EffectBalanceModel
         + EstimatedPositiveKeywordValue(tags);
 
     /// <summary>
+    /// Returns the complete card-face value after its explicit costs have been deducted. Additive payments are
+    /// subtracted directly; multiplier-style payments normalize the remaining reward by their calibrated factor.
+    /// This is algebraically equivalent to expanding the permitted reward envelope for a downside, but keeping the
+    /// cost on the evaluated side prevents fallback and audit paths from accidentally comparing uncompensated
+    /// positive text with an ordinary card budget.
+    /// </summary>
+    internal static double EstimatedNetCardValue(IReadOnlyList<GeneratorOperation> operations,
+        bool hasPrintedResourceCost, GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags,
+        GeneratedRarity rarity, GeneratedCharacter? character = null)
+    {
+        var positive = EstimatedPositiveCardValue(operations, hasPrintedResourceCost, cardType, tags);
+        var linearCost = NegativeEffectTuning.TotalLinearCompensationValue(operations, rarity);
+        // Use the same rounded percentage that historically expanded WholeCardBudgetBounds. This makes the
+        // refactor distribution-neutral while moving the complete downside calculation to the card-value side.
+        var multiplier = CardEffectRules.NegativeEffectCompensationPercent(operations, tags,
+            hasPrintedResourceCost, cardType, character) / 100d;
+        return (positive - linearCost) / Math.Max(1d, multiplier);
+    }
+
+    /// <summary>
     /// Exposes the exact per-operation contribution used by the whole-card generator valuation. This is audit-only
     /// plumbing: it deliberately reuses the production filters and contextual calculation rather than maintaining
     /// a second approximation of triggers, modifiers, card-copy roles or linked numeric fields.
@@ -1282,7 +1329,8 @@ internal static class EffectBalanceModel
     {
         if (operation.Template is "N_SELECT_HAND_CARD" or "N_SELECT_HAND_ATTACK"
             || !CardEffectRules.IsBeneficialEffect(operation)
-            || operation.Template != "C:untilTurnEnd"
+            || OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind
+                != "vulnerable_enemy_damage_reduction"
             && IsCondition(new ComponentAtom(operation.Template, operation.Scope, string.Empty,
                 operation.RequiresSingleTarget, CardReferenceRequirement.None)))
             return 0d;
@@ -1417,7 +1465,8 @@ internal static class EffectBalanceModel
             .Where(item => item.operation.Template is not
                 ("N_SELECT_HAND_CARD" or "N_SELECT_HAND_ATTACK")
                 && CardEffectRules.IsBeneficialEffect(item.operation)
-                && (item.operation.Template == "C:untilTurnEnd"
+                && (OperationRuntimeSpecCompiler.GetOrCompile(item.operation).Trigger?.Kind
+                        == "vulnerable_enemy_damage_reduction"
                     || CardEffectRules.IsSelfManagedStateEffect(item.operation)
                     || !IsCondition(new ComponentAtom(item.operation.Template, item.operation.Scope,
                         item.operation.ChineseText, item.operation.RequiresSingleTarget,
@@ -1514,7 +1563,7 @@ internal static class EffectBalanceModel
             operation.RequiresSingleTarget, CardReferenceRequirement.None)
             { RuntimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation) };
         var value = (double)EstimatedEffectValue(operation);
-        if (operation.Template == "NCR:GainEnergy"
+        if (CardEffectRules.IsEnergyGainOperation(operation)
             && operations.Any(candidate => candidate.Template == "NCR:IncreaseAllCardCostsThisTurn"))
             // Borrowed Time's four Energy is not four unrestricted Energy: making every follow-up card cost one
             // more consumes most of the nominal gain. Price the pair by its native net utility, while Wisp and
@@ -2009,7 +2058,8 @@ internal static class EffectBalanceModel
         var frequency = RelativeTriggerFrequency(trigger);
         double resolutions;
         if (CardEffectRules.IsDependencyPrefix(trigger)
-            || trigger.Template is "C:forEach" or "C:forEachDiscarded")
+            || trigger.Template is "C:forEach" or "C:forEachExhaustedCard"
+                or "C:forEachExhaustedNonAttack" or "C:forEachDiscarded")
             // These prefixes multiply by a live count (draw-pile size, cards played this combat, Star-cost cards,
             // cards exhausted by the preceding action, and so on). The old generic repeated-trigger cap of 3.5
             // silently contradicted the generation scaler and truncated explicit 5/8/10-count native effects.
@@ -2047,17 +2097,18 @@ internal static class EffectBalanceModel
             * NestedConditionMultiplier(triggerIndex, operationIndex, operation, operations);
     }
 
-    private static double PersistentResolutionCap(GeneratorOperation trigger) => trigger.Template switch
+    private static double PersistentResolutionCap(GeneratorOperation trigger)
     {
+        var kind = OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind;
         // These native Powers resolve far more than 4.5 times during an ordinary three-turn active lifetime.
-        "A:whenCardPlayed" or "A:whenCardDrawnDuringTurn" => 10d,
-        "A:whenAttackDealsDamage" => 6d,
+        if (kind is "card_played" or "card_drawn_during_turn") return 10d;
+        if (kind is "attack_dealt_damage" or "attack_damaged_enemy") return 6d;
         // End-of-turn Powers are normally drawn after combat begins and average fewer than three live ticks.
-        "A:turnEnd" => 2.5d,
+        if (kind == "turn_end") return 2.5d;
         // Debuff applications are frequent, but this Power is normally drawn after combat has already begun.
-        "A:whenDebuffApplied" => 4d,
-        _ => 4.5d
-    };
+        if (kind == "enemy_debuff_applied") return 4d;
+        return 4.5d;
+    }
 
     private static double DependencyResolutionCount(GeneratorOperation trigger, int triggerIndex,
         IReadOnlyList<GeneratorOperation> operations, double fallback)
@@ -2185,6 +2236,47 @@ internal static class EffectBalanceModel
         if (uncalibrated.Length > 0)
             throw new InvalidOperationException("以下触发/计数前件缺少显式触发频率：\n"
                                                 + string.Join("\n", uncalibrated));
+
+        static int AliasValue(string template, OperationScope scope, string text,
+            bool requiresTarget = false) => EstimatedEffectValue(new ComponentAtom(template, scope, text,
+            requiresTarget, CardReferenceRequirement.None));
+        var equivalentPricePairs = new[]
+        {
+            ("strength", AliasValue("N:Self", OperationScope.NonTargeted, "获得2点力量。"),
+                AliasValue("D:GainStrength", OperationScope.NonTargeted, "获得2点力量。")),
+            ("dexterity", AliasValue("N:Dex", OperationScope.NonTargeted, "获得2点敏捷。"),
+                AliasValue("D:GainDexterity", OperationScope.NonTargeted, "获得2点敏捷。")),
+            ("retain_hand", AliasValue("N:RetainHandThisTurn", OperationScope.NonTargeted,
+                    "在本回合保留你的手牌。"),
+                AliasValue("CL:RetainHandThisTurn", OperationScope.NonTargeted,
+                    "在本回合保留你的手牌。")),
+            ("random_colorless", AliasValue("N:AddRandomColorlessToHand", OperationScope.NonTargeted,
+                    "将1张随机无色牌加入手牌。"),
+                AliasValue("R:AddRandomColorlessToHand", OperationScope.NonTargeted,
+                    "将1张随机无色牌加入手牌。")),
+            ("discard_to_hand", AliasValue("N:MoveDiscardCardToHand", OperationScope.NonTargeted,
+                    "将弃牌堆中的一张牌放入手牌。"),
+                AliasValue("D:MoveDiscardCardToHand", OperationScope.NonTargeted,
+                    "将弃牌堆中的一张牌放入手牌。")),
+            ("temporary_enemy_strength_loss",
+                AliasValue("T:TempStrengthLoss", OperationScope.SingleEnemyOnly,
+                    "该敌人在本回合失去8点力量。", true),
+                AliasValue("T:Apply", OperationScope.SingleEnemyOnly,
+                    "使该敌人在本回合失去8点力量。", true)),
+            ("play_this_card", AliasValue("I:PlayThisCard", OperationScope.Independent, "打出此牌。"),
+                AliasValue("R:PlayThisCard", OperationScope.Independent, "打出此牌。")),
+            ("copy_this_to_discard", AliasValue("N:Create", OperationScope.NonTargeted,
+                    "将此牌的一张复制加入弃牌堆。"),
+                AliasValue("NCR:CreateCopyInDiscard", OperationScope.NonTargeted,
+                    "将此牌的一张复制加入弃牌堆。"))
+        };
+        var unequalEquivalentPrices = equivalentPricePairs
+            .Where(pair => pair.Item2 != pair.Item3)
+            .Select(pair => $"{pair.Item1}={pair.Item2}/{pair.Item3}")
+            .ToArray();
+        if (unequalEquivalentPrices.Length > 0)
+            throw new InvalidOperationException("语义相同的新组件与旧快照别名定价不一致："
+                                                + string.Join(", ", unequalEquivalentPrices));
 
         var doomAtoms = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder).Atoms
             .Where(atom => atom.Template is "NCR:ApplyDoom" or "NCR:ApplyDoomAll")
@@ -2351,7 +2443,7 @@ internal static class EffectBalanceModel
             || recurringDrawCenter >= immediateDrawCenter)
             throw new InvalidOperationException("重复触发抽牌没有计入持续卡差溢价，或没有回压卡面抽牌数值。 ");
 
-        var nextTwoTurns = new GeneratorOperation("D:NextTurnsStart", OperationScope.ConditionalTrigger,
+        var nextTwoTurns = new GeneratorOperation("C:NextTurnsStart", OperationScope.ConditionalTrigger,
             "在接下来的2个回合开始时。", new Dictionary<string, int>());
         var everyTenDraws = new GeneratorOperation("CL:EveryCardsDrawn", OperationScope.AbilityTrigger,
             "你每抽10张牌。", new Dictionary<string, int>());
@@ -2359,7 +2451,7 @@ internal static class EffectBalanceModel
             "每当你在一回合内打出5张牌时。", new Dictionary<string, int>());
         var afterThreeTurns = new GeneratorOperation("CL:AfterTurns", OperationScope.AbilityTrigger,
             "在3回合结束后。", new Dictionary<string, int>());
-        if (RelativeTriggerFrequency(nextTwoTurns) != 2d
+        if (RelativeTriggerFrequency(nextTwoTurns) != 2d * NextTurnTriggerFrequency
             || Math.Abs(RelativeTriggerFrequency(everyTenDraws) - 0.48d) > 0.0001d
             || Math.Abs(RelativeTriggerFrequency(everyFiveCards) - 0.32d) > 0.0001d
             || HasRepeatedOrMultiplicativePayoff(afterThreeTurns)
@@ -2498,7 +2590,7 @@ internal static class EffectBalanceModel
             || EstimatedEffectValue(extraHits) != 2_000
             || ExpectedExtraDamageHits(lostHpExtraHits) != 3
             || EstimatedEffectValue(lostHpExtraHits) != 3_000
-            || EstimatedEffectValue(doubleVulnerable) != 600
+            || EstimatedEffectValue(doubleVulnerable) != 750
             || EstimatedEffectValue(vulnerableStrength) != 2_400
             || EstimatedEffectValue(discardCopy) != CopyThisCardValuation.FreeReusableRewardValue
             || EstimatedEffectValue(zeroCostDiscardCopy) != CopyThisCardValuation.ZeroCostCopyRepresentativeValue
@@ -2681,6 +2773,7 @@ internal static class EffectBalanceModel
             (GeneratedCharacter.Regent, "BundleOfJoy", 2_565d),
             (GeneratedCharacter.Defect, "CreativeAi", 3_360d),
             (GeneratedCharacter.Ironclad, "Stoke", 2_700d),
+            (GeneratedCharacter.Ironclad, "MoltenFist", 1_750d),
             (GeneratedCharacter.Colorless, "RollingBoulder", 6_460d),
             (GeneratedCharacter.Silent, "Murder", 3_400d),
             (GeneratedCharacter.Necrobinder, "ReaperForm", 3_375d),

@@ -171,7 +171,8 @@ internal static class ChaosOperationExecutor
                 continue;
             if (operation.Scope == OperationScope.ConditionalTrigger)
             {
-                if (operation.Template is "C:forEach" or "D:ForEachExhaustedStatus")
+                if (operation.Template is "C:forEach" or "C:forEachExhaustedCard"
+                    or "C:forEachExhaustedNonAttack" or "D:ForEachExhaustedStatus")
                     await ExecuteForEach(card, index, choiceContext, cardPlay, state);
                 else if (operation.Template == "C:forEachDiscarded")
                     await ExecuteForEachDiscarded(card, index, choiceContext, cardPlay, state);
@@ -182,7 +183,8 @@ internal static class ChaosOperationExecutor
             if (operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex))
             {
                 var trigger = operations[triggerIndex];
-                if (trigger.Template is "C:forEach" or "C:forEachDiscarded" or "D:ForEachExhaustedStatus"
+                if (trigger.Template is "C:forEach" or "C:forEachExhaustedCard"
+                    or "C:forEachExhaustedNonAttack" or "C:forEachDiscarded" or "D:ForEachExhaustedStatus"
                     or "D:ForEachEnergySpentThisTurn") continue;
                 if (trigger.Scope == OperationScope.AbilityTrigger || IsLingeringTrigger(trigger)) continue;
                 if (!ConditionMatches(card, trigger, state)) continue;
@@ -603,6 +605,7 @@ internal static class ChaosOperationExecutor
         // Simple slotted Hand producers are handled by the shared dispatch above.
         if (operation.Template == "N:AllPoison") { await PowerCmd.Apply<PoisonPower>(choiceContext, combatState.HittableEnemies, amount, card.Owner.Creature, card); return; }
         if (operation.Template == "N:AllWeak") { await PowerCmd.Apply<WeakPower>(choiceContext, combatState.HittableEnemies, amount, card.Owner.Creature, card); return; }
+        if (operation.Template == "N:AllVulnerable") { await PowerCmd.Apply<VulnerablePower>(choiceContext, combatState.HittableEnemies, amount, card.Owner.Creature, card); return; }
         if (operation.Template == "N:AllTempStrengthLoss")
         {
             foreach (var enemy in combatState.HittableEnemies)
@@ -761,6 +764,19 @@ internal static class ChaosOperationExecutor
                 await PowerCmd.Apply<DrawCardsNextTurnPower>(choiceContext, card.Owner.Creature, amount,
                     card.Owner.Creature, card);
                 return true;
+            case ("create_card", "random_colorless"):
+            {
+                var count = ExecutableOperationCount(card.Generated.Operations[operationIndex], amount);
+                if (count == 0) return true;
+                var candidates = RandomCombatGenerationCandidates(ModelDb.CardPool<ColorlessCardPool>()
+                        .GetUnlockedCards(card.Owner.UnlockState, card.Owner.RunState.CardMultiplayerConstraint))
+                    .Where(candidate => candidate.Id != card.Id);
+                var generated = CardFactory.GetDistinctForCombat(card.Owner, candidates, count,
+                    card.Owner.RunState.Rng.CombatCardGeneration).ToArray();
+                UpgradeGeneratedCards(card, operationIndex, generated);
+                await CardPileCmd.AddGeneratedCardsToCombat(generated, PileType.Hand, card.Owner);
+                return true;
+            }
             case ("gain_energy", "immediate"):
                 await PlayerCmd.GainEnergy(amount, card.Owner);
                 return true;
@@ -772,9 +788,19 @@ internal static class ChaosOperationExecutor
                 await PlayerCmd.GainStars(amount, card.Owner);
                 return true;
             case ("lose_hp", "immediate"):
-                await CreatureCmd.Damage(choiceContext, card.Owner.Creature, amount,
-                    ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move, card, cardPlay);
+            {
+                if (spec.Target == "self")
+                    await CreatureCmd.Damage(choiceContext, card.Owner.Creature, amount,
+                        ValueProp.Unblockable | ValueProp.Unpowered | ValueProp.Move, card, cardPlay);
+                else
+                {
+                    var target = state.Target ?? cardPlay.Target;
+                    if (target is not null)
+                        await CreatureCmd.Damage(choiceContext, target, amount,
+                            ValueProp.Unblockable | ValueProp.Unpowered, card.Owner.Creature, card, cardPlay);
+                }
                 return true;
+            }
             case ("heal", "immediate"):
                 await CreatureCmd.Heal(card.Owner.Creature, amount);
                 return true;
@@ -783,6 +809,15 @@ internal static class ChaosOperationExecutor
                 return true;
             case ("discard_card", "all") when spec.SourceZone == "hand":
                 await Discard(card, int.MaxValue, choiceContext, state);
+                return true;
+            case ("move_card", "selected")
+                when spec.SourceZone == "discard" && spec.DestinationZone == "hand":
+                await MoveSelectedDiscardCardsToHand(choiceContext, card.Owner,
+                    Math.Max(1, RuntimeSpecValue(card, operationIndex, "count", amount)));
+                return true;
+            case ("apply_power", "retain_hand_this_turn") when spec.Target == "self":
+                await PowerCmd.Apply<RetainHandPower>(choiceContext, card.Owner.Creature, 1,
+                    card.Owner.Creature, card);
                 return true;
             case ("apply_power", "vulnerable_double"):
             {
@@ -800,6 +835,30 @@ internal static class ChaosOperationExecutor
             case ("apply_power", "strength_loss_this_turn"):
             case ("apply_power", "strength_gain"):
             {
+                if (spec.Target == "all_enemies")
+                {
+                    var enemies = (card.CombatState ?? card.Owner.Creature.CombatState)?.HittableEnemies
+                        ?? Array.Empty<Creature>();
+                    if (spec.Variant == "vulnerable")
+                        await PowerCmd.Apply<VulnerablePower>(choiceContext, enemies, amount,
+                            card.Owner.Creature, card);
+                    else if (spec.Variant == "weak")
+                        await PowerCmd.Apply<WeakPower>(choiceContext, enemies, amount,
+                            card.Owner.Creature, card);
+                    else if (spec.Variant == "strength_loss_this_turn")
+                        foreach (var enemy in enemies)
+                            await PowerCmd.Apply<ManglePower>(choiceContext, enemy, amount,
+                                card.Owner.Creature, card);
+                    else if (spec.Variant == "strength_loss")
+                        foreach (var enemy in enemies)
+                            await PowerCmd.Apply<StrengthPower>(choiceContext, enemy, -amount,
+                                card.Owner.Creature, card);
+                    else
+                        foreach (var enemy in enemies)
+                            await PowerCmd.Apply<StrengthPower>(choiceContext, enemy, amount,
+                                card.Owner.Creature, card);
+                    return true;
+                }
                 var target = state.Target ?? cardPlay.Target;
                 if (target is null) return true;
                 if (spec.Variant == "vulnerable")
@@ -879,6 +938,10 @@ internal static class ChaosOperationExecutor
                 await PowerCmd.Apply<SetupStrikePower>(choiceContext, card.Owner.Creature, amount,
                     card.Owner.Creature, card);
                 return true;
+            case "vigor":
+                await PowerCmd.Apply<VigorPower>(choiceContext, card.Owner.Creature, amount,
+                    card.Owner.Creature, card);
+                return true;
             case "strength_loss":
                 await PowerCmd.Apply<StrengthPower>(choiceContext, card.Owner.Creature, -amount,
                     card.Owner.Creature, card);
@@ -913,7 +976,7 @@ internal static class ChaosOperationExecutor
         if (spec is not { Opcode: "apply_power", Target: "self" }) return null;
         return spec.Variant is "dexterity_gain" or "dexterity_loss" or "dexterity_gain_this_turn"
             or "doom" or "focus_loss" or "focus_loss_this_turn" or "thorns" or "intangible" or "blur"
-            or "plating" or "strength" or "strength_this_turn" or "strength_loss"
+            or "plating" or "strength" or "strength_this_turn" or "vigor" or "strength_loss"
             or "strength_loss_this_turn" or "strength_per_target_vulnerable"
                 ? spec.Variant
                 : null;
@@ -1252,6 +1315,11 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "CL:ReturnThisToHand":
+                // The next-turn trigger owns the timing. Executing the linked payoff here makes the reviewed
+                // trigger + effect composition work independently of ChaosCardModel's legacy pile hook; the
+                // hook remains as a compatibility fallback for already-saved cards authored before the split.
+                await TryAddToHand(card);
+                return;
             case "CL:IncreaseRollingDamage":
             case "CL:AtNextTurnStart":
             case "CL:IfFatal":
@@ -3622,13 +3690,22 @@ internal static class ChaosOperationExecutor
 
     private static bool IsLingeringTrigger(GeneratorOperation operation) => operation.Scope == OperationScope.ConditionalTrigger
         && (operation.Template is "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:after" or "C:for"
-            or "C:grantNextAttacksThisTurn" or "C:grantNextAttack"
+            or "C:grantNextAttacksThisTurn" or "C:grantNextAttack" or "C:untilTurnEndCardPlayed"
+            or "C:untilTurnEndAttackPlayed" or "C:untilTurnEndAttackReceived"
+            or "C:VulnerableEnemyDamageReductionThisTurn"
+            or "C:whenThisCardExhausted" or "C:AtTurnEndIfInExhaust"
+            or "C:NextTurnStart" or "C:NextTurnsStart"
             or "NCR:NextTurn" or "R:NextTurn" or "R:AtTurnStartIfInExhaust" or "D:NextTurnsStart"
             or "CL:AtNextTurnStart");
 
     private static bool IsCompositePowerTrigger(GeneratorOperation operation) => operation.Scope == OperationScope.ConditionalTrigger
         && (operation.Template is "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:for"
-            or "C:grantNextAttacksThisTurn" or "C:grantNextAttack" or "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart"
+            or "C:grantNextAttacksThisTurn" or "C:grantNextAttack" or "C:untilTurnEndCardPlayed"
+            or "C:untilTurnEndAttackPlayed" or "C:untilTurnEndAttackReceived"
+            or "C:VulnerableEnemyDamageReductionThisTurn"
+            or "C:whenThisCardExhausted" or "C:AtTurnEndIfInExhaust"
+            or "C:NextTurnStart" or "C:NextTurnsStart"
+            or "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart"
             or "CL:AtNextTurnStart");
 
     internal static bool RequiresCompositePower(GeneratorOperation operation) =>

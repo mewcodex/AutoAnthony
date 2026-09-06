@@ -273,8 +273,8 @@
     "Id": "colorless/darkshackles/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_target_action",
-      "Variant": "cl_targetlosestrengththisturn",
+      "Opcode": "apply_power",
+      "Variant": "strength_loss_this_turn",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -283,7 +283,6 @@
         "event_enemy_reference",
         "has_numeric_literal",
         "requires_selected_enemy",
-        "requires_single_target",
         "strength_reference",
         "this_turn_reference"
       ],
@@ -468,8 +467,8 @@
     "Id": "colorless/equilibrium/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "cl_retainhandthisturn",
+      "Opcode": "apply_power",
+      "Variant": "retain_hand_this_turn",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -869,11 +868,11 @@
     "Id": "colorless/jackofalltrades/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "cl_addrandomcolorlesstohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "create_card",
+      "Variant": "random_colorless",
+      "Target": "generated_card",
+      "SourceZone": "colorless_pool",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
@@ -882,7 +881,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "count",
           "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
@@ -1336,8 +1335,8 @@
     "Id": "colorless/preptime/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "cl_gainvigor",
+      "Opcode": "apply_power",
+      "Variant": "vigor",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -1443,8 +1442,8 @@
     "Id": "colorless/prowess/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_dex",
+      "Opcode": "apply_power",
+      "Variant": "dexterity_gain",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -1761,8 +1760,8 @@
     "Id": "colorless/salvo/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "cl_retainhandthisturn",
+      "Opcode": "apply_power",
+      "Variant": "retain_hand_this_turn",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -1903,9 +1902,9 @@
     "Id": "colorless/shockwave/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "cl_applyweakall",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -1934,9 +1933,9 @@
     "Id": "colorless/shockwave/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "cl_applyvulnerableall",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -2882,8 +2881,8 @@
     "Id": "defect/bulkup/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "d_gainstrength",
+      "Opcode": "apply_power",
+      "Variant": "strength",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -2912,8 +2911,8 @@
     "Id": "defect/bulkup/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "d_gaindexterity",
+      "Opcode": "apply_power",
+      "Variant": "dexterity_gain",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -3062,8 +3061,8 @@
     "Id": "defect/chargebattery/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "gain_energy",
-      "Variant": "next_turn",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -3071,7 +3070,31 @@
       "Flags": [
         "count_unit_reference",
         "delayed_effect",
-        "has_numeric_literal"
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "defect/chargebattery/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -4523,9 +4546,9 @@
     "Id": "defect/gunkup/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "d_repeatdamage",
-      "Target": "self",
+      "Opcode": "modify_hits",
+      "Variant": "flat_extra",
+      "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -4537,7 +4560,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "extra_hits",
           "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
@@ -4754,18 +4777,27 @@
     "Id": "defect/hologram/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "d_movediscardcardtohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "move_card",
+      "Variant": "selected",
+      "Target": "selected_card",
+      "SourceZone": "discard",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
         "replenishes_hand",
         "requires_player_choice"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -5790,9 +5822,9 @@
     "Id": "defect/refract/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "d_repeatdamage",
-      "Target": "self",
+      "Opcode": "modify_hits",
+      "Variant": "flat_extra",
+      "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -5804,7 +5836,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "extra_hits",
           "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
@@ -5996,8 +6028,8 @@
     "Id": "defect/scavenge/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "gain_energy",
-      "Variant": "next_turn",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -6005,7 +6037,31 @@
       "Flags": [
         "count_unit_reference",
         "delayed_effect",
-        "has_numeric_literal"
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "defect/scavenge/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -7077,9 +7133,9 @@
     "Id": "defect/uproar/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "d_repeatdamage",
-      "Target": "self",
+      "Opcode": "modify_hits",
+      "Variant": "flat_extra",
+      "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -7091,7 +7147,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "extra_hits",
           "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
@@ -9419,12 +9475,9 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "attack_received_reference",
-        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value",
-        "repeated_or_multiplicative",
-        "this_turn_reference"
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -10997,8 +11050,8 @@
     "Id": "ironclad/setupstrike/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_independent_action",
-      "Variant": "i_gaintemporarystrength",
+      "Opcode": "apply_power",
+      "Variant": "strength_this_turn",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -12658,15 +12711,16 @@
     "Id": "necrobinder/capturespirit/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_target_action",
-      "Variant": "ncr_targethploss",
+      "Opcode": "lose_hp",
+      "Variant": "immediate",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "event_enemy_reference",
         "has_numeric_literal",
-        "requires_single_target"
+        "requires_selected_enemy"
       ],
       "Values": [
         {
@@ -12805,6 +12859,7 @@
       "Flags": [
         "apply_status_reference",
         "doom_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "random_enemy_reference",
         "requires_single_target",
@@ -12925,9 +12980,9 @@
     "Id": "necrobinder/deathbringer/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "ncr_applyweakall",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -13334,8 +13389,8 @@
     "Id": "necrobinder/delay/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "gain_energy",
-      "Variant": "next_turn",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -13343,7 +13398,31 @@
       "Flags": [
         "count_unit_reference",
         "delayed_effect",
-        "has_numeric_literal"
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "necrobinder/delay/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -13706,8 +13785,8 @@
     "Id": "necrobinder/enfeeblingtouch/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_target_action",
-      "Variant": "ncr_targetlosestrengththisturn",
+      "Opcode": "apply_power",
+      "Variant": "strength_loss_this_turn",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -13716,7 +13795,6 @@
         "event_enemy_reference",
         "has_numeric_literal",
         "requires_selected_enemy",
-        "requires_single_target",
         "strength_reference",
         "this_turn_reference"
       ],
@@ -14124,18 +14202,27 @@
     "Id": "necrobinder/graveblast/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "ncr_movediscardcardtohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "move_card",
+      "Variant": "selected",
+      "Target": "selected_card",
+      "SourceZone": "discard",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
         "replenishes_hand",
         "requires_player_choice"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -14277,16 +14364,15 @@
     "Id": "necrobinder/haunt/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_target_action",
-      "Variant": "ncr_targethploss",
-      "Target": "selected_enemy",
+      "Opcode": "lose_hp",
+      "Variant": "immediate",
+      "Target": "random_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
         "has_numeric_literal",
-        "random_enemy_reference",
-        "requires_single_target"
+        "random_enemy_reference"
       ],
       "Values": [
         {
@@ -14335,9 +14421,9 @@
     "Id": "necrobinder/highfive/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "ncr_applyvulnerableall",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -14374,7 +14460,8 @@
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
-        "delayed_effect"
+        "delayed_effect",
+        "turn_start_reference"
       ],
       "Values": [],
       "Condition": null,
@@ -14881,6 +14968,7 @@
       "Flags": [
         "apply_status_reference",
         "doom_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "requires_single_target",
         "scalable_reward_wording"
@@ -14966,8 +15054,8 @@
     "Id": "necrobinder/oblivion/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "ncr_whenevercardplayedthisturn",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -14980,7 +15068,12 @@
       ],
       "Values": [],
       "Condition": null,
-      "Trigger": null
+      "Trigger": {
+        "Kind": "card_played",
+        "Lifetime": "this_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
     }
   },
   {
@@ -14988,7 +15081,7 @@
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_target_action",
-      "Variant": "ncr_applypower_oblivionpower",
+      "Variant": "ncr_applydoom",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -14998,7 +15091,6 @@
         "doom_reference",
         "event_enemy_reference",
         "has_numeric_literal",
-        "requires_selected_enemy",
         "requires_single_target",
         "scalable_reward_wording"
       ],
@@ -15643,6 +15735,7 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
+        "host_discard_lifecycle",
         "repeated_or_multiplicative"
       ],
       "Values": [
@@ -15760,6 +15853,7 @@
       "Flags": [
         "apply_status_reference",
         "doom_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "requires_single_target",
         "scalable_reward_wording"
@@ -16813,17 +16907,26 @@
     "Id": "necrobinder/undeath/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "ncr_createcopyindiscard",
-      "Target": "self",
+      "Opcode": "create_copy",
+      "Variant": "this_card",
+      "Target": "self_card",
       "SourceZone": "none",
-      "DestinationZone": "none",
+      "DestinationZone": "discard",
       "CardFilter": "any",
       "Flags": [
         "copy_this_to_discard",
         "count_unit_reference"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -17017,8 +17120,8 @@
     "Id": "regent/arsenal/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_gainstrength",
+      "Opcode": "apply_power",
+      "Variant": "strength",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -17494,11 +17597,11 @@
     "Id": "regent/bundleofjoy/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_addrandomcolorlesstohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "create_card",
+      "Variant": "random_colorless",
+      "Target": "generated_card",
+      "SourceZone": "colorless_pool",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
@@ -17507,7 +17610,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "count",
           "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
@@ -17551,9 +17654,9 @@
     "Id": "regent/celestialmight/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "r_repeatdamage",
-      "Target": "self",
+      "Opcode": "modify_hits",
+      "Variant": "flat_extra",
+      "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -17565,7 +17668,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "extra_hits",
           "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
@@ -17902,8 +18005,8 @@
     "Id": "regent/convergence/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_retainhandthisturn",
+      "Opcode": "apply_power",
+      "Variant": "retain_hand_this_turn",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -18227,9 +18330,9 @@
     "Id": "regent/crushunder/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_enemieslosestrengththisturn",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "strength_loss_this_turn",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -18426,9 +18529,9 @@
     "Id": "regent/dyingstar/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_enemieslosestrengththisturn",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "strength_loss_this_turn",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -19996,18 +20099,27 @@
     "Id": "regent/manifestauthority/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_addrandomcolorlesstohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "create_card",
+      "Variant": "random_colorless",
+      "Target": "generated_card",
+      "SourceZone": "colorless_pool",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
-        "add_one_card_to_hand_reference",
         "count_unit_reference",
+        "has_numeric_literal",
         "replenishes_hand"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -20054,9 +20166,9 @@
     "Id": "regent/meteorshower/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_applyweakall",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -20085,9 +20197,9 @@
     "Id": "regent/meteorshower/2",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_applyvulnerableall",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -20140,8 +20252,8 @@
     "Id": "regent/monarchsgaze/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_target_action",
-      "Variant": "r_targetlosestrengththisturn",
+      "Opcode": "apply_power",
+      "Variant": "strength_loss_this_turn",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -20150,7 +20262,6 @@
         "event_enemy_reference",
         "has_numeric_literal",
         "requires_selected_enemy",
-        "requires_single_target",
         "strength_reference",
         "this_turn_reference"
       ],
@@ -20198,8 +20309,8 @@
     "Id": "regent/monologue/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_gainstrengththisturn",
+      "Opcode": "apply_power",
+      "Variant": "strength_this_turn",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -20512,8 +20623,8 @@
     "Id": "regent/patter/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_gainvigor",
+      "Opcode": "apply_power",
+      "Variant": "vigor",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -20957,8 +21068,8 @@
     "Id": "regent/resonance/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_gainstrength",
+      "Opcode": "apply_power",
+      "Variant": "strength",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -21320,11 +21431,11 @@
     "Id": "regent/spectrumshift/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_addrandomcolorlesstohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "create_card",
+      "Variant": "random_colorless",
+      "Target": "generated_card",
+      "SourceZone": "colorless_pool",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
@@ -21333,7 +21444,7 @@
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "count",
           "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
@@ -21629,8 +21740,8 @@
     "Id": "regent/terraforming/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_gainvigor",
+      "Opcode": "apply_power",
+      "Variant": "vigor",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -21960,8 +22071,8 @@
     "Id": "silent/abrasive/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_dex",
+      "Opcode": "apply_power",
+      "Variant": "dexterity_gain",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -22626,6 +22737,7 @@
       "CardFilter": "any",
       "Flags": [
         "apply_status_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "poison_reference",
         "scalable_reward_wording"
@@ -23051,6 +23163,7 @@
       "CardFilter": "any",
       "Flags": [
         "apply_status_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "poison_reference",
         "scalable_reward_wording"
@@ -23166,19 +23279,43 @@
     "Id": "silent/dodgeandroll/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_nextturnblock",
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "delayed_effect",
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "silent/dodgeandroll/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
         "block_reference",
-        "count_unit_reference",
-        "delayed_effect",
         "has_numeric_literal",
         "immediate_block_gain",
-        "printed_block_value"
+        "printed_block_value",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -23254,20 +23391,43 @@
     "Id": "silent/envenom/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "combat_rule",
-      "Variant": "unblocked_attack_applies_poison",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "apply_status_reference",
         "attack_damage_reference",
         "block_reference",
-        "count_unit_reference",
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "attack_dealt_damage",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "silent/envenom/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "template_target_action",
+      "Variant": "t_poison",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "poison_reference",
-        "repeated_or_multiplicative"
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -23643,8 +23803,8 @@
     "Id": "silent/footwork/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_dex",
+      "Opcode": "apply_power",
+      "Variant": "dexterity_gain",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -23817,9 +23977,9 @@
     "Id": "silent/haze/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_allweak",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -24558,9 +24718,9 @@
     "Id": "silent/piercingwail/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_alltempstrengthloss",
-      "Target": "self",
+      "Opcode": "apply_power",
+      "Variant": "strength_loss_this_turn",
+      "Target": "all_enemies",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
@@ -24689,6 +24849,7 @@
       "CardFilter": "any",
       "Flags": [
         "apply_status_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "poison_reference",
         "scalable_reward_wording"
@@ -24856,8 +25017,8 @@
     "Id": "silent/predator/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_nextturndraw",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -24865,9 +25026,36 @@
       "Flags": [
         "count_unit_reference",
         "delayed_effect",
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "silent/predator/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
         "effect_family_draw",
-        "field_variant_delayed_clause",
-        "has_numeric_literal"
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -25138,8 +25326,8 @@
     "Id": "silent/sidestep/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "gain_energy",
-      "Variant": "next_turn",
+      "Opcode": "trigger",
+      "Variant": "event",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -25147,7 +25335,31 @@
       "Flags": [
         "count_unit_reference",
         "delayed_effect",
-        "has_numeric_literal"
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "silent/sidestep/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
@@ -25240,6 +25452,7 @@
       "CardFilter": "any",
       "Flags": [
         "apply_status_reference",
+        "event_enemy_reference",
         "has_numeric_literal",
         "poison_reference",
         "scalable_reward_wording"
@@ -25423,20 +25636,42 @@
     "Id": "silent/strangle/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_target_action",
-      "Variant": "t_strangle",
-      "Target": "selected_enemy",
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
         "any_card_played_reference",
         "count_unit_reference",
+        "repeated_or_multiplicative",
+        "this_turn_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "card_played",
+        "Lifetime": "this_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "silent/strangle/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "lose_hp",
+      "Variant": "immediate",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
         "event_enemy_reference",
         "has_numeric_literal",
-        "repeated_or_multiplicative",
-        "requires_selected_enemy",
-        "this_turn_reference"
+        "requires_selected_enemy"
       ],
       "Values": [
         {

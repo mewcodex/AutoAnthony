@@ -59,9 +59,24 @@ public static class ExternalConsumer
             12345, balancedValues: true);
         _ = ComponentRunSettingsApi.Local;
         _ = ComponentRunSettingsApi.TryResolveMultiplayer([], out _);
+        _ = AutoAnthonySettingsApi.ApiVersion;
+        _ = AutoAnthonySettingsApi.Enabled;
+        _ = AutoAnthonySettingsApi.AnytimeCardEditing;
         using var progress = ComponentGenerationProgressApi.Create(1);
         progress.Report(1);
         _ = ComponentSurpriseApi.IsGenerated(null);
+        var tinkeringProbe = new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other,
+            GeneratedRarity.Common, string.Empty, [], []);
+        _ = CardTinkeringApi.ApiVersion;
+        _ = CardTinkeringApi.Evaluate(tinkeringProbe);
+        _ = CardTinkeringApi.Evaluate(tinkeringProbe, balancedValues: false);
+        _ = CardTinkeringApi.EvaluateBudget(tinkeringProbe);
+        _ = CardTinkeringApi.EvaluateBudget(tinkeringProbe, balancedValues: false);
+        _ = CardTinkeringApi.EvaluateComponent(new GeneratorOperation("probe", OperationScope.Independent,
+            string.Empty, new Dictionary<string, int>()));
+        _ = CardTinkeringApi.Validate(tinkeringProbe, []);
+        _ = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(tinkeringProbe));
+        _ = CardTinkeringApi.Rebuild(tinkeringProbe, []);
     }
 
     public static async Task CompileTriggerBridge(ChaosCardModel card, Player player,

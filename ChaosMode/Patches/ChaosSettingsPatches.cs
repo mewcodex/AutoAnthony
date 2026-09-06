@@ -4,6 +4,7 @@ using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Logging;
+using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
@@ -14,7 +15,7 @@ namespace AutoAnthony.Patches;
 
 internal static class ChaosSettingsToggle
 {
-    internal enum Kind { None, Enabled, ReplaceStartingCards, PreserveOriginalCards, UltimateChaos, NumericBalanceOptimization, NumericRandomMode, RandomCardArt, GenerationModeHoverTips, CardInternalIds, SurpriseMode, SurpriseModeLite, SurpriseModePro }
+    internal enum Kind { None, Enabled, ReplaceStartingCards, PreserveOriginalCards, UltimateChaos, NumericBalanceOptimization, NumericRandomMode, AnytimeCardEditing, RandomCardArt, GenerationModeHoverTips, CardInternalIds, SurpriseMode, SurpriseModeLite, SurpriseModePro }
 
     internal const string GroupLineName = "AutoAnthonySettingsGroup";
     internal const string GroupButtonName = "AutoAnthonySettingsGroupButton";
@@ -24,6 +25,7 @@ internal static class ChaosSettingsToggle
     internal const string NumericBalanceOptimizationLineName = "AutoAnthonyNumericBalanceOptimization";
     internal const string NumericRandomModeLineName = "AutoAnthonyNumericRandomMode";
     internal const string PreserveOriginalCardsLineName = "AutoAnthonyPreserveOriginalCards";
+    internal const string AnytimeCardEditingLineName = "AutoAnthonyAnytimeCardEditing";
     internal const string NumericCategoryLineName = "AutoAnthonyNumericCategory";
     internal const string PoolCategoryLineName = "AutoAnthonyPoolCategory";
     internal const string DisplayCategoryLineName = "AutoAnthonyDisplayCategory";
@@ -41,17 +43,22 @@ internal static class ChaosSettingsToggle
     internal static NFastModeTickbox? NumericBalanceOptimizationInstance { get; set; }
     internal static NFastModeTickbox? NumericRandomModeInstance { get; set; }
     internal static NFastModeTickbox? PreserveOriginalCardsInstance { get; set; }
+    internal static NFastModeTickbox? AnytimeCardEditingInstance { get; set; }
     internal static NFastModeTickbox? RandomCardArtInstance { get; set; }
     internal static NFastModeTickbox? GenerationModeHoverTipsInstance { get; set; }
     internal static NFastModeTickbox? CardInternalIdsInstance { get; set; }
     internal static NFastModeTickbox? SurpriseModeInstance { get; set; }
     internal static NFastModeTickbox? SurpriseModeLiteInstance { get; set; }
     internal static NFastModeTickbox? SurpriseModeProInstance { get; set; }
+
+    internal static bool IsCardTinkeringLoaded => ModManager.GetLoadedMods().Any(mod =>
+        string.Equals(mod.manifest?.id, "AutoAnthonyCardTinkering", StringComparison.Ordinal));
     internal static NOpenModdingScreenButton? OptimizeHistoryButtonInstance { get; set; }
 
     internal static readonly string[] OptionLineNames =
     [EnabledLineName, NumericCategoryLineName, NumericBalanceOptimizationLineName, NumericRandomModeLineName,
         PoolCategoryLineName, UltimateChaosLineName, ReplaceStartingCardsLineName, PreserveOriginalCardsLineName,
+        AnytimeCardEditingLineName,
         DisplayCategoryLineName, RandomCardArtLineName, GenerationModeHoverTipsLineName, CardInternalIdsLineName,
         SurpriseModeLineName, SurpriseModeLiteLineName, SurpriseModeProLineName,
         OptimizeHistoryLineName];
@@ -78,6 +85,9 @@ internal static class ChaosSettingsToggle
         if (instance == PreserveOriginalCardsInstance || instance.Name.ToString() == PreserveOriginalCardsLineName
             || lineName == PreserveOriginalCardsLineName)
             return Kind.PreserveOriginalCards;
+        if (instance == AnytimeCardEditingInstance || instance.Name.ToString() == AnytimeCardEditingLineName
+            || lineName == AnytimeCardEditingLineName)
+            return Kind.AnytimeCardEditing;
         if (instance == RandomCardArtInstance || instance.Name.ToString() == RandomCardArtLineName
             || lineName == RandomCardArtLineName)
             return Kind.RandomCardArt;
@@ -108,6 +118,7 @@ internal static class ChaosSettingsToggle
         Kind.NumericBalanceOptimization => ChaosModSettings.NumericBalanceOptimization,
         Kind.NumericRandomMode => ChaosModSettings.NumericRandomMode,
         Kind.PreserveOriginalCards => ChaosModSettings.PreserveOriginalCards,
+        Kind.AnytimeCardEditing => ChaosModSettings.AnytimeCardEditing,
         Kind.RandomCardArt => ChaosModSettings.RandomCardArt,
         Kind.GenerationModeHoverTips => ChaosModSettings.ShowGenerationModeHoverTips,
         Kind.CardInternalIds => ChaosModSettings.ShowCardInternalIds,
@@ -131,6 +142,7 @@ internal static class ChaosSettingsToggle
             case Kind.NumericBalanceOptimization: ChaosModSettings.NumericBalanceOptimization = value; break;
             case Kind.NumericRandomMode: ChaosModSettings.NumericRandomMode = value; break;
             case Kind.PreserveOriginalCards: ChaosModSettings.PreserveOriginalCards = value; break;
+            case Kind.AnytimeCardEditing: ChaosModSettings.AnytimeCardEditing = value; break;
             case Kind.RandomCardArt: ChaosModSettings.RandomCardArt = value; break;
             case Kind.GenerationModeHoverTips: ChaosModSettings.ShowGenerationModeHoverTips = value; break;
             case Kind.CardInternalIds: ChaosModSettings.ShowCardInternalIds = value; break;
@@ -154,6 +166,7 @@ internal static class ChaosSettingsToggle
             Kind.NumericBalanceOptimization => "AUTO_ANTHONY_NUMERIC_BALANCE_OPTIMIZATION",
             Kind.NumericRandomMode => "AUTO_ANTHONY_NUMERIC_RANDOM_MODE",
             Kind.PreserveOriginalCards => "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS",
+            Kind.AnytimeCardEditing => "AUTO_ANTHONY_ANYTIME_CARD_EDITING",
             Kind.RandomCardArt => "AUTO_ANTHONY_RANDOM_CARD_ART",
             Kind.GenerationModeHoverTips => "AUTO_ANTHONY_GENERATION_MODE_HOVER_TIPS",
             Kind.CardInternalIds => "AUTO_ANTHONY_CARD_INTERNAL_IDS",
@@ -264,6 +277,14 @@ internal static class ChaosSettingsScreenPatch
             {
                 ChaosSettingsToggle.PreserveOriginalCardsInstance = AddRow(content, source,
                     ChaosSettingsToggle.PreserveOriginalCardsLineName, "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS",
+                    insertionIndex + addedRows);
+                addedRows++;
+            }
+            if (ChaosSettingsToggle.IsCardTinkeringLoaded
+                && content.GetNodeOrNull<Node>(ChaosSettingsToggle.AnytimeCardEditingLineName) is null)
+            {
+                ChaosSettingsToggle.AnytimeCardEditingInstance = AddRow(content, source,
+                    ChaosSettingsToggle.AnytimeCardEditingLineName, "AUTO_ANTHONY_ANYTIME_CARD_EDITING",
                     insertionIndex + addedRows);
                 addedRows++;
             }
@@ -604,6 +625,8 @@ internal static class UltimateChaosHoverTipPatch
                 ("AUTO_ANTHONY_NUMERIC_RANDOM_MODE", "AUTO_ANTHONY_NUMERIC_RANDOM_MODE_DESCRIPTION"),
             ChaosSettingsToggle.PreserveOriginalCardsLineName =>
                 ("AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS", "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS_DESCRIPTION"),
+            ChaosSettingsToggle.AnytimeCardEditingLineName =>
+                ("AUTO_ANTHONY_ANYTIME_CARD_EDITING", "AUTO_ANTHONY_ANYTIME_CARD_EDITING_DESCRIPTION"),
             ChaosSettingsToggle.RandomCardArtLineName =>
                 ("AUTO_ANTHONY_RANDOM_CARD_ART", "AUTO_ANTHONY_RANDOM_CARD_ART_DESCRIPTION"),
             ChaosSettingsToggle.GenerationModeHoverTipsLineName =>

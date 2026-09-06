@@ -30,9 +30,9 @@ This is the reviewed offline authoring source. Each `⟦...⟧` stores: operatio
 | 致命毒药 `DeadlyPoison` | 1/-/Skill/SingleEnemy/Common | ⟦T:Poison¦SingleEnemyOnly¦false¦None¦-1¦给予5层中毒。¦Apply 5 Poison.⟧ |  |  |
 | 防御 `DefendSilent` | 1/-/Skill/Other/Basic | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得5点格挡。¦Gain 5 Block.⟧ | Defend |  |
 | 偏折 `Deflect` | 0/-/Skill/Other/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得4点格挡。¦Gain 4 Block.⟧ |  |  |
-| 闪躲翻滚 `DodgeAndRoll` | 1/-/Skill/Other/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得4点格挡。¦Gain 4 Block.⟧；⟦N:NextTurnBlock¦NonTargeted¦false¦None¦-1¦在下个回合，获得4点格挡。¦Next turn, gain 4 Block.⟧ |  |  |
+| 闪躲翻滚 `DodgeAndRoll` | 1/-/Skill/Other/Common | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得4点格挡。¦Gain 4 Block.⟧；⟦C:NextTurnStart¦ConditionalTrigger¦false¦None¦-1¦在你的下个回合开始时。¦At the start of your next turn.⟧；⟦N:B¦NonTargeted¦false¦None¦1¦获得4点格挡。¦Gain 4 Block.⟧ |  |  |
 | 回响斩击 `EchoingSlash` | 1/-/Attack/Other/Uncommon | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成10点伤害。¦Deal 10 damage to ALL enemies.⟧；⟦M:RepeatAreaOnKill¦Modifier¦false¦None¦-1¦每有一名敌人被击杀，就重复此效果。¦Repeat this effect for each enemy killed.⟧ |  |  |
-| 涂毒 `Envenom` | 2/-/Power/Other/Rare | ⟦A:ruleUnblockedAttackPoison¦AbilityRule¦false¦None¦-1¦每有一次攻击造成未被格挡的伤害，就给予1层中毒。¦Whenever an Attack deals unblocked damage, apply 1 Poison.⟧ |  |  |
+| 涂毒 `Envenom` | 2/-/Power/Other/Rare | ⟦A:whenAttackDealsUnblockedDamage¦AbilityTrigger¦false¦None¦-1¦每当你的攻击造成未被格挡的伤害时。¦Whenever your Attack deals unblocked damage.⟧；⟦T:Poison¦SingleEnemyOnly¦false¦None¦0¦给予1层中毒。¦Apply 1 Poison.⟧ |  |  |
 | 逃脱计划 `EscapePlan` | 0/-/Skill/Other/Uncommon | ⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽1张牌。¦Draw 1 card.⟧；⟦C:ifLastDrawnSkill¦ConditionalTrigger¦false¦None¦-1¦如果抽到的是技能牌。¦If the card drawn is a Skill.⟧；⟦N:B¦NonTargeted¦false¦None¦1¦获得3点格挡。¦Gain 3 Block.⟧ |  |  |
 | 独门技术 `Expertise` | 1/-/Skill/Other/Uncommon | ⟦I:DrawWithRetain¦Independent¦false¦None¦-1¦抽2张牌。这些牌在本回合获得保留。¦Draw 2 cards. Retain them this turn.⟧ |  |  |
 | 暴露 `Expose` | 0/-/Skill/SingleEnemy/Uncommon | ⟦T:RemoveBlockAndArtifact¦SingleEnemyOnly¦false¦None¦-1¦去除该敌人的所有格挡和人工制品。¦Remove all Block and Artifact from the enemy.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予2层易伤。¦Apply 2 Vulnerable.⟧ | Exhaust |  |
@@ -40,7 +40,7 @@ This is the reviewed offline authoring source. Each `⟦...⟧` stores: operatio
 | 终结技 `Finisher` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧；⟦M:RepeatPerAttackThisTurn¦Modifier¦false¦None¦-1¦本回合每打出过一张攻击牌，就造成一次伤害。¦Deal damage once for each Attack played this turn.⟧ |  |  |
 | 飞镖 `Flechettes` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成5点伤害。¦Deal 5 damage.⟧；⟦M:RepeatPerSkillInHand¦Modifier¦false¦None¦-1¦手牌中每有一张技能牌，就造成一次伤害。¦Deal damage once for each Skill in your hand.⟧ |  |  |
 | 翻越撑击 `FlickFlack` | 1/-/Attack/Other/Common | ⟦N:AllD¦NonTargeted¦false¦None¦-1¦对所有敌人造成7点伤害。¦Deal 7 damage to ALL enemies.⟧ | Sly |  |
-| 侧步 `Sidestep` | 0/-/Skill/Other/Uncommon | ⟦N:NextTurnEnergy¦NonTargeted¦false¦None¦-1¦在下个回合，获得1点能量。¦Next turn, gain 1 Energy.⟧ |  |  |
+| 侧步 `Sidestep` | 0/-/Skill/Other/Uncommon | ⟦C:NextTurnStart¦ConditionalTrigger¦false¦None¦-1¦在你的下个回合开始时。¦At the start of your next turn.⟧；⟦N:E¦NonTargeted¦false¦None¦0¦获得1点能量。¦Gain 1 Energy.⟧ |  |  |
 | 灵动步法 `Footwork` | 1/-/Power/Other/Uncommon | ⟦N:Dex¦NonTargeted¦false¦None¦-1¦获得2点敏捷。¦Gain 2 Dexterity.⟧ |  |  |
 | 华丽收场 `GrandFinale` | 0/-/Attack/Other/Rare | ⟦C:playableIfDrawPileEmpty¦ConditionalTrigger¦false¦None¦-1¦只有当抽牌堆中没有牌时。¦Can only be played if your draw pile is empty.⟧；⟦N:AllD¦NonTargeted¦false¦None¦0¦对所有敌人造成60点伤害。¦Deal 60 damage to ALL enemies.⟧ |  |  |
 | 手上技法 `HandTrick` | 1/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得7点格挡。¦Gain 7 Block.⟧；⟦I:GrantSlyToHandSkillThisTurn¦Independent¦false¦None¦-1¦在本回合给手牌中的一张技能牌添加奇巧。¦Give a Skill in your hand Sly this turn.⟧ |  |  |
@@ -65,7 +65,7 @@ This is the reviewed offline authoring source. Each `⟦...⟧` stores: operatio
 | 带毒刺击 `PoisonedStab` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧；⟦T:Poison¦SingleEnemyOnly¦false¦None¦-1¦给予3层中毒。¦Apply 3 Poison.⟧ |  |  |
 | 猛扑 `Pounce` | 2/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成14点伤害。¦Deal 14 damage.⟧；⟦I:NextSkillCostsZero¦Independent¦false¦None¦-1¦你的下一张技能牌耗能变为0。¦Your next Skill costs 0.⟧ |  |  |
 | 精确切击 `PreciseCut` | 0/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成13点伤害。¦Deal 13 damage.⟧；⟦M:DamageMinusPerCardInHand¦Modifier¦false¦None¦-1¦手牌中每有一张其他牌，这张牌的伤害降低2点。¦Deal 2 less damage for each other card in your hand.⟧ |  |  |
-| 猎杀者 `Predator` | 2/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成15点伤害。¦Deal 15 damage.⟧；⟦N:NextTurnDraw¦NonTargeted¦false¦None¦-1¦在下个回合，抽2张牌。¦Next turn, draw 2 cards.⟧ |  |  |
+| 猎杀者 `Predator` | 2/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成15点伤害。¦Deal 15 damage.⟧；⟦C:NextTurnStart¦ConditionalTrigger¦false¦None¦-1¦在你的下个回合开始时。¦At the start of your next turn.⟧；⟦N:Draw¦NonTargeted¦false¦None¦1¦抽2张牌。¦Draw 2 cards.⟧ |  |  |
 | 早有准备 `Prepared` | 0/-/Skill/Other/Common | ⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽1张牌。¦Draw 1 card.⟧；⟦N:Discard¦NonTargeted¦false¦None¦-1¦丢弃1张牌。¦Discard 1 card.⟧ |  |  |
 | 本能反应 `Reflex` | 3/-/Skill/Other/Uncommon | ⟦N:Draw¦NonTargeted¦false¦None¦-1¦抽2张牌。¦Draw 2 cards.⟧ | Sly |  |
 | 连续反弹 `Ricochet` | 2/-/Attack/Other/Common | ⟦N:RandomD¦NonTargeted¦false¦None¦-1¦随机对敌人造成3点伤害4次。¦Deal 3 damage to a random enemy 4 times.⟧ | Sly |  |
@@ -77,7 +77,7 @@ This is the reviewed offline authoring source. Each `⟦...⟧` stores: operatio
 | 蛇咬 `Snakebite` | 2/-/Skill/SingleEnemy/Common | ⟦T:Poison¦SingleEnemyOnly¦false¦None¦-1¦给予7层中毒。¦Apply 7 Poison.⟧ | Retain |  |
 | 速行者 `Speedster` | 2/-/Power/Other/Uncommon | ⟦A:whenCardDrawnDuringTurn¦AbilityTrigger¦false¦None¦-1¦每当你在回合进行中抽到一张牌时。¦Whenever you draw a card during your turn.⟧；⟦N:AllD¦NonTargeted¦false¦None¦0¦对所有敌人造成2点伤害。¦Deal 2 damage to ALL enemies.⟧ |  |  |
 | 钢铁风暴 `StormOfSteel` | 1/-/Skill/Other/Rare | ⟦N:DiscardAll¦NonTargeted¦false¦None¦-1¦丢弃所有手牌。¦Discard your hand.⟧；⟦C:forEachDiscarded¦ConditionalTrigger¦false¦None¦-1¦每丢弃一张牌。¦For each card discarded.⟧；⟦N:CreateShiv¦NonTargeted¦false¦None¦1¦将1张小刀加入手牌。¦Add 1 Shiv to your hand.⟧ |  |  |
-| 紧勒 `Strangle` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成8点伤害。¦Deal 8 damage.⟧；⟦T:Strangle¦SingleEnemyOnly¦false¦None¦-1¦本回合你每打出一张牌，该敌人失去2点生命。¦Whenever you play a card this turn, that enemy loses 2 HP.⟧ |  |  |
+| 紧勒 `Strangle` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成8点伤害。¦Deal 8 damage.⟧；⟦C:untilTurnEndCardPlayed¦ConditionalTrigger¦true¦None¦-1¦打出此牌后，你在本回合每打出一张牌时，¦After you play this card, whenever you play a card this turn,⟧；⟦T:LoseHp¦SingleEnemyOnly¦true¦None¦1¦该敌人失去2点生命。¦that enemy loses 2 HP.⟧ |  |  |
 | 打击 `StrikeSilent` | 1/-/Attack/SingleEnemy/Basic | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成6点伤害。¦Deal 6 damage.⟧ | Strike |  |
 | 突然一拳 `SuckerPunch` | 1/-/Attack/SingleEnemy/Common | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成8点伤害。¦Deal 8 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予1层虚弱。¦Apply 1 Weak.⟧ |  |  |
 | 压制 `Suppress` | 0/-/Attack/SingleEnemy/Ancient | ⟦T:D¦SingleEnemyOnly¦false¦None¦-1¦造成11点伤害。¦Deal 11 damage.⟧；⟦T:Apply¦SingleEnemyOnly¦false¦None¦-1¦给予3层虚弱。¦Apply 3 Weak.⟧ | Innate |  |

@@ -195,9 +195,10 @@ public sealed class ChaosCompositePower : PowerModel
         // The power is installed during its source card's OnPlay. Its first AfterCardPlayed callback therefore
         // belongs to the card that armed it and must not satisfy any of the newly installed play triggers.
         IgnoreArmingCardPlay = true;
-        _waitForNextTurn = powerOperations.Any(operation => operation.Template is "NCR:NextTurn" or "R:NextTurn" or "CL:AtNextTurnStart");
+        _waitForNextTurn = powerOperations.Any(operation =>
+            TriggerKind(operation) == "next_turn_start");
         var limitedTurnIndex = Definition.Card.Operations.ToList()
-            .FindIndex(operation => operation.Template == "D:NextTurnsStart");
+            .FindIndex(operation => TriggerKind(operation) == "next_turns_start");
         _remainingTurnTriggers = limitedTurnIndex < 0 ? 0 : EffectiveOperationAmount(limitedTurnIndex, 1);
         _firstCardReplayAvailable = HasTriggerWithLinkedEffect(powerOperations,
             "first_card_played_each_turn", "D:ReplayEventCard");
@@ -382,7 +383,11 @@ public sealed class ChaosCompositePower : PowerModel
     private static bool IsPowerConditionalTrigger(GeneratorOperation operation) =>
         operation.Scope == OperationScope.ConditionalTrigger
         && operation.Template is "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:for"
-            or "C:grantNextAttacksThisTurn" or "C:grantNextAttack"
+            or "C:grantNextAttacksThisTurn" or "C:grantNextAttack" or "C:untilTurnEndCardPlayed"
+            or "C:untilTurnEndAttackPlayed" or "C:untilTurnEndAttackReceived"
+            or "C:VulnerableEnemyDamageReductionThisTurn"
+            or "C:whenThisCardExhausted" or "C:AtTurnEndIfInExhaust"
+            or "C:NextTurnStart" or "C:NextTurnsStart"
             or "NCR:NextTurn" or "R:NextTurn" or "D:NextTurnsStart" or "CL:AtNextTurnStart";
 
     private static bool IsBlockEffect(GeneratorOperation operation) => operation.Template is
@@ -757,8 +762,11 @@ public sealed class ChaosCompositePower : PowerModel
         if (dealer == Owner && target.IsEnemy && props.IsPoweredAttack() && cardSource?.Type == CardType.Attack)
         {
             await FireTriggers("attack_damaged_enemy", choiceContext, eventCreature: target);
-            await FireTriggers("attack_dealt_damage", choiceContext, eventCreature: target,
-                eventAmount: result.UnblockedDamage);
+            // "Deals damage" triggers require positive unblocked damage. Keep the broader damaged-enemy event
+            // separate for effects whose native wording does not impose that requirement.
+            if (result.UnblockedDamage > 0)
+                await FireTriggers("attack_dealt_damage", choiceContext, eventCreature: target,
+                    eventAmount: result.UnblockedDamage);
         }
     }
 

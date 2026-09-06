@@ -8,7 +8,9 @@ namespace ChaosCardGenerator;
 internal static class ResourceEconomyModel
 {
     private const double StarEnergyEquivalent = 0.5d;
-    private const double NextTurnRefundFactor = 0.72d;
+    // Delayed resource and non-resource payoffs share one cadence. A separate 0.72 refund factor previously made
+    // the same NextTurnStart component worth different amounts depending only on the linked effect's opcode.
+    private const double NextTurnRefundFactor = EffectBalanceModel.NextTurnTriggerFrequency;
     private const double PersistentTriggerTurns = 2.4d;
     // Double Energy has no fixed numeric slot: its live result still depends on the player's current Energy.
     // For generation budgets, use the requested two-Energy expectation without reclassifying the proxy as an
@@ -114,11 +116,12 @@ internal static class ResourceEconomyModel
         // “For the next N turns” is delayed, but it still pays N separate refunds.  The generic delayed branch
         // used to return after pricing only one of them, which was the last remaining trigger-frequency omission
         // in the effective-cost path.
-        if (trigger.Template == "D:NextTurnsStart")
-            return resource * NextTurnRefundFactor
-                * EffectBalanceModel.ExpectedTriggerResolutions(trigger);
+        if (CardEffectRules.IsNextTurnsStartTrigger(trigger))
+            // ExpectedTriggerResolutions already includes the shared next-turn delay discount for every
+            // resolution. Do not apply NextTurnRefundFactor a second time here.
+            return resource * EffectBalanceModel.ExpectedTriggerResolutions(trigger);
         if (CardEffectRules.IsDelayedEffect(trigger)
-            || trigger.Template is "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart")
+            || CardEffectRules.IsNextTurnStartTrigger(trigger))
             return resource * NextTurnRefundFactor;
 
         if (EffectBalanceModel.HasRepeatedOrMultiplicativePayoff(trigger))
@@ -215,7 +218,7 @@ internal static class ResourceEconomyModel
         var everyCard = new GeneratorOperation("A:whenCardPlayed", OperationScope.AbilityTrigger,
             "每当你打出一张牌时。", new Dictionary<string, int>());
         var triggered = immediate with { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } };
-        var nextTwoTurns = new GeneratorOperation("D:NextTurnsStart", OperationScope.ConditionalTrigger,
+        var nextTwoTurns = new GeneratorOperation("C:NextTurnsStart", OperationScope.ConditionalTrigger,
             "在接下来的2个回合开始时。", new Dictionary<string, int>());
         var delayedTriggered = immediate with
         {
@@ -223,13 +226,21 @@ internal static class ResourceEconomyModel
         };
         var doubleEnergy = new GeneratorOperation("I:ProxyAtomic_DoubleEnergy", OperationScope.Independent,
             "将你的能量翻倍。", new Dictionary<string, int>());
-        if (Math.Abs(EffectiveCost(1d, [immediate]) + 1d) > 0.0001d
-            || Math.Abs(ExpectedRefund([doubleEnergy]) - DoubleEnergyExpectedRefund) > 0.0001d
-            || Math.Abs(EffectiveCost(1d, [doubleEnergy]) + 1d) > 0.0001d
-            || Math.Abs(BudgetEffectiveCost(1, 0, false, false, [doubleEnergy]) + 1d) > 0.0001d
-            || ExpectedRefund([everyCard, triggered]) <= 2d
-            || Math.Abs(ExpectedRefund([nextTwoTurns, delayedTriggered])
-                        - 4d * NextTurnRefundFactor) > 0.0001d)
-            throw new InvalidOperationException("即时或高频触发回费没有进入有效费用。 ");
+        var immediateCost = EffectiveCost(1d, [immediate]);
+        var doubledRefund = ExpectedRefund([doubleEnergy]);
+        var doubledCost = EffectiveCost(1d, [doubleEnergy]);
+        var doubledBudgetCost = BudgetEffectiveCost(1, 0, false, false, [doubleEnergy]);
+        var repeatedRefund = ExpectedRefund([everyCard, triggered]);
+        var delayedRefund = ExpectedRefund([nextTwoTurns, delayedTriggered]);
+        if (Math.Abs(immediateCost + 1d) > 0.0001d
+            || Math.Abs(doubledRefund - DoubleEnergyExpectedRefund) > 0.0001d
+            || Math.Abs(doubledCost + 1d) > 0.0001d
+            || Math.Abs(doubledBudgetCost + 1d) > 0.0001d
+            || repeatedRefund <= 2d
+            || Math.Abs(delayedRefund - 4d * NextTurnRefundFactor) > 0.0001d)
+            throw new InvalidOperationException("即时或高频触发回费没有进入有效费用："
+                + $" immediateCost={immediateCost:F3}, doubledRefund={doubledRefund:F3}, "
+                + $"doubledCost={doubledCost:F3}, doubledBudgetCost={doubledBudgetCost:F3}, "
+                + $"repeatedRefund={repeatedRefund:F3}, delayedRefund={delayedRefund:F3}。");
     }
 }

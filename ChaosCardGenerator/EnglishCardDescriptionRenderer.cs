@@ -175,7 +175,8 @@ public static class EnglishCardDescriptionRenderer
         var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         text = operation.Template switch
         {
-            "A:when" when TrySpecValue(runtimeSpec, "threshold", out var attackOrdinal)
+            _ when runtimeSpec.Trigger?.Kind == "nth_attack_played_this_turn"
+                && TrySpecValue(runtimeSpec, "threshold", out var attackOrdinal)
                 => $"Whenever you play your {OrdinalWord(attackOrdinal)} Attack each turn.",
             "I:ReplayNextSkills" when TrySpecValue(runtimeSpec, "amount", out var replayCount)
                 => replayCount == 1
