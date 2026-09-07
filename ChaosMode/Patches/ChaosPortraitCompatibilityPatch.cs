@@ -18,7 +18,7 @@ internal static class ChaosPortraitTextureCachePatch
     private static bool Prefix(CardModel __instance, ref Texture2D __result)
     {
         if (__instance is not ChaosCardModel card) return true;
-        __result = ResourceLoader.Load<Texture2D>(ChaosPortraitCompatibility.ResolvePath(card.Definition), null,
+        __result = ResourceLoader.Load<Texture2D>(ChaosPortraitCompatibility.ResolvePath(card.EffectivePortraitDefinition), null,
             ResourceLoader.CacheMode.Reuse);
         return false;
     }
@@ -40,7 +40,7 @@ internal static class ChaosDirectPortraitCompatibilityPatch
     private static void Postfix(NCard __instance)
     {
         if (__instance.Model is not ChaosCardModel card
-            || !ChaosPortraitCompatibility.TryResolveDirectTexture(card.Definition, out var texture))
+            || !ChaosPortraitCompatibility.TryResolveDirectTexture(card.EffectivePortraitDefinition, out var texture))
             return;
 
         Apply(PortraitRef(__instance), texture);

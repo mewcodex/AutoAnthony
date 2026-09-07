@@ -19,6 +19,8 @@ internal static class NativeUpgradeValueModel
         SummonOrForge,
         Debuff,
         StrengthOrFocus,
+        ThornsOrPlating,
+        TemporaryEnemyStrengthLoss,
         RepeatOrCardCount,
         HealingOrMaxHp,
         Gold,
@@ -29,17 +31,8 @@ internal static class NativeUpgradeValueModel
         Family? forcedFamily = null)
     {
         if (value <= 1) return 1;
-        if (CardEffectRules.IsEnemyDamageAmplificationRule(operation))
-        {
-            // Cruelty upgrades 25% -> 50% in v111, while Tracking upgrades its cost rather than its percentage.
-            // Preserve that distinction: the Vulnerable rule gets a large native-shaped increase, while the newly
-            // variable Weak rule receives a smaller but still meaningful percentage-point increase.
-            var amplificationCenter = OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
-                == "vulnerable_enemy_damage_bonus"
-                ? value * 0.9d
-                : value * 0.3d;
-            return SampleAroundCenter(amplificationCenter, value, random);
-        }
+        if (PercentageValueTuning.IsPercentage(operation))
+            return PercentageValueTuning.SampleUpgradeIncrease(operation, value, random);
         var family = forcedFamily ?? Classify(operation);
         // Native draw upgrades overwhelmingly add one card. Keep this axis deterministic so large printed draw
         // values never turn a single upgrade into +2 or more cards.
@@ -82,6 +75,13 @@ internal static class NativeUpgradeValueModel
                 : Family.Damage;
         if (operation.Template is "N:B" or "N_BLOCK" || spec.Flags.Contains("block_reference"))
             return Family.Block;
+        if (spec.Flags.Contains("plating_reference") || spec.Flags.Contains("thorns_reference"))
+            return Family.ThornsOrPlating;
+        // These slots are printed damage magnitudes even though they modify a host attack instead of resolving an
+        // immediate hit. Static extra-hit counts remain in RepeatOrCardCount; treating both as Damage would make a
+        // “+1 hit” upgrade scale like “+N damage per hit”.
+        if (IsDamageMagnitude(operation, spec))
+            return Family.Damage;
         if (operation.Template is "N:Draw" or "N_DRAW" or "I:DrawWithRetain"
             || spec.Flags.Contains("leading_draw_reference"))
             return Family.Draw;
@@ -94,6 +94,9 @@ internal static class NativeUpgradeValueModel
             || operation.Template.Contains("Forge", StringComparison.Ordinal)
             || spec.Flags.Contains("summon_reference") || spec.Flags.Contains("forge_reference"))
             return Family.SummonOrForge;
+        if (CardEffectRules.IsEnemyStrengthReduction(operation)
+            && spec.Flags.Contains("this_turn_reference"))
+            return Family.TemporaryEnemyStrengthLoss;
         if (spec.Flags.Contains("vulnerable_reference") || spec.Flags.Contains("weak_reference")
             || spec.Flags.Contains("strength_loss_wording"))
             return Family.Debuff;
@@ -112,12 +115,16 @@ internal static class NativeUpgradeValueModel
     internal static Family LegacyClassifyForAudit(GeneratorOperation operation)
     {
         var text = operation.ChineseText;
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         if (CardEffectRules.IsEnemyDamage(operation)
             || operation.Template is "N:RetaliateDamage" or "T_DAMAGE" or "N_RANDOM_DAMAGE")
             return operation.Template is "NCR:OstyDamage" or "NCR:OstyAllDamage"
                 ? Family.OstyDamage : Family.Damage;
         if (operation.Template is "N:B" or "N_BLOCK" || text.Contains("格挡", StringComparison.Ordinal))
             return Family.Block;
+        if (spec.Flags.Contains("plating_reference") || spec.Flags.Contains("thorns_reference"))
+            return Family.ThornsOrPlating;
+        if (IsDamageMagnitude(operation, spec)) return Family.Damage;
         if (operation.Template is "N:Draw" or "N_DRAW" or "I:DrawWithRetain"
             || text.TrimStart().StartsWith("抽", StringComparison.Ordinal)) return Family.Draw;
         if (CardEffectRules.IsEnergyGainOperation(operation)) return Family.Energy;
@@ -129,6 +136,9 @@ internal static class NativeUpgradeValueModel
             || operation.Template.Contains("Forge", StringComparison.Ordinal)
             || text.Contains("召唤", StringComparison.Ordinal) || text.Contains("铸造", StringComparison.Ordinal))
             return Family.SummonOrForge;
+        if (CardEffectRules.IsEnemyStrengthReduction(operation)
+            && spec.Flags.Contains("this_turn_reference"))
+            return Family.TemporaryEnemyStrengthLoss;
         if (text.Contains("易伤", StringComparison.Ordinal) || text.Contains("虚弱", StringComparison.Ordinal)
             || text.Contains("失去力量", StringComparison.Ordinal)) return Family.Debuff;
         if (text.Contains("力量", StringComparison.Ordinal) || text.Contains("敏捷", StringComparison.Ordinal)
@@ -141,6 +151,19 @@ internal static class NativeUpgradeValueModel
             || text.Contains("颗", StringComparison.Ordinal) || text.Contains("个", StringComparison.Ordinal))
             return Family.RepeatOrCardCount;
         return Family.Other;
+    }
+
+    private static bool IsDamageMagnitude(GeneratorOperation operation, OperationRuntimeSpec spec)
+    {
+        if (PercentageValueTuning.IsPercentage(operation)
+            || CardEffectRules.IsStaticExtraDamageHitModifier(operation))
+            return false;
+        if (operation.Template is "N:Vigor" or "R:GainVigor" or "CL:GainVigor"
+                or "I:IncreaseDamageThisCombat" or "NCR:IncreaseThisCardDamageRun"
+                or "D:IncreaseAllClaws" or "R:DamageUpWhenDrawn" or "CL:IncreaseRollingDamage")
+            return true;
+        return spec.Flags.Contains("damage_budget_effect")
+               && spec.Values.Any(value => value.Explicit && value.Source == "fixed");
     }
 
     internal static double NativeCenter(Family family, int value) => family switch
@@ -169,6 +192,12 @@ internal static class NativeUpgradeValueModel
         Family.SummonOrForge => Math.Max(1.25d, value * 0.43d),
         Family.Debuff => 1.12d,
         Family.StrengthOrFocus => 1d,
+        // Stone Armor / Neutron Aegis / Eternal Armor upgrade 4/8/9 Plating by 2/3/3; Abrasive upgrades
+        // 4 Thorns by 2. A shared 40%-of-field curve reconstructs those anchors while avoiding a large-field +1.
+        Family.ThornsOrPlating => Math.Max(2d, value * 0.40d),
+        // The five native temporary enemy-Strength reductions upgrade by 2-6 from bases 6-10 (roughly 42%).
+        // Vulnerable and Weak remain in the ordinary Debuff family because their stacks primarily mark duration.
+        Family.TemporaryEnemyStrengthLoss => Math.Max(2d, value * 0.42d),
         Family.RepeatOrCardCount => value <= 3 ? 1d : Math.Max(1d, value * 0.30d),
         Family.HealingOrMaxHp => Math.Max(1d, value * 0.35d),
         // Hand of Greed upgrades 20 -> 25, while Royalties upgrades 30 -> 40. Preserve both v111 anchors and
@@ -179,6 +208,7 @@ internal static class NativeUpgradeValueModel
 
     internal static void Validate()
     {
+        PercentageValueTuning.Validate();
         foreach (var family in Enum.GetValues<Family>())
         {
             var operation = Probe(family);
@@ -194,17 +224,6 @@ internal static class NativeUpgradeValueModel
             }
         }
 
-        var weakRule = new GeneratorOperation("A:ruleWeakEnemiesTakeMoreAttackDamage",
-            OperationScope.AbilityRule, "处于虚弱状态的敌人受到的攻击伤害增加50%。",
-            new Dictionary<string, int>());
-        var vulnerableRule = new GeneratorOperation("A:rule", OperationScope.AbilityRule,
-            "拥有易伤的敌人受到的伤害增加25%。", new Dictionary<string, int>());
-        if (Enumerable.Range(0, 200)
-                .Select(seed => SampleIncrease(weakRule, 50, new Random(seed))).Any(delta => delta <= 1)
-            || Enumerable.Range(0, 200)
-                .Select(seed => SampleIncrease(vulnerableRule, 25, new Random(seed))).Any(delta => delta <= 1))
-            throw new InvalidOperationException("敌人受伤增幅规则仍使用了+1升级兜底。");
-
         var royalties = new GeneratorOperation("A:ProxyAtomic_Royalties", OperationScope.AbilityRule,
             "在战斗结束时，获得30金币。", new Dictionary<string, int>());
         var royaltiesDeltas = Enumerable.Range(0, 300)
@@ -212,6 +231,28 @@ internal static class NativeUpgradeValueModel
         if (Classify(royalties) != Family.Gold
             || royaltiesDeltas.Any(delta => delta < 8 || delta > 13))
             throw new InvalidOperationException("金币效果仍使用普通小数值升级，或偏离王国资产的30→40锚点。");
+
+        var plating = new GeneratorOperation("N:Self", OperationScope.NonTargeted,
+            "获得10层覆甲。", new Dictionary<string, int>());
+        var thorns = new GeneratorOperation("N:Thorns", OperationScope.NonTargeted,
+            "获得10点荆棘。", new Dictionary<string, int>());
+        var temporaryStrengthLoss = new GeneratorOperation("T:TempStrengthLoss",
+            OperationScope.SingleEnemyOnly, "该敌人在本回合失去10点力量。", new Dictionary<string, int>());
+        var damageModifier = new GeneratorOperation("R:DamageUpWhenDrawn", OperationScope.Modifier,
+            "本场战斗此牌基础伤害增加10。", new Dictionary<string, int>());
+        foreach (var (operation, expectedFamily) in new[]
+                 {
+                     (plating, Family.ThornsOrPlating),
+                     (thorns, Family.ThornsOrPlating),
+                     (temporaryStrengthLoss, Family.TemporaryEnemyStrengthLoss),
+                     (damageModifier, Family.Damage)
+                 })
+        {
+            var deltas = Enumerable.Range(0, 300)
+                .Select(seed => SampleIncrease(operation, 10, new Random(seed))).ToArray();
+            if (Classify(operation) != expectedFamily || deltas.Any(delta => delta < 2))
+                throw new InvalidOperationException($"{operation.Template} 仍会把大数值升级退化为通用+1。 ");
+        }
     }
 
     private static GeneratorOperation Probe(Family family) => family switch

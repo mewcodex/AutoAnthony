@@ -40,6 +40,14 @@ foreach ($opcode in @('deal_damage', 'gain_block', 'draw_cards', 'gain_energy', 
     [void] $structuredOpcodes.Add($opcode)
 }
 
+# These routes are implemented by structured opcode/variant branches rather than by individual Template names.
+# Keep the variant in the key so a newly introduced create/move variant cannot pass coverage accidentally.
+$structuredRoutes = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::Ordinal)
+foreach ($route in @('create_card|random_colorless', 'move_card|selected')) {
+    [void] $structuredRoutes.Add($route)
+}
+
 $metadataScopes = [System.Collections.Generic.HashSet[string]]::new(
     [System.StringComparer]::Ordinal)
 foreach ($scope in @('Modifier', 'AbilityTrigger', 'ConditionalTrigger', 'AbilityRule')) {
@@ -59,6 +67,7 @@ $missing = @($uniqueRows | Where-Object {
     $_.Template.IndexOf(':Proxy', [System.StringComparison]::Ordinal) -lt 0 -and
     -not $metadataScopes.Contains($_.Scope) -and
     -not $structuredOpcodes.Contains($_.Opcode) -and
+    -not $structuredRoutes.Contains($_.Opcode + '|' + $_.Variant) -and
     -not $linkedEffectTemplates.Contains($_.Template) -and
     -not $mentioned.Contains($_.Template)
 })

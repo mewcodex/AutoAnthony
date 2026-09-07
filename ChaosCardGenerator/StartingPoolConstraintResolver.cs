@@ -41,6 +41,10 @@ public static class StartingPoolConstraintResolver
             var damageValid = currentDamage >= minimumDamage;
             var defenseValid = currentDefense >= minimumDefense;
             var highResourceValid = currentHighResource <= MaximumHighResourceCards;
+            var needsDamageHeadroom = !highResourceValid && currentDamage <= minimumDamage
+                && cards.Any(card => IsHighResourceCard(card) && CountsAsDamage(card));
+            var needsDefenseHeadroom = !highResourceValid && currentDefense <= minimumDefense
+                && cards.Any(card => IsHighResourceCard(card) && CountsAsDefense(card));
             if (ostyValid && slyValid && derivativeValid && damageValid && defenseValid && highResourceValid)
             {
                 failure = string.Empty;
@@ -62,6 +66,9 @@ public static class StartingPoolConstraintResolver
                         && SlyPoolConstraintResolver.HasSly(cards[index])
                         && !SlyPoolConstraintResolver.HasDiscardEffect(cards[index])
                     || !highResourceValid && IsHighResourceCard(cards[index])
+                    || !highResourceValid && !IsHighResourceCard(cards[index])
+                        && (needsDamageHeadroom && !CountsAsDamage(cards[index])
+                            || needsDefenseHeadroom && !CountsAsDefense(cards[index]))
                     || DerivativePoolConstraintResolver.HasProducedDerivativeReference(cards[index]))
                 .OrderByDescending(index => currentOstyGap > 0
                     && OstyPoolConstraintResolver.HasOstyEffect(cards[index]) ? 1 : 0)
@@ -89,8 +96,9 @@ public static class StartingPoolConstraintResolver
             {
                 var replacementStarted = traceRepairs ? Stopwatch.GetTimestamp() : 0;
                 var oldOrdinaryX = SpecialXCardConverter.IsOrdinaryX(cards[index]);
-                var oldCard = cards[index];
-                var repairingHighResource = !highResourceValid && IsHighResourceCard(cards[index]);
+                    var oldCard = cards[index];
+                    var repairingHighResource = !highResourceValid && IsHighResourceCard(cards[index]);
+                    var stagingCoverageForHighResource = !highResourceValid && !repairingHighResource;
                 try
                 {
                     var replacement = generator.GenerateReferenceFreeWithoutSpecialXMatching(
@@ -100,6 +108,7 @@ public static class StartingPoolConstraintResolver
                         // starting resource cap, that explicit rule takes precedence and permits a low-cost card.
                         if (!repairingHighResource
                             && SpecialXCardConverter.IsOrdinaryX(candidate) != oldOrdinaryX) return false;
+                        if (!highResourceValid && IsHighResourceCard(candidate)) return false;
                         if (currentOstyGap > 0 && OstyPoolConstraintResolver.HasOstyEffect(candidate)) return false;
                         if (currentSlyGap > 0 && SlyPoolConstraintResolver.HasSly(candidate)) return false;
                         var prospectiveDamage = currentDamage - (CountsAsDamage(oldCard) ? 1 : 0)
@@ -112,14 +121,19 @@ public static class StartingPoolConstraintResolver
                             return false;
                         if (defenseValid ? prospectiveDefense < minimumDefense : prospectiveDefense < currentDefense)
                             return false;
+                        var createsCoverageHeadroom = stagingCoverageForHighResource
+                            && (needsDamageHeadroom && prospectiveDamage > currentDamage
+                                || needsDefenseHeadroom && prospectiveDefense > currentDefense);
                         if (highResourceValid
                                 ? prospectiveHighResource > MaximumHighResourceCards
-                                : prospectiveHighResource >= currentHighResource)
+                                : prospectiveHighResource > currentHighResource
+                                  || prospectiveHighResource == currentHighResource && !createsCoverageHeadroom)
                             return false;
                         var coverageImproved = !damageValid && prospectiveDamage > currentDamage
                             || !defenseValid && prospectiveDefense > currentDefense
                             || !highResourceValid && prospectiveHighResource < currentHighResource;
-                        if (ostyValid && slyValid && derivativeValid && highResourceValid && !coverageImproved)
+                        if (ostyValid && slyValid && derivativeValid && highResourceValid
+                            && !coverageImproved && !createsCoverageHeadroom)
                             return false;
                         var prospectiveOstyGap = currentOstyGap
                             - (OstyPoolConstraintResolver.HasOstyEffect(oldCard) ? 1 : 0)

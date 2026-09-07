@@ -1362,6 +1362,14 @@ internal static class ChaosModelDbReadyPatch
             OperationScope.NonTargeted, "变化手牌中的2张牌。", new Dictionary<string, int>()));
         var repeatSelectedSkill = Structured(new GeneratorOperation("R:PlaySelectedSkillMultipleTimes",
             OperationScope.NonTargeted, "选择一张技能牌，将其打出3次。", new Dictionary<string, int>()));
+        var quasarChoice = Structured(new GeneratorOperation("I:ProxyAtomic_Quasar",
+            OperationScope.Independent, "从3张随机无色牌中选择1张加入你的手牌。",
+            new Dictionary<string, int>()));
+        var stratagemChoice = Structured(new GeneratorOperation("CL:ChooseDrawCardToHand",
+            OperationScope.Independent, "从抽牌堆中选择一张牌加入你的手牌。",
+            new Dictionary<string, int>()));
+        var quasarChoiceSpec = OperationRuntimeSpecCompiler.RequireStructured(quasarChoice);
+        var stratagemChoiceSpec = OperationRuntimeSpecCompiler.RequireStructured(stratagemChoice);
         if (ChaosOperationExecutor.ExecutableDerivativeDiscardCount(dazedDiscard, 0) != 1
             || ChaosOperationExecutor.ExecutableDerivativeDiscardCount(woundDiscard, 0) != 2
             || ChaosOperationExecutor.ExecutableDerivativeDiscardCount(slimeDiscard, 0) != 1
@@ -1371,10 +1379,18 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.ExecutableOperationCount(starXCreation, 0) != 0
             || ChaosOperationExecutor.SelectionCountForEffect(transformTwo, 2) != 2
             || ChaosOperationExecutor.SelectionCountForEffect(repeatSelectedSkill, 3) != 1
+            || ChaosOperationExecutor.SelectionCountForEffect(stratagemChoice, 0) != 1
             || ChaosOperationExecutor.ExecutableGeneratedCardCount(-1) != 0
             || ChaosOperationExecutor.GeneratedCardChoiceCandidateCount(0) != 0
             || ChaosOperationExecutor.GeneratedCardChoiceCandidateCount(4) != 4
             || ChaosOperationExecutor.GeneratedCardChoiceCandidateCount(9) != 4
+            || !ChaosOperationExecutor.InterpretsGeneratedProxyValues(quasarChoice.Template)
+            || quasarChoiceSpec is not { Opcode: "choose_generated_card", Variant: "random_colorless" }
+            || OperationRuntimeSpecCompiler.FixedValue(quasarChoice, "choices") != 3
+            || stratagemChoiceSpec is not
+                { Opcode: "move_card", Variant: "selected", SourceZone: "draw", DestinationZone: "hand" }
+            || ChaosOperationExecutor.GeneratedCardChoiceCandidateCount(
+                OperationRuntimeSpecCompiler.FixedValue(quasarChoice, "choices")) != 3
             || ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(0, 0)
             || ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(2, 0)
             || !ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(2, 2))
@@ -1412,6 +1428,21 @@ internal static class ChaosModelDbReadyPatch
             || !ChaosCompositePower.TryEnterTrigger(activeTriggerProbe, 8, 63)
             || ChaosCompositePower.TryEnterTrigger(activeTriggerProbe, 9, 64))
             throw new InvalidOperationException("Composite-Power trigger recursion guards no longer suppress re-entry or bound cross-trigger cycles.");
+        var limiterCounts = new Dictionary<int, int>();
+        var limiterReports = new HashSet<int>();
+        long limiterEpoch = -1;
+        var firstTimepoint = ChaosAbilityTriggerLimiter.BeginTimepoint();
+        for (var activation = 0; activation < ChaosAbilityTriggerLimiter.MaximumActivationsPerEffect; activation++)
+            if (!ChaosAbilityTriggerLimiter.TryConsume(4, firstTimepoint, ref limiterEpoch, limiterCounts,
+                    limiterReports))
+                throw new InvalidOperationException("Composite-Power timepoint limiter rejected a legal activation.");
+        if (ChaosAbilityTriggerLimiter.TryConsume(4, firstTimepoint, ref limiterEpoch, limiterCounts,
+                limiterReports)
+            || !ChaosAbilityTriggerLimiter.TryConsume(5, firstTimepoint, ref limiterEpoch, limiterCounts,
+                limiterReports)
+            || !ChaosAbilityTriggerLimiter.TryConsume(4, ChaosAbilityTriggerLimiter.BeginTimepoint(),
+                ref limiterEpoch, limiterCounts, limiterReports))
+            throw new InvalidOperationException("Composite-Power timepoint limiter no longer caps each effect independently or resets at a new timepoint.");
         var triggeredSelectedExhaust = Structured(new GeneratorOperation("N:Exhaust", OperationScope.NonTargeted,
             "消耗手牌中的2张牌。", new Dictionary<string, int> { ["triggerIndex"] = 0 }));
         var turnStartTrigger = Structured(new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
@@ -2029,6 +2060,34 @@ internal static class ChaosModelDbReadyPatch
         if (!ResourceLoader.Exists(previewPower.Definition.PowerIconPath)
             || !ResourceLoader.Exists(previewPower.Definition.PowerBigIconPath))
             throw new InvalidOperationException("AutoAnthony power icon audit failed.");
+
+        var tinkeredTriggerSource = cards.Cast<ChaosCardModel>().FirstOrDefault(candidate =>
+            candidate.Generated.Operations.Any(operation =>
+                operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                && ChaosOperationExecutor.RequiresCompositePower(operation)));
+        if (tinkeredTriggerSource is null) return;
+        var tinkeredPayload = CardTinkeringApi.SerializeCard(tinkeredTriggerSource.Generated);
+        var tinkeredPower = (ChaosCompositePower)ModelDb.Power<ChaosCompositePower>().ToMutable();
+        tinkeredPower.ConfigureTinkered(character, tinkeredTriggerSource.Definition.Slot,
+            tinkeredTriggerSource.IsUpgraded, permanent: true, specialXValue: 0,
+            resolvedEnergyXValue: 0, resolvedStarXValue: 0, capturedOperationValues: [],
+            sourceTargetCombatId: null, profileId: tinkeredTriggerSource.RuntimeProfileId,
+            sourceTinkeredDefinitionPayload: tinkeredPayload, sourceDeckIndex: -1);
+        if (tinkeredPower.SourceTinkeredDefinitionPayload != tinkeredPayload
+            || GeneratedCardEffectIdentity.Signature(tinkeredPower.Definition.Card)
+                != GeneratedCardEffectIdentity.Signature(tinkeredTriggerSource.Generated))
+            throw new InvalidOperationException("Card Tinkering composite-Power definition round-trip audit failed.");
+        var tinkeredTriggerIndex = tinkeredPower.Definition.Card.Operations.ToList().FindIndex(operation =>
+            operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+            && ChaosOperationExecutor.RequiresCompositePower(operation));
+        var tinkeredTimepoint = ChaosAbilityTriggerLimiter.BeginTimepoint();
+        for (var activation = 0; activation < ChaosAbilityTriggerLimiter.MaximumActivationsPerEffect; activation++)
+            if (!tinkeredPower.TryConsumeTimepointTrigger(tinkeredTriggerIndex, tinkeredTimepoint))
+                throw new InvalidOperationException("Card Tinkering ability limiter rejected a legal activation.");
+        if (tinkeredPower.TryConsumeTimepointTrigger(tinkeredTriggerIndex, tinkeredTimepoint)
+            || !tinkeredPower.TryConsumeTimepointTrigger(tinkeredTriggerIndex,
+                ChaosAbilityTriggerLimiter.BeginTimepoint()))
+            throw new InvalidOperationException("Card Tinkering ability limiter did not cap or reset correctly.");
     }
 }
 

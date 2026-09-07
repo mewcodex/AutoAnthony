@@ -77,6 +77,39 @@ public static class CardUpgradeGenerator
                 ExternalOperationTextRegistry.Register(operation.Template, text, english);
                 localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
             }
+            else if (effect.Kind == CardUpgradeKind.UpgradeReferencedCards)
+            {
+                if (operation.Template != "I:PlayExhaustedShivsAtTarget")
+                    throw new InvalidOperationException($"{operation.Template} cannot upgrade referenced cards.");
+                text = "将消耗牌堆中的所有小刀升级，然后对该敌人打出。";
+                const string english = "Upgrade and play all Shivs in your Exhaust Pile against that enemy.";
+                localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
+            }
+            else if (effect.Kind == CardUpgradeKind.SelectAllCards)
+            {
+                if (operation.Template != "I:Upgrade")
+                    throw new InvalidOperationException($"{operation.Template} cannot select every card for upgrade.");
+                text = "升级你手牌中的所有牌。";
+                const string english = "Upgrade ALL cards in your Hand.";
+                localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
+            }
+            else if (effect.Kind == CardUpgradeKind.RepeatOperation)
+            {
+                (text, var english) = operation.Template switch
+                {
+                    "D:TriggerDarkPassives" => ("触发所有黑暗充能球的被动两次。",
+                        "Trigger the Passive of all Dark Orbs twice."),
+                    "D:TriggerLightningPassivesAtTarget" => ("对该敌人触发所有闪电充能球的被动两次。",
+                        "Trigger the Passive of all Lightning Orbs on that enemy twice."),
+                    _ => throw new InvalidOperationException($"{operation.Template} cannot repeat on upgrade.")
+                };
+                localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
+            }
+            else if (effect.Kind == CardUpgradeKind.ExecuteOperationOnPlay)
+            {
+                // This native structural upgrade changes execution rather than the linked operation's scalar data.
+                // NativeCardDecompositionApi projects its additional card-level line after this pass.
+            }
             else if (effect.Kind == CardUpgradeKind.IncreaseNumber
                      && CardEffectRules.IsNonUpgradeableNumericMarker(operation))
             {
@@ -112,6 +145,14 @@ public static class CardUpgradeGenerator
                     or CardUpgradeKind.ReduceThreshold or CardUpgradeKind.ReduceNegativeNumber
                 && (effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation)) is { } slotId)
             {
+                if (effect.Kind == CardUpgradeKind.IncreaseNumber
+                    && runtimeSpec.Values.FirstOrDefault(value => value.Id == slotId)
+                        is { Source: "fixed", Explicit: true } numericSlot)
+                {
+                    semanticDelta = PercentageValueTuning.NormalizeAppliedIncrease(operation, slotId,
+                        numericSlot.BaseValue + numericSlot.Offset, semanticDelta);
+                    if (semanticDelta == 0) continue;
+                }
                 operation = ApplyNumericDelta(operation, slotId, semanticDelta);
                 text = operation.ChineseText;
                 runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
@@ -267,7 +308,9 @@ public static class CardUpgradeGenerator
 
             // Upgrade resolved operation values only; cost rules, triggers, and X variables are not numeric upgrades.
             if (!skipNumericUpgrade
-                && operation.Scope is OperationScope.SingleEnemyOnly or OperationScope.NonTargeted or OperationScope.Modifier or OperationScope.Independent or OperationScope.AbilityRule
+                && (operation.Scope is OperationScope.SingleEnemyOnly or OperationScope.NonTargeted
+                        or OperationScope.Modifier or OperationScope.Independent or OperationScope.AbilityRule
+                    || PercentageValueTuning.IsPercentage(operation))
                 && !OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("cost_wording")
                 && !CardEffectRules.IsEnemyStrengthGain(operation)
                 && !CardEffectRules.IsMandatoryDiscardOrExhaustNumber(operation)
@@ -626,7 +669,8 @@ public static class CardUpgradeGenerator
         var maximumMagnitude = SupplementalMaximumMagnitude(card, operation, effect);
         Candidate? best = null;
         var bestDistance = double.MaxValue;
-        for (var magnitude = 1; magnitude <= maximumMagnitude; magnitude++)
+        var magnitudeStep = PercentageValueTuning.UpgradeStep(operation);
+        for (var magnitude = magnitudeStep; magnitude <= maximumMagnitude; magnitude += magnitudeStep)
         {
             var trial = new Candidate(effect with { Delta = sign * magnitude });
             var distance = Math.Abs(EstimatedMarginalGain(card, selected, trial)
@@ -652,6 +696,7 @@ public static class CardUpgradeGenerator
         var maximum = effect.Kind == CardUpgradeKind.IncreaseNumber
             ? currentValue
             : Math.Max(1, currentValue - 1);
+        maximum = PercentageValueTuning.ClampUpgradeMagnitude(operation, slotId!, currentValue, maximum);
 
         // These fields have semantic caps beyond the universal <=100% upgrade cap. Their already-generated native
         // candidate has passed every relevant cap/refund check, so never search beyond its legal magnitude.
@@ -660,7 +705,7 @@ public static class CardUpgradeGenerator
             || operation.Template is "NCR:BlockTripleOstyMaxHp" or "R:PlaySelectedSkillMultipleTimes"
             || CardEffectRules.IsEnergyGainOperation(operation))
             maximum = Math.Min(maximum, Math.Abs(effect.Delta ?? 1));
-        return Math.Clamp(maximum, 1, 100);
+        return maximum <= 0 ? 0 : Math.Clamp(maximum, 1, 100);
     }
 
     private static Candidate? PickCandidateByMarginalValue(GeneratedCard card,
@@ -727,7 +772,8 @@ public static class CardUpgradeGenerator
             nativeMagnitude);
         Candidate? best = null;
         var bestDistance = double.MaxValue;
-        for (var magnitude = 1; magnitude <= maximumMagnitude; magnitude++)
+        var magnitudeStep = PercentageValueTuning.UpgradeStep(operation);
+        for (var magnitude = magnitudeStep; magnitude <= maximumMagnitude; magnitude += magnitudeStep)
         {
             var trial = new Candidate(effect with { Delta = sign * magnitude });
             var distance = Math.Abs(EstimatedMarginalGain(card, selected, trial) - desiredGain);
@@ -765,6 +811,9 @@ public static class CardUpgradeGenerator
                 .FirstOrDefault(value => value.Id == slotId);
         if (slot is null || slot.Source != "fixed") return nativeMagnitude;
         var currentValue = Math.Max(1, slot.BaseValue + slot.Offset);
+        nativeMagnitude = PercentageValueTuning.ClampUpgradeMagnitude(operation, slotId!, currentValue,
+            nativeMagnitude);
+        if (nativeMagnitude <= 0) return 0;
 
         var unlinkedUnitGain = EstimatedUnlinkedUnitGain(card, selected, candidate);
         if (unlinkedUnitGain <= 0.5d || linkedUnitGain >= unlinkedUnitGain * 0.80d)
@@ -776,8 +825,12 @@ public static class CardUpgradeGenerator
         var cadenceScale = Math.Min(3d, Math.Sqrt(unlinkedUnitGain / Math.Max(0.5d, linkedUnitGain)));
         var cadenceMagnitude = (int)Math.Ceiling(nativeMagnitude * cadenceScale);
         var largeFieldFloor = (int)Math.Ceiling(currentValue * 0.20d);
-        return Math.Clamp(Math.Max(nativeMagnitude, Math.Max(cadenceMagnitude, largeFieldFloor)),
+        var maximum = Math.Clamp(Math.Max(nativeMagnitude, Math.Max(cadenceMagnitude, largeFieldFloor)),
             1, currentValue);
+        maximum = PercentageValueTuning.ClampUpgradeMagnitude(operation, slotId!, currentValue, maximum);
+        if (PercentageValueTuning.IsPercentage(operation))
+            maximum -= maximum % PercentageValueTuning.UpgradeQuantum;
+        return maximum;
     }
 
     private static double EstimatedUnlinkedUnitGain(GeneratedCard card, IReadOnlyList<Candidate> selected,

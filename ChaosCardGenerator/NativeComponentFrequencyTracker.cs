@@ -23,6 +23,9 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
     private readonly IReadOnlyDictionary<(NativeComponentRole Role, string Family), int> _sourceOccurrencesByRole;
     private readonly IReadOnlyDictionary<string, int> _sourceOccurrences;
     private readonly IReadOnlyDictionary<string, ComponentAtom[]> _atomsByFamily;
+    private readonly IReadOnlyDictionary<string, double> _targetMultipliers;
+    private readonly Dictionary<(GeneratedRarity Rarity, GeneratedCardType Type, NativeComponentRole Role,
+        string Family), double> _targetRates = new();
     private readonly IReadOnlyDictionary<string, int> _schemaCounts;
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, string Schema), int> _raritySchemaCounts;
     private readonly IReadOnlyDictionary<(GeneratedRarity Rarity, GeneratedCardType Type, TargetMode Target,
@@ -67,6 +70,11 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
         _atomsByFamily = catalog.Atoms.GroupBy(atom => atom.FamilyKey, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+        // Target multipliers are immutable for the lifetime of a pool. Computing their RuntimeSpec/category scans
+        // once per family avoids repeating the same work twice for every candidate-family draw (source prior plus
+        // closed-loop correction) across every speculative card assembly.
+        _targetMultipliers = _atomsByFamily.ToDictionary(pair => pair.Key,
+            pair => ComputeTargetMultiplier(pair.Value), StringComparer.Ordinal);
         var occurrences = catalog.Recipes.SelectMany(recipe => recipe.Atoms.Select((atom, atomIndex) =>
             (Recipe: recipe, Atom: atom, Role: SourceRole(recipe, atomIndex)))).ToArray();
         _schemaCounts = occurrences.GroupBy(item => item.Atom.SchemaKey)
@@ -193,10 +201,11 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
             : NativeComponentRole.ConditionalPayoff;
     }
 
-    private double TargetMultiplier(string family)
+    private double ComputeTargetMultiplier(IReadOnlyList<ComponentAtom> atoms)
     {
-        if (!_atomsByFamily.TryGetValue(family, out var atoms)) return 1d;
         var multiplier = atoms.Any(ComponentPolicy.HasReplaceableSlot) ? 1.10d : 1d;
+        multiplier *= EffectSelectionTuning.NativeCategoryWeight(atoms, _catalogCharacter, _unifiedChaos) / 100d;
+        multiplier *= EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(atoms) / 100d;
         multiplier *= EffectSelectionTuning.NecrobinderBlockAndSummonWeight(atoms, _catalogCharacter,
             _unifiedChaos) / 100d;
         return multiplier;
@@ -205,6 +214,8 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
     private double TargetRate(GeneratedRarity rarity, GeneratedCardType type, NativeComponentRole role,
         string family)
     {
+        var cacheKey = (rarity, type, role, family);
+        if (_targetRates.TryGetValue(cacheKey, out var cached)) return cached;
         var exactCards = _sourceCardsByRarityType.GetValueOrDefault((rarity, type));
         var exactOccurrences = _sourceOccurrencesByRarityTypeRole.GetValueOrDefault((rarity, type, role, family));
         double targetRate;
@@ -227,7 +238,10 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
                     : _sourceOccurrences.GetValueOrDefault(family) * 0.12d) / poolCards * 0.02d;
             }
         }
-        return Math.Max(0.001d, targetRate * TargetMultiplier(family));
+        var resolved = Math.Max(0.001d,
+            targetRate * _targetMultipliers.GetValueOrDefault(family, 1d));
+        _targetRates[cacheKey] = resolved;
+        return resolved;
     }
 
     internal static int AuditSelectionWeight(double targetRate, int observedCards, int observedOccurrences,

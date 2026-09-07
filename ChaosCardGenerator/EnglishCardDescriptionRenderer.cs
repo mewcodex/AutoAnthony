@@ -45,6 +45,29 @@ public static class EnglishCardDescriptionRenderer
     private static string RenderTriggeredEffects(IReadOnlyList<GeneratorOperation> effects)
         => CardDescriptionRenderer.JoinTriggeredEffects(RenderEffects(effects), chinese: false);
 
+    private static string RenderAttackReceivedEffects(IReadOnlyList<GeneratorOperation> effects)
+    {
+        var pieces = new List<string>();
+        for (var index = 0; index < effects.Count; index++)
+        {
+            var operation = effects[index];
+            if (CardEffectRules.IsCurrentBlockDamageAnchor(effects, index))
+                continue;
+            if (CardEffectRules.IsDependencyPrefix(operation) && index + 1 < effects.Count
+                && CardEffectRules.IsLegalDependencyPayoff(operation, effects[index + 1]))
+            {
+                var payoff = effects[++index];
+                var combined = OperationText(operation).TrimEnd('.') + " " + LowerFirst(OperationText(payoff));
+                pieces.Add(CardDescriptionRenderer.AdaptAttackReceivedPayoff(
+                    payoff, combined, chinese: false));
+                continue;
+            }
+            pieces.Add(CardDescriptionRenderer.AdaptAttackReceivedPayoff(
+                operation, OperationText(operation), chinese: false));
+        }
+        return CardDescriptionRenderer.JoinTriggeredEffects(string.Join(" ", pieces), chinese: false);
+    }
+
     public static string Render(IReadOnlyList<GeneratorOperation> operations)
     {
         var lines = new List<RenderedLine>();
@@ -80,6 +103,14 @@ public static class EnglishCardDescriptionRenderer
                     lines.Add(new RenderedLine(
                         CardDescriptionRenderer.RenderNextAttackGrant(operation, effects, OperationText, chinese: false),
                         effects.Any(MustRenderLast)));
+                    continue;
+                }
+                if (CardEffectRules.TriggerImplicitlyTargetsAttacker(operation))
+                {
+                    lines.Add(new RenderedLine(effects.Length == 0
+                            ? "Whenever you are attacked this turn."
+                            : $"Whenever you are attacked this turn, {LowerFirst(RenderAttackReceivedEffects(effects))}",
+                        MustRenderLast(operation) || effects.Any(MustRenderLast)));
                     continue;
                 }
                 var trigger = OperationText(operation).TrimEnd('.');

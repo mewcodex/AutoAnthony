@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Diagnostics;
+using System.Buffers.Binary;
 using ChaosCardGenerator;
 using Godot;
 using HarmonyLib;
@@ -910,6 +911,109 @@ public static class ChaosRunDefinitions
             + $"pool repair={candidate.PoolRepairMilliseconds} ms); "
             + $"art/definition assembly={assemblyStopwatch.ElapsedMilliseconds} ms.");
         return built;
+    }
+
+    internal static AutoAnthonyEditorIdentity RerollEditorIdentity(GeneratedCard current, int seed)
+    {
+        if (!SupportedPools.Contains(current.Character))
+            throw new ArgumentOutOfRangeException(nameof(current),
+                $"No native name and portrait catalog is registered for {current.Character}.");
+
+        var signature = GeneratedCardEffectIdentity.Signature(current);
+        var nameRandom = EditorIdentityRandom(current.Character, seed, signature, "name");
+        var artRandom = EditorIdentityRandom(current.Character, seed, signature, "portrait");
+        var usedChinese = current.Name is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>([current.Name.Chinese], StringComparer.Ordinal);
+        var usedEnglish = current.Name is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>([current.Name.English], StringComparer.Ordinal);
+        GeneratedCardName name;
+        try
+        {
+            name = CardNameGenerator.Generate(CharacterComponentCatalogs.Get(current.Character), current,
+                nameRandom, usedChinese, usedEnglish);
+        }
+        catch (InvalidOperationException)
+        {
+            // A very small externally supplied name catalog may have no second legal combination. Identity reroll
+            // must remain usable there, so fall back to the best legal name even when it equals the current one.
+            name = CardNameGenerator.Generate(CharacterComponentCatalogs.Get(current.Character), current,
+                EditorIdentityRandom(current.Character, seed, signature, "name-fallback"));
+        }
+
+        var sources = OriginalArtSources();
+        var randomPortraits = _runActive ? _activeRandomCardArt : ChaosModSettings.RandomCardArt;
+        ArtCandidate art;
+        if (current.Rarity == GeneratedRarity.Ancient)
+        {
+            var ancient = sources.Where(source => source.Owner == current.Character
+                    && source.Card.Rarity == CardRarity.Ancient)
+                .ToArray();
+            if (ancient.Length == 0)
+                throw new InvalidOperationException(
+                    $"No native Ancient portrait fallback is available for {current.Character}.");
+            var query = CreateArtQuery(current);
+            var best = ancient.GroupBy(source => ArtRank(current.Character, current, query, source))
+                .OrderByDescending(group => group.Key).First().ToArray();
+            art = SelectArtVariant(best[artRandom.Next(best.Length)], randomPortraits, artRandom);
+        }
+        else
+        {
+            // Ancient and ordinary card frames use different portrait dimensions. This filter is deliberately
+            // applied before relevance ranking and before external variants are expanded.
+            var ordinary = sources.Where(source => source.Card.Rarity != CardRarity.Ancient).ToArray();
+            if (ordinary.Length == 0)
+                throw new InvalidOperationException("No ordinary native portrait fallback is available.");
+            art = SelectRelatedArt(current.Character, current, ordinary,
+                new HashSet<string>(StringComparer.Ordinal), randomPortraits, artRandom);
+        }
+
+        return new AutoAnthonyEditorIdentity(name, art.PortraitPath, art.Source.Card.Id.ToString(),
+            art.VariantId, art.VariantPath);
+    }
+
+    internal static void ValidateEditorIdentity(GeneratedCard card, AutoAnthonyEditorIdentity identity)
+    {
+        if (string.IsNullOrWhiteSpace(identity.Name.Chinese)
+            || string.IsNullOrWhiteSpace(identity.Name.English))
+            throw new ArgumentException("An editor identity must contain both localized card names.",
+                nameof(identity));
+        if (!SupportedPools.Contains(card.Character))
+            throw new ArgumentOutOfRangeException(nameof(card), "Unsupported generated-card character.");
+
+        var sources = OriginalArtSources();
+        var source = sources.FirstOrDefault(candidate =>
+            string.Equals(PortraitPath(candidate), identity.PortraitPath, StringComparison.OrdinalIgnoreCase)
+            && (string.IsNullOrWhiteSpace(identity.PortraitSourceId)
+                || string.Equals(candidate.Card.Id.ToString(), identity.PortraitSourceId,
+                    StringComparison.OrdinalIgnoreCase)))
+            ?? throw new ArgumentException("The editor portrait does not identify a native portrait source.",
+                nameof(identity));
+        if (card.Rarity == GeneratedRarity.Ancient)
+        {
+            if (source.Owner != card.Character || source.Card.Rarity != CardRarity.Ancient)
+                throw new ArgumentException(
+                    "An Ancient generated card must use an Ancient portrait from its own character.",
+                    nameof(identity));
+        }
+        else if (source.Card.Rarity == CardRarity.Ancient)
+        {
+            throw new ArgumentException("An ordinary generated card cannot use an Ancient-sized portrait.",
+                nameof(identity));
+        }
+
+        // Do not require the optional variant provider to exist on the applying machine. Save reloads and
+        // multiplayer peers may legitimately lack the host's cosmetic pack; ResolvePath/TryResolveDirectTexture
+        // retain the stable native source and fall back to its original portrait in that case.
+    }
+
+    private static Random EditorIdentityRandom(GeneratedCharacter character, int seed, string signature,
+        string stream)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"AutoAnthony/EditorIdentity/v1|{character}|{seed}|{stream}|{signature}"));
+        return new Random(BinaryPrimitives.ReadInt32LittleEndian(hash) & int.MaxValue);
     }
 
     internal static GeneratedRarity[] ExpectedRarities(GeneratedCharacter character)

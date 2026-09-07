@@ -126,7 +126,7 @@ internal static class StructuredComponentCatalogRegistry
             ?? throw new InvalidDataException("Embedded structured component catalog is empty.");
 
         var semanticIds = entries.SelectMany(entry => entry.Atoms).Select(atom => atom.SemanticId).ToArray();
-        if (entries.Length != 481 || semanticIds.Length != 937
+        if (entries.Length != 481 || semanticIds.Length != 938
             || semanticIds.Any(string.IsNullOrWhiteSpace)
             || semanticIds.Any(id => id.Any(value => value > 0x7f))
             || semanticIds.Distinct(StringComparer.Ordinal).Count() != semanticIds.Length)

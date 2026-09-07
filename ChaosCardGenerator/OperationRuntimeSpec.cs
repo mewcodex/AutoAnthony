@@ -625,6 +625,10 @@ public static class OperationRuntimeSpecCompiler
                 sourceZone: "discard", destinationZone: "hand",
                 flags: ["requires_player_choice", "replenishes_hand"],
                 values: [Count(1, explicitValue: false)]),
+            "CL:ChooseDrawCardToHand" => Spec("move_card", "selected", "selected_card",
+                sourceZone: "draw", destinationZone: "hand",
+                flags: ["requires_player_choice", "replenishes_hand"],
+                values: [Count(1, explicitValue: false)]),
             "N:RetainHandThisTurn" => Spec("apply_power", "retain_hand_this_turn", "self"),
             "N:Exhaust" => CompileExhaust(operation),
             "N:AllD" or "N:RandomD" => CompileMultiDamage(operation),
@@ -640,7 +644,12 @@ public static class OperationRuntimeSpecCompiler
                 or "R:GainEnergy" or "R:GainStars" or "N:HP-" or "N:Discard" or "N:DiscardAll"
                 or "N:Heal" or "N_HEAL" or "I:GainMaxHp" or "N:LoseDex" or "D:LoseFocus"
                 or "D:LoseTemporaryFocus" or "D:LoseOrbSlots" or "NCR:LoseStrength"
-                or "NCR:ApplySelfDoom" => CompileSimpleAction(operation),
+                or "NCR:ApplySelfDoom" or "D:TriggerRightmostOrbPassive" => CompileSimpleAction(operation),
+            "NCR:SummonX" => Spec("template_self_action", "ncr_summonx", "self",
+                flags: ["summon_reference", "uses_energy_x"], values:
+                [new RuntimeValueSlot("amount", FirstNumber(operation.ChineseText, 1)),
+                    new RuntimeValueSlot("hits", 0, "energy_x", LegacyXOffset(operation.ChineseText),
+                        Upgradable: false, Explicit: false)]),
             "CL:NoBlockFromCards" => Spec("restrict_block_from_cards", "next_n_turns", "self",
                 values: [new RuntimeValueSlot("duration", FirstNumber(operation.ChineseText, 1))]),
             "R:EndTurn" => Spec("end_turn", "after_card_resolution", "self"),
@@ -1793,6 +1802,7 @@ public static class OperationRuntimeSpecCompiler
                 CardEffectRules.OperationNeedsChoiceContextBySpec(operation));
             var legacyDamageSuppressing = operation.Template != "R:DoubleEitherXAtThreshold"
                 && (CardEffectRules.IsDelayedEffect(operation)
+                    || operation.Template == "C:untilTurnEndAttackReceived"
                     || operation.Template.Contains(":If", StringComparison.Ordinal)
                     || operation.Template.Contains(":if", StringComparison.Ordinal)
                     || operation.ChineseText.StartsWith("如果", StringComparison.Ordinal)
@@ -2370,6 +2380,8 @@ public static class OperationRuntimeSpecCompiler
             "D:LoseOrbSlots" => Spec("modify_orb_slots", "loss", "self", values: [Value("amount")]),
             "NCR:LoseStrength" => Spec("apply_power", "strength_loss", "self", values: [Value("amount")]),
             "NCR:ApplySelfDoom" => Spec("apply_power", "doom", "self", values: [Value("amount")]),
+            "D:TriggerRightmostOrbPassive" => Spec("template_self_action", "d_triggerrightmostorbpassive",
+                "self", flags: ["orb_reference"], values: [Value("amount")]),
             _ => throw new InvalidOperationException($"Unsupported simple action {operation.Template}.")
         };
     }
@@ -2697,7 +2709,11 @@ public static class OperationRuntimeSpecCompiler
             "C:for" or "C:grantNextAttack" => "combat",
             _ => "immediate"
         };
-        return Spec("trigger", "event", "self", values: values,
+        var triggerFlags = kind == "attack_received"
+            ? new[] { "attack_received_reference", "count_unit_reference",
+                "repeated_or_multiplicative", "this_turn_reference" }
+            : Array.Empty<string>();
+        return Spec("trigger", "event", "self", flags: triggerFlags, values: values,
             trigger: new RuntimeTriggerSpec(kind, lifetime, hasThreshold ? "threshold" : null,
                 hasDuration ? "duration" : null));
     }

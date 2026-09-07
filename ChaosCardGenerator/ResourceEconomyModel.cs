@@ -8,9 +8,9 @@ namespace ChaosCardGenerator;
 internal static class ResourceEconomyModel
 {
     private const double StarEnergyEquivalent = 0.5d;
-    // Delayed resource and non-resource payoffs share one cadence. A separate 0.72 refund factor previously made
-    // the same NextTurnStart component worth different amounts depending only on the linked effect's opcode.
-    private const double NextTurnRefundFactor = EffectBalanceModel.NextTurnTriggerFrequency;
+    // Delayed resource and non-resource payoffs share the same temporal discount. Multi-turn refunds use the
+    // geometric sum supplied by EffectBalanceModel rather than treating every future turn as equally valuable.
+    private const double NextTurnRefundFactor = EffectBalanceModel.NextTurnValueMultiplier;
     private const double PersistentTriggerTurns = 2.4d;
     // Double Energy has no fixed numeric slot: its live result still depends on the player's current Energy.
     // For generation budgets, use the requested two-Energy expectation without reclassifying the proxy as an
@@ -178,7 +178,7 @@ internal static class ResourceEconomyModel
         return last.Strength + (cost - last.Cost) * slope;
     }
 
-    private static double CostForBudgetStrength(double strength)
+    internal static double CostForBudgetStrength(double strength)
     {
         if (strength <= DesiredCurve[0].Strength) return DesiredCurve[0].Cost;
         for (var index = 1; index < DesiredCurve.Length; index++)
@@ -237,7 +237,7 @@ internal static class ResourceEconomyModel
             || Math.Abs(doubledCost + 1d) > 0.0001d
             || Math.Abs(doubledBudgetCost + 1d) > 0.0001d
             || repeatedRefund <= 2d
-            || Math.Abs(delayedRefund - 4d * NextTurnRefundFactor) > 0.0001d)
+            || Math.Abs(delayedRefund - 2d * EffectBalanceModel.NextTurnsValueMultiplier(2)) > 0.0001d)
             throw new InvalidOperationException("即时或高频触发回费没有进入有效费用："
                 + $" immediateCost={immediateCost:F3}, doubledRefund={doubledRefund:F3}, "
                 + $"doubledCost={doubledCost:F3}, doubledBudgetCost={doubledBudgetCost:F3}, "

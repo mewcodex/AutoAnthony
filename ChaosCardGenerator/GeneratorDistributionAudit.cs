@@ -183,6 +183,25 @@ public static class GeneratorDistributionAudit
             output.AppendLine($"{family}\t{sourceFamilyCounts.GetValueOrDefault(family)}\t{sourceRate:0.00}\t"
                               + $"{generatedRate:0.00}\t{(double.IsNaN(ratio) ? "n/a" : ratio.ToString("0.00"))}");
         }
+        output.AppendLine();
+        output.AppendLine("componentCategory\tsourceOccurrencesPer100Cards\tgeneratedOccurrencesPer100Cards\tratio");
+        var componentCategories = new (string Name, Func<ComponentAtom, bool> Source,
+            Func<GeneratorOperation, bool> Generated)[]
+        {
+            ("NextTurn", CardEffectRules.IsDelayedEffect, CardEffectRules.IsDelayedEffect),
+            ("EnemyDamage", CardEffectRules.IsEnemyDamage, CardEffectRules.IsEnemyDamage),
+            ("BlockOrSummon", IsBlockOrSummon, IsBlockOrSummon)
+        };
+        foreach (var (name, sourceMatch, generatedMatch) in componentCategories)
+        {
+            var sourceRate = 100d * catalog.Recipes.Sum(recipe => recipe.Atoms.Count(sourceMatch))
+                / catalog.Recipes.Count;
+            var generatedRate = 100d * allGenerated.Sum(card => GeneratedWeight(card)
+                * card.Operations.Count(operation => !operation.Template.StartsWith("N_SELECT_",
+                    StringComparison.Ordinal) && generatedMatch(operation))) / totalGeneratedWeight;
+            output.AppendLine($"{name}\t{sourceRate:0.00}\t{generatedRate:0.00}\t"
+                              + $"{(sourceRate == 0d ? "n/a" : (generatedRate / sourceRate).ToString("0.00"))}");
+        }
         var sourcePowers = catalog.Recipes.Where(recipe => recipe.Type == GeneratedCardType.Power).ToArray();
         var generatedPowers = allGenerated.Where(card => card.Type == GeneratedCardType.Power).ToArray();
         var sourcePowerFamilies = sourcePowers.SelectMany(recipe => recipe.Atoms.Select(atom => atom.FamilyKey))
@@ -359,6 +378,20 @@ public static class GeneratorDistributionAudit
     private static bool IsDoomConsumer(string template) => template is
         "NCR:IfDoomAppliedThisTurn" or "NCR:DoomScaledDamage" or "NCR:DoomPerDoomThreshold"
         or "NCR:ForEachDoomThreshold" or "NCR:KillEnemiesAtDoomThreshold" or "A:whenDoomApplied";
+
+    private static bool IsBlockOrSummon(ComponentAtom atom)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        return spec.Opcode == "gain_block" || spec.Flags.Contains("block_reference")
+            || spec.Flags.Contains("summon_reference");
+    }
+
+    private static bool IsBlockOrSummon(GeneratorOperation operation)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        return spec.Opcode == "gain_block" || spec.Flags.Contains("block_reference")
+            || spec.Flags.Contains("summon_reference");
+    }
 
     private static int FirstNumber(string text)
     {

@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Cards;
@@ -52,10 +53,16 @@ public sealed class ChaosCompositePower : PowerModel
     private int _resolvedEnergyXValue;
     private int _resolvedStarXValue;
     private int _sourceTargetCombatId = -1;
+    private int _sourceDeckIndex = -1;
+    private string _sourceTinkeredDefinitionPayload = string.Empty;
+    private GeneratedCard? _sourceTinkeredDefinition;
     private bool _ownerTurnEffectsExpired;
     private bool _defensiveTurnEffectsExpired;
     private int[] _capturedOperationValues = [];
     private HashSet<int> _activeTriggers = [];
+    private long _triggerLimitTimepoint = -1;
+    private Dictionary<int, int> _triggerActivationsThisTimepoint = [];
+    private HashSet<int> _reportedTriggerLimits = [];
     private bool? _cachedDescriptionChinese;
     private bool _cachedDescriptionUpgraded;
     private string? _cachedDescriptionText;
@@ -91,6 +98,36 @@ public sealed class ChaosCompositePower : PowerModel
     // values, so store them as a signed value with -1 as the no-target sentinel to keep reconnect/save payloads
     // portable across the vanilla and BaseLib serializers.
     [SavedProperty] public int SourceTargetCombatId { get => _sourceTargetCombatId; set { AssertMutable(); _sourceTargetCombatId = value; } }
+    [SavedProperty] public int SourceDeckIndex { get => _sourceDeckIndex; set { AssertMutable(); _sourceDeckIndex = value; } }
+    /// <summary>
+    /// A composite Power must retain the exact per-card definition which armed it. Slot alone addresses the shared
+    /// generated pool and is insufficient when two copies of that slot have been tinkered differently.
+    /// </summary>
+    [SavedProperty]
+    public string SourceTinkeredDefinitionPayload
+    {
+        get => _sourceTinkeredDefinitionPayload;
+        set
+        {
+            AssertMutable();
+            _sourceTinkeredDefinitionPayload = value ?? string.Empty;
+            _sourceTinkeredDefinition = null;
+            if (_sourceTinkeredDefinitionPayload.Length > 0)
+            {
+                try
+                {
+                    _sourceTinkeredDefinition = CardTinkeringApi.DeserializeCard(_sourceTinkeredDefinitionPayload);
+                }
+                catch (Exception exception)
+                {
+                    _sourceTinkeredDefinitionPayload = string.Empty;
+                    Log.Warn($"[AutoAnthony] Ignoring an invalid composite-Power card definition: {exception.Message}");
+                }
+            }
+            _cachedDescriptionChinese = null;
+            _cachedDescriptionText = null;
+        }
+    }
     [SavedProperty] public bool OwnerTurnEffectsExpired { get => _ownerTurnEffectsExpired; set { AssertMutable(); _ownerTurnEffectsExpired = value; } }
     [SavedProperty] public bool DefensiveTurnEffectsExpired { get => _defensiveTurnEffectsExpired; set { AssertMutable(); _defensiveTurnEffectsExpired = value; } }
     [SavedProperty] public int[] CapturedOperationValues { get => _capturedOperationValues; set { AssertMutable(); _capturedOperationValues = value ?? []; } }
@@ -103,9 +140,11 @@ public sealed class ChaosCompositePower : PowerModel
     internal int[] CaptureMultiplayerState()
     {
         static int Flag(bool value) => value ? 1 : 0;
-        var state = new List<int>(32 + _capturedOperationValues.Length)
+        var state = new List<int>(34 + _capturedOperationValues.Length)
         {
-            4, _slot, (int)_character, StableProfileHash(_profileId), Flag(_sourceUpgraded), Flag(_permanent), _attacksPlayedThisTurn,
+            5, _slot, (int)_character, StableProfileHash(_profileId),
+            StableProfileHash(_sourceTinkeredDefinitionPayload), _sourceDeckIndex,
+            Flag(_sourceUpgraded), Flag(_permanent), _attacksPlayedThisTurn,
             Flag(_nextAttackReplayAvailable), Flag(_nextAttackFreeAvailable), Flag(_nextAttackTriggerAvailable),
             _nextAttackTriggersRemaining,
             Flag(_ignoreArmingCardPlay), Flag(_waitForNextTurn), Flag(_statusDrawnThisTurn),
@@ -134,9 +173,18 @@ public sealed class ChaosCompositePower : PowerModel
     public override PowerType Type => _isDebuff ? PowerType.Debuff : PowerType.Buff;
     public override PowerStackType StackType => PowerStackType.Single;
     public override PowerInstanceType InstanceType => PowerInstanceType.Instanced;
-    public ChaosCardDefinition Definition => string.IsNullOrEmpty(ProfileId)
-        ? ChaosRunDefinitions.ForSlot(Character, Slot)
-        : ExternalComponentCharacterApi.ForSlot(ProfileId, Slot);
+    public ChaosCardDefinition Definition
+    {
+        get
+        {
+            var definition = string.IsNullOrEmpty(ProfileId)
+                ? ChaosRunDefinitions.ForSlot(Character, Slot)
+                : ExternalComponentCharacterApi.ForSlot(ProfileId, Slot);
+            return _sourceTinkeredDefinition is null
+                ? definition
+                : definition with { Card = _sourceTinkeredDefinition };
+        }
+    }
 
     public override LocString Description
     {
@@ -170,7 +218,22 @@ public sealed class ChaosCompositePower : PowerModel
 
     public void Configure(GeneratedCharacter character, int slot, bool upgraded, bool permanent, int specialXValue = 0,
         int resolvedEnergyXValue = 0, int resolvedStarXValue = 0, int[]? capturedOperationValues = null,
-        uint? sourceTargetCombatId = null, string profileId = "")
+        uint? sourceTargetCombatId = null, string profileId = "") =>
+        ConfigureCore(character, slot, upgraded, permanent, specialXValue, resolvedEnergyXValue,
+            resolvedStarXValue, capturedOperationValues, sourceTargetCombatId, profileId, string.Empty, -1);
+
+    internal void ConfigureTinkered(GeneratedCharacter character, int slot, bool upgraded, bool permanent,
+        int specialXValue, int resolvedEnergyXValue, int resolvedStarXValue, int[]? capturedOperationValues,
+        uint? sourceTargetCombatId, string profileId, string sourceTinkeredDefinitionPayload,
+        int sourceDeckIndex) =>
+        ConfigureCore(character, slot, upgraded, permanent, specialXValue, resolvedEnergyXValue,
+            resolvedStarXValue, capturedOperationValues, sourceTargetCombatId, profileId,
+            sourceTinkeredDefinitionPayload, sourceDeckIndex);
+
+    private void ConfigureCore(GeneratedCharacter character, int slot, bool upgraded, bool permanent,
+        int specialXValue, int resolvedEnergyXValue, int resolvedStarXValue, int[]? capturedOperationValues,
+        uint? sourceTargetCombatId, string profileId, string sourceTinkeredDefinitionPayload,
+        int sourceDeckIndex)
     {
         Character = character;
         ProfileId = profileId;
@@ -181,6 +244,8 @@ public sealed class ChaosCompositePower : PowerModel
         ResolvedEnergyXValue = Math.Max(0, resolvedEnergyXValue);
         ResolvedStarXValue = Math.Max(0, resolvedStarXValue);
         SourceTargetCombatId = sourceTargetCombatId is { } targetId ? checked((int)targetId) : -1;
+        SourceDeckIndex = sourceDeckIndex;
+        SourceTinkeredDefinitionPayload = sourceTinkeredDefinitionPayload;
         OwnerTurnEffectsExpired = false;
         DefensiveTurnEffectsExpired = false;
         CapturedOperationValues = capturedOperationValues?.ToArray() ?? [];
@@ -1127,9 +1192,18 @@ public sealed class ChaosCompositePower : PowerModel
         if (TurnLimitedTriggerExpired(operation, OwnerTurnEffectsExpired, DefensiveTurnEffectsExpired)) return;
         var previousDepth = TriggerChainDepth.Value;
         if (!TryEnterTrigger(_activeTriggers, index, previousDepth)) return;
-        TriggerChainDepth.Value = previousDepth + 1;
         try
         {
+            var timepoint = ChaosAbilityTriggerLimiter.CurrentTimepoint;
+            if (!TryConsumeTimepointTrigger(index, timepoint))
+            {
+                if (_reportedTriggerLimits.Add(index))
+                    Log.Warn($"[AutoAnthony] Suppressed generated ability trigger {operation.Template} on slot {Slot} "
+                             + $"after {ChaosAbilityTriggerLimiter.MaximumActivationsPerEffect} activations in one combat timepoint.");
+                return;
+            }
+
+            TriggerChainDepth.Value = previousDepth + 1;
             var rollingIndex = Definition.Card.Operations.ToList().FindIndex(candidate =>
                 candidate.Template is "N:AllD" or "CL:RollingAllDamage"
                 && candidate.Parameters.GetValueOrDefault("triggerIndex", -1) == index
@@ -1155,6 +1229,13 @@ public sealed class ChaosCompositePower : PowerModel
             _activeTriggers.Remove(index);
         }
     }
+
+    // Kept on the Power instance so native generated cards, Card Tinkering definitions and external trigger bridges
+    // necessarily share the same activation budget. The explicit timepoint parameter also makes the lifecycle
+    // contract testable without executing combat commands during startup.
+    internal bool TryConsumeTimepointTrigger(int triggerIndex, long timepoint) =>
+        ChaosAbilityTriggerLimiter.TryConsume(triggerIndex, timepoint, ref _triggerLimitTimepoint,
+            _triggerActivationsThisTimepoint, _reportedTriggerLimits);
 
     internal static bool TryEnterTrigger(ISet<int> activeTriggers, int triggerIndex, int currentDepth) =>
         currentDepth < MaximumNestedTriggerDepth && activeTriggers.Add(triggerIndex);

@@ -14,7 +14,37 @@ internal static class EffectSelectionTuning
     // In the native Necrobinder pool, direct Block plus Summon occupies substantially more family mass than direct
     // Block alone. The native-frequency policy applies one shared target-rate factor, preserving their internal
     // ratio while bringing their combined mass close to the former Block mass and making room for damage payoffs.
-    internal const int NecrobinderBlockAndSummonWeightPercent = 35;
+    internal const int NecrobinderBlockAndSummonWeightPercent = 85;
+    private const int NativeDamageCategoryWeightPercent = 90;
+    private const int NativeBlockOrSummonCategoryWeightPercent = 85;
+    private const int SilentBlockOrSummonCategoryWeightPercent = 80;
+    private const int NativeNextTurnCategoryWeightPercent = 85;
+
+    /// <summary>
+    /// The native prior is measured before assembly, while the occurrence audit observes accepted cards. A small
+    /// set of families has a stable, cross-pool acceptance bias caused by target/host constraints: free-standing
+    /// random/all-enemy effects are accepted too readily, whereas repeat modifiers and Whenever Drawn clauses
+    /// lose more candidate assemblies than their source prior predicts. Keep those corrections in one table so
+    /// they cannot accumulate as unrelated selection multipliers. Values are deliberately soft and preserve a
+    /// non-zero reconstruction path for every source component.
+    /// </summary>
+    internal static int NativeFinalOccurrenceCalibrationWeight(IEnumerable<ComponentAtom> family)
+    {
+        var atoms = family as ComponentAtom[] ?? family.ToArray();
+        if (atoms.Length == 0) return 100;
+        return Average(atoms, atom => atom.Template switch
+        {
+            "N:RandomD" => 40,
+            "D:EvokeRightmostOrb" => 50,
+            "N:AllD" => 65,
+            "N:AllPoison" or "NCR:ApplyDoomAll" => 65,
+            "N:Heal" or "N_HEAL" => 20,
+            "N:RetaliateDamage" => 50,
+            "M:repeat" or "R:WheneverDrawn" => 180,
+            "CL:ReturnThisToHand" => 130,
+            _ => 100
+        });
+    }
 
     /// <summary>
     /// Resource-positive feedback loops become degenerate much sooner than ordinary numeric payoffs. Keep them
@@ -273,6 +303,36 @@ internal static class EffectSelectionTuning
         })
             ? NecrobinderBlockAndSummonWeightPercent
             : 100;
+    }
+
+    /// <summary>
+    /// Family-level source priors are measured before assembly. Legality and whole-card acceptance used to leave
+    /// direct Damage, Block/Summon and delayed clauses roughly 10-40% above their native final-card occurrence
+    /// rates (while the earlier Necrobinder support adjustment overshot in the opposite direction). Apply one
+    /// small, shared post-prior calibration per category; delayed operations take precedence so a next-turn Block
+    /// line is not penalized twice. Regent's delayed rate already matches its native pool and remains unchanged.
+    /// </summary>
+    internal static int NativeCategoryWeight(IEnumerable<ComponentAtom> family,
+        GeneratedCharacter character, bool ultimateChaos)
+    {
+        var atoms = family as ComponentAtom[] ?? family.ToArray();
+        if (atoms.Length == 0) return 100;
+        if (atoms.Any(CardEffectRules.IsDelayedEffect))
+            return !ultimateChaos && character == GeneratedCharacter.Regent
+                ? 100 : NativeNextTurnCategoryWeightPercent;
+        if (atoms.Any(IsBlockOrSummon))
+            return !ultimateChaos && character == GeneratedCharacter.Silent
+                ? SilentBlockOrSummonCategoryWeightPercent
+                : NativeBlockOrSummonCategoryWeightPercent;
+        if (atoms.Any(CardEffectRules.IsEnemyDamage)) return NativeDamageCategoryWeightPercent;
+        return 100;
+    }
+
+    private static bool IsBlockOrSummon(ComponentAtom atom)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        return spec.Opcode == "gain_block" || spec.Flags.Contains("block_reference")
+            || spec.Flags.Contains("summon_reference");
     }
 
     internal static bool IsOstyDependent(ComponentAtom atom) =>
@@ -701,8 +761,15 @@ internal static class NumericGenerationTuning
     }
 
     internal static bool SampleNonBasicStarPayment(Random random, bool usesSharedResourceShell,
-        GeneratedRarity rarity) =>
-        usesSharedResourceShell && rarity != GeneratedRarity.Basic && random.Next(4) == 0;
+        GeneratedRarity rarity, bool ultimateChaos = false)
+    {
+        if (!usesSharedResourceShell || rarity == GeneratedRarity.Basic) return false;
+        // Regent keeps the reviewed 25% incidence. Ultimate Chaos exposes Star costs to every character while only
+        // one sixth of the merged component source supplies Regent-style Star generation, so using the Regent rate
+        // for all five pools floods rewards with unpayable cards. About 8.3% keeps the mechanic visible without
+        // making Star payment dominate a shared pool.
+        return ultimateChaos ? random.Next(12) == 0 : random.Next(4) == 0;
+    }
 
     internal static int SampleNonBasicFixedStarCost(Random random, int nativeCost, GeneratedRarity rarity)
     {
@@ -998,28 +1065,20 @@ internal static class NegativeEffectTuning
         for (var index = 0; index < operations.Count; index++)
             multiplier *= EffectiveMultiplier(operations[index], operations, index);
 
-        var exhaustOffset = false;
-        var paidReusableCopies = 0;
-        if (hasPrintedResourceCost is { } paid && cardType is { } type)
-        {
-            var roles = operations
-                .Select(operation => CardEffectRules.CopyThisCardBudgetRole(operation, paid, type, tags))
-                .ToArray();
-            exhaustOffset = roles.Contains(CopyThisCardBudgetRole.ExhaustOffset);
-            paidReusableCopies = roles.Count(role => role == CopyThisCardBudgetRole.PaidReusableDownside);
-        }
-
         if (tags is not null)
         {
-            var hasExhaust = tags.Contains(CardTag.Exhaust) && !exhaustOffset;
+            var hasExhaust = tags.Contains(CardTag.Exhaust);
             var hasEthereal = tags.Contains(CardTag.Ethereal);
+            var hasEternal = tags.Contains(CardTag.Eternal);
             if (hasExhaust) multiplier *= 1.45d;
             if (hasEthereal) multiplier *= 1.07d;
+            // Eternal does not weaken the current combat, but permanently removes one of the player's ordinary
+            // deck-cleaning outs. Price that persistent deck-building liability as a small whole-card payment.
+            if (hasEternal) multiplier *= 1.10d;
             // Exhaust + Ethereal is worse than either lifecycle payment alone: whether played or retained, the
             // card disappears. Preserve the reviewed 2.26 combined factor as an explicit interaction multiplier.
             if (hasExhaust && hasEthereal) multiplier *= 2.26d / (1.45d * 1.07d);
         }
-        multiplier *= CopyThisCardValuation.PaidReusableMultiplier(paidReusableCopies);
         return Math.Max(1d, multiplier);
     }
 
@@ -1212,7 +1271,7 @@ internal static class EnergyCostTuning
 internal static class CardAcceptanceTuning
 {
     internal const int TinyStandaloneRewardMaximum = 2;
-    internal const int TinyStandaloneRemovalChancePercent = 90;
+    internal const int TinyStandaloneRemovalChancePercent = 100;
 
     internal static bool ShouldAttemptTinyStandaloneRemoval(int amount, int percentileRoll) =>
         amount is >= 1 and <= TinyStandaloneRewardMaximum
@@ -1227,10 +1286,20 @@ internal static class CardAcceptanceTuning
     {
         if ((uint)index >= (uint)operations.Count) return false;
         var operation = operations[index];
-        if (operation.Parameters.ContainsKey("triggerIndex")
-            || operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+        if (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
                 or OperationScope.AbilityRule or OperationScope.Modifier)
             return false;
+        if (operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex))
+        {
+            if (triggerIndex < 0 || triggerIndex >= operations.Count) return false;
+            var trigger = operations[triggerIndex];
+            // A one-shot condition still resolves this line at most once. Repeated, persistent and delayed owners
+            // deliberately keep their small per-resolution values because cadence is already part of their price.
+            if (trigger.Scope == OperationScope.AbilityTrigger
+                || CardEffectRules.IsDelayedEffect(trigger)
+                || EffectBalanceModel.HasRepeatedOrMultiplicativePayoff(trigger))
+                return false;
+        }
         if (index > 0 && CardEffectRules.IsDependencyPrefix(operations[index - 1])
             && CardEffectRules.IsLegalDependencyPayoff(operations[index - 1], operation))
             return false;
@@ -1372,14 +1441,18 @@ internal static class CardAcceptanceTuning
             RuntimeSpec: OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation("T:D",
                 OperationScope.SingleEnemyOnly, "造成2点伤害。", new Dictionary<string, int> { ["damage"] = 2 },
                 RequiresSingleTarget: true)));
+        var oneShotCondition = new GeneratorOperation("C:ifTargetVulnerable", OperationScope.ConditionalTrigger,
+            "如果目标敌人拥有易伤，", new Dictionary<string, int>(), RuntimeSpec:
+            OperationRuntimeSpecCompiler.CompileLegacy(new GeneratorOperation("C:ifTargetVulnerable",
+                OperationScope.ConditionalTrigger, "如果目标敌人拥有易伤，", new Dictionary<string, int>())));
         var tinyRemovalChecks = new[]
         {
             ShouldAttemptTinyStandaloneRemoval(1, 0),
-            ShouldAttemptTinyStandaloneRemoval(2, 89),
-            !ShouldAttemptTinyStandaloneRemoval(2, 90),
+            ShouldAttemptTinyStandaloneRemoval(2, 99),
+            !ShouldAttemptTinyStandaloneRemoval(2, 100),
             !ShouldAttemptTinyStandaloneRemoval(3, 0),
             IsTinyStandaloneCombatReward([blockOne], 0),
-            !IsTinyStandaloneCombatReward([linkedBlockOne], 0),
+            IsTinyStandaloneCombatReward([oneShotCondition, linkedBlockOne], 1),
             !IsTinyStandaloneCombatReward([blockThree], 0),
             IsTinyStandaloneCombatReward([summonTwo], 0),
             !IsTinyStandaloneCombatReward([multiHitTwo], 0),
@@ -1387,7 +1460,7 @@ internal static class CardAcceptanceTuning
         };
         if (Array.FindIndex(tinyRemovalChecks, passed => !passed) is var failedTinyCheck
             && failedTinyCheck >= 0)
-            throw new InvalidOperationException($"低数值单次战斗效果的90%移除判定发生了意外变化（检查项 {failedTinyCheck}）。");
+            throw new InvalidOperationException($"低数值单次战斗效果的成牌清理判定发生了意外变化（检查项 {failedTinyCheck}）。");
     }
 }
 

@@ -4,37 +4,25 @@ namespace ChaosCardGenerator;
 
 /// <summary>
 /// Single source of truth for effects that put a copy of the current card into the discard pile.
-/// The ordinary copy changes role with the card lifecycle, while the explicit zero-cost copy prices the
-/// card's payload against a blended paid/free budget envelope.
+/// An ordinary copy is always a positive effect whose value follows the rest of the card's payload. The explicit
+/// zero-cost copy remains a separate mechanic because it changes the cost coordinate of the copied payload.
 /// </summary>
 internal static class CopyThisCardValuation
 {
-    // Anger is the clean free/reusable anchor: the copied card is worth approximately another six Damage.
+    // Anger is the clean anchor: 6 Damage plus an ordinary copy becomes 960 value, a plausible 1.28x native
+    // upper-tail Common. Keeping the price proportional prevents a fixed copy cost from overcharging weak payloads
+    // or undercharging high-rarity engines.
     internal const int FreeReusableRewardValue = 600;
-    // A Power copy is a durable repeatable engine and therefore consumes a large upper-rarity reward slot.
-    internal const int PowerRewardValue = 2_000;
+    internal const double OrdinaryCopyPayloadMultiplier = 0.60d;
     // Used only when a component must be inspected without a complete card context. The production scorer uses
     // the blended envelope below and does not add this representative value as an independent reward.
     internal const int ZeroCostCopyRepresentativeValue = 1_500;
-    // A paid reusable copy behaves roughly like adding a Slime to the future draw cycle.
-    internal const double PaidReusableDownsideMultiplier = 1.14d;
     internal const double ZeroCostEnvelopeWeight = 0.50d;
 
     internal static int RepresentativeAtomicValue(ComponentAtom atom) =>
         atom.Template == "D:CreateZeroCostCopyInDiscard"
             ? ZeroCostCopyRepresentativeValue
             : FreeReusableRewardValue;
-
-    internal static double ContextualRewardValue(CopyThisCardBudgetRole role) => role switch
-    {
-        CopyThisCardBudgetRole.FreeReusableBenefit => FreeReusableRewardValue,
-        CopyThisCardBudgetRole.PowerBenefit => PowerRewardValue,
-        CopyThisCardBudgetRole.PaidReusableDownside or CopyThisCardBudgetRole.ExhaustOffset => 0d,
-        _ => double.NaN
-    };
-
-    internal static double PaidReusableMultiplier(int copyCount) =>
-        copyCount <= 0 ? 1d : Math.Pow(PaidReusableDownsideMultiplier, copyCount);
 
     internal static double BlendWithZeroCostEnvelope(double printedCostValue, double zeroCostValue) =>
         printedCostValue * (1d - ZeroCostEnvelopeWeight) + zeroCostValue * ZeroCostEnvelopeWeight;
@@ -62,14 +50,24 @@ internal static class EffectBalanceModel
     private const double RandomColorlessPoolValueMultiplier = 1.9d;
     private const int RandomPowerCardValue = 1_120;
     internal const int RandomZeroCostCardValue = 1_500;
+    internal const int DiscardToHandValue = 1_000;
     internal const int NextSkillCostsZeroValue = 900;
+    // Autoplay values are deliberately separated by source and lifecycle. Native residual anchors are Havoc
+    // (known top card, then Exhaust), Cascade (known top cards, retained normally), Uproar (random Attack from the
+    // draw pile), Stampede (random Attack already in hand) and Mayhem (blind recurring top-card play).
+    internal const int TopDrawCardAndExhaustValue = 1_250;
+    internal const int TopDrawCardValue = 1_400;
+    // Uproar is the clean shell: a two-Energy Common center is 2,580, while its 6x2 Damage package is 1,300.
+    // The remaining ~1,280 belongs to fetching and freely playing one random Attack from the draw pile.
+    internal const int RandomDrawAttackAutoplayValue = 1_250;
+    // A random Attack already in hand supplies a free play but no draw; retain the explicit 1.5-Energy valuation.
+    internal const int RandomHandAttackAutoplayValue = 975;
+    internal const int RecurringBlindTopDrawCardValue = 710;
     internal const int ShivValuePerCard = 540;
-    internal const int NextTurnBlockValuePerPoint = 180;
-    internal const int NextTurnDrawValuePerCard = 700;
-    internal const int NextTurnEnergyValuePerPoint = 800;
-    // Linked one-shot next-turn packages cluster around 0.48-0.52 after excluding cards whose effective cost is
-    // itself dominated by a resource refund. Use the round 0.50 center for all three structural trigger aliases.
-    internal const double NextTurnTriggerFrequency = 0.50d;
+    // Native delayed-payoff cards put one turn of delay near 70-75% of an immediate payoff. Use the shared 0.72
+    // center for damage, Block, Draw and resource refunds. Later promised turns receive the same time discount
+    // again instead of the old flat N * 0.50 treatment.
+    internal const double NextTurnValueMultiplier = 0.72d;
     internal const int OrdinaryEnergyValuePerPoint = 650;
     internal const int SkillsCostZeroRuleValue = 10_500;
     // Corruption is Ancient. Normalize its former 650-point repeated Skill-exhaust payment to the Common anchor;
@@ -93,12 +91,20 @@ internal static class EffectBalanceModel
     // cheaper than the previous 260-point estimate so generated Star gains receive modestly larger printed values;
     // high unconditional amounts remain controlled by the independent soft cap.
     internal const int StarValuePerPoint = 240;
-    private const int SummonValuePerPoint = 239;
+    // A single linear price must cover both cheap setup and large one-shot Summon cards. The native anchors center
+    // close to 180: Bodyguard is deliberately efficient at 120 per point, while Afterlife/Reanimate pay Exhaust
+    // and sit above the center. The previous 239 accidentally used the one-Energy Rare envelope itself as the
+    // anchor, making ordinary Basic/Common Summon rolls much smaller than the native pool.
+    private const int SummonValuePerPoint = 180;
     private const int VigorValuePerPoint = 180;
     private const int VulnerableValuePerTurn = 550;
     private const int DoubleVulnerableValue = 750;
     private const int WeakValuePerTurn = 470;
     private const int OrbSlotValuePerSlot = 650;
+    // Loop is the clean native anchor: its one-Energy Uncommon Power triggers the rightmost Orb passive once at
+    // each turn start. The shared persistent horizon supplies three expected resolutions, so 467 * 3 = 1,401,
+    // effectively the 1,400 center of that shell. Keep the one-shot operation linear; trigger ancestry owns cadence.
+    private const int RightmostOrbPassiveValue = 467;
     private const int OstyHealValuePerPoint = 180;
     // Kept internal so the offline native-card audit can expose the exact coefficient which participates in the
     // generator-facing valuation.  The audit must never replace this with a peer-card residual coefficient.
@@ -137,6 +143,7 @@ internal static class EffectBalanceModel
         var hits = Math.Clamp(spec.Values.FirstOrDefault(value => value.Id is "hits" or "repeat_count")
             ?.BaseValue ?? 1, 1, 8);
 
+        if (PercentageValueTuning.TryEstimate(spec, out var percentageValue)) return percentageValue;
         if (TryEstimateReplayValue(atom, first, hits, out var replayValue)) return replayValue;
         // These scarce rule effects are complete card-sized mechanics, not generic one-point status lines.
         // Explicit prices keep them out of cheap filler slots while their separate occurrence prior preserves a
@@ -153,7 +160,7 @@ internal static class EffectBalanceModel
             return CopyThisCardValuation.RepresentativeAtomicValue(atom);
         if (CardEffectRules.IsExhaustAllHand(atom)) return 1_500;
         if (CardEffectRules.IsEnemyStrengthGain(atom)) return 900;
-        if (atom.Template == "I:PlayTopCardAndExhaust") return 900;
+        if (atom.Template == "I:PlayTopCardAndExhaust") return TopDrawCardAndExhaustValue;
         // Guards transforms any number of hand cards into a chosen derivative. The open-ended count and the
         // ability to replace liabilities or spent cards make it a full high-value effect rather than a generic
         // proxy rider.
@@ -198,9 +205,30 @@ internal static class EffectBalanceModel
         // Bodyguard (5 alone), Afterlife (6 + Exhaust), Pull Aggro (4 + Block 7) and Reanimate (20 + Exhaust)
         // imply roughly 120/300/177/194 value per point. Their robust center is about 180. X variants use the same
         // resolved amount, and the whole-card envelope remains responsible for rarity/cost scaling.
-        if (atom.Template is "NCR:Summon" or "NCR:SummonX") return first * SummonValuePerPoint;
+        if (atom.Template == "NCR:Summon") return first * SummonValuePerPoint;
+        if (atom.Template == "NCR:SummonX")
+        {
+            // Dirge has two independent numeric slots: a fixed Summon amount and an X-backed action count.
+            // Damage/Poison include their hit count in their own scalar branches, but Summon is a non-damage
+            // action and therefore needs to expand that count here. An unresolved X is valued at X=1; a concrete
+            // X=0 materialization must remain zero for Card Tinkering endpoint checks.
+            var hitSlot = spec.Values.FirstOrDefault(value => value.Id == "hits");
+            var summonActions = hitSlot switch
+            {
+                null => 1,
+                { Source: "fixed" } => Math.Max(0, hitSlot.BaseValue + hitSlot.Offset),
+                _ => Math.Max(1, 1 + hitSlot.Offset)
+            };
+            return first * SummonValuePerPoint * summonActions;
+        }
         if (atom.Template is "NCR:CreateSoulInDraw" or "NCR:CreateSoulInDrawX")
             return first * SoulInDrawValuePerCard;
+        // Hologram and Graveblast are the clean one-Energy Common anchors. Recovering a chosen discard card is
+        // roughly a full draw with selection; it previously fell through to zero because the action has no printed
+        // numeric slot, which made both native cards severe residual outliers and let the effect bypass budgets.
+        if (atom.Template is "N:MoveDiscardCardToHand" or "D:MoveDiscardCardToHand"
+            or "NCR:MoveDiscardCardToHand")
+            return DiscardToHandValue;
         // Dynamic-stat cards have no printed scalar to discover, so the generic no-number fallback valued them at
         // only 1 damage. These anchors reflect an ordinary live state (roughly 12-15 Block/Poison/Doom) and reserve
         // one real card-sized payoff without imposing any runtime cap on the dynamic result.
@@ -216,7 +244,7 @@ internal static class EffectBalanceModel
         // envelope its three delayed copies consume almost the whole card. The old 1,700-per-copy estimate left
         // this reusable component at only 54% of that envelope after Exhaust normalization.
         if (atom.Template == "I:CopySelectedCardNextTurn") return first * 3_000;
-        if (atom.Template == "I:PlayTopXCards") return first * 1_100;
+        if (atom.Template == "I:PlayTopXCards") return first * TopDrawCardValue;
         // Returning the card which caused a trigger creates repeat access but not a fresh draw. Keep this shared
         // event-card operation slightly above the generic no-number utility fallback.
         if (atom.Template == "D:ReturnEventCardToHand") return 950;
@@ -243,8 +271,6 @@ internal static class EffectBalanceModel
         if (atom.Template == "I:ProxyAtomic_Voltaic") return 5_050;
         if (atom.Template == "I:DiscardHandDrawSame") return 1_400;
         if (atom.Template == "I:DoubleAttackDamageNextTurn") return 2_800;
-        // Colossus' compact atom contains the complete one-turn mitigation rule, not a bare condition.
-        if (spec.Trigger?.Kind == "vulnerable_enemy_damage_reduction") return 800;
         // Expose removes two defensive resources before applying its debuff. This no-number utility is positive.
         if (atom.Template == "T:RemoveBlockAndArtifact") return 400;
         // At the ordinary ten-Max-HP Osty state, triple Max HP is approximately 30 Block.
@@ -266,7 +292,7 @@ internal static class EffectBalanceModel
         if (atom.Template == "CL:DrawToFullHand") return 2_200;
         if (atom.Template == "CL:TransformSelectedHandCards") return first * 450;
         if (atom.Template == "NCR:AddRandomEtherealCardToHand") return first * 450;
-        if (atom.Template == "N:NextTurnDraw") return first * NextTurnDrawValuePerCard;
+        if (atom.Template == "N:NextTurnDraw") return DiscountNextTurnValue(EstimatedDrawValue(first));
         // Healing Osty is combat-local pet sustain, not run-persistent player healing.
         if (atom.Template == "NCR:HealOsty") return first * OstyHealValuePerPoint;
         if (atom.Template == "I:FreeHandThisTurn") return FreeHandThisTurnValue;
@@ -294,11 +320,6 @@ internal static class EffectBalanceModel
         if (atom.Template == "D:IncreaseThisCardBlockRun") return first * 720;
         if (atom.Template == "A:whenEnergySpent") return 1_500;
         if (atom.Template == "A:whenOneStarSpent") return 1_300;
-        // Lethality's split modifier inherits the event Attack rather than a Damage line printed on the Power.
-        // An ordinary first Attack is about 9 damage; 50% therefore contributes 4.5 damage per active turn. The
-        // linked persistent-trigger multiplier supplies the expected three turns, reconstructing the former
-        // 1,350-value native rule while allowing the trigger to exchange its payoff.
-        if (atom.Template == "M:TriggeredAttackDamagePercent") return first * 9;
         // Phantom Blades is decomposed into two independently reusable rules. Retain is idempotent, while the
         // first-Shiv rider scales every turn and therefore pays a persistent per-point price.
         // Retain on every Shiv is useful but idempotent and requires future Shiv generation. Keep it below a
@@ -322,6 +343,10 @@ internal static class EffectBalanceModel
         // roughly 850 value against its native cohort. Round slightly upward because the generated component can
         // be paired with more reliable card-selection engines than Pounce itself.
         if (atom.Template == "I:NextSkillCostsZero") return NextSkillCostsZeroValue;
+        // Both markers contain a literal zero rather than a scalable reward amount. Price the utility explicitly
+        // in the production model so editor consumers never need to patch this private method at runtime.
+        if (atom.Template == "NCR:NextVoidCostsZero") return 650;
+        if (atom.Template == "D:SetThisCardCostZero") return 700;
         if (atom.Template is "D:NextPowerCostsZero" or "I:SetCostZero"
             or "NCR:SetCostZeroIfOstyAttacked") return 250;
         if (atom.Template is "C:whileInCombat" or "C:whileInCombatSkillCostReduction") return 1_000;
@@ -330,7 +355,9 @@ internal static class EffectBalanceModel
         if (atom.Template == "CL:AddRandomAttackToHand") return first * 750;
         if (atom.Template == "I:PlayAtRandomEnemy") return 1_100;
         if (atom.Template == "I:TriggerPoisonNow") return 570;
-        if (atom.Template == "CL:PlayTopDrawCard") return 710;
+        if (atom.Template == "D:AutoPlayRandomAttackFromDraw")
+            return Math.Clamp(first, 1, 5) * RandomDrawAttackAutoplayValue;
+        if (atom.Template == "CL:PlayTopDrawCard") return RecurringBlindTopDrawCardValue;
         // This has no printed numeric parameter and receives neither numeric generation/upgrades nor multi-hit
         // adaptation; its fixed price is the complete native one-Energy Rare card.
         if (atom.Template == "CL:DamageEqualCardsPlayedCombat") return GoldAxeDynamicDamageValue;
@@ -342,9 +369,12 @@ internal static class EffectBalanceModel
             or "A:ruleWeakEnemiesTakeMoreAttackDamage") return 2_200;
         if (atom.Template == "A:rule" && spec.Variant == "retain_block_between_turns") return 3_400;
         if (atom.Template == "A:rule" && spec.Variant == "first_card_block_doubled_each_turn") return 2_200;
-        if (atom.Template == "A:ProxyAtomic_SwordSage") return 2_150;
+        if (atom.Template == "A:ProxyAtomic_SwordSage") return Math.Max(1, first) * 2_150;
         if (atom.Template is "CL:ProxyAtomic_Anointed" or "CL:ProxyAtomic_Alchemize") return 1_500;
-        if (atom.Template == "CL:ProxyAtomic_Catastrophe") return 1_600;
+        // Catastrophe is the two-card native anchor. Each random draw-pile autoplay is one full 1,400-point card
+        // play and the numeric count must scale; the former fixed 1,600 price undercharged both the base card and
+        // its 2->3 upgrade.
+        if (atom.Template == "CL:ProxyAtomic_Catastrophe") return first * TopDrawCardValue;
         if (atom.Template == "I:ProxyAtomic_Transfigure") return 1_500;
         if (atom.Template == "I:Transform") return 710;
         // Jackpot is itself an upper-tail native card (about 1.86x its native Rare cohort), so using the exact
@@ -356,6 +386,17 @@ internal static class EffectBalanceModel
         if (atom.Scope == OperationScope.AbilityTrigger)
             return (int)Math.Round(700 + 350 * Math.Min(3d, RelativeTriggerFrequency(atom)));
         if (atom.Scope == OperationScope.AbilityRule) return 1_350;
+        // These native X proxies carry a real X-backed count. They must be priced from the materialized runtime
+        // slot rather than falling through to the generic fixed proxy price; otherwise X=1 and X=3 audit as the
+        // same card even though combat executes different numbers of Evokes/Channels.
+        if (atom.Template == "I:ProxyAtomic_MultiCast") return first * 300;
+        if (atom.Template == "I:ProxyAtomic_Tempest")
+            return first * OrbSlotCatalog.ChannelValue(null, atom.Template);
+        // The two native proxy-damage templates are fully structured deal_damage operations. Keep this before the
+        // generic proxy fallback so their X-backed hit count participates in damage geometry and multi-hit value.
+        if (atom.Template.StartsWith("T:ProxyDamage_", StringComparison.Ordinal)
+            || atom.Template.StartsWith("N:ProxyDamage_", StringComparison.Ordinal))
+            return (int)Math.Round(AdaptedMultiHitDamage(first, hits) * DamageValueMultiplier(atom) * 100d);
         if (atom.Template.Contains(":Proxy", StringComparison.Ordinal)) return 1_250;
 
         // Dualcast is a one-Energy Basic whose entire payoff is two activations of the same rightmost Orb. Treat
@@ -363,6 +404,7 @@ internal static class EffectBalanceModel
         // the effect requires and consumes a pre-existing Orb, while still pricing Frost/Plasma utility. Shatter
         // normally reaches about three occupied slots, so “all Orbs twice” uses six such activations.
         if (atom.Template == "D:EvokeRightmostOrb") return first * 300;
+        if (atom.Template == "D:TriggerRightmostOrbPassive") return first * RightmostOrbPassiveValue;
         // Activating every occupied Orb has broader value than repeatedly activating only the rightmost Orb.
         // Use three occupied slots and four damage-equivalent points per activation; Shatter remains comfortably
         // inside the native-card residual band after its Exhaust payment.
@@ -384,12 +426,12 @@ internal static class EffectBalanceModel
         // about 1.2 points of damage.  The old 0.85 multiplier inverted that relationship and made Block-heavy
         // cards look weaker than their native equivalents to whole-card floors and upgrade valuation.
         if (atom.Template == "N:KeepBlockNextTurn") return 800;
-        if (atom.Template == "N:NextTurnBlock") return first * NextTurnBlockValuePerPoint;
+        if (atom.Template == "N:NextTurnBlock") return DiscountNextTurnValue(first * 120);
         if (spec.Flags.Contains("block_reference")) return first * 120;
         if (spec.Flags.Contains("draw_reference")) return EstimatedDrawValue(first);
         if (atom.Template == "NCR:GainEnergy") return first * NecrobinderEnergyValuePerPoint;
         if (atom.Template is "N:NextTurnEnergy" or "D:NextTurnEnergy" or "NCR:NextTurnEnergy")
-            return first * NextTurnEnergyValuePerPoint;
+            return DiscountNextTurnValue(first * OrdinaryEnergyValuePerPoint);
         if (CardEffectRules.IsEnergyGainOperation(atom)) return first * OrdinaryEnergyValuePerPoint;
         // Wraith Form is the clean native joint anchor. At three Energy its two Intangible stacks must consume
         // essentially an Ancient card's complete upper-band allowance after paying for the repeated Dexterity
@@ -465,7 +507,11 @@ internal static class EffectBalanceModel
         // Orb type and its exact relative value.
         if (spec.Flags.Contains("orb_channel_reference")) return first * 500;
         if (spec.Flags.Contains("add_one_card_to_hand_reference")) return 380;
-        if (IsStaticExtraDamageHits(atom)) return ExpectedExtraDamageHits(atom) * 1_000;
+        // A hit modifier has no meaningful standalone payload; use one representative 10-Damage host only for
+        // catalog diagnostics. Complete-card valuation below always derives its marginal value from the real host.
+        if (IsStaticExtraDamageHits(atom)
+            || spec is { Opcode: "modify_hits", Variant: "hp_loss_scaled" })
+            return ExpectedExtraDamageHits(atom) * 1_000;
         if (atom.Scope == OperationScope.Modifier) return explicitValues.Length == 0 ? 700 : first * 240;
         return explicitValues.Length == 0 ? 650 : first * 100;
     }
@@ -575,6 +621,22 @@ internal static class EffectBalanceModel
 
     private static int DiminishingDurationStatusValue(int turns, int oneTurnValue) =>
         (int)Math.Round(Math.Sqrt(Math.Max(1, turns)) * oneTurnValue, MidpointRounding.AwayFromZero);
+
+    internal static double NextTurnsValueMultiplier(int turns)
+    {
+        var total = 0d;
+        var turnMultiplier = 1d;
+        for (var turn = 0; turn < Math.Clamp(turns, 1, 4); turn++)
+        {
+            turnMultiplier *= NextTurnValueMultiplier;
+            total += turnMultiplier;
+        }
+        return total;
+    }
+
+    private static int DiscountNextTurnValue(int immediateValue) =>
+        Math.Max(1, (int)Math.Round(immediateValue * NextTurnValueMultiplier,
+            MidpointRounding.AwayFromZero));
 
     /// <summary>
     /// Relative opportunities per turn for persistent triggers, or success probability for one-shot conditions.
@@ -698,10 +760,10 @@ internal static class EffectBalanceModel
             "D:ForEachEnergySpentThisTurn" => 2d / threshold,
             "D:ForEachExhaustedStatus" => ExhaustedStatusTriggerFrequency,
             "D:WheneverStatusGenerated" => 0.45d,
-            // Every promised turn resolves separately, but every resolution is delayed by at least one full
-            // turn. Price the shared trigger as N delayed resolutions instead of N immediate resolutions.
+            // Every promised turn resolves separately. The first is worth 72% of an immediate payoff and each
+            // later resolution receives the same time discount again.
             "C:NextTurnsStart" or "D:NextTurnsStart" =>
-                Math.Clamp(threshold, 1, 4) * NextTurnTriggerFrequency,
+                NextTurnsValueMultiplier(threshold),
             // Unlike a persistent draw Power, this listener is installed by the source card during the turn.
             // Opening-hand draws have already happened, so use the same post-arming opportunity baseline as
             // “after you play this card, whenever you play another card” rather than the 4.8 full-turn draw rate.
@@ -728,7 +790,7 @@ internal static class EffectBalanceModel
             "D:IfFatal" or "C:ifFatal" or "CL:IfFatal" or "R:IfFatal" => FatalTriggerFrequency,
             "R:IfEnergyXAtLeast" => 0.45d,
             "R:AtTurnStartIfInExhaust" => 0.35d,
-            "C:NextTurnStart" or "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnTriggerFrequency,
+            "C:NextTurnStart" or "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnValueMultiplier,
             "NCR:IfOstyAttackedThisTurn" => 0.55d,
             "NCR:IfDoomAppliedThisTurn" => 0.45d,
             "NCR:IfOstyAlive" => 0.85d,
@@ -818,7 +880,7 @@ internal static class EffectBalanceModel
             "D:ForEachExhaustedStatus" => ExhaustedStatusTriggerFrequency,
             "D:WheneverStatusGenerated" => 0.45d,
             "C:NextTurnsStart" or "D:NextTurnsStart" =>
-                Math.Clamp(threshold, 1, 4) * NextTurnTriggerFrequency,
+                NextTurnsValueMultiplier(threshold),
             "C:untilTurnEndCardDrawn" => 3.2d,
             "C:untilTurnEndCardPlayed" => 3.2d,
             "C:untilTurnEndAttackPlayed" => 1.55d,
@@ -841,7 +903,7 @@ internal static class EffectBalanceModel
             "R:AtTurnStartIfInExhaust" => 0.35d,
             // Waiting a full turn is a meaningful one-shot liability. It should print a visibly larger payoff
             // than the same immediate line instead of receiving the old default 8% premium.
-            "C:NextTurnStart" or "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnTriggerFrequency,
+            "C:NextTurnStart" or "R:NextTurn" or "NCR:NextTurn" or "CL:AtNextTurnStart" => NextTurnValueMultiplier,
             "NCR:IfOstyAttackedThisTurn" => 0.55d,
             "NCR:IfDoomAppliedThisTurn" => 0.45d,
             "NCR:IfOstyAlive" => 0.85d,
@@ -960,7 +1022,28 @@ internal static class EffectBalanceModel
                 trigger, "threshold", 2), 1, 3);
             return threshold switch { 1 => 36, 2 => 60, _ => 125 };
         }
-        var frequency = RelativeTriggerFrequency(trigger);
+        // Delayed packages use the exact reciprocal of their discounted total resolution value. This keeps one
+        // line of next-turn payoff about as large in total budget as an immediate line while visibly compensating
+        // the player for waiting. It also keeps N-turn generation and whole-card valuation on the same curve.
+        if (CardEffectRules.IsNextTurnStartTrigger(trigger)
+            || CardEffectRules.IsNextTurnsStartTrigger(trigger))
+            return ReciprocalPercent(RelativeTriggerFrequency(trigger));
+        var triggerIndex = ResolveLinkedTriggerIndex(previous, trigger);
+        var rawFrequency = RelativeTriggerFrequency(trigger);
+        var contextualDependency = CardEffectRules.IsDependencyPrefix(trigger)
+            || trigger.Template is "C:forEach" or "C:forEachExhaustedCard"
+                or "C:forEachExhaustedNonAttack" or "C:forEachDiscarded";
+        var countDependentPayoff = CardEffectRules.IsMultiplicativeDependencyPrefix(trigger)
+            || trigger.Template is "C:forEach" or "C:forEachExhaustedCard"
+                or "C:forEachExhaustedNonAttack" or "C:forEachDiscarded";
+        var frequency = contextualDependency
+            ? DependencyResolutionCount(trigger, triggerIndex, previous, rawFrequency)
+            : rawFrequency;
+        // A count prefix backed by an explicit one-card payment resolves exactly once. It must retain 100% of an
+        // ordinary line rather than inheriting the generic recurring-trigger 52% scale intended for effects which
+        // can fire again later in the turn/combat. Counts above one keep the existing conservative cadence curve:
+        // high-frequency engines intentionally pay a small synergy premium on top of the mathematical reciprocal.
+        if (countDependentPayoff && frequency <= 1d) return ReciprocalPercent(frequency);
         if (HasRepeatedOrMultiplicativePayoff(trigger))
         {
             // A payoff that can happen several times each turn, or is multiplied by a commonly nontrivial live
@@ -992,6 +1075,15 @@ internal static class EffectBalanceModel
             <= 0.7d => 120,
             _ => 108
         };
+    }
+
+    private static int ResolveLinkedTriggerIndex(IReadOnlyList<GeneratorOperation> operations,
+        GeneratorOperation trigger)
+    {
+        for (var index = operations.Count - 1; index >= 0; index--)
+            if (ReferenceEquals(operations[index], trigger) || operations[index] == trigger)
+                return index;
+        return -1;
     }
 
     internal static bool HasRepeatedOrMultiplicativePayoff(GeneratorOperation trigger)
@@ -1051,7 +1143,9 @@ internal static class EffectBalanceModel
                     ? PersistentTriggeredDrawValueMultiplier
                     : TemporaryTriggeredDrawValueMultiplier)
                 : 100;
-        var delayedScale = LinkedTrigger(previous) is null && CardEffectRules.IsDelayedEffect(atom) ? 140 : 100;
+        var delayedScale = LinkedTrigger(previous) is null && CardEffectRules.IsDelayedEffect(atom)
+            ? ReciprocalPercent(NextTurnValueMultiplier)
+            : 100;
         // Strength comes from the shared sampler, never from a curated combo list. Keep ordinary rewards centered
         // near their native budget while retaining a small rarity-sensitive high tail. Common/Uncommon cards use
         // the tightest curve; Rare may still high-roll, and Ancient's printed multiplier is lower because its
@@ -1210,14 +1304,15 @@ internal static class EffectBalanceModel
             "R:PlaySelectedSkillMultipleTimes" => hits * 1_400,
             // Playing an unknown Attack from hand is worth roughly one and a half ordinary Energy per card: the
             // card itself and its printed cost are both supplied, with randomness discounting target/control.
-            "I:AutoPlayRandomAttackFromHand" => Math.Clamp(first, 1, 5) * 1_500,
+            "I:AutoPlayRandomAttackFromHand" =>
+                Math.Clamp(first, 1, 5) * RandomHandAttackAutoplayValue,
             "I:ReplayNextSkills" => Math.Clamp(first, 1, 4) * 1_100,
             "I:ReplayAttack" => Math.Clamp(hits, 1, 4) * 1_100,
             // Echo Form's per-turn payoff is multiplied by its first-card trigger in card-level valuation.
             "D:ReplayEventCard" => 1_280,
             "CL:ProxyAtomic_HiddenGem" => Math.Clamp(first, 1, 4) * 1_100,
             "I:ProxyAtomic_SignalBoost" => 1_500,
-            "A:ProxyAtomic_SwordSage" => 2_150,
+            "A:ProxyAtomic_SwordSage" => Math.Max(1, first) * 2_150,
             // Transfigure bundles a powerful permanent Replay grant with a +1-cost tradeoff.
             "I:ProxyAtomic_Transfigure" => 1_500,
             _ when OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("replay_reference") =>
@@ -1287,9 +1382,17 @@ internal static class EffectBalanceModel
     /// trigger frequency. The upgrade generator uses the difference between base and upgraded lists, preventing
     /// an extra-hit +1 from being treated like an ordinary printed-number +1.
     /// </summary>
-    internal static double EstimatedPositiveCardValue(IReadOnlyList<GeneratorOperation> operations) =>
-        PositiveRewardOperations(operations)
+    internal static double EstimatedPositiveCardValue(IReadOnlyList<GeneratorOperation> operations)
+    {
+        var rewards = PositiveRewardOperations(operations);
+        var payload = rewards
+            .Where(item => !CardEffectRules.IsCopyThisCardToDiscard(item.operation)
+                || CardEffectRules.IsZeroCostCopyThisCardToDiscard(item.operation))
             .Sum(item => EstimatedCardLevelRewardValue(item.operation, item.index, operations));
+        var ordinaryCopies = rewards.Count(item => CardEffectRules.IsCopyThisCardToDiscard(item.operation)
+            && !CardEffectRules.IsZeroCostCopyThisCardToDiscard(item.operation));
+        return payload * (1d + ordinaryCopies * CopyThisCardValuation.OrdinaryCopyPayloadMultiplier);
+    }
 
     internal static double EstimatedPositiveCardValue(IReadOnlyList<GeneratorOperation> operations,
         bool hasPrintedResourceCost, GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags) =>
@@ -1335,9 +1438,6 @@ internal static class EffectBalanceModel
                 operation.RequiresSingleTarget, CardReferenceRequirement.None)))
             return 0d;
         if (CardEffectRules.IsZeroCostCopyThisCardToDiscard(operation)) return 0d;
-        if (CardEffectRules.CopyThisCardBudgetRole(operation, hasPrintedResourceCost, cardType, tags)
-            is CopyThisCardBudgetRole.PaidReusableDownside or CopyThisCardBudgetRole.ExhaustOffset)
-            return 0d;
         return ContextualCardLevelRewardValue(operation, operationIndex, operations,
             hasPrintedResourceCost, cardType, tags);
     }
@@ -1346,30 +1446,26 @@ internal static class EffectBalanceModel
         int operationIndex, IReadOnlyList<GeneratorOperation> operations) =>
         LinkedResolutionMultiplier(operation, operationIndex, operations);
 
+    internal static double EstimatedCardLevelRewardValueForAudit(GeneratorOperation operation,
+        int operationIndex, IReadOnlyList<GeneratorOperation> operations) =>
+        EstimatedCardLevelRewardValue(operation, operationIndex, operations);
+
+    internal static bool HasContextualModifierValuationForAudit(GeneratorOperation operation) =>
+        HasContextualModifierValuation(operation);
+
+    internal static double DependencyResolutionCountForAudit(GeneratorOperation trigger, int triggerIndex,
+        IReadOnlyList<GeneratorOperation> operations, double fallback) =>
+        DependencyResolutionCount(trigger, triggerIndex, operations, fallback);
+
     /// <summary>
-    /// Resolves ordinary Energy-X/Star-X value slots at a concrete payment for card-floor checks. Ordinary X cards
-    /// do not have a fixed effective-cost coordinate, but their payoff at X=1 must still be good enough to consume
-    /// one resource and one draw. Special-X conversion happens later and remains governed by its fixed shell.
+    /// Resolves ordinary Energy-X/Star-X value slots at a concrete payment for early card-floor checks. Complete
+    /// generated cards receive the stricter rarity envelope checks at both X=1 and X=3 in VariableXCardBalance.
     /// </summary>
     internal static double EstimatedPositiveCardValueAtOrdinaryX(IReadOnlyList<GeneratorOperation> operations,
         int resolvedX, bool hasPrintedResourceCost, GeneratedCardType cardType,
         IReadOnlyCollection<CardTag>? tags)
     {
-        resolvedX = Math.Max(0, resolvedX);
-        var materialized = operations.Select(operation =>
-        {
-            var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
-            if (!spec.Values.Any(value => value.Source is "energy_x" or "star_x")) return operation;
-            var values = spec.Values.Select(value => value.Source is "energy_x" or "star_x"
-                ? value with
-                {
-                    BaseValue = Math.Max(0, resolvedX + value.Offset),
-                    Source = "fixed",
-                    Offset = 0
-                }
-                : value).ToArray();
-            return operation with { RuntimeSpec = spec with { Values = values } };
-        }).ToArray();
+        var materialized = VariableXCardBalance.MaterializeOperations(operations, resolvedX);
         return EstimatedPositiveCardValue(materialized, hasPrintedResourceCost, cardType, tags);
     }
 
@@ -1481,18 +1577,24 @@ internal static class EffectBalanceModel
             // field. ComponentAssemblyGenerator averages the paid and zero-cost envelopes for the remaining
             // payload, which models both copies without counting this line twice.
             .Where(item => !CardEffectRules.IsZeroCostCopyThisCardToDiscard(item.operation))
-            .Where(item => CardEffectRules.CopyThisCardBudgetRole(item.operation, hasPrintedResourceCost,
-                    cardType, tags)
-                is not (CopyThisCardBudgetRole.PaidReusableDownside or CopyThisCardBudgetRole.ExhaustOffset))
             .ToArray();
 
     private static double ContextualCardLevelRewardValue(GeneratorOperation operation, int operationIndex,
         IReadOnlyList<GeneratorOperation> operations, bool hasPrintedResourceCost,
         GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags)
     {
-        var copyRole = CardEffectRules.CopyThisCardBudgetRole(operation, hasPrintedResourceCost, cardType, tags);
-        var copyValue = CopyThisCardValuation.ContextualRewardValue(copyRole);
-        if (!double.IsNaN(copyValue)) return copyValue;
+        if (CardEffectRules.IsCopyThisCardToDiscard(operation)
+            && !CardEffectRules.IsZeroCostCopyThisCardToDiscard(operation))
+        {
+            // Do not recursively price the copy against itself. Every other usable positive operation and positive
+            // keyword forms the payload that the future copy reproduces; 60% is Anger's native marginal ratio.
+            var copiedPayload = PositiveRewardOperations(operations)
+                .Where(item => item.index != operationIndex
+                    && !CardEffectRules.IsCopyThisCardToDiscard(item.operation))
+                .Sum(item => EstimatedCardLevelRewardValue(item.operation, item.index, operations))
+                + EstimatedPositiveKeywordValue(tags);
+            return Math.Max(0d, copiedPayload) * CopyThisCardValuation.OrdinaryCopyPayloadMultiplier;
+        }
         return EstimatedCardLevelRewardValue(operation, operationIndex, operations);
     }
 
@@ -1777,8 +1879,9 @@ internal static class EffectBalanceModel
     private static double AddedHitValue(GeneratorOperation operation)
     {
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
-        var damagePerHit = spec.Values.FirstOrDefault(value => value.Explicit && value.Source == "fixed")
-            ?.BaseValue ?? 1;
+        var damageSlot = spec.Values.FirstOrDefault(value => value.Id == "damage")
+            ?? spec.Values.FirstOrDefault(value => value.Explicit && value.Source == "fixed");
+        var damagePerHit = Math.Max(0, (damageSlot?.BaseValue ?? 1) + (damageSlot?.Offset ?? 0));
         return (damagePerHit + 1d) * DamageValueMultiplier(operation) * 100d;
     }
 
@@ -2093,8 +2196,9 @@ internal static class EffectBalanceModel
             ? DependencyResolutionCount(operations[operationIndex - 1], operationIndex - 1, operations,
                 RelativeTriggerFrequency(operations[operationIndex - 1]))
             : 1d;
-        return resolutions * parentResolutions * adjacentDependencyResolutions
-            * NestedConditionMultiplier(triggerIndex, operationIndex, operation, operations);
+        // Every valid conditional ancestor is already encoded by triggerIndex and expanded recursively above.
+        // Scanning unrelated lines between an owner and its child would charge completed sibling branches again.
+        return resolutions * parentResolutions * adjacentDependencyResolutions;
     }
 
     private static double PersistentResolutionCap(GeneratorOperation trigger)
@@ -2113,27 +2217,46 @@ internal static class EffectBalanceModel
     private static double DependencyResolutionCount(GeneratorOperation trigger, int triggerIndex,
         IReadOnlyList<GeneratorOperation> operations, double fallback)
     {
-        if (trigger.Template != "C:forEachDiscarded" || triggerIndex <= 0) return Math.Max(0d, fallback);
-        var payment = operations[triggerIndex - 1];
-        if (payment.Template == "N:DiscardAll") return 4d;
-        if (payment.Template == "N:Discard")
-            return Math.Max(1d, OperationRuntimeSpecCompiler.StaticLiteralValue(payment, "count", 1));
-        return Math.Max(0d, fallback);
+        if (triggerIndex <= 0) return Math.Max(0d, fallback);
+        var triggerKind = OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind;
+        if (triggerKind == "for_each_discarded_card")
+        {
+            var payment = FindPriorPayment(triggerIndex, operations, candidate =>
+                candidate.Template is "N:Discard" or "N:DiscardAll" or "I:DiscardHandDrawSame");
+            if (payment?.Template is "N:DiscardAll" or "I:DiscardHandDrawSame") return 4d;
+            if (payment?.Template == "N:Discard")
+                return Math.Max(1d, OperationRuntimeSpecCompiler.StaticLiteralValue(payment, "count", 1));
+            return Math.Max(0d, fallback);
+        }
+
+        if (triggerKind is not ("for_each_exhausted_card" or "for_each_exhausted_non_attack"
+            or "for_each_exhausted_status"))
+            return Math.Max(0d, fallback);
+
+        var exhaust = FindPriorPayment(triggerIndex, operations, candidate =>
+        {
+            var spec = OperationRuntimeSpecCompiler.GetOrCompile(candidate);
+            return spec.Opcode == "exhaust_card" || candidate.Template == "D:ExhaustAllStatuses";
+        });
+        if (exhaust is null) return Math.Max(0d, fallback);
+        if (exhaust.Template == "D:ExhaustAllStatuses") return ExhaustedStatusTriggerFrequency;
+
+        var exhaustSpec = OperationRuntimeSpecCompiler.GetOrCompile(exhaust);
+        if (exhaustSpec.Variant == "all")
+            // A normal five-card hand has four cards left after playing this card. Restricting the payment to
+            // non-Attacks leaves roughly two to three eligible cards, matching Second Wind's native shell.
+            return exhaustSpec.CardFilter == "non_attack" || triggerKind == "for_each_exhausted_non_attack"
+                ? 2.5d : 4d;
+        return Math.Max(1d, OperationRuntimeSpecCompiler.StaticLiteralValue(exhaust, "count", 1));
     }
 
-    private static double NestedConditionMultiplier(int triggerIndex, int operationIndex,
-        GeneratorOperation operation, IReadOnlyList<GeneratorOperation> operations)
+    private static GeneratorOperation? FindPriorPayment(int triggerIndex,
+        IReadOnlyList<GeneratorOperation> operations, Func<GeneratorOperation, bool> predicate)
     {
-        if (triggerIndex < 0 || operationIndex <= triggerIndex + 1) return 1d;
-        var multiplier = 1d;
-        for (var index = triggerIndex + 1; index < operationIndex; index++)
-        {
-            var condition = operations[index];
-            if (condition.Scope != OperationScope.ConditionalTrigger
-                || !CardEffectRules.IsLegalDependencyPayoff(condition, operation)) continue;
-            multiplier *= Math.Clamp(RelativeTriggerFrequency(condition), 0.05d, 1d);
-        }
-        return multiplier;
+        for (var index = triggerIndex - 1; index >= 0; index--)
+            if (predicate(operations[index]))
+                return operations[index];
+        return null;
     }
 
     internal static int ValueFitWeight(int value, int target)
@@ -2146,14 +2269,10 @@ internal static class EffectBalanceModel
     }
 
     private static bool IsStaticExtraDamageHits(ComponentAtom atom) =>
-        atom.Scope == OperationScope.Modifier
-        && (atom.Template is "M:repeat" or "D:RepeatDamage" or "R:RepeatDamage"
-            || OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("static_extra_damage_hits"));
+        CardEffectRules.IsStaticExtraDamageHitModifier(atom);
 
     private static bool IsStaticExtraDamageHits(GeneratorOperation operation) =>
-        operation.Scope == OperationScope.Modifier
-        && (operation.Template is "M:repeat" or "D:RepeatDamage" or "R:RepeatDamage"
-            || OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("static_extra_damage_hits"));
+        CardEffectRules.IsStaticExtraDamageHitModifier(operation);
 
     internal static int ExpectedExtraDamageHits(ComponentAtom atom)
     {
@@ -2177,8 +2296,10 @@ internal static class EffectBalanceModel
         // host's original hit. Its native prefix is calibrated at 1.2 prior attacks this turn.
         if (operation.Template == "NCR:RepeatPerOstyAttackThisTurn")
             return LinkedCountOrDefault(operation, operationIndex, operations, 1.2d);
+        var hasExplicitOwner = operation.Parameters.TryGetValue("triggerIndex", out var ownerIndex)
+            && ownerIndex >= 0 && ownerIndex < operationIndex;
         return ExpectedExtraDamageHits(operation)
-            * (HasAdjacentMultiplicativeDependency(operation, operationIndex, operations)
+            * (hasExplicitOwner || HasAdjacentMultiplicativeDependency(operation, operationIndex, operations)
                 ? LinkedResolutionMultiplier(operation, operationIndex, operations)
                 : 1d);
     }
@@ -2277,6 +2398,13 @@ internal static class EffectBalanceModel
         if (unequalEquivalentPrices.Length > 0)
             throw new InvalidOperationException("语义相同的新组件与旧快照别名定价不一致："
                                                 + string.Join(", ", unequalEquivalentPrices));
+        var discardToHand = new GeneratorOperation("N:MoveDiscardCardToHand", OperationScope.NonTargeted,
+            "将弃牌堆中的一张牌放入手牌。", new Dictionary<string, int>());
+        if (AliasValue("N:MoveDiscardCardToHand", OperationScope.NonTargeted,
+                "将弃牌堆中的一张牌放入手牌。") != DiscardToHandValue
+            || !CardEffectRules.IsBeneficialEffect(discardToHand)
+            || EstimatedPositiveCardValue([discardToHand]) != DiscardToHandValue)
+            throw new InvalidOperationException("弃牌堆定向回手没有使用共享的一张牌价值。");
 
         var doomAtoms = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder).Atoms
             .Where(atom => atom.Template is "NCR:ApplyDoom" or "NCR:ApplyDoomAll")
@@ -2451,7 +2579,8 @@ internal static class EffectBalanceModel
             "每当你在一回合内打出5张牌时。", new Dictionary<string, int>());
         var afterThreeTurns = new GeneratorOperation("CL:AfterTurns", OperationScope.AbilityTrigger,
             "在3回合结束后。", new Dictionary<string, int>());
-        if (RelativeTriggerFrequency(nextTwoTurns) != 2d * NextTurnTriggerFrequency
+        if (Math.Abs(RelativeTriggerFrequency(nextTwoTurns) - NextTurnsValueMultiplier(2)) > 0.0001d
+            || PayoffScalePercent([nextTwoTurns]) != ReciprocalPercent(NextTurnsValueMultiplier(2))
             || Math.Abs(RelativeTriggerFrequency(everyTenDraws) - 0.48d) > 0.0001d
             || Math.Abs(RelativeTriggerFrequency(everyFiveCards) - 0.32d) > 0.0001d
             || HasRepeatedOrMultiplicativePayoff(afterThreeTurns)
@@ -2504,6 +2633,9 @@ internal static class EffectBalanceModel
         var playTwoRandomHandAttacks = new ComponentAtom("I:AutoPlayRandomAttackFromHand",
             OperationScope.Independent, "随机打出手牌中的2张攻击牌，攻击随机敌人。", false,
             CardReferenceRequirement.HandCard);
+        var playRandomDrawAttack = new ComponentAtom("D:AutoPlayRandomAttackFromDraw",
+            OperationScope.NonTargeted, "随机打出抽牌堆中的1张攻击牌。", false,
+            CardReferenceRequirement.None);
         var exhaustAllHand = new ComponentAtom("N:Exhaust", OperationScope.NonTargeted,
             "消耗所有手牌。", false, CardReferenceRequirement.None);
         var enemyStrength = new ComponentAtom("T:Apply", OperationScope.SingleEnemyOnly,
@@ -2595,10 +2727,11 @@ internal static class EffectBalanceModel
             || EstimatedEffectValue(discardCopy) != CopyThisCardValuation.FreeReusableRewardValue
             || EstimatedEffectValue(zeroCostDiscardCopy) != CopyThisCardValuation.ZeroCostCopyRepresentativeValue
             || EstimatedEffectValue(randomCurrentCharacterCard) != 450
-            || EstimatedEffectValue(playTwoRandomHandAttacks) != 3_000
+            || EstimatedEffectValue(playTwoRandomHandAttacks) != 2 * RandomHandAttackAutoplayValue
+            || EstimatedEffectValue(playRandomDrawAttack) != RandomDrawAttackAutoplayValue
             || EstimatedEffectValue(exhaustAllHand) != 1_500
             || EstimatedEffectValue(enemyStrength) != 900
-            || EstimatedEffectValue(havoc) != 900
+            || EstimatedEffectValue(havoc) != TopDrawCardAndExhaustValue
             || EstimatedEffectValue(plating) != 1_740
             || EstimatedEffectValue(temporaryEnemyStrength) != 1_360
             || EstimatedEffectValue(temporaryAllEnemyStrength) != 1_800
@@ -2618,9 +2751,9 @@ internal static class EffectBalanceModel
             || EstimatedEffectValue(freeRandomAttack) != 1_100
             || EstimatedEffectValue(nextSkillCostsZero) != NextSkillCostsZeroValue
             || EstimatedEffectValue(keepBlockNextTurn) != 800
-            || EstimatedEffectValue(nextTurnBlock) != 4 * NextTurnBlockValuePerPoint
-            || EstimatedEffectValue(nextTurnDraw) != 2 * NextTurnDrawValuePerCard
-            || EstimatedEffectValue(nextTurnEnergy) != 2 * NextTurnEnergyValuePerPoint
+            || EstimatedEffectValue(nextTurnBlock) != DiscountNextTurnValue(4 * 120)
+            || EstimatedEffectValue(nextTurnDraw) != DiscountNextTurnValue(EstimatedDrawValue(2))
+            || EstimatedEffectValue(nextTurnEnergy) != DiscountNextTurnValue(2 * OrdinaryEnergyValuePerPoint)
             || EstimatedEffectValue(nextTurnCopies) != 9_000
             || EstimatedEffectValue(nextTurnAttackDouble) != 2_800
             || EstimatedEffectValue(delayedTutors) != 1_900
@@ -2686,6 +2819,15 @@ internal static class EffectBalanceModel
                 + $"exhaustedShivs={EstimatedEffectValue(playExhaustedShivs)}, "
                 + $"random={EstimatedEffectValue(randomDamage)}, repeatedRandom={EstimatedEffectValue(repeatedRandomDamage)}, "
                 + $"twoShivs={EstimatedEffectValue(twoShivs)}, "
+                + $"copy={EstimatedEffectValue(discardCopy)}, handAutoplay={EstimatedEffectValue(playTwoRandomHandAttacks)}, "
+                + $"drawAutoplay={EstimatedEffectValue(playRandomDrawAttack)}, havoc={EstimatedEffectValue(havoc)}, "
+                + $"extraHits={EstimatedEffectValue(extraHits)}, lostHpHits={EstimatedEffectValue(lostHpExtraHits)}, "
+                + $"randomCard={EstimatedEffectValue(randomCurrentCharacterCard)}, enemyStrength={EstimatedEffectValue(enemyStrength)}, "
+                + $"shivsRetain={EstimatedEffectValue(shivsRetain)}, shivBonus={EstimatedEffectValue(shivBonusDamage)}, "
+                + $"vigor={EstimatedEffectValue(vigor)}, repeatedArea={EstimatedEffectValue(repeatedAreaDamage)}, "
+                + $"repeatedTarget={EstimatedEffectValue(repeatedTargetDamage)}, freeRandomAttack={EstimatedEffectValue(freeRandomAttack)}, "
+                + $"nextSkillZero={EstimatedEffectValue(nextSkillCostsZero)}, keepBlock={EstimatedEffectValue(keepBlockNextTurn)}, "
+                + $"poisonExtra={EstimatedEffectValue(poisonExtraTrigger)}, poisonExtra2={PoisonExtraTriggerValue(2)}, "
                 + $"platingCommon={ComponentAssemblyGenerator.ExplicitRareOperationRarityWeight(plating, GeneratedRarity.Common)}, "
                 + $"platingRare={ComponentAssemblyGenerator.ExplicitRareOperationRarityWeight(plating, GeneratedRarity.Rare)}。");
         GeneratorOperation Operation(ComponentAtom atom) => new(atom.Template, atom.Scope, atom.ChineseText,
@@ -2722,11 +2864,11 @@ internal static class EffectBalanceModel
                 "self", "none", "draw", "any", ["soul_reference"],
                 [new RuntimeValueSlot("amount", 0, "energy_x")], null, null));
         if (EstimatedEffectValue(new GeneratorOperation("NCR:Summon", OperationScope.NonTargeted,
-                "召唤8。", new Dictionary<string, int>())) != 1_912
+                "召唤8。", new Dictionary<string, int>())) != 1_440
             || Math.Abs(summonXAtOne - SummonValuePerPoint) > 0.001d
             || EstimatedEffectValue(summonX) != EstimatedEffectValue(summonOne)
             || EstimatedEffectValue(soulX) != EstimatedEffectValue(soulOne)
-            || ComponentAssemblyGenerator.HasAdequateOrdinaryXCardValue([summonX],
+            || ComponentAssemblyGenerator.HasMinimumOrdinaryXCardValueAtCheckpoints([summonX],
                 GeneratedCardType.Skill, [], true))
             throw new InvalidOperationException("X费召唤/灵魂没有与对应非X组件共享单位价值，或召唤仍可绕过最低效率检查。 ");
 
@@ -2745,6 +2887,51 @@ internal static class EffectBalanceModel
         double NativeValue(GeneratedCharacter character, string cardId) =>
             EstimatedPositiveCardValue(NativeOperations(character, cardId));
 
+        // Count-dependent Exhaust payoffs must inherit the preceding payment's live count. A fixed fallback of six
+        // made “Exhaust 1; for each card Exhausted, gain 5 Block” look like 30 Block and starved the generated card
+        // of compensation. All-hand effects resolve after this card leaves the hand, so their ordinary count is 4;
+        // the non-Attack subset follows Second Wind's native 2.5-card expectation.
+        var fiendFireOperations = NativeOperations(GeneratedCharacter.Ironclad, "FiendFire");
+        var fiendFireTriggerIndex = Array.FindIndex(fiendFireOperations, operation =>
+            OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind == "for_each_exhausted_card");
+        var secondWindOperations = NativeOperations(GeneratedCharacter.Ironclad, "SecondWind");
+        var secondWindTriggerIndex = Array.FindIndex(secondWindOperations, operation =>
+            OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind == "for_each_exhausted_non_attack");
+        if (fiendFireTriggerIndex <= 0 || secondWindTriggerIndex <= 0)
+            throw new InvalidOperationException("原版消耗计数锚点缺少结构化触发器。");
+        var selectedExhaustSpec = OperationRuntimeSpecCompiler.GetOrCompile(fiendFireOperations[0]) with
+        {
+            Variant = "selected",
+            CardFilter = "any",
+            Values = [new RuntimeValueSlot("count", 1)]
+        };
+        var selectedExhaust = fiendFireOperations[0] with { RuntimeSpec = selectedExhaustSpec };
+        var selectedExhaustTrigger = fiendFireOperations[fiendFireTriggerIndex] with
+        {
+            Parameters = new Dictionary<string, int>()
+        };
+        var triggeredBlockFive = Operation(block) with
+        {
+            Parameters = new Dictionary<string, int> { ["triggerIndex"] = 1 }
+        };
+        var selectedExhaustPackage = new[] { selectedExhaust, selectedExhaustTrigger, triggeredBlockFive };
+        if (Math.Abs(DependencyResolutionCountForAudit(selectedExhaustTrigger, 1,
+                selectedExhaustPackage, 6d) - 1d) > 0.001d
+            || Math.Abs(DependencyResolutionCountForAudit(fiendFireOperations[fiendFireTriggerIndex],
+                fiendFireTriggerIndex, fiendFireOperations, 6d) - 4d) > 0.001d
+            || Math.Abs(DependencyResolutionCountForAudit(secondWindOperations[secondWindTriggerIndex],
+                secondWindTriggerIndex, secondWindOperations, 6d) - 2.5d) > 0.001d
+            || PayoffScalePercent(selectedExhaustPackage.Take(2).ToArray()) != 100
+            || Math.Abs(EstimatedContextualOperationValueForAudit(triggeredBlockFive, 2,
+                selectedExhaustPackage, true, GeneratedCardType.Skill, []) - 600d) > 0.001d)
+            throw new InvalidOperationException("消耗计数后续没有继承单张/全手牌/非攻击牌支付的真实数量。");
+        var rareTwoCostSelectedExhaustProbe = selectedExhaustPackage.ToList();
+        if (!ComponentAssemblyGenerator.ApplyWholeCardBudgetEnvelope(rareTwoCostSelectedExhaustProbe,
+                GeneratedRarity.Rare, 2d, GeneratedCardType.Skill, [], true, true,
+                GeneratedCharacter.Ironclad, false)
+            || OperationRuntimeSpecCompiler.StaticLiteralValue(rareTwoCostSelectedExhaustProbe[2], "block", 0) <= 5)
+            throw new InvalidOperationException("2费稀有的单张消耗计数后续仍被压在5点格挡的弱值上。");
+
         var dirgeOperations = NativeOperations(GeneratedCharacter.Necrobinder, "Dirge");
         var dirgeAtOne = EstimatedPositiveCardValueAtOrdinaryX(dirgeOperations, 1, true,
             GeneratedCardType.Skill, [CardTag.Exhaust]);
@@ -2761,18 +2948,21 @@ internal static class EffectBalanceModel
         {
             (GeneratedCharacter.Silent, "Mirage", 1_800d),
             (GeneratedCharacter.Colorless, "JackOfAllTrades", 855d),
+            (GeneratedCharacter.Colorless, "Catastrophe", 2_800d),
             (GeneratedCharacter.Necrobinder, "TimesUp", 2_050d),
             (GeneratedCharacter.Colorless, "Prolong", 1_400d),
             (GeneratedCharacter.Colorless, "GoldAxe", GoldAxeDynamicDamageValue),
             (GeneratedCharacter.Ironclad, "BodySlam", 1_100d),
             (GeneratedCharacter.Silent, "Shadowmeld", 1_400d),
             (GeneratedCharacter.Silent, "Nightmare", 9_000d),
-            (GeneratedCharacter.Necrobinder, "DevourLife", 1_075.5d),
-            (GeneratedCharacter.Ironclad, "FiendFire", 4_200d),
+            (GeneratedCharacter.Necrobinder, "DevourLife", 810d),
+            // The source card has left the hand before either all-hand Exhaust action resolves. Price the native
+            // package at four remaining cards, not the trigger's old context-free six-card fallback.
+            (GeneratedCharacter.Ironclad, "FiendFire", 2_800d),
             (GeneratedCharacter.Regent, "SpectrumShift", 2_565d),
             (GeneratedCharacter.Regent, "BundleOfJoy", 2_565d),
             (GeneratedCharacter.Defect, "CreativeAi", 3_360d),
-            (GeneratedCharacter.Ironclad, "Stoke", 2_700d),
+            (GeneratedCharacter.Ironclad, "Stoke", 1_800d),
             (GeneratedCharacter.Ironclad, "MoltenFist", 1_750d),
             (GeneratedCharacter.Colorless, "RollingBoulder", 6_460d),
             (GeneratedCharacter.Silent, "Murder", 3_400d),
@@ -2787,15 +2977,16 @@ internal static class EffectBalanceModel
             (GeneratedCharacter.Regent, "LunarBlast", 900d),
             (GeneratedCharacter.Regent, "Radiate", 775d),
             (GeneratedCharacter.Necrobinder, "Rattle", 1_660d),
-            (GeneratedCharacter.Necrobinder, "DeathMarch", 2_020d),
+            (GeneratedCharacter.Necrobinder, "DeathMarch", 2_720d),
             (GeneratedCharacter.Ironclad, "ExpectAFight", 2_460d),
             (GeneratedCharacter.Colorless, "Rend", 2_000d),
             (GeneratedCharacter.Silent, "EchoingSlash", 2_317.25d),
-            (GeneratedCharacter.Regent, "CrescentSpear", 1_300d),
+            (GeneratedCharacter.Regent, "CrescentSpear", 1_800d),
             (GeneratedCharacter.Defect, "Barrage", 1_700d),
+            (GeneratedCharacter.Defect, "Loop", 1_401d),
             (GeneratedCharacter.Regent, "HeavenlyDrill", 1_340d),
-            (GeneratedCharacter.Necrobinder, "Unleash", 600d),
-            (GeneratedCharacter.Necrobinder, "Protector", 1_300d),
+            (GeneratedCharacter.Necrobinder, "Unleash", 1_100d),
+            (GeneratedCharacter.Necrobinder, "Protector", 2_200d),
             (GeneratedCharacter.Necrobinder, "NoEscape", 1_600d),
             (GeneratedCharacter.Silent, "PreciseCut", 1_300d),
             (GeneratedCharacter.Colorless, "Stratagem", 750d),
@@ -2809,10 +3000,10 @@ internal static class EffectBalanceModel
         var cascadeAtOne = EstimatedPositiveCardValueAtOrdinaryX(
             NativeOperations(GeneratedCharacter.Ironclad, "Cascade"), 1, true,
             GeneratedCardType.Skill, []);
-        if (Math.Abs(cascadeAtOne - 1_100d) > 0.001d)
-            nativeAnchorFailures.Add($"Ironclad/Cascade@X1: expected=1100, actual={cascadeAtOne:0.###}");
-        if (Math.Abs(dirgeAtOne - 1_049d) > 0.001d)
-            nativeAnchorFailures.Add($"Necrobinder/Dirge@X1: expected=1049, actual={dirgeAtOne:0.###}");
+        if (Math.Abs(cascadeAtOne - TopDrawCardValue) > 0.001d)
+            nativeAnchorFailures.Add($"Ironclad/Cascade@X1: expected={TopDrawCardValue}, actual={cascadeAtOne:0.###}");
+        if (Math.Abs(dirgeAtOne - 1_350d) > 0.001d)
+            nativeAnchorFailures.Add($"Necrobinder/Dirge@X1: expected=1350, actual={dirgeAtOne:0.###}");
         var foregoneConclusionUpgradeValue = EstimatedPositiveCardValue([foregoneConclusionUpgraded]);
         if (Math.Abs(foregoneConclusionUpgradeValue - 2_850d) > 0.001d)
             nativeAnchorFailures.Add("Regent/ForegoneConclusion+3: expected=2850, actual="
@@ -2833,8 +3024,8 @@ internal static class EffectBalanceModel
                 GeneratedRarity.Rare, 1d, GeneratedCardType.Skill, [], true, true,
                 GeneratedCharacter.Necrobinder, false);
         var rareSummonAmount = OperationRuntimeSpecCompiler.StaticLiteralValue(rareSummonProbe[0], "amount", 0);
-        if (!rareSummonEnvelopeApplied || rareSummonAmount != 8)
-            throw new InvalidOperationException($"一费稀有纯召唤8没有落入重新校准后的整卡预算区间："
+        if (!rareSummonEnvelopeApplied || rareSummonAmount != 9)
+            throw new InvalidOperationException($"一费稀有纯召唤没有按线性单位价值落入整卡预算区间："
                 + $"applied={rareSummonEnvelopeApplied}, amount={rareSummonAmount}, "
                 + $"value={EstimatedPositiveCardValue(rareSummonProbe)}。 ");
         var damageGrowth = new GeneratorOperation("I:IncreaseDamageThisCombat", OperationScope.Independent,
@@ -2895,6 +3086,10 @@ internal static class EffectBalanceModel
         var repeatedDamageBase = new[] { Operation(damage), Operation(extraHits) };
         if (EstimatedDamagePackageValue(repeatedDamageBase) != 2_000d)
             throw new InvalidOperationException("额外伤害次数没有计入完整伤害包价值。");
+        var damageEightStaticProbe = DamageProbe(8);
+        var extraThree = PrimaryValueProbe(Operation(extraHits), 3);
+        if (EstimatedPositiveCardValue([damageEightStaticProbe, extraThree]) != 3_500d)
+            throw new InvalidOperationException("8点伤害并额外造成3次的伤害包没有按4段及额外段适配价值计费。");
         var finisherModifier = new GeneratorOperation("M:RepeatPerAttackThisTurn", OperationScope.Modifier,
             "本回合每打出过一张攻击牌，就造成一次伤害。", new Dictionary<string, int>());
         var flechettesModifier = new GeneratorOperation("M:RepeatPerSkillInHand", OperationScope.Modifier,
@@ -2903,9 +3098,13 @@ internal static class EffectBalanceModel
             "每有一个充能球，这张牌就造成一次伤害。", new Dictionary<string, int>());
         GeneratorOperation DamageProbe(int amount)
         {
-            if (!OperationRuntimeSpecCompiler.TryReplacePrimaryExplicitFixedValue(targetDamageSix, amount,
+            return PrimaryValueProbe(targetDamageSix, amount);
+        }
+        GeneratorOperation PrimaryValueProbe(GeneratorOperation source, int amount)
+        {
+            if (!OperationRuntimeSpecCompiler.TryReplacePrimaryExplicitFixedValue(source, amount,
                     out var updated))
-                throw new InvalidOperationException("无法构造动态段数价值测试的伤害 operation。");
+                throw new InvalidOperationException("无法构造段数价值测试的数值 operation。");
             return updated;
         }
         var damageTwelve = DamageProbe(12);
@@ -2927,8 +3126,10 @@ internal static class EffectBalanceModel
             throw new InvalidOperationException("终结技/飞镖/弹幕齐射的动态段数没有继承当前每段伤害价值。");
         if (MixedDamageBlockScale(2_600d, 1_320d) is not (>= 0.92d and <= 0.94d))
             throw new InvalidOperationException("攻防混合卡没有支付足够的灵活性预算。 ");
-        if (EstimatedPositiveCardValue([Operation(damage), Operation(lostHpExtraHits)]) != 2_700d)
-            throw new InvalidOperationException("按三次失去生命估算的额外伤害次数价值发生了意外变化。");
+        var lostHpRepeatProbeValue = EstimatedPositiveCardValue([Operation(damage), Operation(lostHpExtraHits)]);
+        if (lostHpRepeatProbeValue != 2_700d)
+            throw new InvalidOperationException($"按三次失去生命估算的额外伤害次数价值发生了意外变化："
+                                                + $"actual={lostHpRepeatProbeValue:0.###}。");
         var repeatedDamageHitUpgrade = new[]
         {
             repeatedDamageBase[0],

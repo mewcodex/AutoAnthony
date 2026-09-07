@@ -22,6 +22,8 @@ Slay the Spire 2 `0.111.x`.
 - Keeps generated operations independent from localized prose through versioned `OperationRuntimeSpec` records.
 - Provides Component API v3 for external character mods to register catalogs, occurrence/value/keyword policies,
   semantic flags, stable localization IDs, runtime handlers, hover tips, and generated-card slots.
+- Provides a read-only decomposition catalog for every non-multiplayer v111 card. Card Tinkering can optionally edit
+  all 481 ordinary native cards without replacing their pools or converting untouched cards.
 
 ## Installation
 

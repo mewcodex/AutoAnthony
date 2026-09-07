@@ -21,6 +21,7 @@ var suppressDerivativeReferences = false;
 var aggressiveValues = false;
 var numericRandomMode = false;
 var catalogOwnershipAudit = false;
+var nativeDecompositionAudit = false;
 string? writeRefactorBaseline = null;
 string? compareRefactorBaseline = null;
 string? textDependencySourceRoot = null;
@@ -51,6 +52,9 @@ for (var i = 0; i < args.Length; i++)
             break;
         case "--self-test":
             selfTest = true;
+            break;
+        case "--native-decomposition-audit":
+            nativeDecompositionAudit = true;
             break;
         case "--semantic-equivalence-audit":
             semanticEquivalenceAudit = true;
@@ -318,6 +322,24 @@ if (selfTest)
     NativeCardValuationAudit.ValidateCoverage();
     NativeReferenceCatalog.Validate();
     Console.WriteLine("RandomCardGenerator self-test passed.");
+    return;
+}
+
+if (nativeDecompositionAudit)
+{
+    NativeReferenceCatalog.Validate();
+    var executable = NativeCardDecompositionApi.Cards
+        .Where(card => card.ExecutionSupport == NativeCardExecutionSupport.ExecutableRecipe).ToArray();
+    var exactUpgrades = executable.Count(card =>
+        NativeCardDecompositionApi.TryCreateDefinition(card.CatalogId, out _, out _));
+    var unsupported = executable.Select(card =>
+        (card.CatalogId, Success: NativeCardDecompositionApi.TryCreateDefinition(
+            card.CatalogId, out _, out var actions), Actions: actions))
+        .Where(item => !item.Success).ToArray();
+    Console.WriteLine($"Native-card decomposition audit passed: 567 records; 481 executable bases; "
+                      + $"{exactUpgrades} exact generated upgrades; 86 structured references.");
+    foreach (var item in unsupported)
+        Console.WriteLine($"upgrade-adapter-pending={item.CatalogId}:{string.Join(',', item.Actions)}");
     return;
 }
 

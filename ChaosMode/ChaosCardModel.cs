@@ -41,6 +41,15 @@ public abstract class ChaosCardModel : CardModel
     private readonly Dictionary<int, int> _capturedExternalDamageBonuses = [];
     private string _tinkeredDefinitionPayload = string.Empty;
     private GeneratedCard? _tinkeredDefinition;
+    private string _freeformDefinitionPayload = string.Empty;
+    private GeneratedCard? _freeformDefinition;
+    private string _freeformPortraitPath = string.Empty;
+    private string _editorDefinitionPayload = string.Empty;
+    private GeneratedCard? _editorDefinition;
+    private string _editorPortraitPath = string.Empty;
+    private string _editorPortraitSourceId = string.Empty;
+    private string _editorPortraitVariantId = string.Empty;
+    private string _editorPortraitVariantPath = string.Empty;
 
     protected abstract int Slot { get; }
     protected virtual GeneratedCharacter Character => GeneratedCharacter.Ironclad;
@@ -50,7 +59,7 @@ public abstract class ChaosCardModel : CardModel
         ? ExternalComponentCharacterApi.ForSlot(profileId, Slot)
         : ChaosRunDefinitions.ForSlot(Character, Slot);
     public ChaosCardDefinition Definition => ResolveDefinition();
-    public GeneratedCard Generated => _tinkeredDefinition ?? Definition.Card;
+    public GeneratedCard Generated => _editorDefinition ?? _freeformDefinition ?? _tinkeredDefinition ?? Definition.Card;
     /// <summary>
     /// Optional per-instance definition supplied by a card-editor companion. The base mod does not create these
     /// payloads, but retaining and executing one here keeps edited cards save-safe and multiplayer-serializable.
@@ -82,7 +91,118 @@ public abstract class ChaosCardModel : CardModel
             }
         }
     }
-    public bool HasTinkeredDefinition => _tinkeredDefinition is not null;
+    /// <summary>
+    /// Optional full-shell definition created through <see cref="AutoAnthonyFreeformCardApi"/>. This is deliberately
+    /// separate from ordinary tinkering: loading a normal edited card still verifies every shell-owned property.
+    /// </summary>
+    [SavedProperty]
+    public string FreeformDefinitionPayload
+    {
+        get => _freeformDefinitionPayload;
+        set
+        {
+            AssertMutable();
+            _freeformDefinitionPayload = value ?? string.Empty;
+            if (_freeformDefinitionPayload.Length == 0)
+            {
+                _freeformDefinition = null;
+                return;
+            }
+            try
+            {
+                var decoded = OperationRuntimeSpecCompiler.Attach(
+                    CardTinkeringApi.DeserializeCard(_freeformDefinitionPayload));
+                EnsureFreeformCharacter(decoded);
+                _freeformDefinition = decoded;
+                _tinkeredDefinition = null;
+                _tinkeredDefinitionPayload = string.Empty;
+                ClearEditorDefinition();
+            }
+            catch (Exception exception)
+            {
+                _freeformDefinitionPayload = string.Empty;
+                _freeformDefinition = null;
+                Log.Warn($"[AutoAnthony] Ignoring an invalid freeform definition on {Id}: {exception.Message}");
+            }
+        }
+    }
+    public bool HasTinkeredDefinition => _tinkeredDefinition is not null || _freeformDefinition is not null
+        || _editorDefinition is not null;
+    public bool HasFreeformDefinition => _freeformDefinition is not null;
+    public bool HasEditorIdentity => _editorDefinition is not null;
+    public AutoAnthonyEditorIdentity? EditorIdentity => _editorDefinition?.Name is { } name
+        ? new AutoAnthonyEditorIdentity(name, _editorPortraitPath,
+            NullIfEmpty(_editorPortraitSourceId), NullIfEmpty(_editorPortraitVariantId),
+            NullIfEmpty(_editorPortraitVariantPath))
+        : null;
+    [SavedProperty]
+    public string FreeformPortraitPath
+    {
+        get => _freeformPortraitPath;
+        set
+        {
+            AssertMutable();
+            _freeformPortraitPath = value ?? string.Empty;
+        }
+    }
+    /// <summary>
+    /// A definition whose identity was explicitly changed through <see cref="AutoAnthonyEditorApi"/>. Keeping it
+    /// separate prevents the ordinary tinkering boundary from silently acquiring permission to rename cards.
+    /// </summary>
+    [SavedProperty]
+    public string EditorDefinitionPayload
+    {
+        get => _editorDefinitionPayload;
+        set
+        {
+            AssertMutable();
+            _editorDefinitionPayload = value ?? string.Empty;
+            if (_editorDefinitionPayload.Length == 0)
+            {
+                _editorDefinition = null;
+                return;
+            }
+            try
+            {
+                var decoded = OperationRuntimeSpecCompiler.Attach(
+                    CardTinkeringApi.DeserializeCard(_editorDefinitionPayload));
+                EnsureSameShell(Definition.Card, decoded, allowIdentityChange: true);
+                _editorDefinition = decoded;
+                _tinkeredDefinition = null;
+                _tinkeredDefinitionPayload = string.Empty;
+            }
+            catch (Exception exception)
+            {
+                _editorDefinitionPayload = string.Empty;
+                _editorDefinition = null;
+                Log.Warn($"[AutoAnthony] Ignoring an invalid editor identity payload on {Id}: {exception.Message}");
+            }
+        }
+    }
+    [SavedProperty]
+    public string EditorPortraitPath
+    {
+        get => _editorPortraitPath;
+        set { AssertMutable(); _editorPortraitPath = value ?? string.Empty; }
+    }
+    [SavedProperty]
+    public string EditorPortraitSourceId
+    {
+        get => _editorPortraitSourceId;
+        set { AssertMutable(); _editorPortraitSourceId = value ?? string.Empty; }
+    }
+    [SavedProperty]
+    public string EditorPortraitVariantId
+    {
+        get => _editorPortraitVariantId;
+        set { AssertMutable(); _editorPortraitVariantId = value ?? string.Empty; }
+    }
+    [SavedProperty]
+    public string EditorPortraitVariantPath
+    {
+        get => _editorPortraitVariantPath;
+        set { AssertMutable(); _editorPortraitVariantPath = value ?? string.Empty; }
+    }
     [SavedProperty] public int ExtraDamage { get => _extraDamage; set { AssertMutable(); _extraDamage = value; } }
     [SavedProperty] public int ExtraBlock { get => _extraBlock; set { AssertMutable(); _extraBlock = value; } }
     [SavedProperty] public int ResolvedSpecialXValue { get => _resolvedSpecialXValue; set { AssertMutable(); _resolvedSpecialXValue = value; } }
@@ -98,6 +218,27 @@ public abstract class ChaosCardModel : CardModel
     public void ApplyTinkeredDefinition(GeneratedCard? definition)
     {
         AssertMutable();
+        if (_editorDefinition is not null)
+        {
+            definition ??= Definition.Card with { Name = _editorDefinition.Name };
+            definition = OperationRuntimeSpecCompiler.Attach(definition);
+            EnsureSameShell(_editorDefinition, definition);
+            _editorDefinition = definition;
+            _editorDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+            RebuildCachedCardState();
+            return;
+        }
+        if (_freeformDefinition is not null)
+        {
+            if (definition is null)
+                definition = _freeformDefinition with { Operations = [] };
+            definition = OperationRuntimeSpecCompiler.Attach(definition);
+            EnsureSameShell(_freeformDefinition, definition);
+            _freeformDefinition = definition;
+            _freeformDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+            RebuildCachedCardState();
+            return;
+        }
         if (definition is null)
         {
             _tinkeredDefinition = null;
@@ -113,7 +254,63 @@ public abstract class ChaosCardModel : CardModel
         RebuildCachedCardState();
     }
 
-    private static void EnsureSameShell(GeneratedCard original, GeneratedCard candidate)
+    /// <summary>
+    /// Applies a complete editor-owned definition. Callers should validate it with CardTinkeringApi before making
+    /// the card available to combat. Intermediate invalid definitions are accepted so a preview can be assembled.
+    /// </summary>
+    public void ApplyFreeformDefinition(GeneratedCard definition)
+    {
+        AssertMutable();
+        ArgumentNullException.ThrowIfNull(definition);
+        definition = OperationRuntimeSpecCompiler.Attach(definition);
+        EnsureFreeformCharacter(definition);
+        _freeformDefinition = definition;
+        _freeformDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+        _tinkeredDefinition = null;
+        _tinkeredDefinitionPayload = string.Empty;
+        ClearEditorDefinition();
+        RebuildCachedCardState();
+    }
+
+    internal void ApplyEditorDefinitionInternal(GeneratedCard definition, AutoAnthonyEditorIdentity identity)
+    {
+        AssertMutable();
+        if (_freeformDefinition is not null)
+            throw new InvalidOperationException(
+                "Editor identity rerolls are supported for generated pool cards, not freeform card hosts.");
+        definition = OperationRuntimeSpecCompiler.Attach(definition);
+        EnsureSameShell(Definition.Card, definition, allowIdentityChange: true);
+        _editorDefinition = definition;
+        _editorDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+        _tinkeredDefinition = null;
+        _tinkeredDefinitionPayload = string.Empty;
+        _editorPortraitPath = identity.PortraitPath;
+        _editorPortraitSourceId = identity.PortraitSourceId ?? string.Empty;
+        _editorPortraitVariantId = identity.PortraitVariantId ?? string.Empty;
+        _editorPortraitVariantPath = identity.PortraitVariantPath ?? string.Empty;
+        RebuildCachedCardState();
+    }
+
+    /// <summary>Restores an already validated definition captured by this mod's trigger power.</summary>
+    internal void ApplyCapturedDefinition(GeneratedCard definition)
+    {
+        AssertMutable();
+        definition = OperationRuntimeSpecCompiler.Attach(definition);
+        EnsureSameShell(Definition.Card, definition, allowIdentityChange: true);
+        _tinkeredDefinition = definition;
+        _tinkeredDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+        RebuildCachedCardState();
+    }
+
+    private void EnsureFreeformCharacter(GeneratedCard candidate)
+    {
+        if (candidate.Character != Character)
+            throw new ArgumentException("A freeform definition must use the runtime card host's character.",
+                nameof(candidate));
+    }
+
+    private static void EnsureSameShell(GeneratedCard original, GeneratedCard candidate,
+        bool allowIdentityChange = false)
     {
         var sameTags = original.Tags.SequenceEqual(candidate.Tags)
             && (original.CustomKeywords ?? []).SequenceEqual(candidate.CustomKeywords ?? [], StringComparer.Ordinal);
@@ -137,10 +334,23 @@ public abstract class ChaosCardModel : CardModel
             || original.HasStarCostX != candidate.HasStarCostX || original.Type != candidate.Type
             || original.Target != candidate.Target || original.Rarity != candidate.Rarity
             || original.Character != candidate.Character || original.UnifiedChaos != candidate.UnifiedChaos
-            || !sameTags || !sameName || !sameSources || !sameShellUpgrade)
+            || !sameTags || (!allowIdentityChange && (!sameName || !sameSources))
+            || !sameShellUpgrade)
             throw new ArgumentException("A tinkered definition may only replace effect components, not card-shell properties.",
                 nameof(candidate));
     }
+
+    private void ClearEditorDefinition()
+    {
+        _editorDefinition = null;
+        _editorDefinitionPayload = string.Empty;
+        _editorPortraitPath = string.Empty;
+        _editorPortraitSourceId = string.Empty;
+        _editorPortraitVariantId = string.Empty;
+        _editorPortraitVariantPath = string.Empty;
+    }
+
+    private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
     private void RebuildCachedCardState()
     {
@@ -217,9 +427,32 @@ public abstract class ChaosCardModel : CardModel
     // prevention and snapshots. Resolve through the associated original CardModel at display time so resource
     // replacement and PortraitPath-based card-art mods can affect generated cards without exposing inactive
     // textures that some mods keep packaged behind their own UI-level selection logic.
-    public override string PortraitPath => ChaosPortraitCompatibility.ResolvePath(Definition);
-    public override string BetaPortraitPath => ChaosPortraitCompatibility.ResolvePath(Definition);
-    public override IEnumerable<string> AllPortraitPaths => [ChaosPortraitCompatibility.ResolvePath(Definition)];
+    internal ChaosCardDefinition EffectivePortraitDefinition => _editorDefinition is not null
+                                                                  && _editorPortraitPath.Length > 0
+        ? Definition with
+        {
+            Card = Generated,
+            PortraitPath = _editorPortraitPath,
+            PortraitSourceId = NullIfEmpty(_editorPortraitSourceId),
+            PortraitVariantId = NullIfEmpty(_editorPortraitVariantId),
+            PortraitVariantPath = NullIfEmpty(_editorPortraitVariantPath)
+        }
+        : HasFreeformDefinition && _freeformPortraitPath.Length > 0
+            ? Definition with
+            {
+                Card = Generated,
+                PortraitPath = _freeformPortraitPath,
+                PortraitSourceId = null,
+                PortraitVariantId = null,
+                PortraitVariantPath = null
+            }
+            : Definition;
+    internal string EffectiveDefinitionPayload => _editorDefinitionPayload.Length > 0
+        ? _editorDefinitionPayload
+        : _freeformDefinitionPayload.Length > 0 ? _freeformDefinitionPayload : _tinkeredDefinitionPayload;
+    public override string PortraitPath => ChaosPortraitCompatibility.ResolvePath(EffectivePortraitDefinition);
+    public override string BetaPortraitPath => PortraitPath;
+    public override IEnumerable<string> AllPortraitPaths => [PortraitPath];
     public override bool GainsBlock => Generated.Operations.Any(operation => operation.Template is "N:B" or "N_BLOCK" or "N:BlockEqualAllPoison"
         or "CL:GainBlockEqualDamage" or "CL:GainBlockEqualCurrent" or "CL:GainNextTurnBlockEqualCurrent");
     protected override IEnumerable<IHoverTip> ExtraHoverTips => IHoverTip.RemoveDupes(BuildExtraHoverTips());
@@ -287,9 +520,11 @@ public abstract class ChaosCardModel : CardModel
         {
             var operation = operations[index];
             if (!DerivativeSlotCatalog.IsSlotOperation(operation.Template)) continue;
-            var upgraded = DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId)
-                && IsUpgraded && Generated.Upgrade?.Effects.Any(effect =>
-                effect.Kind == CardUpgradeKind.UpgradeDerivative && effect.OperationIndex == index) == true;
+            var upgraded = IsUpgraded && Generated.Upgrade?.Effects.Any(effect =>
+                effect.OperationIndex == index
+                && (effect.Kind == CardUpgradeKind.UpgradeReferencedCards
+                    || effect.Kind == CardUpgradeKind.UpgradeDerivative
+                    && DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId))) == true;
             foreach (var tip in ChaosDerivativeResolver.HoverTips(operation, upgraded)) yield return tip;
         }
 
@@ -318,7 +553,8 @@ public abstract class ChaosCardModel : CardModel
     }
 
     private bool AtomicDerivativeIsUpgraded(string referenceFlag) => IsUpgraded
-        && Generated.Upgrade?.Effects.Any(effect => effect.Kind == CardUpgradeKind.UpgradeDerivative
+        && Generated.Upgrade?.Effects.Any(effect => effect.Kind is CardUpgradeKind.UpgradeDerivative
+                or CardUpgradeKind.UpgradeReferencedCards
             && effect.OperationIndex is { } index && (uint)index < (uint)Generated.Operations.Count
             && OperationRuntimeSpecCompiler.RequireStructured(Generated.Operations[index]).Flags
                 .Contains(referenceFlag)) == true;
@@ -346,6 +582,16 @@ public abstract class ChaosCardModel : CardModel
                     || operation.Template.StartsWith("N:ProxyDamage_", StringComparison.Ordinal))
                 {
                     yield return new ChaosDamageVar(name, value, ValueProp.Move);
+                    continue;
+                }
+                if (operation.Template is "T:D" or "T:DX" or "T:D_EnergyX"
+                    && operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
+                    && triggerIndex >= 0 && triggerIndex < index
+                    && CardEffectRules.TriggerImplicitlyTargetsAttacker(Generated.Operations[triggerIndex]))
+                {
+                    // Retaliation uses the ordinary damage component, but—as in the native Flame Barrier—its
+                    // event damage is not modified by the card owner's Strength. Match runtime and preview values.
+                    yield return new ChaosDamageVar(name, value, ValueProp.Unpowered);
                     continue;
                 }
                 yield return operation.Template switch
@@ -1454,7 +1700,7 @@ internal static class ChaosOperationVariables
 internal static class ChaosRuntimeDescriptionRenderer
 {
     private static string RenderEffects(ChaosCardModel card, IReadOnlyList<GeneratorOperation> effectiveOperations,
-        IReadOnlyList<int> effectIndices, bool chinese)
+        IReadOnlyList<int> effectIndices, bool chinese, bool attackReceived = false)
     {
         var pieces = new List<string>();
         for (var cursor = 0; cursor < effectIndices.Count; cursor++)
@@ -1468,10 +1714,17 @@ internal static class ChaosRuntimeDescriptionRenderer
             {
                 var prefix = Text(card, effectiveOperations, index, chinese).TrimEnd('.', '。');
                 var payoff = Text(card, effectiveOperations, effectIndices[++cursor], chinese);
-                pieces.Add(chinese ? prefix + payoff : prefix + " " + LowerFirst(payoff));
+                var combined = chinese ? prefix + payoff : prefix + " " + LowerFirst(payoff);
+                pieces.Add(attackReceived
+                    ? CardDescriptionRenderer.AdaptAttackReceivedPayoff(
+                        card.Generated.Operations[effectIndices[cursor]], combined, chinese)
+                    : combined);
                 continue;
             }
-            pieces.Add(Text(card, effectiveOperations, index, chinese));
+            var rendered = Text(card, effectiveOperations, index, chinese);
+            pieces.Add(attackReceived
+                ? CardDescriptionRenderer.AdaptAttackReceivedPayoff(operation, rendered, chinese)
+                : rendered);
         }
         return chinese ? string.Join(string.Empty, pieces) : string.Join(" ", pieces);
     }
@@ -1483,6 +1736,20 @@ internal static class ChaosRuntimeDescriptionRenderer
             ? CardUpgradeGenerator.ApplyEffectsToOperations(operations, upgrade.Effects)
             : operations;
         var lines = new List<string>();
+        foreach (var effect in card.Generated.Upgrade?.Effects.Where(effect =>
+                     effect.Kind == CardUpgradeKind.ExecuteOperationOnPlay) ?? [])
+        {
+            if (effect.OperationIndex is not { } operationIndex
+                || (uint)operationIndex >= (uint)effectiveOperations.Count) continue;
+            var immediate = effectiveOperations[operationIndex] with
+            {
+                Parameters = effectiveOperations[operationIndex].Parameters
+                    .Where(pair => pair.Key != "triggerIndex")
+                    .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
+            };
+            var addedText = RenderOperationVariant(card, operationIndex, chinese, immediate);
+            lines.Add(UpgradeConditional(addedText, string.Empty, chinese));
+        }
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
@@ -1528,11 +1795,19 @@ internal static class ChaosRuntimeDescriptionRenderer
                     lines.Add(trigger + (chinese ? "。" : "."));
                     continue;
                 }
+                var attackReceived = CardEffectRules.TriggerImplicitlyTargetsAttacker(operation);
                 // Use the same clause joiner as the offline Chinese/English descriptions. Dynamic variables make
                 // runtime rendering necessary, but must not reintroduce full stops between effects owned by one
                 // condition or trigger.
                 var renderedEffects = CardDescriptionRenderer.JoinTriggeredEffects(
-                    RenderEffects(card, effectiveOperations, effects, chinese), chinese);
+                    RenderEffects(card, effectiveOperations, effects, chinese, attackReceived), chinese);
+                if (attackReceived)
+                {
+                    lines.Add(chinese
+                        ? $"你在这个回合每受到一次攻击，都会{renderedEffects}"
+                        : $"Whenever you are attacked this turn, {LowerFirst(renderedEffects)}");
+                    continue;
+                }
                 if (chinese)
                 {
                     if (operation.Scope == OperationScope.AbilityTrigger
@@ -1573,9 +1848,27 @@ internal static class ChaosRuntimeDescriptionRenderer
         var operation = card.Generated.Operations[index];
         var text = RenderOperationVariant(card, index, chinese, effectiveOperations[index]);
         if (card.Generated.Upgrade?.Effects.Any(effect =>
-                effect.Kind == CardUpgradeKind.UpgradeDerivative && effect.OperationIndex == index) == true
-            && DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId)
-            && DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template) is not null)
+                effect.Kind == CardUpgradeKind.RepeatOperation && effect.OperationIndex == index) == true)
+        {
+            var normalText = RenderOperationVariant(card, index, chinese, operation);
+            var upgradedOperation = CardUpgradeGenerator.ApplyEffectsToOperations(card.Generated.Operations,
+                card.Generated.Upgrade.Effects)[index];
+            var upgradedText = RenderOperationVariant(card, index, chinese, upgradedOperation);
+            text = UpgradeConditional(upgradedText, normalText, chinese);
+        }
+        else if (card.Generated.Upgrade?.Effects.Any(effect =>
+                effect.Kind == CardUpgradeKind.UpgradeReferencedCards && effect.OperationIndex == index) == true)
+        {
+            var normalText = RenderOperationVariant(card, index, chinese, operation);
+            var upgradedOperation = CardUpgradeGenerator.ApplyEffectsToOperations(card.Generated.Operations,
+                card.Generated.Upgrade.Effects)[index];
+            var upgradedText = RenderOperationVariant(card, index, chinese, upgradedOperation);
+            text = UpgradeConditional(upgradedText, normalText, chinese);
+        }
+        else if (card.Generated.Upgrade?.Effects.Any(effect =>
+                     effect.Kind == CardUpgradeKind.UpgradeDerivative && effect.OperationIndex == index) == true
+                 && DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId)
+                 && DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template) is not null)
         {
             // Upgrade previews are formatted while the card itself is still unupgraded. Put both derivative names
             // in the localization template so the built-in IfUpgraded variable selects “Shiv+” for both previews

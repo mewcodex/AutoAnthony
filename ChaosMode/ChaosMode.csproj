@@ -34,14 +34,17 @@
     <Compile Include="..\ChaosCardGenerator\ComponentPackageApi.cs" Link="Generator\ComponentPackageApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentValuationApi.cs" Link="Generator\ComponentValuationApi.cs" />
     <Compile Include="..\ChaosCardGenerator\CardTinkeringApi.cs" Link="Generator\CardTinkeringApi.cs" />
+    <Compile Include="..\ChaosCardGenerator\NativeCardDecompositionApi.cs" Link="Generator\NativeCardDecompositionApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ImmutableComponentCatalog.cs" Link="Generator\ImmutableComponentCatalog.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentPolicy.cs" Link="Generator\ComponentPolicy.cs" />
     <Compile Include="..\ChaosCardGenerator\NativeComponentFrequencyTracker.cs" Link="Generator\NativeComponentFrequencyTracker.cs" />
     <Compile Include="..\ChaosCardGenerator\GenerationTuning.cs" Link="Generator\GenerationTuning.cs" />
     <Compile Include="..\ChaosCardGenerator\EffectBalanceModel.cs" Link="Generator\EffectBalanceModel.cs" />
     <Compile Include="..\ChaosCardGenerator\ResourceEconomyModel.cs" Link="Generator\ResourceEconomyModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\VariableXCardBalance.cs" Link="Generator\VariableXCardBalance.cs" />
     <Compile Include="..\ChaosCardGenerator\CardIdentityAndUpgradeGenerator.cs" Link="Generator\CardIdentityAndUpgradeGenerator.cs" />
     <Compile Include="..\ChaosCardGenerator\NativeUpgradeValueModel.cs" Link="Generator\NativeUpgradeValueModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\PercentageValueTuning.cs" Link="Generator\PercentageValueTuning.cs" />
     <Compile Include="..\ChaosCardGenerator\NativeUpgradeStrengthModel.cs" Link="Generator\NativeUpgradeStrengthModel.cs" />
     <Compile Include="..\ChaosCardGenerator\ManualExternalNameParts.cs" Link="Generator\ManualExternalNameParts.cs" />
     <Compile Include="..\ChaosCardGenerator\EnglishCardDescriptionRenderer.cs" Link="Generator\EnglishCardDescriptionRenderer.cs" />
@@ -58,5 +61,7 @@
     <Compile Include="..\ChaosCardGenerator\CharacterComponentCatalogs.cs" Link="Generator\CharacterComponentCatalogs.cs" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_runtime_specs.json" Link="Data\catalog_runtime_specs.json" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_recipes.json" Link="Data\catalog_recipes.json" />
+    <EmbeddedResource Include="..\ChaosCardGenerator\Data\native_reference_cards.json" Link="Data\native_reference_cards.json" />
+    <EmbeddedResource Include="..\ChaosCardGenerator\Data\native_reference_components.json" Link="Data\native_reference_components.json" />
   </ItemGroup>
 </Project>

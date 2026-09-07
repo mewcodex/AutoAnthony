@@ -5,6 +5,25 @@ and external-character definition hosting are public, localization-independent i
 covered by an external-consumer compile test; built-in generation remains covered by the full generator self-test
 and a historical full-pool drift corpus.
 
+## Native-card decomposition catalog
+
+`NativeCardDecompositionApi` is a separate, read-only API for Card Tinkering-style tools. It exposes all 567 v111
+non-multiplayer reference records, 449 component contracts, and seven native keywords. The card set includes the
+five character pools, both Colorless rarities, Event cards, Statuses, Curses, Quests, derivatives, Fasten,
+DeprecatedCard, and nine explicit Mad Science type/rider variants.
+
+The catalog never registers cards and every record remains `ReferenceOnly=true` and
+`GenerationEligible=false`. `FindByNativeId` returns all variants for a ModelId; `Resolve` requires explicit
+template bindings when the ID is ambiguous. `TryCreateBaseDefinition` materializes the 481 reviewed
+character/Colorless recipes with executable structured operations. `TryCreateDefinition` materializes all 481 with
+their exact native upgrade actions, including repeat, on-play addition, select-all, and upgrade-before-play changes.
+The 86 lifecycle-sensitive reference extensions remain structured but non-executable until dedicated adapters exist.
+
+The game-side `AutoAnthonyNativeCardApi.TryResolve(CardModel, ...)` handles native ModelIds and Mad Science's saved
+type/rider state. Its preview method is side-effect free. Consumers must not replace an original card merely to
+inspect it: only a user-confirmed edit should materialize a freeform `ChaosCardModel`, leaving every untouched
+native card and native pool unchanged.
+
 ## Goals
 
 - Components describe semantics with ASCII IDs and `OperationRuntimeSpec`; localized prose is output only.
@@ -437,7 +456,7 @@ live saves are migrated card-by-card; schema 10 is the current structured format
 ## Card-editor and settings services
 
 `CardTinkeringApi` is the localization-independent integration surface for companion editors. Its API version is
-`3`. It serializes the complete structured card payload, evaluates the production whole-card budget, validates a
+`5`. It serializes the complete structured card payload, evaluates the production whole-card budget, validates a
 replacement operation list, and rebuilds descriptions/upgrades without parsing rendered prose. Values use the
 generator's native currency: `100` units equal one point of ordinary single-target damage.
 
@@ -451,6 +470,28 @@ operation that should be installed and repaired at runtime.
 are suitable for an editor's own persistence and multiplayer payload, but AutoAnthony does not synchronize that
 payload for the editor.
 
-`AutoAnthonySettingsApi` v1 is a small read-only runtime view. `Enabled` reports the master switch and
-`AnytimeCardEditing` reports whether the user permits the companion editor outside combat. It deliberately does not
-expose mutable settings or next-run generation options.
+`AutoAnthonySettingsApi` v2 exposes one immutable snapshot of every user-facing setting. It deliberately does not
+expose mutation; effective run and host-authoritative multiplayer settings remain the responsibility of
+`ComponentRunSettingsApi`.
+
+### Explicit per-card identity editing
+
+`AutoAnthonyEditorApi` v1 is the only supported path for renaming an ordinary generated card or assigning a new
+portrait to that individual card. `RerollEditorIdentity` is side-effect free and deterministic for a fixed
+`GeneratedCard` and seed. It reuses production component relevance, cost/type/color matching, same-character name
+parts, the Strike/Form suffix rules, enabled portrait replacements, and the Random Card Art setting. Ordinary cards
+never receive Ancient-sized art; Ancient cards use only their own character's native Ancient sources and fall back
+to the native portrait when no optional replacement is available.
+
+```csharp
+AutoAnthonyEditorIdentity identity =
+    AutoAnthonyEditorApi.RerollEditorIdentity(card.Generated, seed);
+GeneratedCard rebuilt = CardTinkeringApi.Rebuild(card.Generated, proposedOperations);
+AutoAnthonyEditorApi.ApplyEditorDefinition(card, rebuilt, identity);
+```
+
+`ApplyEditorDefinition` treats `identity.Name` as authoritative, but still rejects changes to cost, Star cost, type,
+target, rarity, character, tags, and shell-owned upgrade behavior. The edited definition and exact portrait source /
+variant are saved on the card instance. Missing cosmetic providers on another machine render the stable native
+fallback. Calling `ApplyTinkeredDefinition` directly continues to reject name changes and does not read a portrait
+override, so merely installing AutoAnthony without an editor preserves its existing behavior.

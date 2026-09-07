@@ -156,7 +156,14 @@ public enum OperationScope { SingleEnemyOnly, NonTargeted, Modifier, AbilityTrig
 public enum ComponentMultiplicity { Repeatable, SinglePerCard, UniquePerPool }
 // New values must be appended: pool snapshots serialize enums numerically, so reordering older members would
 // silently reinterpret upgrades when loading a save made by an earlier mod version.
-public enum CardUpgradeKind { IncreaseNumber, ReduceSelfDamage, ReduceCost, GrantInnate, GrantRetain, RemoveExhaust, RemoveEthereal, UpgradeDerivative, ReduceStarCost, ReduceThreshold, ReduceNegativeNumber, UpgradeGeneratedCards, ChooseExhaust, AddCustomKeyword, RemoveCustomKeyword }
+public enum CardUpgradeKind
+{
+    IncreaseNumber, ReduceSelfDamage, ReduceCost, GrantInnate, GrantRetain, RemoveExhaust, RemoveEthereal,
+    UpgradeDerivative, ReduceStarCost, ReduceThreshold, ReduceNegativeNumber, UpgradeGeneratedCards, ChooseExhaust,
+    AddCustomKeyword, RemoveCustomKeyword,
+    // Native-card reconstruction upgrades. Keep these appended: saved upgrade plans serialize this enum by number.
+    RepeatOperation, ExecuteOperationOnPlay, UpgradeReferencedCards, SelectAllCards
+}
 
 public sealed record GeneratorOperation(
     string Template,
@@ -520,6 +527,10 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("下个回合攻击伤害翻倍不能由可重复触发条件反复结算。");
         if (!CardEffectRules.HasNoFatalDoubleVulnerablePayoff(card.Operations))
             throw new InvalidOperationException("斩杀时不能将已被击杀目标的易伤翻倍。");
+        if (!CardEffectRules.HasNoFatalSelectedEnemyPayoffs(card.Operations))
+            throw new InvalidOperationException("斩杀时不能连接仍需选择已被击杀敌人的后续效果。");
+        if (!CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs(card.Operations))
+            throw new InvalidOperationException("回合结束时不能抽牌、获得能量或获得蓝星。");
         if (!CardEffectRules.HasNoNegativeSelfExhaustPayoffs(card.Operations))
             throw new InvalidOperationException("“这张牌被消耗时”后面不能接负面效果。");
         if (!CardEffectRules.HasNoInvalidTriggeredStateEffects(card.Operations))
@@ -576,16 +587,12 @@ public static class CardTemplateValidator
         if ((card.UnifiedChaos || card.Character == GeneratedCharacter.Regent)
             && (card.StarCost == 0 || card.StarCost < -1 || card.StarCost >= 0 && card.HasStarCostX))
             throw new InvalidOperationException("蓝星费用必须为无、正整数或X，且不能同时为固定值与X。");
-        if (card.Target == TargetMode.Other && card.Operations.Where(CardEffectRules.RequiresSingleEnemyTarget)
-            .Any(operation => !CardEffectRules.UsesExplicitRandomEnemyTarget(operation)
-                && (!operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
-                    || triggerIndex < 0 || triggerIndex >= card.Operations.Count
-                    || !CardEffectRules.CanResolveTriggeredEnemyTarget(card.Operations[triggerIndex], operation))))
+        if (!CardEffectRules.HasValidEnemyTargetAssembly(card.Target, card.Operations))
             throw new InvalidOperationException("非单敌牌的取目标 operation 必须明确指向随机敌人，或明确引用触发事件提供的敌人："
                 + string.Join(" / ", card.Operations.Select(operation =>
                     $"{operation.Template}[{operation.Parameters.GetValueOrDefault("triggerIndex", -1)}]:{operation.ChineseText}")));
         if (card.Type != GeneratedCardType.Power && card.Target == TargetMode.SingleEnemy
-            && !card.Operations.Any(CardEffectRules.RequiresSingleEnemyTarget))
+            && !CardEffectRules.RequiresCardSelectedEnemyTarget(card.Operations))
             throw new InvalidOperationException("单敌牌必须包含实际使用单敌目标的 operation。");
         if (card.Operations.Count == 0 || string.IsNullOrWhiteSpace(card.ChineseDescription))
             throw new InvalidOperationException("生成卡必须有 operation 和描述。");
@@ -599,6 +606,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("“打出此牌”只能连接匹配的消耗牌堆触发器，且此牌必须在该触发器之前另有正常打出效果。");
         if (!CardEffectRules.HasValidCopyThisCardAssembly(card.Operations))
             throw new InvalidOperationException("将这张牌的复制品加入弃牌堆（包括0费复制品）必须搭配另一项实际正面效果。");
+        if (!CardEffectRules.HasNoRestrictedSelfCopyAssembly(card.Operations))
+            throw new InvalidOperationException("限制型一次性效果不能与生成这张牌自身复制品的效果同时出现。");
         if (!allowRandomizedNumericValues && !CardEffectRules.HasValidRandomCardGenerationCount(card.Operations))
             throw new InvalidOperationException("随机生成牌效果一次最多生成5张牌。");
         if (!CardEffectRules.HasValidAttackCostReductionAssembly(card.Operations))
@@ -957,6 +966,59 @@ public static class CardDescriptionRenderer
         return string.Join(string.Empty, pieces);
     }
 
+    private static string RenderAttackReceivedEffects(IReadOnlyList<GeneratorOperation> effects)
+    {
+        var pieces = new List<string>();
+        for (var index = 0; index < effects.Count; index++)
+        {
+            var operation = effects[index];
+            if (CardEffectRules.IsCurrentBlockDamageAnchor(effects, index))
+                continue;
+            if (CardEffectRules.IsDependencyPrefix(operation) && index + 1 < effects.Count
+                && CardEffectRules.IsLegalDependencyPayoff(operation, effects[index + 1]))
+            {
+                var payoff = effects[++index];
+                var combined = CardTextStyle.Chinese(operation).TrimEnd('。')
+                    + CardTextStyle.Chinese(payoff);
+                pieces.Add(AdaptAttackReceivedPayoff(payoff, combined, chinese: true));
+                continue;
+            }
+            pieces.Add(AdaptAttackReceivedPayoff(operation, CardTextStyle.Chinese(operation), chinese: true));
+        }
+        return string.Join(string.Empty, pieces);
+    }
+
+    internal static string AdaptAttackReceivedPayoff(GeneratorOperation operation, string rendered, bool chinese)
+    {
+        if (!CardEffectRules.RequiresSingleEnemyTarget(operation)
+            || CardEffectRules.UsesExplicitRandomEnemyTarget(operation))
+            return rendered;
+
+        if (chinese)
+        {
+            if (rendered.StartsWith("造成", StringComparison.Ordinal)) return "对攻击者" + rendered;
+            if (rendered.StartsWith("给予", StringComparison.Ordinal)) return "给予攻击者" + rendered[2..];
+            return rendered
+                .Replace("目标敌人", "攻击者", StringComparison.Ordinal)
+                .Replace("该目标", "攻击者", StringComparison.Ordinal)
+                .Replace("该敌人", "攻击者", StringComparison.Ordinal)
+                .Replace("这名敌人", "攻击者", StringComparison.Ordinal)
+                .Replace("敌人", "攻击者", StringComparison.Ordinal);
+        }
+
+        var punctuation = rendered.EndsWith('.') ? "." : string.Empty;
+        var text = rendered.TrimEnd('.');
+        if ((text.StartsWith("Deal ", StringComparison.Ordinal)
+                || text.StartsWith("Apply ", StringComparison.Ordinal))
+            && !text.Contains("attacker", StringComparison.OrdinalIgnoreCase))
+            return text + " to the attacker" + punctuation;
+        return text
+            .Replace("the target enemy", "the attacker", StringComparison.OrdinalIgnoreCase)
+            .Replace("that enemy", "the attacker", StringComparison.OrdinalIgnoreCase)
+            .Replace("the enemy", "the attacker", StringComparison.OrdinalIgnoreCase)
+            + punctuation;
+    }
+
     internal static string JoinTriggeredEffects(string rendered, bool chinese)
     {
         // Every listed effect is owned by the same trigger. Joining its internal sentences with “and” keeps the
@@ -1015,6 +1077,16 @@ public static class CardDescriptionRenderer
                     lines.Add(new RenderedLine(
                         RenderNextAttackGrant(operation, effects, CardTextStyle.Chinese, chinese: true),
                         effects.Any(MustRenderLast)));
+                    continue;
+                }
+                if (CardEffectRules.TriggerImplicitlyTargetsAttacker(operation))
+                {
+                    var attackRenderedEffects = JoinTriggeredEffects(
+                        RenderAttackReceivedEffects(effects), chinese: true);
+                    lines.Add(new RenderedLine(effects.Length == 0
+                            ? "你在这个回合每受到一次攻击。"
+                            : $"你在这个回合每受到一次攻击，都会{attackRenderedEffects}",
+                        MustRenderLast(operation) || effects.Any(MustRenderLast)));
                     continue;
                 }
                 var triggerText = CardTextStyle.Chinese(operation).TrimEnd('。', '，', '；');
@@ -1158,7 +1230,7 @@ public static class GeneratorSelfTest
             || customKeywordRoundTrip.Upgrade.Effects.Single().KeywordId != "selftest:charged")
             throw new InvalidOperationException("自定义关键词ID没有稳定通过卡牌/升级快照往返。");
         if (ComponentApi.ApiVersion != 3 || ComponentPackageApi.ApiVersion != 3
-            || CardTinkeringApi.ApiVersion != 3
+            || CardTinkeringApi.ApiVersion != 5
             || !GeneratedCardTagPolicy.AddedKeywords(new CardUpgradePlan(1,
                     [new CardUpgradeEffect(CardUpgradeKind.GrantInnate)], "测试。", [], "Test."))
                 .Contains(CardTag.Innate)
@@ -1173,9 +1245,10 @@ public static class GeneratorSelfTest
             var rarity = character == GeneratedCharacter.Colorless
                 ? GeneratedRarity.Uncommon : GeneratedRarity.Common;
             var tinkeringCard = new RandomCardGenerator(character, 8_431 + (int)character).Generate(rarity);
-            var breakdown = CardTinkeringApi.Evaluate(tinkeringCard);
-            var aggressiveBreakdown = CardTinkeringApi.Evaluate(tinkeringCard, balancedValues: false);
-            var budgetBreakdown = CardTinkeringApi.EvaluateBudget(tinkeringCard);
+            var breakdown = CardTinkeringApi.Analyze(tinkeringCard);
+            var aggressiveBreakdown = CardTinkeringApi.Analyze(tinkeringCard,
+                new CardTinkeringEvaluationOptions(BalancedValues: false));
+            var budgetBreakdown = breakdown.Budget;
             var validation = CardTinkeringApi.Validate(tinkeringCard, tinkeringCard.Operations);
             var roundTrip = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(tinkeringCard));
             var rebuilt = CardTinkeringApi.Rebuild(roundTrip, roundTrip.Operations,
@@ -1183,22 +1256,67 @@ public static class GeneratorSelfTest
             if (!validation.IsValid || breakdown.Components.Count != tinkeringCard.Operations.Count
                 || breakdown.ExceedsOrdinaryUpperBound
                     != (budgetBreakdown.NetValue > budgetBreakdown.OrdinaryUpperBound + 0.0001d)
-                || aggressiveBreakdown.OrdinaryUpperBound < breakdown.OrdinaryUpperBound
+                || aggressiveBreakdown.Budget.OrdinaryUpperBound < breakdown.Budget.OrdinaryUpperBound
                 || rebuilt.Operations.Count != tinkeringCard.Operations.Count
                 || rebuilt.Cost != tinkeringCard.Cost || rebuilt.Type != tinkeringCard.Type
                 || rebuilt.Target != tinkeringCard.Target || rebuilt.Rarity != tinkeringCard.Rarity)
                 throw new InvalidOperationException($"卡牌工匠 API 自检失败：{character}: "
                     + string.Join("; ", validation.Errors)
                     + $" [components={breakdown.Components.Count}/{tinkeringCard.Operations.Count}, "
-                    + $"value={breakdown.CurrentValue}/{breakdown.OrdinaryUpperBound}, "
+                    + $"value={breakdown.Budget.NetValue}/{breakdown.Budget.OrdinaryUpperBound}, "
                     + $"net={budgetBreakdown.NetValue}/{budgetBreakdown.OrdinaryUpperBound}, "
                     + $"exceeds={breakdown.ExceedsOrdinaryUpperBound}, "
-                    + $"aggressiveUpper={aggressiveBreakdown.OrdinaryUpperBound}, "
+                    + $"aggressiveUpper={aggressiveBreakdown.Budget.OrdinaryUpperBound}, "
                     + $"rebuilt={rebuilt.Operations.Count}/{tinkeringCard.Operations.Count}, "
                     + $"shell={rebuilt.Cost == tinkeringCard.Cost}/"
                     + $"{rebuilt.Type == tinkeringCard.Type}/"
                     + $"{rebuilt.Target == tinkeringCard.Target}/"
                     + $"{rebuilt.Rarity == tinkeringCard.Rarity}]");
+        }
+
+        foreach (var character in Enum.GetValues<GeneratedCharacter>())
+        foreach (var recipe in CharacterComponentCatalogs.Get(character).Recipes)
+        {
+            var operations = recipe.Atoms.Select((atom, index) => new GeneratorOperation(
+                atom.Template, atom.Scope, string.Empty,
+                recipe.TriggerOwners[index] >= 0
+                    ? new Dictionary<string, int> { ["triggerIndex"] = recipe.TriggerOwners[index] }
+                    : new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget,
+                RuntimeSpec: atom.RuntimeSpec, LocalizedText: atom.LocalizedText)).ToArray();
+            var shell = new GeneratedCard(recipe.Cost, recipe.Type, recipe.Target, recipe.OriginalRarity,
+                string.Empty, recipe.Tags, operations, Character: character, StarCost: recipe.StarCost,
+                HasStarCostX: recipe.HasStarCostX, CustomKeywords: recipe.CustomKeywords);
+            var analysis = CardTinkeringApi.Analyze(shell);
+            var standaloneComponents = operations.Select(operation =>
+                CardTinkeringApi.AnalyzeStandaloneComponent(operation, recipe.OriginalRarity)).ToArray();
+            if (analysis.Components.Count != operations.Length
+                || standaloneComponents.Length != operations.Length
+                || !double.IsFinite(analysis.Budget.PositiveValue)
+                || !double.IsFinite(analysis.Budget.LinearCompensation)
+                || !double.IsFinite(analysis.Budget.DownsideMultiplier)
+                || !double.IsFinite(analysis.Budget.NetValue)
+                || !double.IsFinite(analysis.Budget.OrdinaryUpperBound)
+                || analysis.Components.Any(component => !double.IsFinite(component.AtomicValue)
+                    || !double.IsFinite(component.ContextualValue)
+                    || !double.IsFinite(component.TriggerMultiplier)
+                    || !double.IsFinite(component.DownsideMultiplier)
+                    || !double.IsFinite(component.LinearCompensation)
+                    || !double.IsFinite(component.ExpectedResourceRefund))
+                || standaloneComponents.Any(component => !double.IsFinite(component.AtomicValue)
+                    || !double.IsFinite(component.ContextualValue)
+                    || !double.IsFinite(component.TriggerMultiplier)
+                    || !double.IsFinite(component.DownsideMultiplier)
+                    || !double.IsFinite(component.LinearCompensation)
+                    || !double.IsFinite(component.ExpectedResourceRefund)))
+                throw new InvalidOperationException($"卡牌工匠 API 无法分析当前组件目录：{character}/"
+                    + $"{recipe.Id} ({analysis.Components.Count}/{operations.Length})。 ");
+            if (CardTinkeringApi.IsVariableX(shell))
+            {
+                var x0 = CardTinkeringApi.AnalyzeAtX(shell, 0);
+                var x3 = CardTinkeringApi.AnalyzeAtX(shell, 3);
+                if (!double.IsFinite(x0.Budget.EffectiveCost) || !double.IsFinite(x3.Budget.EffectiveCost))
+                    throw new InvalidOperationException($"卡牌工匠 API 无法解析 X 端点：{character}/{recipe.Id}。 ");
+            }
         }
 
         var linkedValueProbe = packageCatalog.Recipes.SelectMany(recipe =>
@@ -1228,8 +1346,8 @@ public static class GeneratorSelfTest
             var direct = linked with { Parameters = new Dictionary<string, int>() };
             var shell = new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other,
                 GeneratedRarity.Common, string.Empty, [], [trigger, linked]);
-            var linkedBudget = CardTinkeringApi.EvaluateBudget(shell);
-            var directBudget = CardTinkeringApi.EvaluateBudget(shell with { Operations = [trigger, direct] });
+            var linkedBudget = CardTinkeringApi.Analyze(shell).Budget;
+            var directBudget = CardTinkeringApi.Analyze(shell with { Operations = [trigger, direct] }).Budget;
             if (linkedBudget.NetValue >= directBudget.NetValue)
                 throw new InvalidOperationException("卡牌工匠整卡价值没有应用触发组件显示的倍率："
                     + $"{trigger.Template}->{linked.Template}, linked={linkedBudget.NetValue}, "
@@ -1314,7 +1432,7 @@ public static class GeneratorSelfTest
             || nativeProfile.ValuePolicy.OriginalValueChance(componentApiDamage, 1)
                 != NumericGenerationTuning.OriginalValueChance(componentApiDamage, 1))
             throw new InvalidOperationException("内置组件数值策略适配器偏离现有平衡模型。");
-        if (ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Ironclad, false) != 15
+        if (ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Ironclad, false) != 20
             || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Silent, false) != 10
             || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Ironclad, true) != 10)
             throw new InvalidOperationException("战士打击标签倍率只能作用于非究极混沌的战士卡池。");
@@ -1922,6 +2040,12 @@ public static class GeneratorSelfTest
             if (!SpecialXCardConverter.IsSpecial(generatedSpecial)
                 || generatedSpecial.Operations.Any(CardEffectRules.IsSelfCostChange))
                 throw new InvalidOperationException($"{rarity} 特殊X生成路径未命中，或混入了本牌费用调整效果。");
+            var xBudgetPoints = VariableXCardBalance.EvaluateGenerationCheckpoints(generatedSpecial,
+                balancedValues: true);
+            if (xBudgetPoints.Count != 2
+                || xBudgetPoints[0].ResolvedX != 1 || xBudgetPoints[1].ResolvedX != 3
+                || xBudgetPoints.Any(point => !point.IsWithinEnvelope()))
+                throw new InvalidOperationException($"{rarity} 特殊X牌没有在东尼算法核心中通过X=1/X=3数值检查。");
             CardTemplateValidator.Validate(generatedSpecial);
         }
 
@@ -2436,7 +2560,7 @@ public static class GeneratorSelfTest
             "action:draw_discard_nonzero", "action:shuffle_unexhausted", "rule:skills_cost_zero",
             "rule:skills_exhaust", "rule:buffer", "rule:no_block_from_cards",
             "rule:die_on_unblocked_attack", "reward:gain_gold", "turn:free_hand",
-            "damage:cards_played_combat"
+            "damage:cards_played_combat", "condition:exhaust_pile_minimum"
         };
         if (requiredPoolUniqueKeys.Any(key => !declaredPoolUniqueKeys.Contains(key)))
             throw new InvalidOperationException("请求的卡池唯一组件缺少稳定语义键："
@@ -2458,7 +2582,7 @@ public static class GeneratorSelfTest
             || lethalityRecipe.Atoms[0].Template != "NCR:FirstAttackPlayedEachTurn"
             || lethalityRecipe.Atoms[1].Template != "M:TriggeredAttackDamagePercent"
             || lethalityRecipe.TriggerOwners.Count != 2 || lethalityRecipe.TriggerOwners[1] != 0
-            || EffectBalanceModel.EstimatedEffectValue(lethalityRecipe.Atoms[1]) != 450)
+            || EffectBalanceModel.EstimatedEffectValue(lethalityRecipe.Atoms[1]) != 500)
             throw new InvalidOperationException("致死性的首张攻击触发器与50%事件攻击增伤 modifier 拆分或定价失效。");
         var allCatalogAtoms = Enum.GetValues<GeneratedCharacter>()
             .SelectMany(character => CharacterComponentCatalogs.Get(character).Atoms).ToArray();
@@ -2947,6 +3071,29 @@ public static class GeneratorSelfTest
             "获得4点格挡。", new Dictionary<string, int>());
         var fatalTrigger = new GeneratorOperation("C:ifFatal", OperationScope.ConditionalTrigger,
             "斩杀时。", new Dictionary<string, int>());
+        var targetRuleNecrobinderCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder);
+        var directDoomAtom = targetRuleNecrobinderCatalog.Recipes.Single(recipe => recipe.Id == "NoEscape").Atoms
+            .Single(atom => atom.Template == "NCR:ApplyDoom");
+        var randomDoomAtom = targetRuleNecrobinderCatalog.Recipes.Single(recipe => recipe.Id == "Countdown").Atoms
+            .Single(atom => atom.Template == "NCR:ApplyDoom");
+        GeneratorOperation DoomOperation(ComponentAtom atom, int triggerIndex) => new(atom.Template, atom.Scope,
+            "Test target payoff.", new Dictionary<string, int> { ["triggerIndex"] = triggerIndex },
+            RequiresSingleTarget: atom.RequiresSingleTarget,
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: atom.LocalizedText);
+        var linkedFatalDirectDoom = DoomOperation(directDoomAtom, 1);
+        var linkedFatalRandomDoom = DoomOperation(randomDoomAtom, 1);
+        var turnEndAtom = Enum.GetValues<GeneratedCharacter>()
+            .SelectMany(character => CharacterComponentCatalogs.Get(character).Atoms)
+            .First(CardEffectRules.IsTurnEndTrigger);
+        var turnEndTrigger = new GeneratorOperation(turnEndAtom.Template, turnEndAtom.Scope,
+            "Test turn-end trigger.", new Dictionary<string, int>(), RuntimeSpec:
+            OperationRuntimeSpecCompiler.GetOrCompile(turnEndAtom), LocalizedText: turnEndAtom.LocalizedText);
+        var linkedTurnEndDraw = new GeneratorOperation("N:Draw", OperationScope.NonTargeted, "抽1张牌。",
+            new Dictionary<string, int> { ["draw"] = 1, ["triggerIndex"] = 0 });
+        var linkedTurnEndEnergy = new GeneratorOperation("N:E", OperationScope.NonTargeted, "获得1点能量。",
+            new Dictionary<string, int> { ["amount"] = 1, ["triggerIndex"] = 0 });
+        var linkedTurnEndStars = new GeneratorOperation("R:GainStars", OperationScope.NonTargeted, "获得1蓝星。",
+            new Dictionary<string, int> { ["amount"] = 1, ["triggerIndex"] = 0 });
         var doubleVulnerableAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes
             .Single(recipe => recipe.Id == "MoltenFist").Atoms
             .Single(CardEffectRules.IsDoubleTargetVulnerable);
@@ -2973,6 +3120,22 @@ public static class GeneratorSelfTest
                 [firstPlayDamage with { Parameters = new Dictionary<string, int>() }, fatalTrigger,
                     linkedFatalDoubleVulnerable with { Parameters = new Dictionary<string, int>() }]))
             throw new InvalidOperationException("斩杀时不能连接将目标易伤翻倍的后续效果。");
+        if (CardEffectRules.HasNoFatalSelectedEnemyPayoffs(
+                [firstPlayDamage with { Parameters = new Dictionary<string, int>() }, fatalTrigger,
+                    linkedFatalDirectDoom])
+            || !CardEffectRules.HasNoFatalSelectedEnemyPayoffs(
+                [firstPlayDamage with { Parameters = new Dictionary<string, int>() }, fatalTrigger,
+                    linkedFatalRandomDoom])
+            || CardEffectRules.HasValidEnemyTargetAssembly(TargetMode.Other,
+                [turnStartTrigger, DoomOperation(directDoomAtom, 0)])
+            || !CardEffectRules.HasValidEnemyTargetAssembly(TargetMode.Other,
+                [turnStartTrigger, DoomOperation(randomDoomAtom, 0)]))
+            throw new InvalidOperationException("斩杀/非取目标牌仍接受了未说明目标的单敌后续，或拒绝了随机敌人后续。");
+        if (CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs([turnEndTrigger, linkedTurnEndDraw])
+            || CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs([turnEndTrigger, linkedTurnEndEnergy])
+            || CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs([turnEndTrigger, linkedTurnEndStars])
+            || !CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs([turnStartTrigger, linkedTurnEndDraw]))
+            throw new InvalidOperationException("回合结束触发器仍允许抽牌或回复能量/蓝星。");
         if (EffectSelectionTuning.RepeatedFamilyWeightBasisPoints([blockAtom], []) != 10_000
             || EffectSelectionTuning.RepeatedFamilyWeightBasisPoints([blockAtom],
                 repeatedFieldProbe.Take(1).ToArray()) != 2_000
@@ -2982,6 +3145,20 @@ public static class GeneratorSelfTest
                 repeatedFieldProbe.Take(3).ToArray()) != 80
             || EffectSelectionTuning.RepeatedVariantWeight(blockAtom, repeatedFieldProbe.Take(1).ToArray()) != 15
             || EffectSelectionTuning.RepeatedVariantWeight(drawAtom, repeatedFieldProbe) != 100
+            || EffectSelectionTuning.NativeCategoryWeight([damageAtom], GeneratedCharacter.Ironclad, false) != 90
+            || EffectSelectionTuning.NativeCategoryWeight([blockAtom], GeneratedCharacter.Ironclad, false) != 85
+            || EffectSelectionTuning.NativeCategoryWeight([blockAtom], GeneratedCharacter.Silent, false) != 80
+            || EffectSelectionTuning.NativeCategoryWeight([blockAtom], GeneratedCharacter.Silent, true) != 85
+            || EffectSelectionTuning.NativeCategoryWeight([delayedBlockAtom], GeneratedCharacter.Ironclad, false) != 85
+            || EffectSelectionTuning.NativeCategoryWeight([delayedBlockAtom], GeneratedCharacter.Regent, false) != 100
+            || EffectSelectionTuning.NativeCategoryWeight([delayedBlockAtom], GeneratedCharacter.Regent, true) != 85
+            || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight([damageAtom]) != 100
+            || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
+                [new ComponentAtom("N:RandomD", OperationScope.NonTargeted, string.Empty, false,
+                    CardReferenceRequirement.None)]) != 40
+            || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
+                [new ComponentAtom("M:repeat", OperationScope.Modifier, string.Empty, false,
+                    CardReferenceRequirement.None)]) != 180
             || EffectSelectionTuning.PowerAuxiliaryWeight([damageAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([temporaryStrengthAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([energyGainAtom], GeneratedCardType.Power, []) != 100
@@ -3007,6 +3184,19 @@ public static class GeneratorSelfTest
                     "从9张随机无色牌中选择1张加入你的手牌。", false, CardReferenceRequirement.None),
                 0, 9, []) != 4)
             throw new InvalidOperationException("直接伤害、永久属性或生命效果的全局选择权重/价值失效。 ");
+        var swordSageAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Regent).Atoms
+            .First(atom => atom.Template == "A:ProxyAtomic_SwordSage");
+        var swordSageSpec = OperationRuntimeSpecCompiler.GetOrCompile(swordSageAtom);
+        var swordSageLocalized = swordSageAtom.LocalizedText
+            ?? throw new InvalidOperationException("Sword Sage test component has no localization template.");
+        var swordSageOne = new GeneratorOperation(swordSageAtom.Template, swordSageAtom.Scope,
+            swordSageLocalized.RenderChinese(swordSageSpec), new Dictionary<string, int>(),
+            RuntimeSpec: swordSageSpec, LocalizedText: swordSageLocalized);
+        if (!OperationRuntimeSpecCompiler.TryReplaceFixedValue(swordSageOne, "amount", 2,
+                out var swordSageTwo)
+            || EffectBalanceModel.EstimatedEffectValue(swordSageOne) != 2_150
+            || EffectBalanceModel.EstimatedEffectValue(swordSageTwo) != 4_300)
+            throw new InvalidOperationException("君王之剑获得重放的升级边际价值必须按每层完整计价。 ");
         var basicDamageRandom = new Random(20260914);
         var basicDamageValues = Enumerable.Range(0, 20_000)
             .Select(_ => EffectBalanceModel.ScaleRewardCenter(damageAtom, 6, 1,
@@ -3441,6 +3631,11 @@ public static class GeneratorSelfTest
         var sampledNonBasicStarPayments = Enumerable.Range(0, 100_000)
             .Count(_ => NumericGenerationTuning.SampleNonBasicStarPayment(
                 nonBasicStarPaymentRandom, usesSharedResourceShell: true, rarity: GeneratedRarity.Uncommon));
+        var ultimateStarPaymentRandom = new Random(20260910);
+        var sampledUltimateStarPayments = Enumerable.Range(0, 100_000)
+            .Count(_ => NumericGenerationTuning.SampleNonBasicStarPayment(
+                ultimateStarPaymentRandom, usesSharedResourceShell: true, rarity: GeneratedRarity.Uncommon,
+                ultimateChaos: true));
         var starXRandom = new Random(20260907);
         var retainedStarX = Enumerable.Range(0, 100_000)
             .Count(_ => NumericGenerationTuning.KeepStarXCost(starXRandom, true, false));
@@ -3449,6 +3644,7 @@ public static class GeneratorSelfTest
             .Count(_ => NumericGenerationTuning.KeepStarXCost(ultimateStarXRandom, true, true));
         var basicStarCostRandom = new Random(20260909);
         if (sampledNonBasicStarPayments is < 24_000 or > 26_000
+            || sampledUltimateStarPayments is < 7_700 or > 9_000
             || NumericGenerationTuning.SampleNonBasicStarPayment(
                 new Random(1), usesSharedResourceShell: false, rarity: GeneratedRarity.Uncommon)
             || NumericGenerationTuning.SampleNonBasicStarPayment(
@@ -3746,6 +3942,7 @@ public static class GeneratorSelfTest
             || EffectBalanceModel.ExpectedLineValue(GeneratedRarity.Rare, 2d) != 2_322
             || !CardEffectRules.HasNegativeKeyword([CardTag.Exhaust])
             || !CardEffectRules.HasNegativeKeyword([CardTag.Ethereal])
+            || !CardEffectRules.HasNegativeKeyword([CardTag.Eternal])
             || CardEffectRules.HasNegativeKeyword([CardTag.Retain])
             || CardEffectRules.IsCostIncreaseDownside(thresholdTwo)
             || CardEffectRules.IsBeneficialEffect(cardCostPenalty)
@@ -3761,6 +3958,7 @@ public static class GeneratorSelfTest
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, exhaustStatuses]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock], [CardTag.Exhaust]) != 145
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock], [CardTag.Ethereal]) != 107
+            || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock], [CardTag.Eternal]) != 110
             || CardEffectRules.NegativeEffectCompensationPercent(
                 [ordinaryBlock], [CardTag.Exhaust, CardTag.Ethereal]) != 226
             || EffectBalanceModel.EstimatedPositiveKeywordValue([CardTag.Retain]) != 400d
@@ -4015,12 +4213,12 @@ public static class GeneratorSelfTest
             || OperationRuntimeSpecCompiler.GetOrCompile(helix.Atoms[1]) is not
                 { Opcode: "deal_damage", Variant: "selected" }
             || OperationRuntimeSpecCompiler.FixedValue(helix.Atoms[0], "threshold") != 1
-            || OperationRuntimeSpecCompiler.FixedValue(helix.Atoms[1], "damage") != 5
+            || OperationRuntimeSpecCompiler.FixedValue(helix.Atoms[1], "damage") != 3
             || Math.Abs(EffectBalanceModel.ExpectedTriggerResolutions(helixPrefix) - 2d) > 0.0001d
             || CardEffectRules.IsDependencyPrefix(helix.Atoms[0])
             || !CardEffectRules.TriggerNeedsLinkedEffect(helix.Atoms[0])
-            || EffectBalanceModel.EstimatedEffectValue(helix.Atoms[1]) != 500)
-            throw new InvalidOperationException("螺旋钻击必须拆为可组装的此牌以外耗能触发器与5点伤害，原牌1能量门槛按2次触发估值。");
+            || EffectBalanceModel.EstimatedEffectValue(helix.Atoms[1]) != 300)
+            throw new InvalidOperationException("螺旋钻击必须拆为可组装的此牌以外耗能触发器与3点伤害，原牌1能量门槛按2次触发估值。");
         var genericHelixBlock = defectCatalog.Atoms.First(atom => atom.Template == "N:B");
         var genericHelix = helix with
         {
@@ -4270,6 +4468,31 @@ public static class GeneratorSelfTest
                 != "Lose 2 HP and deal 9 damage.")
             throw new InvalidOperationException("条件绑定的中英文多效果必须合并为同一个句法作用域："
                 + renderedVulnerableConditional);
+        var attackReceivedTrigger = new GeneratorOperation("C:untilTurnEndAttackReceived",
+            OperationScope.ConditionalTrigger, "你在这个回合每受到一次攻击，都会对攻击者",
+            new Dictionary<string, int>());
+        var attackReceivedDamage = new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
+            "造成4点伤害。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var attackReceivedBlock = new GeneratorOperation("N:B", OperationScope.NonTargeted,
+            "获得3点格挡。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var attackReceivedWeak = new GeneratorOperation("T:Apply", OperationScope.SingleEnemyOnly,
+            "给予2层虚弱。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var retaliationAndBlock = new[] { attackReceivedTrigger, attackReceivedDamage, attackReceivedBlock };
+        var retaliationWeak = new[] { attackReceivedTrigger, attackReceivedWeak };
+        if (CardDescriptionRenderer.Render(retaliationAndBlock)
+                != "你在这个回合每受到一次攻击，都会对攻击者造成4点伤害，并且获得3点格挡。"
+            || EnglishCardDescriptionRenderer.Render(retaliationAndBlock)
+                != "Whenever you are attacked this turn, deal 4 damage to the attacker and gain 3 Block."
+            || CardDescriptionRenderer.Render(retaliationWeak)
+                != "你在这个回合每受到一次攻击，都会给予攻击者2层虚弱。"
+            || EnglishCardDescriptionRenderer.Render(retaliationWeak)
+                != "Whenever you are attacked this turn, apply 2 Weak to the attacker."
+            || CardEffectRules.RequiresCardSelectedEnemyTarget(retaliationAndBlock)
+            || !CardEffectRules.RequiresCardSelectedEnemyTarget([attackReceivedDamage with
+               {
+                   Parameters = new Dictionary<string, int>()
+               }]))
+            throw new InvalidOperationException("受击触发器必须提供攻击者目标，并自然渲染通用目标/自身后续效果。 ");
         var previewJoinProbe = CardDescriptionRenderer.JoinTriggeredEffects(
             "当前每有一名敌人，就生成1个冰霜充能球。{InCombat:\n（生成3个冰霜充能球）|}", chinese: true);
         if (previewJoinProbe.Contains("并{InCombat:", StringComparison.Ordinal))
@@ -4652,36 +4875,49 @@ public static class GeneratorSelfTest
             || CardEffectRules.HasValidCopyThisCardAssembly([zeroCostCopy, selfHpLoss])
             || !CardEffectRules.HasValidCopyThisCardAssembly([zeroCostCopy, ordinaryBlock]))
             throw new InvalidOperationException("普通复制与0费复制都必须搭配另一项实际正面效果；负面效果不能满足约束。");
+        var copiedRestrictedHeal = new GeneratorOperation("N:Heal", OperationScope.NonTargeted,
+            "回复10点生命。", new Dictionary<string, int> { ["amount"] = 10 });
+        if (CardEffectRules.HasNoRestrictedSelfCopyAssembly([ordinaryCopy, copiedRestrictedHeal])
+            || CardEffectRules.HasNoRestrictedSelfCopyAssembly([zeroCostCopy, copiedRestrictedHeal])
+            || !CardEffectRules.HasNoRestrictedSelfCopyAssembly([ordinaryCopy, ordinaryBlock]))
+            throw new InvalidOperationException("限制型一次性效果仍可通过弃牌堆自身复制绕过消耗约束。");
+        AssertInvalid(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Rare,
+            "回复10点生命。将这张牌的一张复制品加入弃牌堆。", [CardTag.Exhaust],
+            [copiedRestrictedHeal, ordinaryCopy]));
         AssertInvalid(new GeneratedCard(0, GeneratedCardType.Skill, TargetMode.Other,
             GeneratedRarity.Rare, "获得6点格挡。将这张牌的一张0费复制品加入弃牌堆。", [],
             [ordinaryBlock, zeroCostCopy]));
         var ordinaryCopyAtom = new ComponentAtom(ordinaryCopy.Template, ordinaryCopy.Scope,
             ordinaryCopy.ChineseText, false, CardReferenceRequirement.None);
         if (CardEffectRules.CopyThisCardBudgetRole(ordinaryCopy, true, GeneratedCardType.Skill, [])
-                != CopyThisCardBudgetRole.PaidReusableDownside
+                != CopyThisCardBudgetRole.FreeReusableBenefit
             || CardEffectRules.CopyThisCardBudgetRole(ordinaryCopy, false, GeneratedCardType.Skill, [])
                 != CopyThisCardBudgetRole.FreeReusableBenefit
             || CardEffectRules.CopyThisCardBudgetRole(ordinaryCopy, true, GeneratedCardType.Skill,
-                [CardTag.Exhaust]) != CopyThisCardBudgetRole.ExhaustOffset
+                [CardTag.Exhaust]) != CopyThisCardBudgetRole.FreeReusableBenefit
             || CardEffectRules.CopyThisCardBudgetRole(ordinaryCopy, true, GeneratedCardType.Power, [])
-                != CopyThisCardBudgetRole.PowerBenefit
+                != CopyThisCardBudgetRole.FreeReusableBenefit
             || CardEffectRules.CopyThisCardBudgetRole(zeroCostCopy, true, GeneratedCardType.Skill, [])
                 != CopyThisCardBudgetRole.None
             || EffectBalanceModel.EstimatedEffectValue(ordinaryCopyAtom)
                 != CopyThisCardValuation.FreeReusableRewardValue
             || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryCopy], false,
-                GeneratedCardType.Skill, []) != CopyThisCardValuation.FreeReusableRewardValue
-            || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryCopy], true,
                 GeneratedCardType.Skill, []) != 0d
-            || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryCopy], true,
-                GeneratedCardType.Power, []) != CopyThisCardValuation.PowerRewardValue
+            || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryBlock, ordinaryCopy], true,
+                GeneratedCardType.Skill, []) != 960d
+            || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryBlock, ordinaryCopy], false,
+                GeneratedCardType.Skill, []) != 960d
+            || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryBlock, ordinaryCopy], true,
+                GeneratedCardType.Power, []) != 960d
+            || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryBlock, ordinaryCopy], true,
+                GeneratedCardType.Skill, [CardTag.Exhaust]) != 960d
             || EffectBalanceModel.EstimatedPositiveCardValue([ordinaryBlock, zeroCostCopy], true,
                 GeneratedCardType.Skill, []) != EffectBalanceModel.EstimatedPositiveCardValue(
                     [ordinaryBlock], true, GeneratedCardType.Skill, [])
             || Math.Abs(NegativeEffectTuning.TotalMultiplier([ordinaryCopy], [], true,
-                GeneratedCardType.Skill) - CopyThisCardValuation.PaidReusableDownsideMultiplier) > 0.0001d
+                GeneratedCardType.Skill) - 1d) > 0.0001d
             || NegativeEffectTuning.TotalMultiplier([ordinaryCopy], [CardTag.Exhaust], true,
-                GeneratedCardType.Skill) != 1d
+                GeneratedCardType.Skill) != 1.45d
             || NegativeEffectTuning.TotalMultiplier([], [CardTag.Exhaust], true,
                 GeneratedCardType.Skill) != 1.45d
             || !CardEffectRules.IsPersistentPowerFoundation(ordinaryCopy)
@@ -4701,7 +4937,7 @@ public static class GeneratorSelfTest
         var rareZeroCostExhaustCopyValue = EffectBalanceModel.EstimatedPositiveCardValue(
             rareZeroCostExhaustCopyOperations, false, GeneratedCardType.Skill, [CardTag.Exhaust]);
         if (Math.Abs(rareZeroCostBounds.Maximum - 1_876.8d) > 0.001d
-            || rareZeroCostExhaustCopyValue != 3_120d
+            || rareZeroCostExhaustCopyValue != 4_992d
             || ComponentAssemblyGenerator.IsWithinWholeCardBudgetEnvelope(rareZeroCostExhaustCopyOperations,
                 GeneratedRarity.Rare, 0d, GeneratedCardType.Skill, [CardTag.Exhaust], false,
                 true, GeneratedCharacter.Ironclad, false))
@@ -5118,9 +5354,29 @@ public static class GeneratorSelfTest
         var summonXAtom = summonXRecipe.Atoms.Single(atom => atom.Template == "NCR:SummonX");
         var summonXOperation = new GeneratorOperation(summonXAtom.Template, summonXAtom.Scope,
             summonXAtom.ChineseText, new Dictionary<string, int>());
-        if (summonXAtom.ChineseText != "召唤X。"
-            || EnglishCardDescriptionRenderer.OperationText(summonXOperation) != "Summon X.")
-            throw new InvalidOperationException("X召唤的数值后不应附加次数量词。 ");
+        if (summonXAtom.ChineseText != "召唤3X。"
+            || EnglishCardDescriptionRenderer.OperationText(summonXOperation) != "Summon 3 X times.")
+            throw new InvalidOperationException("X召唤必须保留原版每次召唤量，且中文数值后不应附加次数量词。 ");
+        var dirgeOperations = summonXRecipe.Atoms.Select(atom => new GeneratorOperation(
+            atom.Template, atom.Scope, string.Empty, new Dictionary<string, int>(),
+            RuntimeSpec: atom.RuntimeSpec)).ToArray();
+        var dirgeCard = new GeneratedCard(-1, GeneratedCardType.Skill, TargetMode.Other,
+            GeneratedRarity.Uncommon, string.Empty, [CardTag.Exhaust], dirgeOperations,
+            Character: GeneratedCharacter.Necrobinder);
+        var dirgeRoundTrip = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(dirgeCard));
+        var dirgeSpec = OperationRuntimeSpecCompiler.RequireStructured(dirgeRoundTrip.Operations[0]);
+        var dirgeAmountSpec = dirgeSpec.Values.Single(value => value.Id == "amount");
+        var dirgeHitsSpec = dirgeSpec.Values.Single(value => value.Id == "hits");
+        var dirgeX1 = CardTinkeringApi.AnalyzeAtX(dirgeRoundTrip, 1).Budget.PositiveValue;
+        var dirgeX3 = CardTinkeringApi.AnalyzeAtX(dirgeRoundTrip, 3).Budget.PositiveValue;
+        if (dirgeAmountSpec is not { BaseValue: 3, Source: "fixed", Upgradable: true }
+            || dirgeHitsSpec.Source != "energy_x"
+            || Math.Abs(dirgeX1 - 1_350d) > 0.001d
+            || Math.Abs(dirgeX3 - 4_050d) > 0.001d)
+            throw new InvalidOperationException("卡牌工匠 API 没有保留 X 召唤的固定数值槽、X 次数槽或对应估值："
+                + $"amount={dirgeAmountSpec.BaseValue}:{dirgeAmountSpec.Source}:{dirgeAmountSpec.Upgradable}, "
+                + $"hits={dirgeHitsSpec.BaseValue}:{dirgeHitsSpec.Source}:{dirgeHitsSpec.Upgradable}, "
+                + $"X1={dirgeX1:0.###}, X3={dirgeX3:0.###}。 ");
         var orbitRecipe = regentCatalog.Recipes.Single(recipe => recipe.Id == "Orbit");
         if (orbitRecipe.Atoms.Count != 2 || orbitRecipe.Atoms[0].Template != "A:whenEnergySpent"
             || orbitRecipe.TriggerOwners.Count != 2 || orbitRecipe.TriggerOwners[1] != 0)

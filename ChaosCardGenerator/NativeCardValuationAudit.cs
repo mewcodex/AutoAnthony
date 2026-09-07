@@ -15,7 +15,7 @@ namespace ChaosCardGenerator;
 /// </summary>
 internal static class NativeCardValuationAudit
 {
-    private const string MethodVersion = "native-card-generator-valuation-v3";
+    private const string MethodVersion = "native-card-generator-valuation-v4";
 
     internal static NativeValuationAuditResult Write(string outputDirectory)
     {
@@ -28,10 +28,14 @@ internal static class NativeCardValuationAudit
         var occurrences = new List<ComponentOccurrence>();
         var packageOccurrences = new List<PackageOccurrence>();
         var operationValuations = new List<OperationValuationRow>();
+        var xCheckpoints = new List<XCheckpointRow>();
         foreach (var character in Enum.GetValues<GeneratedCharacter>())
         {
             foreach (var recipe in CharacterComponentCatalogs.Get(character).Recipes)
+            {
                 AuditCard(character, recipe, cards, occurrences, packageOccurrences, operationValuations);
+                AuditXCheckpoints(character, recipe, xCheckpoints);
+            }
         }
 
         if (cards.Count == 0)
@@ -76,9 +80,11 @@ internal static class NativeCardValuationAudit
         WritePackages(Path.Combine(output, "trigger_packages.tsv"), packageRows);
         WriteCohorts(Path.Combine(output, "cohorts.tsv"), cohortRows);
         WriteCards(Path.Combine(output, "outliers.tsv"), outliers);
+        WriteXCheckpoints(Path.Combine(output, "x_checkpoints.tsv"), xCheckpoints);
         WriteMetadata(Path.Combine(output, "metadata.json"), calibratedCards, calibratedOccurrences,
-            calibratedPackages);
-        WriteSummary(Path.Combine(output, "summary.md"), calibratedCards, componentRows, packageRows, cohortRows);
+            calibratedPackages, xCheckpoints);
+        WriteSummary(Path.Combine(output, "summary.md"), calibratedCards, componentRows, packageRows, cohortRows,
+            xCheckpoints);
 
         return new NativeValuationAuditResult(output, cards.Count, occurrences.Count,
             componentRows.Count, packageRows.Count);
@@ -93,9 +99,13 @@ internal static class NativeCardValuationAudit
         var cards = new List<CardRow>();
         var components = new List<ComponentOccurrence>();
         var packages = new List<PackageOccurrence>();
+        var xCheckpoints = new List<XCheckpointRow>();
         foreach (var character in Enum.GetValues<GeneratedCharacter>())
         foreach (var recipe in CharacterComponentCatalogs.Get(character).Recipes)
+        {
             AuditCard(character, recipe, cards, components, packages);
+            AuditXCheckpoints(character, recipe, xCheckpoints);
+        }
         var operationComponents = components.Count(component =>
             !component.Template.StartsWith("KEYWORD:", StringComparison.Ordinal));
         if (cards.Count != expectedCards || operationComponents != expectedOperations)
@@ -107,6 +117,46 @@ internal static class NativeCardValuationAudit
         if (components.Any(component => string.IsNullOrWhiteSpace(component.Template)
                                         || string.IsNullOrWhiteSpace(component.Family)))
             throw new InvalidOperationException("Native valuation audit produced an unidentified component.");
+        var expectedXRows = Enum.GetValues<GeneratedCharacter>()
+            .Sum(character => CharacterComponentCatalogs.Get(character).Recipes.Count(recipe =>
+                recipe.Cost < 0 || recipe.HasStarCostX)) * VariableXCardBalance.GenerationCheckpoints.Count;
+        if (xCheckpoints.Count != expectedXRows
+            || xCheckpoints.Any(row => row.ResolvedX is not (1 or 3)
+                                       || !double.IsFinite(row.NetValue)
+                                       || !double.IsFinite(row.Minimum)
+                                       || !double.IsFinite(row.Maximum)
+                                       || row.Maximum <= 0d))
+            throw new InvalidOperationException("Native X valuation audit did not produce finite X=1/X=3 rows: "
+                + $"rows={xCheckpoints.Count}/{expectedXRows}.");
+        var nonScalingXCards = xCheckpoints.GroupBy(row => (row.Character, row.CardId))
+            .Where(group => group.Single(row => row.ResolvedX == 3).NetValue
+                            <= group.Single(row => row.ResolvedX == 1).NetValue)
+            .Select(group => $"{group.Key.Character}/{group.Key.CardId}").ToArray();
+        if (nonScalingXCards.Length > 0)
+            throw new InvalidOperationException("Native X valuation remained constant between X=1 and X=3: "
+                + string.Join(", ", nonScalingXCards));
+    }
+
+    private static void AuditXCheckpoints(GeneratedCharacter character, IroncladCardRecipe recipe,
+        ICollection<XCheckpointRow> rows)
+    {
+        if (recipe.Cost >= 0 && !recipe.HasStarCostX) return;
+        var card = BuildGeneratedCard(character, recipe);
+        foreach (var point in VariableXCardBalance.EvaluateGenerationCheckpoints(card, balancedValues: true))
+            rows.Add(new XCheckpointRow(character, recipe.Id, recipe.OriginalRarity, recipe.Cost,
+                recipe.StarCost, recipe.Cost < 0, recipe.HasStarCostX, point.ResolvedX, point.EffectiveCost,
+                point.NetValue, point.Minimum, point.Maximum,
+                point.NetValue / Math.Max(1d, ComponentAssemblyGenerator.CalibratedWholeCardCenter(
+                    recipe.OriginalRarity, point.EffectiveCost)), point.IsWithinEnvelope()));
+    }
+
+    private static GeneratedCard BuildGeneratedCard(GeneratedCharacter character, IroncladCardRecipe recipe)
+    {
+        var operations = BuildOperations(recipe);
+        return OperationRuntimeSpecCompiler.Attach(new GeneratedCard(recipe.Cost, recipe.Type, recipe.Target,
+            recipe.OriginalRarity, string.Empty, recipe.Tags, operations, Character: character,
+            StarCost: recipe.StarCost, HasStarCostX: recipe.HasStarCostX,
+            CustomKeywords: recipe.CustomKeywords));
     }
 
     private static void AuditCard(GeneratedCharacter character, IroncladCardRecipe recipe,
@@ -114,7 +164,7 @@ internal static class NativeCardValuationAudit
         ICollection<PackageOccurrence> packages, ICollection<OperationValuationRow>? operationValuations = null)
     {
         var operations = BuildOperations(recipe);
-        var resolvedOperations = MaterializeX(operations, 1);
+        var resolvedOperations = VariableXCardBalance.MaterializeOperations(operations, 1);
         var valuationEnergyCost = ValuationEnergyCost(recipe, resolvedOperations);
         var effectiveCost = EffectiveCost(recipe, resolvedOperations);
         var hasPrintedResourceCost = valuationEnergyCost != 0 || recipe.StarCost > 0
@@ -241,22 +291,6 @@ internal static class NativeCardValuationAudit
                 : new Dictionary<string, int> { ["triggerIndex"] = recipe.TriggerOwners[index] },
             atom.CardReference == CardReferenceRequirement.ThisCard ? "thisCard" : null,
             atom.RequiresSingleTarget, RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom))).ToArray();
-
-    private static GeneratorOperation[] MaterializeX(IReadOnlyList<GeneratorOperation> operations, int x) =>
-        operations.Select(operation =>
-        {
-            var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
-            if (!spec.Values.Any(value => value.Source is "energy_x" or "star_x")) return operation;
-            return operation with
-            {
-                RuntimeSpec = spec with
-                {
-                    Values = spec.Values.Select(value => value.Source is "energy_x" or "star_x"
-                        ? value with { BaseValue = Math.Max(0, x + value.Offset), Source = "fixed", Offset = 0 }
-                        : value).ToArray()
-                }
-            };
-        }).ToArray();
 
     private static double EffectiveCost(IroncladCardRecipe recipe,
         IReadOnlyList<GeneratorOperation> resolvedOperations)
@@ -532,15 +566,27 @@ internal static class NativeCardValuationAudit
         File.WriteAllText(path, output.ToString(), Utf8());
     }
 
+    private static void WriteXCheckpoints(string path, IEnumerable<XCheckpointRow> rows)
+    {
+        var output = new StringBuilder("character\tcardId\trarity\tenergyCost\tstarCost\tenergyX\tstarX\tresolvedX\teffectiveCost\tnetValue\tgenerationMinimum\tgenerationMaximum\tordinaryCenterRatio\twithinGeneratedEnvelope\n");
+        foreach (var row in rows.OrderBy(row => row.Character).ThenBy(row => row.CardId, StringComparer.Ordinal)
+                     .ThenBy(row => row.ResolvedX))
+            output.AppendLine(string.Join('\t', row.Character, Tsv(row.CardId), row.Rarity, row.EnergyCost,
+                row.StarCost, row.HasEnergyX, row.HasStarX, row.ResolvedX, F(row.EffectiveCost), F(row.NetValue),
+                F(row.Minimum), F(row.Maximum), F(row.OrdinaryCenterRatio), row.WithinGeneratedEnvelope));
+        File.WriteAllText(path, output.ToString(), Utf8());
+    }
+
     private static void WriteMetadata(string path, IReadOnlyCollection<CardRow> cards,
-        IReadOnlyCollection<ComponentOccurrence> components, IReadOnlyCollection<PackageOccurrence> packages)
+        IReadOnlyCollection<ComponentOccurrence> components, IReadOnlyCollection<PackageOccurrence> packages,
+        IReadOnlyCollection<XCheckpointRow> xCheckpoints)
     {
         var metadata = new
         {
             method = MethodVersion,
             generatedUtc = DateTimeOffset.UtcNow,
             referenceMode = "balanced",
-            xConvention = "Resolve every Energy-X and Star-X numeric slot at X=1; charge one unit of that resource.",
+            xConvention = "Residual/component fitting resolves X at 1. A separate core-generator report evaluates every native Energy-X and Star-X card at X=1 and X=3.",
             generatorTarget = "ComponentAssemblyGenerator.CalibratedWholeCardCenter(rarity, effectiveCost)",
             componentInferenceTarget = "configured balanced-mode budget center; native-cohort-normalized occurrences are emitted separately as auxiliary diagnostics",
             normalizedValue = "(sum(operation contextual values) + keyword values - linearDownsideValue) / downsideMultiplier / powerOneShotMultiplier",
@@ -556,6 +602,7 @@ internal static class NativeCardValuationAudit
             cards = cards.Count,
             componentOccurrences = components.Count,
             packages = packages.Count,
+            xCheckpointRows = xCheckpoints.Count,
             templates = components.Select(component => component.Template).Distinct(StringComparer.Ordinal).Count(),
             characters = cards.GroupBy(card => card.Character).ToDictionary(group => group.Key.ToString(), group => group.Count())
         };
@@ -568,18 +615,19 @@ internal static class NativeCardValuationAudit
 
     private static void WriteSummary(string path, IReadOnlyCollection<CardRow> cards,
         IReadOnlyCollection<ComponentRow> components, IReadOnlyCollection<PackageRow> packages,
-        IReadOnlyCollection<CohortRow> cohorts)
+        IReadOnlyCollection<CohortRow> cohorts, IReadOnlyCollection<XCheckpointRow> xCheckpoints)
     {
         var output = new StringBuilder();
         output.AppendLine("# 原版全卡反向估值审计");
         output.AppendLine();
         output.AppendLine($"- 方法版本：`{MethodVersion}`");
         output.AppendLine($"- 覆盖：{cards.Count} 张原版卡、{components.Count} 个组件模板、{packages.Count} 种估值单元。");
-        output.AppendLine("- 基准：始终使用数值平衡模式的费用×稀有度中心；X/X蓝星按 X=1 的最小有效支付审计。");
+        output.AppendLine("- 基准：始终使用数值平衡模式的费用×稀有度中心；组件残差按 X=1 归一，所有原版 X/X蓝星牌另在 X=1 与 X=3 两端审计。");
         output.AppendLine("- 主指标：完整组件估值经负面倍率、线性补偿、能力一次性折算和有效费用曲线归一化后，直接除以生成器的数值平衡预算中心。");
         output.AppendLine("- 辅助指标：相同稀有度×有效费用档的原版中位数仍写入 native-cohort 字段，但不再用于整卡越界判定或组件调参建议。");
         output.AppendLine("- 边际：把触发器、选择器、依赖前缀及其后续合并成合法估值单元后逐项移除，再比较整卡归一化价值变化。");
         output.AppendLine("- 解释：建议倍率 >1 表示当前组件价值可能低估，<1 表示可能高估。低样本及整卡代理效果必须人工复核，不应自动回写参数。");
+        output.AppendLine($"- X 端点：{xCheckpoints.Count / 2} 张原版 X 牌均写入 `x_checkpoints.tsv`；`withinGeneratedEnvelope` 仅表示随机组卡是否会被接受，原版精确重建不受该列限制。");
         output.AppendLine();
         output.AppendLine("## 全局稀有度概览");
         output.AppendLine();
@@ -618,7 +666,7 @@ internal static class NativeCardValuationAudit
                 + $"{card.EffectiveCost:0.00} | {card.Ratio:0.00} | "
                 + $"{card.Residual:0} |");
         output.AppendLine();
-        output.AppendLine("详细数据见 `cards.tsv`、`operation_valuations.tsv`、`component_occurrences.tsv`、`components.tsv`、`trigger_package_occurrences.tsv`、`trigger_packages.tsv`、`cohorts.tsv` 与 `outliers.tsv`。`operation_valuations.tsv` 展开原子值、触发结算倍率、其余上下文系数与最终贡献；重复触发链仍应优先查看 package 报告，避免把相互依赖的前后半句误判成两个独立组件。");
+        output.AppendLine("详细数据见 `cards.tsv`、`x_checkpoints.tsv`、`operation_valuations.tsv`、`component_occurrences.tsv`、`components.tsv`、`trigger_package_occurrences.tsv`、`trigger_packages.tsv`、`cohorts.tsv` 与 `outliers.tsv`。`operation_valuations.tsv` 展开原子值、触发结算倍率、其余上下文系数与最终贡献；重复触发链仍应优先查看 package 报告，避免把相互依赖的前后半句误判成两个独立组件。");
         File.WriteAllText(path, output.ToString(), Utf8());
     }
 
@@ -674,6 +722,10 @@ internal static class NativeCardValuationAudit
     private sealed record CohortRow(string Scope, string Character, GeneratedRarity Rarity, string CostTier,
         int Cards, double NormalizedMedian, double TargetMedian, double RatioMedian, double RatioP25,
         double RatioP75);
+    private sealed record XCheckpointRow(GeneratedCharacter Character, string CardId, GeneratedRarity Rarity,
+        int EnergyCost, int StarCost, bool HasEnergyX, bool HasStarX, int ResolvedX, double EffectiveCost,
+        double NetValue, double Minimum, double Maximum, double OrdinaryCenterRatio,
+        bool WithinGeneratedEnvelope);
 }
 
 internal sealed record NativeValuationAuditResult(string OutputDirectory, int Cards,

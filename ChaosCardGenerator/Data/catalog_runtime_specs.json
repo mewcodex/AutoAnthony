@@ -1348,7 +1348,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 3,
+          "BaseValue": 4,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -2029,18 +2029,28 @@
     "Id": "colorless/stratagem/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_independent_action",
-      "Variant": "cl_choosedrawcardtohand",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
+      "Opcode": "move_card",
+      "Variant": "selected",
+      "Target": "selected_card",
+      "SourceZone": "draw",
+      "DestinationZone": "hand",
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
+        "effect_family_draw",
         "replenishes_hand",
         "requires_player_choice"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -4731,7 +4741,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 5,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -5175,9 +5185,28 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
+        "has_numeric_literal",
         "orb_reference"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "repeat_count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": false,
+          "Explicit": false
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -9468,16 +9497,15 @@
     "Id": "ironclad/flamebarrier/2",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "n_retaliatedamage",
-      "Target": "self",
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
         "has_numeric_literal",
-        "printed_damage_value",
-        "scalable_reward_wording"
+        "printed_damage_value"
       ],
       "Values": [
         {
@@ -11065,7 +11093,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 2,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -13024,7 +13052,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 1,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -13586,16 +13614,26 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "summon_reference"
+        "has_numeric_literal",
+        "summon_reference",
+        "uses_energy_x"
       ],
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 0,
-          "Source": "energy_x",
+          "BaseValue": 3,
+          "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
           "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 0,
+          "Source": "energy_x",
+          "Offset": 0,
+          "Upgradable": false,
+          "Explicit": false
         }
       ],
       "Condition": null,
@@ -15246,7 +15284,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 1,
+          "BaseValue": 10,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -15420,7 +15458,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -15450,7 +15488,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -16680,7 +16718,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 1,
+          "BaseValue": 25,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -16949,7 +16987,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 1,
+          "BaseValue": 6,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -17218,6 +17256,34 @@
     "Id": "regent/beatintoshape/1",
     "Spec": {
       "SchemaVersion": 1,
+      "Opcode": "template_self_action",
+      "Variant": "r_forge",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "forge_reference",
+        "has_numeric_literal"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "regent/beatintoshape/2",
+    "Spec": {
+      "SchemaVersion": 1,
       "Opcode": "template_modifier",
       "Variant": "r_foreachpriorattackhitontarget",
       "Target": "self",
@@ -17238,7 +17304,7 @@
     }
   },
   {
-    "Id": "regent/beatintoshape/2",
+    "Id": "regent/beatintoshape/3",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_self_action",
@@ -18277,7 +18343,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -18544,7 +18610,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 9,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -19058,7 +19124,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 11,
+          "BaseValue": 5,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -19569,7 +19635,7 @@
       "Values": [
         {
           "Id": "stars",
-          "BaseValue": 1,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -19784,7 +19850,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 4,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -21696,7 +21762,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,

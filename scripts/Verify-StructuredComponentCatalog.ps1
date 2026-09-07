@@ -44,7 +44,7 @@ try {
     $jsonText = [System.Text.Encoding]::UTF8.GetString($actual)
     $recipes = [System.Text.RegularExpressions.Regex]::Matches($jsonText, '(?m)^    "Character":').Count
     $operations = [System.Text.RegularExpressions.Regex]::Matches($jsonText, '(?m)^        "SemanticId":').Count
-    if ($recipes -ne 481 -or $operations -ne 929) {
+    if ($recipes -ne 481 -or $operations -ne 938) {
         throw "Structured catalog totals drifted: recipes=$recipes operations=$operations."
     }
     Write-Host "Structured component catalog verified: $recipes recipes, $operations operations."

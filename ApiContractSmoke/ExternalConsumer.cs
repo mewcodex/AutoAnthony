@@ -60,23 +60,43 @@ public static class ExternalConsumer
         _ = ComponentRunSettingsApi.Local;
         _ = ComponentRunSettingsApi.TryResolveMultiplayer([], out _);
         _ = AutoAnthonySettingsApi.ApiVersion;
-        _ = AutoAnthonySettingsApi.Enabled;
-        _ = AutoAnthonySettingsApi.AnytimeCardEditing;
+        _ = AutoAnthonySettingsApi.Current;
+        _ = AutoAnthonySettingsApi.Current.ActiveSurpriseMode;
         using var progress = ComponentGenerationProgressApi.Create(1);
         progress.Report(1);
         _ = ComponentSurpriseApi.IsGenerated(null);
         var tinkeringProbe = new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other,
             GeneratedRarity.Common, string.Empty, [], []);
         _ = CardTinkeringApi.ApiVersion;
-        _ = CardTinkeringApi.Evaluate(tinkeringProbe);
-        _ = CardTinkeringApi.Evaluate(tinkeringProbe, balancedValues: false);
-        _ = CardTinkeringApi.EvaluateBudget(tinkeringProbe);
-        _ = CardTinkeringApi.EvaluateBudget(tinkeringProbe, balancedValues: false);
-        _ = CardTinkeringApi.EvaluateComponent(new GeneratorOperation("probe", OperationScope.Independent,
+        _ = CardTinkeringApi.Analyze(tinkeringProbe);
+        _ = CardTinkeringApi.Analyze(tinkeringProbe,
+            new CardTinkeringEvaluationOptions(BalancedValues: false));
+        _ = CardTinkeringApi.AnalyzeStandaloneComponent(new GeneratorOperation("probe", OperationScope.Independent,
+            string.Empty, new Dictionary<string, int>()));
+        _ = CardTinkeringApi.GetEffectiveCost(tinkeringProbe);
+        _ = CardTinkeringApi.GetKeywordValue(CardTag.Innate);
+        _ = CardTinkeringApi.GetComponentPrototypes();
+        _ = CardTinkeringApi.GetEditableValues(new GeneratorOperation("probe", OperationScope.Independent,
             string.Empty, new Dictionary<string, int>()));
         _ = CardTinkeringApi.Validate(tinkeringProbe, []);
         _ = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(tinkeringProbe));
         _ = CardTinkeringApi.Rebuild(tinkeringProbe, []);
+        _ = AutoAnthonyFreeformCardApi.ApiVersion;
+        _ = AutoAnthonyEditorApi.ApiVersion;
+        Func<GeneratedCard, int, AutoAnthonyEditorIdentity> rerollIdentity =
+            AutoAnthonyEditorApi.RerollEditorIdentity;
+        Action<ChaosCardModel, GeneratedCard, AutoAnthonyEditorIdentity> applyIdentity =
+            AutoAnthonyEditorApi.ApplyEditorDefinition;
+        _ = rerollIdentity;
+        _ = applyIdentity;
+        _ = NativeCardDecompositionApi.ApiVersion;
+        _ = NativeCardDecompositionApi.Cards;
+        _ = NativeCardDecompositionApi.Components;
+        _ = NativeCardDecompositionApi.Keywords;
+        _ = NativeCardDecompositionApi.FindByNativeId("STRIKE_IRONCLAD");
+        _ = NativeCardDecompositionApi.TryCreateDefinition("native/ironclad/setup_strike",
+            out _, out _);
+        _ = AutoAnthonyNativeCardApi.ApiVersion;
     }
 
     public static async Task CompileTriggerBridge(ChaosCardModel card, Player player,

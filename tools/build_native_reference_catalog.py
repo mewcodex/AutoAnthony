@@ -555,7 +555,125 @@ def native_component_id(atom: dict[str, Any], spec: dict[str, Any]) -> str:
     return f"{prefix}.{digest}"
 
 
-def current_components(recipe: dict[str, Any], specs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+# Equal native base values are common (damage/block, Strength/Dexterity, draw/energy, and so on),
+# so value equality alone is not a safe binding rule.  This small reviewed table resolves only those
+# ambiguous occurrences.  Unambiguous bindings continue to be derived from the native source below.
+# Each tuple is (native variable, scale, offset), where componentValue = nativeValue * scale + offset.
+NATIVE_BINDING_OVERRIDES: dict[tuple[str, int, str], tuple[tuple[str, float, float], ...]] = {
+    ("HandOfGreed", 0, "damage"): (("Damage", 1, 0),),
+    ("HandOfGreed", 2, "amount"): (("Gold", 1, 0),),
+    ("Prowess", 0, "amount"): (("StrengthPower", 1, 0),),
+    ("Prowess", 1, "amount"): (("DexterityPower", 1, 0),),
+    ("Restlessness", 1, "draw"): (("Cards", 1, 0),),
+    ("Restlessness", 2, "energy"): (("Energy", 1, 0),),
+    ("RollingBoulder", 1, "damage"): (("RollingBoulderPower", 1, 0),),
+    ("Shockwave", 0, "amount"): (("Power", 1, 0),),
+    ("Shockwave", 1, "amount"): (("Power", 1, 0),),
+    ("BulkUp", 0, "amount"): (("StrengthPower", 1, 0),),
+    ("BulkUp", 1, "amount"): (("DexterityPower", 1, 0),),
+    ("Coolheaded", 1, "draw"): (("Cards", 1, 0),),
+    ("Modded", 1, "draw"): (("Cards", 1, 0),),
+    ("Null", 1, "amount"): (("WeakPower", 1, 0),),
+    ("RocketPunch", 1, "draw"): (("Cards", 1, 0),),
+    ("Brand", 2, "amount"): (("StrengthPower", 1, 0),),
+    ("Dominate", 0, "amount"): (("VulnerablePower", 1, 0),),
+    ("DrumOfBattle", 2, "energy"): (("Energy", 1, 0),),
+    ("EvilEye", 0, "block"): (("Block", 1, 0),),
+    ("EvilEye", 2, "block"): (("Block", 1, 0),),
+    ("IronWave", 0, "block"): (("Block", 1, 0),),
+    ("IronWave", 1, "damage"): (("Damage", 1, 0),),
+    ("SwordBoomerang", 0, "hits"): (("Repeat", 1, 0),),
+    ("Uppercut", 1, "amount"): (("Power", 1, 0),),
+    ("Uppercut", 2, "amount"): (("Power", 1, 0),),
+    ("Spite", 2, "extra_hits"): (("Repeat", 1, -1),),
+    ("BoneShards", 1, "damage"): (("OstyDamage", 1, 0),),
+    ("BoneShards", 2, "block"): (("Block", 1, 0),),
+    ("CaptureSpirit", 0, "amount"): (("Damage", 1, 0),),
+    ("CaptureSpirit", 1, "amount"): (("Cards", 1, 0),),
+    ("DeathsDoor", 0, "block"): (("Block", 1, 0),),
+    ("DeathsDoor", 2, "block"): (("Block", 1, 0),),
+    ("Invoke", 1, "amount"): (("Summon", 1, 0),),
+    ("Invoke", 2, "energy"): (("Energy", 1, 0),),
+    ("Putrefy", 0, "amount"): (("Power", 1, 0),),
+    ("Putrefy", 1, "amount"): (("Power", 1, 0),),
+    ("SharedFate", 1, "amount"): (("EnemyStrengthLoss", 1, 0),),
+    ("BeatIntoShape", 0, "damage"): (("Damage", 1, 0),),
+    ("BeatIntoShape", 1, "amount"): (("CalculationBase", 1, 0),),
+    ("BeatIntoShape", 3, "amount"): (("CalculationExtra", 1, 0),),
+    ("Convergence", 3, "stars"): (("Stars", 1, 0),),
+    ("CrushUnder", 1, "amount"): (("StrengthLoss", 1, 0),),
+    ("DecisionsDecisions", 0, "draw"): (("Cards", 1, 0),),
+    ("DyingStar", 0, "damage"): (("Damage", 1, 0),),
+    ("DyingStar", 1, "amount"): (("StrengthLoss", 1, 0),),
+    ("Glow", 0, "stars"): (("Stars", 1, 0),),
+    ("Resonance", 0, "amount"): (("StrengthPower", 1, 0),),
+    ("Resonance", 1, "amount"): (("StrengthPower", 1, 0),),
+    ("WroughtInWar", 0, "damage"): (("Damage", 1, 0),),
+    ("WroughtInWar", 1, "amount"): (("Forge", 1, 0),),
+    ("CelestialMight", 1, "extra_hits"): (("Repeat", 1, -1),),
+    ("BouncingFlask", 0, "hits"): (("Repeat", 1, 0),),
+    ("Dash", 0, "block"): (("Block", 1, 0),),
+    ("Dash", 1, "damage"): (("Damage", 1, 0),),
+    ("DodgeAndRoll", 0, "block"): (("Block", 1, 0),),
+    ("DodgeAndRoll", 2, "block"): (("Block", 1, 0),),
+    ("Prepared", 0, "draw"): (("Cards", 1, 0),),
+}
+
+
+def bind_native_upgrade_variables(class_name: str, source: dict[str, Any],
+                                  components: list[dict[str, Any]]) -> None:
+    variables = {item["Id"]: item for item in source["Variables"]}
+    deltas: dict[str, int | float] = {}
+    for action in source["Upgrade"]["Actions"]:
+        if action["Kind"] == "ChangeVariable":
+            variable = action["Variable"]
+            deltas[variable] = deltas.get(variable, 0) + action["Delta"]
+
+    # A single upgraded native variable is still not sufficient evidence when several component fields happen to
+    # share its base value. Brand, for example, upgrades Strength 1 -> 2 but also contains fixed self-damage 1 and
+    # an Exhaust-one selector. Binding all three because they equal 1 corrupts both reconstruction and runtime
+    # upgrades. Such cards must use a reviewed override for every intentionally bound occurrence.
+    value_occurrences: dict[int | float | None, int] = {}
+    for component in components:
+        for argument in component["Arguments"].values():
+            if argument["Source"] == "RuntimeValue" and argument["Upgradable"]:
+                base_value = argument["BaseValue"]
+                value_occurrences[base_value] = value_occurrences.get(base_value, 0) + 1
+
+    for component_index, component in enumerate(components):
+        for argument_name, argument in component["Arguments"].items():
+            if argument["Source"] != "RuntimeValue" or not argument["Upgradable"]:
+                continue
+            override = NATIVE_BINDING_OVERRIDES.get((class_name, component_index, argument_name))
+            if override is None:
+                candidates = [variable for variable, delta in deltas.items()
+                              if variables[variable]["BaseValue"] == argument["BaseValue"]]
+                if len(candidates) != 1 or value_occurrences.get(argument["BaseValue"], 0) != 1:
+                    continue
+                override = ((candidates[0], 1, 0),)
+
+            bindings = []
+            for variable, scale, offset in override:
+                if variable not in variables or variable not in deltas:
+                    raise ValueError(f"invalid native binding {class_name}/{component_index}/"
+                                     f"{argument_name} -> {variable}")
+                native_base = variables[variable]["BaseValue"]
+                if argument["ValueSource"] == "fixed" and native_base is not None \
+                        and native_base * scale + offset != argument["BaseValue"]:
+                    raise ValueError(f"native binding value mismatch {class_name}/{component_index}/"
+                                     f"{argument_name}: {native_base} * {scale} + {offset} != "
+                                     f"{argument['BaseValue']}")
+                bindings.append({
+                    "Variable": variable,
+                    "BaseValue": native_base,
+                    "UpgradeDelta": deltas[variable],
+                    "ValueTransform": {"Scale": scale, "Offset": offset},
+                })
+            argument["NativeBindings"] = bindings
+
+
+def current_components(class_name: str, source: dict[str, Any], recipe: dict[str, Any],
+                       specs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     result = []
     for atom in recipe["Atoms"]:
         spec = copy.deepcopy(specs[atom["SemanticId"]])
@@ -575,6 +693,7 @@ def current_components(recipe: dict[str, Any], specs: dict[str, dict[str, Any]])
             "RuntimeSpec": spec,
             "Text": {"zhHans": atom["ChineseText"], "en": atom["EnglishText"]},
         })
+    bind_native_upgrade_variables(class_name, source, result)
     return result
 
 
@@ -620,7 +739,7 @@ def build(args: argparse.Namespace) -> None:
             "Keywords": source["Keywords"], "Tags": source["Tags"], "Variables": source["Variables"],
         }
         if class_name in recipe_by_class:
-            components = current_components(recipe_by_class[class_name], runtime_specs)
+            components = current_components(class_name, source, recipe_by_class[class_name], runtime_specs)
             source_kind = "GeneratorCatalog"
         else:
             components = special_components(class_name)
@@ -691,8 +810,11 @@ def build(args: argparse.Namespace) -> None:
                 raise ValueError(f"component ID collision with different contracts: {component_id}")
             for name, value in arguments.items():
                 source_kind = value.get("Source", "Literal") if isinstance(value, dict) else "Literal"
-                definition["Parameters"].setdefault(name, {"Name": name, "AcceptedSources": []})
-                accepted = definition["Parameters"][name]["AcceptedSources"]
+                parameter = definition["Parameters"].setdefault(name,
+                    {"Name": name, "AcceptedSources": [], "SupportsNativeBindings": False})
+                if isinstance(value, dict) and value.get("NativeBindings"):
+                    parameter["SupportsNativeBindings"] = True
+                accepted = parameter["AcceptedSources"]
                 if source_kind not in accepted:
                     accepted.append(source_kind)
 
@@ -713,7 +835,7 @@ def build(args: argparse.Namespace) -> None:
     } for key, value in keyword_names.items() if key != "None"]
 
     payload = {
-        "SchemaVersion": 1,
+        "SchemaVersion": 2,
         "GameVersion": "v111",
         "Purpose": "Complete non-multiplayer native-card reconstruction reference",
         "ReferenceOnly": True,
@@ -723,7 +845,7 @@ def build(args: argparse.Namespace) -> None:
         "Cards": sorted(cards, key=lambda item: item["CatalogId"]),
     }
     component_payload = {
-        "SchemaVersion": 1, "GameVersion": "v111", "ReferenceOnly": True,
+        "SchemaVersion": 2, "GameVersion": "v111", "ReferenceOnly": True,
         "GenerationEligible": False, "Components": component_output, "Keywords": keywords,
     }
     args.cards_output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

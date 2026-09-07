@@ -1,5 +1,5 @@
 {
-  "SchemaVersion": 1,
+  "SchemaVersion": 2,
   "GameVersion": "v111",
   "ReferenceOnly": true,
   "GenerationEligible": false,
@@ -25,19 +25,22 @@
           "AcceptedSources": [
             "NativeVariable",
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "power",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "target",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -61,19 +64,22 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "cardType",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -97,13 +103,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -127,37 +135,43 @@
           "Name": "candidates",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "cardType",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "choose",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "destination",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "freeDuration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "upgraded",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -181,13 +195,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "power",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -211,7 +227,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -235,13 +252,15 @@
           "Name": "count",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "destination",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -265,32 +284,37 @@
           "Name": "cardType",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "count",
           "AcceptedSources": [
             "Literal",
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "destination",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "freeDuration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "rarity",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -314,20 +338,23 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "Literal",
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "target",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -351,7 +378,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -376,7 +404,8 @@
           "AcceptedSources": [
             "NativeVariable",
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -400,7 +429,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -424,7 +454,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -448,19 +479,22 @@
           "Name": "base",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "multiplier",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "scale",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -484,13 +518,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "timing",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -514,19 +550,22 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "power",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -550,19 +589,22 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "card",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -586,13 +628,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "target",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -616,7 +660,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -640,7 +685,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -664,7 +710,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -688,7 +735,8 @@
           "Name": "amountPerCard",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -712,7 +760,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -736,7 +785,56 @@
           "Name": "multiplier",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.dexterity_gain.self.nontargeted.4de8e4d140",
+      "Name": {
+        "zhHans": "Apply Power / Dexterity Gain / Self / Nontargeted / 4de8e4d140",
+        "en": "Apply Power / Dexterity Gain / Self / Nontargeted / 4de8e4d140"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "dexterity_gain",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "dexterity_reference",
+          "has_numeric_literal",
+          "positive_strength_dexterity_reference",
+          "scalable_reward_wording"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "获得1点敏捷。",
+        "en": "Gain 1 Dexterity."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -781,7 +879,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -828,7 +927,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -873,7 +973,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -919,7 +1020,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -965,7 +1067,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1020,15 +1123,46 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
+    },
+    {
+      "Id": "native.apply_power.retain_hand_this_turn.self.nontargeted.268cec9f41",
+      "Name": {
+        "zhHans": "Apply Power / Retain Hand This Turn / Self / Nontargeted / 268cec9f41",
+        "en": "Apply Power / Retain Hand This Turn / Self / Nontargeted / 268cec9f41"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "retain_hand_this_turn",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "this_turn_reference"
+        ],
+        "Values": [],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "在本回合保留你的手牌。",
+        "en": "Retain your hand this turn."
+      },
+      "Parameters": []
     },
     {
       "Id": "native.apply_power.strength.self.nontargeted.6af97668c9",
@@ -1074,7 +1208,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1113,15 +1248,16 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "获得3点力量。",
-        "en": "Gain 3 Strength."
+        "zhHans": "获得2点力量。",
+        "en": "Gain 2 Strength."
       },
       "Parameters": [
         {
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1170,7 +1306,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -1215,7 +1352,56 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.strength_loss_this_turn.all_enemies.nontargeted.7e6cebed2b",
+      "Name": {
+        "zhHans": "Apply Power / Strength Loss This Turn / All Enemies / Nontargeted / 7e6cebed2b",
+        "en": "Apply Power / Strength Loss This Turn / All Enemies / Nontargeted / 7e6cebed2b"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "strength_loss_this_turn",
+        "Target": "all_enemies",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "all_enemies_reference",
+          "has_numeric_literal",
+          "strength_reference",
+          "this_turn_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "所有敌人在本回合失去1点力量。",
+        "en": "ALL enemies lose 1 Strength this turn."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1255,15 +1441,65 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "使该敌人在本回合失去10点力量。",
-        "en": "The enemy loses 10 Strength this turn."
+        "zhHans": "该敌人在本回合失去10点力量。",
+        "en": "That enemy loses 10 Strength this turn."
       },
       "Parameters": [
         {
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.strength_loss_this_turn.selected_enemy.singleenemyonly.75bf4c45be",
+      "Name": {
+        "zhHans": "Apply Power / Strength Loss This Turn / Selected Enemy / Singleenemyonly / 75bf4c45be",
+        "en": "Apply Power / Strength Loss This Turn / Selected Enemy / Singleenemyonly / 75bf4c45be"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "strength_loss_this_turn",
+        "Target": "selected_enemy",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "event_enemy_reference",
+          "has_numeric_literal",
+          "requires_selected_enemy",
+          "strength_reference",
+          "this_turn_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "该敌人在本回合失去9点力量。",
+        "en": "That enemy loses 9 Strength this turn."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1313,7 +1549,200 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.strength_this_turn.self.nontargeted.2388000e7f",
+      "Name": {
+        "zhHans": "Apply Power / Strength This Turn / Self / Nontargeted / 2388000e7f",
+        "en": "Apply Power / Strength This Turn / Self / Nontargeted / 2388000e7f"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "strength_this_turn",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "has_numeric_literal",
+          "positive_strength_dexterity_reference",
+          "strength_reference",
+          "this_turn_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "本回合获得3点力量。",
+        "en": "Gain 3 Strength this turn."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.strength_this_turn.self.nontargeted.a71962d4e5",
+      "Name": {
+        "zhHans": "Apply Power / Strength This Turn / Self / Nontargeted / A71962d4e5",
+        "en": "Apply Power / Strength This Turn / Self / Nontargeted / A71962d4e5"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "strength_this_turn",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "has_numeric_literal",
+          "legacy_enemy_strength_one",
+          "positive_strength_dexterity_reference",
+          "strength_reference",
+          "this_turn_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "本回合获得1点力量。",
+        "en": "Gain 1 Strength this turn."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.vigor.self.nontargeted.534925ff57",
+      "Name": {
+        "zhHans": "Apply Power / Vigor / Self / Nontargeted / 534925ff57",
+        "en": "Apply Power / Vigor / Self / Nontargeted / 534925ff57"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "vigor",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "has_numeric_literal",
+          "scalable_reward_wording"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "获得2点活力。",
+        "en": "Gain 2 Vigor."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.apply_power.vulnerable.all_enemies.nontargeted.5ae1213ea8",
+      "Name": {
+        "zhHans": "Apply Power / Vulnerable / All Enemies / Nontargeted / 5ae1213ea8",
+        "en": "Apply Power / Vulnerable / All Enemies / Nontargeted / 5ae1213ea8"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "vulnerable",
+        "Target": "all_enemies",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "all_enemies_reference",
+          "apply_status_reference",
+          "has_numeric_literal",
+          "scalable_reward_wording",
+          "vulnerable_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "给予所有敌人2层易伤。",
+        "en": "Apply 2 Vulnerable to ALL enemies."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1360,7 +1789,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1407,7 +1837,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1441,6 +1872,55 @@
         "en": "Double the enemy's Vulnerable."
       },
       "Parameters": []
+    },
+    {
+      "Id": "native.apply_power.weak.all_enemies.nontargeted.c942180387",
+      "Name": {
+        "zhHans": "Apply Power / Weak / All Enemies / Nontargeted / C942180387",
+        "en": "Apply Power / Weak / All Enemies / Nontargeted / C942180387"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "apply_power",
+        "Variant": "weak",
+        "Target": "all_enemies",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "all_enemies_reference",
+          "apply_status_reference",
+          "has_numeric_literal",
+          "scalable_reward_wording",
+          "weak_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "给予所有敌人1层虚弱。",
+        "en": "Apply 1 Weak to ALL enemies."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
     },
     {
       "Id": "native.apply_power.weak.selected_enemy.singleenemyonly.d00b86a34a",
@@ -1485,7 +1965,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1532,7 +2013,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1586,13 +2068,15 @@
           "Name": "choices",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "picks",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -1649,13 +2133,15 @@
           "Name": "choices",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "picks",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -1712,13 +2198,15 @@
           "Name": "choices",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "picks",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -1770,13 +2258,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -1821,7 +2311,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1898,7 +2389,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1942,7 +2434,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -1988,7 +2481,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2034,7 +2528,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -2199,7 +2694,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2246,7 +2742,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -2358,13 +2855,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2467,57 +2966,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.combat_rule.unblocked_attack_applies_poison.self.abilityrule.ad06968096",
-      "Name": {
-        "zhHans": "Combat Rule / Unblocked Attack Applies Poison / Self / Abilityrule / Ad06968096",
-        "en": "Combat Rule / Unblocked Attack Applies Poison / Self / Abilityrule / Ad06968096"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "combat_rule",
-        "Variant": "unblocked_attack_applies_poison",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "apply_status_reference",
-          "attack_damage_reference",
-          "block_reference",
-          "count_unit_reference",
-          "has_numeric_literal",
-          "poison_reference",
-          "repeated_or_multiplicative"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "每有一次攻击造成未被格挡的伤害，就给予1层中毒。",
-        "en": "Whenever an Attack deals unblocked damage, apply 1 Poison."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2565,7 +3015,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -2611,7 +3062,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2695,7 +3147,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2745,7 +3198,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -2898,7 +3352,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -2931,7 +3386,7 @@
       },
       "ExampleText": {
         "zhHans": "斩杀时。",
-        "en": "If Fatal."
+        "en": "If this kills."
       },
       "Parameters": []
     },
@@ -3344,7 +3799,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3401,13 +3857,62 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.create_card.random_colorless.generated_card.nontargeted.6831df20ec",
+      "Name": {
+        "zhHans": "Create Card / Random Colorless / Generated Card / Nontargeted / 6831df20ec",
+        "en": "Create Card / Random Colorless / Generated Card / Nontargeted / 6831df20ec"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "create_card",
+        "Variant": "random_colorless",
+        "Target": "generated_card",
+        "SourceZone": "colorless_pool",
+        "DestinationZone": "hand",
+        "CardFilter": "any",
+        "Flags": [
+          "count_unit_reference",
+          "has_numeric_literal",
+          "replenishes_hand"
+        ],
+        "Values": [
+          {
+            "Id": "count",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "将3张随机无色牌加入手牌。",
+        "en": "Add 3 random Colorless cards to your Hand."
+      },
+      "Parameters": [
+        {
+          "Name": "count",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -3460,13 +3965,15 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3511,7 +4018,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3556,7 +4064,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3611,13 +4120,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -3672,13 +4183,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3732,13 +4245,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3823,13 +4338,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -3883,13 +4400,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -3942,13 +4461,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4002,13 +4523,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4056,7 +4579,8 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -4109,13 +4633,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4161,7 +4687,8 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4206,7 +4733,8 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -4251,7 +4779,8 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -4304,13 +4833,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4363,13 +4894,15 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4443,7 +4976,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4501,13 +5035,15 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "draw",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -4557,7 +5093,8 @@
           "Name": "draw",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -4685,7 +5222,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4730,7 +5268,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4776,7 +5315,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4822,7 +5362,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4870,7 +5411,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4916,7 +5458,8 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -4964,7 +5507,8 @@
           "Name": "block",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5009,53 +5553,8 @@
           "Name": "energy",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.gain_energy.next_turn.self.nontargeted.5ef5df7657",
-      "Name": {
-        "zhHans": "Gain Energy / Next Turn / Self / Nontargeted / 5ef5df7657",
-        "en": "Gain Energy / Next Turn / Self / Nontargeted / 5ef5df7657"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "gain_energy",
-        "Variant": "next_turn",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "delayed_effect",
-          "has_numeric_literal"
-        ],
-        "Values": [
-          {
-            "Id": "energy",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "在下个回合获得1点能量。",
-        "en": "Next turn, gain 1 Energy."
-      },
-      "Parameters": [
-        {
-          "Name": "energy",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5100,7 +5599,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5148,7 +5648,8 @@
           "Name": "stars",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5195,7 +5696,101 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.lose_hp.immediate.random_enemy.singleenemyonly.d456051025",
+      "Name": {
+        "zhHans": "Lose Hp / Immediate / Random Enemy / Singleenemyonly / D456051025",
+        "en": "Lose Hp / Immediate / Random Enemy / Singleenemyonly / D456051025"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "lose_hp",
+        "Variant": "immediate",
+        "Target": "random_enemy",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "has_numeric_literal",
+          "random_enemy_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "随机一名敌人失去7点生命。",
+        "en": "A random enemy loses 7 HP."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.lose_hp.immediate.selected_enemy.singleenemyonly.02925664db",
+      "Name": {
+        "zhHans": "Lose Hp / Immediate / Selected Enemy / Singleenemyonly / 02925664db",
+        "en": "Lose Hp / Immediate / Selected Enemy / Singleenemyonly / 02925664db"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "lose_hp",
+        "Variant": "immediate",
+        "Target": "selected_enemy",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "event_enemy_reference",
+          "has_numeric_literal",
+          "requires_selected_enemy"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "该敌人失去3点生命。",
+        "en": "The enemy loses 3 HP."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5239,7 +5834,8 @@
           "Name": "hp_loss",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5298,13 +5894,15 @@
           "Name": "block_per_interval",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "strength_interval",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5351,7 +5949,8 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5398,7 +5997,8 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5446,7 +6046,8 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5492,7 +6093,8 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5571,7 +6173,8 @@
           "Name": "damage_per_strike",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5617,7 +6220,8 @@
           "Name": "percentage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5668,7 +6272,8 @@
           "Name": "damage_per_vulnerable",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -5714,21 +6319,23 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "这张牌额外造成1次伤害。",
-        "en": "This card deals damage 1 additional time."
+        "zhHans": "这张牌额外造成2次伤害。",
+        "en": "This card deals damage 2 additional times."
       },
       "Parameters": [
         {
           "Name": "extra_hits",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5782,13 +6389,15 @@
           "Name": "hits_per_hp_loss_event",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5834,7 +6443,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5880,7 +6490,8 @@
           "Name": "bonus",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5927,7 +6538,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -5972,7 +6584,56 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.move_card.selected.selected_card.independent.3c0a75cf88",
+      "Name": {
+        "zhHans": "Move Card / Selected / Selected Card / Independent / 3c0a75cf88",
+        "en": "Move Card / Selected / Selected Card / Independent / 3c0a75cf88"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "move_card",
+        "Variant": "selected",
+        "Target": "selected_card",
+        "SourceZone": "draw",
+        "DestinationZone": "hand",
+        "CardFilter": "any",
+        "Flags": [
+          "count_unit_reference",
+          "effect_family_draw",
+          "replenishes_hand",
+          "requires_player_choice"
+        ],
+        "Values": [
+          {
+            "Id": "count",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": false
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "从抽牌堆中选择一张牌加入你的手牌。",
+        "en": "Choose a card from your Draw Pile to put into your Hand."
+      },
+      "Parameters": [
+        {
+          "Name": "count",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6019,7 +6680,55 @@
           "Name": "count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.move_card.selected.selected_card.nontargeted.aac958b8ec",
+      "Name": {
+        "zhHans": "Move Card / Selected / Selected Card / Nontargeted / Aac958b8ec",
+        "en": "Move Card / Selected / Selected Card / Nontargeted / Aac958b8ec"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "move_card",
+        "Variant": "selected",
+        "Target": "selected_card",
+        "SourceZone": "discard",
+        "DestinationZone": "hand",
+        "CardFilter": "any",
+        "Flags": [
+          "count_unit_reference",
+          "replenishes_hand",
+          "requires_player_choice"
+        ],
+        "Values": [
+          {
+            "Id": "count",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": false
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "将弃牌堆中的一张牌放入手牌。",
+        "en": "Put a card from your discard pile into your hand."
+      },
+      "Parameters": [
+        {
+          "Name": "count",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6066,40 +6775,10 @@
           "Name": "duration",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
-    },
-    {
-      "Id": "native.template_independent_action.cl_choosedrawcardtohand.self.independent.4764206a9c",
-      "Name": {
-        "zhHans": "Template Independent Action / Cl Choosedrawcardtohand / Self / Independent / 4764206a9c",
-        "en": "Template Independent Action / Cl Choosedrawcardtohand / Self / Independent / 4764206a9c"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_independent_action",
-        "Variant": "cl_choosedrawcardtohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "replenishes_hand",
-          "requires_player_choice"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "选择一张牌放入手牌。",
-        "en": "Choose a card from it to put into your Hand."
-      },
-      "Parameters": []
     },
     {
       "Id": "native.template_independent_action.cl_drawtofullhand.self.independent.cd2350eecc",
@@ -6176,7 +6855,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6376,7 +7056,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6422,7 +7103,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6469,7 +7151,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6604,7 +7287,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6648,7 +7332,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6693,7 +7378,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6739,7 +7425,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6793,13 +7480,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6875,7 +7564,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6981,7 +7671,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -7028,7 +7719,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -7076,7 +7768,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -7251,7 +7944,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -7315,53 +8009,6 @@
         "en": "Cards in your hand cost 0 this turn."
       },
       "Parameters": []
-    },
-    {
-      "Id": "native.template_independent_action.i_gaintemporarystrength.self.independent.b4b0427e1f",
-      "Name": {
-        "zhHans": "Template Independent Action / I Gaintemporarystrength / Self / Independent / B4b0427e1f",
-        "en": "Template Independent Action / I Gaintemporarystrength / Self / Independent / B4b0427e1f"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_independent_action",
-        "Variant": "i_gaintemporarystrength",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "positive_strength_dexterity_reference",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合获得2点力量。",
-        "en": "Gain 2 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
     },
     {
       "Id": "native.template_independent_action.i_grantslytohandskillthisturn.self.independent.c92d7e3ec5",
@@ -7436,7 +8083,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -7603,7 +8251,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -7711,7 +8360,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -7784,7 +8434,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -7859,7 +8510,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -7934,7 +8586,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8041,7 +8694,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8088,7 +8742,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8196,7 +8851,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8249,13 +8905,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8303,7 +8961,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -8468,7 +9127,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8512,7 +9172,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -8585,7 +9246,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8630,7 +9292,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8761,7 +9424,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -8838,7 +9502,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -8918,7 +9583,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -9011,66 +9677,6 @@
         "en": "For each unique Orb,"
       },
       "Parameters": []
-    },
-    {
-      "Id": "native.template_modifier.d_repeatdamage.self.modifier.7c7c8365c2",
-      "Name": {
-        "zhHans": "Template Modifier / D Repeatdamage / Self / Modifier / 7c7c8365c2",
-        "en": "Template Modifier / D Repeatdamage / Self / Modifier / 7c7c8365c2"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_modifier",
-        "Variant": "d_repeatdamage",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "damage_budget_effect",
-          "has_numeric_literal",
-          "static_extra_damage_hits"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          },
-          {
-            "Id": "repeat_count",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": false,
-            "Explicit": false
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "这张牌额外造成2次伤害。",
-        "en": "This card deals damage 2 additional times."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        },
-        {
-          "Name": "repeat_count",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
     },
     {
       "Id": "native.template_modifier.d_repeatperorb.self.modifier.d08e1d2001",
@@ -9176,7 +9782,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -9225,7 +9832,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -9274,7 +9882,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -9322,7 +9931,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -9460,7 +10070,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -9507,7 +10118,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -9554,7 +10166,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -9601,7 +10214,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -9880,38 +10494,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_modifier.ncr_whenevercardplayedthisturn.self.modifier.87c8893735",
-      "Name": {
-        "zhHans": "Template Modifier / Ncr Whenevercardplayedthisturn / Self / Modifier / 87c8893735",
-        "en": "Template Modifier / Ncr Whenevercardplayedthisturn / Self / Modifier / 87c8893735"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_modifier",
-        "Variant": "ncr_whenevercardplayedthisturn",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "any_card_played_reference",
-          "count_unit_reference",
-          "repeated_or_multiplicative",
-          "this_turn_reference"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合每当你打出一张牌时，",
-        "en": "Whenever you play a card this turn,"
-      },
-      "Parameters": []
-    },
-    {
       "Id": "native.template_modifier.ncr_whenevercreaturedies.self.modifier.52b94b6b66",
       "Name": {
         "zhHans": "Template Modifier / Ncr Whenevercreaturedies / Self / Modifier / 52b94b6b66",
@@ -10035,15 +10617,16 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "这张牌就额外造成1点伤害。",
-        "en": "This card deals 1 additional damage."
+        "zhHans": "这张牌就额外造成3点伤害。",
+        "en": "This card deals 3 additional damage."
       },
       "Parameters": [
         {
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -10082,15 +10665,16 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "这张牌就额外造成1点伤害。",
-        "en": "This card deals 1 additional damage."
+        "zhHans": "这张牌就额外造成2点伤害。",
+        "en": "This card deals 2 additional damage."
       },
       "Parameters": [
         {
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -10127,15 +10711,16 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "本场战斗此牌基础伤害增加1。",
-        "en": "Increase this card's base damage by 1 this combat."
+        "zhHans": "本场战斗此牌基础伤害增加4。",
+        "en": "Increase this card's base damage by 4 this combat."
       },
       "Parameters": [
         {
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -10297,66 +10882,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_modifier.r_repeatdamage.self.modifier.0ba9814026",
-      "Name": {
-        "zhHans": "Template Modifier / R Repeatdamage / Self / Modifier / 0ba9814026",
-        "en": "Template Modifier / R Repeatdamage / Self / Modifier / 0ba9814026"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_modifier",
-        "Variant": "r_repeatdamage",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "damage_budget_effect",
-          "has_numeric_literal",
-          "static_extra_damage_hits"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          },
-          {
-            "Id": "repeat_count",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": false,
-            "Explicit": false
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "这张牌额外造成2次伤害。",
-        "en": "This card deals damage 2 additional times."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        },
-        {
-          "Name": "repeat_count",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
       "Id": "native.template_modifier.r_repeatperskillplayedthisturn.self.modifier.178ba865bc",
       "Name": {
         "zhHans": "Template Modifier / R Repeatperskillplayedthisturn / Self / Modifier / 178ba865bc",
@@ -10480,148 +11005,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_self_action.cl_addrandomcolorlesstohand.self.nontargeted.e10a541f60",
-      "Name": {
-        "zhHans": "Template Self Action / Cl Addrandomcolorlesstohand / Self / Nontargeted / E10a541f60",
-        "en": "Template Self Action / Cl Addrandomcolorlesstohand / Self / Nontargeted / E10a541f60"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "cl_addrandomcolorlesstohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "has_numeric_literal",
-          "replenishes_hand"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将1张随机无色牌加入手牌。",
-        "en": "Add 1 random Colorless card into your Hand."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.cl_applyvulnerableall.self.nontargeted.2cb05fb6de",
-      "Name": {
-        "zhHans": "Template Self Action / Cl Applyvulnerableall / Self / Nontargeted / 2cb05fb6de",
-        "en": "Template Self Action / Cl Applyvulnerableall / Self / Nontargeted / 2cb05fb6de"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "cl_applyvulnerableall",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "vulnerable_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人3层易伤。",
-        "en": "Apply 3 Vulnerable to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.cl_applyweakall.self.nontargeted.df7dd22e8c",
-      "Name": {
-        "zhHans": "Template Self Action / Cl Applyweakall / Self / Nontargeted / Df7dd22e8c",
-        "en": "Template Self Action / Cl Applyweakall / Self / Nontargeted / Df7dd22e8c"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "cl_applyweakall",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "weak_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人3层虚弱。",
-        "en": "Apply 3 Weak to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
       "Id": "native.template_self_action.cl_choosefromrandomdrawcards.self.nontargeted.e79d45d6e3",
       "Name": {
         "zhHans": "Template Self Action / Cl Choosefromrandomdrawcards / Self / Nontargeted / E79d45d6e3",
@@ -10665,7 +11048,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -10770,52 +11154,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.cl_gainvigor.self.nontargeted.c614e18cc7",
-      "Name": {
-        "zhHans": "Template Self Action / Cl Gainvigor / Self / Nontargeted / C614e18cc7",
-        "en": "Template Self Action / Cl Gainvigor / Self / Nontargeted / C614e18cc7"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "cl_gainvigor",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "scalable_reward_wording"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "获得3点活力。",
-        "en": "Gain 3 Vigor."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -10846,35 +11186,6 @@
       "ExampleText": {
         "zhHans": "打出抽牌堆顶部的牌。",
         "en": "Play the top card of your Draw Pile."
-      },
-      "Parameters": []
-    },
-    {
-      "Id": "native.template_self_action.cl_retainhandthisturn.self.nontargeted.da6e5b3cf9",
-      "Name": {
-        "zhHans": "Template Self Action / Cl Retainhandthisturn / Self / Nontargeted / Da6e5b3cf9",
-        "en": "Template Self Action / Cl Retainhandthisturn / Self / Nontargeted / Da6e5b3cf9"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "cl_retainhandthisturn",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "this_turn_reference"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "在本回合保留你的手牌。",
-        "en": "Retain your Hand this turn."
       },
       "Parameters": []
     },
@@ -10921,7 +11232,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -10967,7 +11279,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11014,7 +11327,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11061,7 +11375,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -11108,7 +11423,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11155,7 +11471,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11202,7 +11519,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -11249,7 +11567,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11296,7 +11615,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -11428,7 +11748,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11503,7 +11824,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11556,13 +11878,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11644,13 +11968,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -11680,53 +12006,6 @@
         "en": "Exhaust all Status cards."
       },
       "Parameters": []
-    },
-    {
-      "Id": "native.template_self_action.d_gaindexterity.self.nontargeted.f13f12eab8",
-      "Name": {
-        "zhHans": "Template Self Action / D Gaindexterity / Self / Nontargeted / F13f12eab8",
-        "en": "Template Self Action / D Gaindexterity / Self / Nontargeted / F13f12eab8"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "d_gaindexterity",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "dexterity_reference",
-          "has_numeric_literal",
-          "positive_strength_dexterity_reference",
-          "scalable_reward_wording"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "获得2点敏捷。",
-        "en": "Gain 2 Dexterity."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
     },
     {
       "Id": "native.template_self_action.d_gainfocus.self.nontargeted.a15890d207",
@@ -11771,7 +12050,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -11818,54 +12098,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.d_gainstrength.self.nontargeted.6e810feb16",
-      "Name": {
-        "zhHans": "Template Self Action / D Gainstrength / Self / Nontargeted / 6e810feb16",
-        "en": "Template Self Action / D Gainstrength / Self / Nontargeted / 6e810feb16"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "d_gainstrength",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "positive_strength_dexterity_reference",
-          "scalable_reward_wording",
-          "strength_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "获得2点力量。",
-        "en": "Gain 2 Strength."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -11912,40 +12146,10 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
-    },
-    {
-      "Id": "native.template_self_action.d_movediscardcardtohand.self.nontargeted.f4fda97a6c",
-      "Name": {
-        "zhHans": "Template Self Action / D Movediscardcardtohand / Self / Nontargeted / F4fda97a6c",
-        "en": "Template Self Action / D Movediscardcardtohand / Self / Nontargeted / F4fda97a6c"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "d_movediscardcardtohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "replenishes_hand",
-          "requires_player_choice"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将弃牌堆中的一张牌放入手牌。",
-        "en": "Put a card from your discard pile into your hand."
-      },
-      "Parameters": []
     },
     {
       "Id": "native.template_self_action.d_returnzerocostdiscardtohand.self.nontargeted.8b88dbaa2e",
@@ -11988,7 +12192,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -12081,10 +12286,10 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_self_action.d_triggerrightmostorbpassive.self.nontargeted.56a88a4eee",
+      "Id": "native.template_self_action.d_triggerrightmostorbpassive.self.nontargeted.353159fa93",
       "Name": {
-        "zhHans": "Template Self Action / D Triggerrightmostorbpassive / Self / Nontargeted / 56a88a4eee",
-        "en": "Template Self Action / D Triggerrightmostorbpassive / Self / Nontargeted / 56a88a4eee"
+        "zhHans": "Template Self Action / D Triggerrightmostorbpassive / Self / Nontargeted / 353159fa93",
+        "en": "Template Self Action / D Triggerrightmostorbpassive / Self / Nontargeted / 353159fa93"
       },
       "ReferenceOnly": true,
       "GenerationEligible": false,
@@ -12097,17 +12302,49 @@
         "DestinationZone": "none",
         "CardFilter": "any",
         "Flags": [
+          "count_unit_reference",
+          "has_numeric_literal",
           "orb_reference"
         ],
-        "Values": [],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          },
+          {
+            "Id": "repeat_count",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": false,
+            "Explicit": false
+          }
+        ],
         "Condition": null,
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "触发最右侧充能球的被动能力。",
-        "en": "Trigger the passive ability of your rightmost Orb."
+        "zhHans": "触发最右侧充能球的被动能力1次。",
+        "en": "Trigger the passive ability of your rightmost Orb 1 time."
       },
-      "Parameters": []
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
+        },
+        {
+          "Name": "repeat_count",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
     },
     {
       "Id": "native.template_self_action.n_allpoison.self.nontargeted.f987c05ebb",
@@ -12153,102 +12390,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.n_alltempstrengthloss.self.nontargeted.8505ff8c3b",
-      "Name": {
-        "zhHans": "Template Self Action / N Alltempstrengthloss / Self / Nontargeted / 8505ff8c3b",
-        "en": "Template Self Action / N Alltempstrengthloss / Self / Nontargeted / 8505ff8c3b"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "n_alltempstrengthloss",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "has_numeric_literal",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "所有敌人在本回合失去6点力量。",
-        "en": "ALL enemies lose 6 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.n_allweak.self.nontargeted.db707140df",
-      "Name": {
-        "zhHans": "Template Self Action / N Allweak / Self / Nontargeted / Db707140df",
-        "en": "Template Self Action / N Allweak / Self / Nontargeted / Db707140df"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "n_allweak",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "weak_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人1层虚弱。",
-        "en": "Apply 1 Weak to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12328,7 +12471,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12375,54 +12519,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.n_dex.self.nontargeted.042e667b64",
-      "Name": {
-        "zhHans": "Template Self Action / N Dex / Self / Nontargeted / 042e667b64",
-        "en": "Template Self Action / N Dex / Self / Nontargeted / 042e667b64"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "n_dex",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "dexterity_reference",
-          "has_numeric_literal",
-          "positive_strength_dexterity_reference",
-          "scalable_reward_wording"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "获得1点敏捷。",
-        "en": "Gain 1 Dexterity."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12468,7 +12566,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12501,103 +12600,6 @@
         "en": "Block is not removed at the start of your next turn."
       },
       "Parameters": []
-    },
-    {
-      "Id": "native.template_self_action.n_nextturnblock.self.nontargeted.d8f4c2c997",
-      "Name": {
-        "zhHans": "Template Self Action / N Nextturnblock / Self / Nontargeted / D8f4c2c997",
-        "en": "Template Self Action / N Nextturnblock / Self / Nontargeted / D8f4c2c997"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "n_nextturnblock",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "block_reference",
-          "count_unit_reference",
-          "delayed_effect",
-          "has_numeric_literal",
-          "immediate_block_gain",
-          "printed_block_value"
-        ],
-        "Values": [
-          {
-            "Id": "block",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "在下个回合，获得4点格挡。",
-        "en": "Next turn, gain 4 Block."
-      },
-      "Parameters": [
-        {
-          "Name": "block",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.n_nextturndraw.self.nontargeted.240f04c54e",
-      "Name": {
-        "zhHans": "Template Self Action / N Nextturndraw / Self / Nontargeted / 240f04c54e",
-        "en": "Template Self Action / N Nextturndraw / Self / Nontargeted / 240f04c54e"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "n_nextturndraw",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "delayed_effect",
-          "effect_family_draw",
-          "field_variant_delayed_clause",
-          "has_numeric_literal"
-        ],
-        "Values": [
-          {
-            "Id": "draw",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "在下个回合，抽2张牌。",
-        "en": "Next turn, draw 2 cards."
-      },
-      "Parameters": [
-        {
-          "Name": "draw",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
     },
     {
       "Id": "native.template_self_action.n_nextturndraw.self.nontargeted.df9d7f619d",
@@ -12642,56 +12644,8 @@
           "Name": "draw",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.n_retaliatedamage.self.nontargeted.061b5ae554",
-      "Name": {
-        "zhHans": "Template Self Action / N Retaliatedamage / Self / Nontargeted / 061b5ae554",
-        "en": "Template Self Action / N Retaliatedamage / Self / Nontargeted / 061b5ae554"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "n_retaliatedamage",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "attack_received_reference",
-          "count_unit_reference",
-          "has_numeric_literal",
-          "printed_damage_value",
-          "repeated_or_multiplicative",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "damage",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合每当你受到一次攻击，对攻击者造成4点伤害。",
-        "en": "Whenever you are attacked this turn, deal 4 damage to the attacker."
-      },
-      "Parameters": [
-        {
-          "Name": "damage",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12738,7 +12692,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12784,7 +12739,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -12830,7 +12786,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -12905,7 +12862,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -13012,103 +12970,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.ncr_applyvulnerableall.self.nontargeted.2328d5526e",
-      "Name": {
-        "zhHans": "Template Self Action / Ncr Applyvulnerableall / Self / Nontargeted / 2328d5526e",
-        "en": "Template Self Action / Ncr Applyvulnerableall / Self / Nontargeted / 2328d5526e"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "ncr_applyvulnerableall",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "vulnerable_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人2层易伤。",
-        "en": "Apply 2 Vulnerable to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.ncr_applyweakall.self.nontargeted.1a2d494650",
-      "Name": {
-        "zhHans": "Template Self Action / Ncr Applyweakall / Self / Nontargeted / 1a2d494650",
-        "en": "Template Self Action / Ncr Applyweakall / Self / Nontargeted / 1a2d494650"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "ncr_applyweakall",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "weak_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人1层虚弱。",
-        "en": "Apply 1 Weak to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -13156,39 +13019,10 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
-    },
-    {
-      "Id": "native.template_self_action.ncr_createcopyindiscard.self.nontargeted.b610da52d8",
-      "Name": {
-        "zhHans": "Template Self Action / Ncr Createcopyindiscard / Self / Nontargeted / B610da52d8",
-        "en": "Template Self Action / Ncr Createcopyindiscard / Self / Nontargeted / B610da52d8"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "ncr_createcopyindiscard",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "copy_this_to_discard",
-          "count_unit_reference"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将此牌的一张复制加入弃牌堆。",
-        "en": "Add a copy of this card to your discard pile."
-      },
-      "Parameters": []
     },
     {
       "Id": "native.template_self_action.ncr_createsoulindiscard.self.nontargeted.f3f27e807a",
@@ -13232,7 +13066,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -13279,7 +13114,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -13325,7 +13161,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -13372,7 +13209,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -13417,7 +13255,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -13463,7 +13302,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -13524,37 +13364,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_self_action.ncr_movediscardcardtohand.self.nontargeted.d72ea81994",
-      "Name": {
-        "zhHans": "Template Self Action / Ncr Movediscardcardtohand / Self / Nontargeted / D72ea81994",
-        "en": "Template Self Action / Ncr Movediscardcardtohand / Self / Nontargeted / D72ea81994"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "ncr_movediscardcardtohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "replenishes_hand",
-          "requires_player_choice"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将弃牌堆中的一张牌放入手牌。",
-        "en": "Put a card from your discard pile into your hand."
-      },
-      "Parameters": []
-    },
-    {
       "Id": "native.template_self_action.ncr_ostyalldamage.self.nontargeted.bd923c6aa3",
       "Name": {
         "zhHans": "Template Self Action / Ncr Ostyalldamage / Self / Nontargeted / Bd923c6aa3",
@@ -13596,7 +13405,8 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -13641,15 +13451,16 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
     {
-      "Id": "native.template_self_action.ncr_summonx.self.nontargeted.842b9e6a8a",
+      "Id": "native.template_self_action.ncr_summonx.self.nontargeted.948a363ae2",
       "Name": {
-        "zhHans": "Template Self Action / Ncr Summonx / Self / Nontargeted / 842b9e6a8a",
-        "en": "Template Self Action / Ncr Summonx / Self / Nontargeted / 842b9e6a8a"
+        "zhHans": "Template Self Action / Ncr Summonx / Self / Nontargeted / 948a363ae2",
+        "en": "Template Self Action / Ncr Summonx / Self / Nontargeted / 948a363ae2"
       },
       "ReferenceOnly": true,
       "GenerationEligible": false,
@@ -13662,30 +13473,47 @@
         "DestinationZone": "none",
         "CardFilter": "any",
         "Flags": [
-          "summon_reference"
+          "has_numeric_literal",
+          "summon_reference",
+          "uses_energy_x"
         ],
         "Values": [
           {
             "Id": "amount",
-            "Source": "energy_x",
+            "Source": "fixed",
             "Offset": 0,
             "Upgradable": true,
             "Explicit": true
+          },
+          {
+            "Id": "hits",
+            "Source": "energy_x",
+            "Offset": 0,
+            "Upgradable": false,
+            "Explicit": false
           }
         ],
         "Condition": null,
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "召唤X。",
-        "en": "Summon X."
+        "zhHans": "召唤3X。",
+        "en": "Summon 3 X times."
       },
       "Parameters": [
         {
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
+        },
+        {
+          "Name": "hits",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -13730,7 +13558,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -13765,179 +13594,6 @@
         "en": "Add a Debris to your hand."
       },
       "Parameters": []
-    },
-    {
-      "Id": "native.template_self_action.r_addrandomcolorlesstohand.self.nontargeted.390640e0e1",
-      "Name": {
-        "zhHans": "Template Self Action / R Addrandomcolorlesstohand / Self / Nontargeted / 390640e0e1",
-        "en": "Template Self Action / R Addrandomcolorlesstohand / Self / Nontargeted / 390640e0e1"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_addrandomcolorlesstohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "has_numeric_literal",
-          "replenishes_hand"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将3张随机无色牌加入手牌。",
-        "en": "Add 3 random Colorless cards to your Hand."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.r_addrandomcolorlesstohand.self.nontargeted.dc85573054",
-      "Name": {
-        "zhHans": "Template Self Action / R Addrandomcolorlesstohand / Self / Nontargeted / Dc85573054",
-        "en": "Template Self Action / R Addrandomcolorlesstohand / Self / Nontargeted / Dc85573054"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_addrandomcolorlesstohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "add_one_card_to_hand_reference",
-          "count_unit_reference",
-          "replenishes_hand"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将一张随机无色牌加入手牌。",
-        "en": "Add a random Colorless card to your hand."
-      },
-      "Parameters": []
-    },
-    {
-      "Id": "native.template_self_action.r_applyvulnerableall.self.nontargeted.1239acd0ac",
-      "Name": {
-        "zhHans": "Template Self Action / R Applyvulnerableall / Self / Nontargeted / 1239acd0ac",
-        "en": "Template Self Action / R Applyvulnerableall / Self / Nontargeted / 1239acd0ac"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_applyvulnerableall",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "vulnerable_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人2层易伤。",
-        "en": "Apply 2 Vulnerable to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.r_applyweakall.self.nontargeted.3a7dcb92dd",
-      "Name": {
-        "zhHans": "Template Self Action / R Applyweakall / Self / Nontargeted / 3a7dcb92dd",
-        "en": "Template Self Action / R Applyweakall / Self / Nontargeted / 3a7dcb92dd"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_applyweakall",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "apply_status_reference",
-          "has_numeric_literal",
-          "scalable_reward_wording",
-          "weak_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予所有敌人2层虚弱。",
-        "en": "Apply 2 Weak to ALL enemies."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
     },
     {
       "Id": "native.template_self_action.r_copyselectedcolorlesscard.self.nontargeted.68f264abab",
@@ -14013,54 +13669,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.r_enemieslosestrengththisturn.self.nontargeted.8b6c7aca7f",
-      "Name": {
-        "zhHans": "Template Self Action / R Enemieslosestrengththisturn / Self / Nontargeted / 8b6c7aca7f",
-        "en": "Template Self Action / R Enemieslosestrengththisturn / Self / Nontargeted / 8b6c7aca7f"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_enemieslosestrengththisturn",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "all_enemies_reference",
-          "has_numeric_literal",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合所有敌人失去1点力量。",
-        "en": "ALL enemies lose 1 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -14135,148 +13745,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.r_gainstrength.self.nontargeted.a8f99ff651",
-      "Name": {
-        "zhHans": "Template Self Action / R Gainstrength / Self / Nontargeted / A8f99ff651",
-        "en": "Template Self Action / R Gainstrength / Self / Nontargeted / A8f99ff651"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_gainstrength",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "legacy_enemy_strength_one",
-          "positive_strength_dexterity_reference",
-          "scalable_reward_wording",
-          "strength_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "获得1点力量。",
-        "en": "Gain 1 Strength."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.r_gainstrengththisturn.self.nontargeted.c0cfec35de",
-      "Name": {
-        "zhHans": "Template Self Action / R Gainstrengththisturn / Self / Nontargeted / C0cfec35de",
-        "en": "Template Self Action / R Gainstrengththisturn / Self / Nontargeted / C0cfec35de"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_gainstrengththisturn",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "legacy_enemy_strength_one",
-          "positive_strength_dexterity_reference",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合获得1点力量。",
-        "en": "Gain 1 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_self_action.r_gainvigor.self.nontargeted.19e7811a72",
-      "Name": {
-        "zhHans": "Template Self Action / R Gainvigor / Self / Nontargeted / 19e7811a72",
-        "en": "Template Self Action / R Gainvigor / Self / Nontargeted / 19e7811a72"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_gainvigor",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "scalable_reward_wording"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "获得2点活力。",
-        "en": "Gain 2 Vigor."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -14362,13 +13832,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "repeat_count",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -14496,84 +13968,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_self_action.r_retainhandthisturn.self.nontargeted.00191c3a58",
-      "Name": {
-        "zhHans": "Template Self Action / R Retainhandthisturn / Self / Nontargeted / 00191c3a58",
-        "en": "Template Self Action / R Retainhandthisturn / Self / Nontargeted / 00191c3a58"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_self_action",
-        "Variant": "r_retainhandthisturn",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "this_turn_reference"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合保留你的手牌。",
-        "en": "Retain your hand this turn."
-      },
-      "Parameters": []
-    },
-    {
-      "Id": "native.template_target_action.cl_targetlosestrengththisturn.selected_enemy.singleenemyonly.140b59d94a",
-      "Name": {
-        "zhHans": "Template Target Action / Cl Targetlosestrengththisturn / Selected Enemy / Singleenemyonly / 140b59d94a",
-        "en": "Template Target Action / Cl Targetlosestrengththisturn / Selected Enemy / Singleenemyonly / 140b59d94a"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "cl_targetlosestrengththisturn",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "event_enemy_reference",
-          "has_numeric_literal",
-          "requires_selected_enemy",
-          "requires_single_target",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "使该敌人在本回合失去9点力量。",
-        "en": "Enemy loses 9 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
       "Id": "native.template_target_action.d_triggerlightningpassivesattarget.selected_enemy.singleenemyonly.3a62c9c86a",
       "Name": {
         "zhHans": "Template Target Action / D Triggerlightningpassivesattarget / Selected Enemy / Singleenemyonly / 3a62c9c86a",
@@ -14606,10 +14000,10 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_target_action.ncr_applydoom.selected_enemy.singleenemyonly.35cdf17198",
+      "Id": "native.template_target_action.ncr_applydoom.selected_enemy.singleenemyonly.e676e43b64",
       "Name": {
-        "zhHans": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / 35cdf17198",
-        "en": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / 35cdf17198"
+        "zhHans": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / E676e43b64",
+        "en": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / E676e43b64"
       },
       "ReferenceOnly": true,
       "GenerationEligible": false,
@@ -14624,54 +14018,7 @@
         "Flags": [
           "apply_status_reference",
           "doom_reference",
-          "has_numeric_literal",
-          "requires_single_target",
-          "scalable_reward_wording"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予10层灾厄。",
-        "en": "Apply 10 Doom."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_target_action.ncr_applydoom.selected_enemy.singleenemyonly.7c417e0211",
-      "Name": {
-        "zhHans": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / 7c417e0211",
-        "en": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / 7c417e0211"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "ncr_applydoom",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "apply_status_reference",
-          "doom_reference",
+          "event_enemy_reference",
           "has_numeric_literal",
           "random_enemy_reference",
           "requires_single_target",
@@ -14698,7 +14045,58 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
+    },
+    {
+      "Id": "native.template_target_action.ncr_applydoom.selected_enemy.singleenemyonly.fec506d93a",
+      "Name": {
+        "zhHans": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / Fec506d93a",
+        "en": "Template Target Action / Ncr Applydoom / Selected Enemy / Singleenemyonly / Fec506d93a"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "template_target_action",
+        "Variant": "ncr_applydoom",
+        "Target": "selected_enemy",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "apply_status_reference",
+          "doom_reference",
+          "event_enemy_reference",
+          "has_numeric_literal",
+          "requires_single_target",
+          "scalable_reward_wording"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "给予10层灾厄。",
+        "en": "Apply 10 Doom."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -14770,56 +14168,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_target_action.ncr_applypower_oblivionpower.selected_enemy.singleenemyonly.41bc53e2c2",
-      "Name": {
-        "zhHans": "Template Target Action / Ncr Applypower Oblivionpower / Selected Enemy / Singleenemyonly / 41bc53e2c2",
-        "en": "Template Target Action / Ncr Applypower Oblivionpower / Selected Enemy / Singleenemyonly / 41bc53e2c2"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "ncr_applypower_oblivionpower",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "apply_status_reference",
-          "doom_reference",
-          "event_enemy_reference",
-          "has_numeric_literal",
-          "requires_selected_enemy",
-          "requires_single_target",
-          "scalable_reward_wording"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "给予该敌人3层灾厄。",
-        "en": "Apply 3 Doom to that enemy."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
       "Id": "native.template_target_action.ncr_applypower_sicempower.selected_enemy.singleenemyonly.194a211997",
       "Name": {
         "zhHans": "Template Target Action / Ncr Applypower Sicempower / Selected Enemy / Singleenemyonly / 194a211997",
@@ -14861,7 +14209,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -15004,7 +14353,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -15050,98 +14400,8 @@
           "Name": "damage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_target_action.ncr_targethploss.selected_enemy.singleenemyonly.142f87e775",
-      "Name": {
-        "zhHans": "Template Target Action / Ncr Targethploss / Selected Enemy / Singleenemyonly / 142f87e775",
-        "en": "Template Target Action / Ncr Targethploss / Selected Enemy / Singleenemyonly / 142f87e775"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "ncr_targethploss",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "requires_single_target"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "敌人失去3点生命。",
-        "en": "The enemy loses 3 HP."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_target_action.ncr_targethploss.selected_enemy.singleenemyonly.559036a563",
-      "Name": {
-        "zhHans": "Template Target Action / Ncr Targethploss / Selected Enemy / Singleenemyonly / 559036a563",
-        "en": "Template Target Action / Ncr Targethploss / Selected Enemy / Singleenemyonly / 559036a563"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "ncr_targethploss",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "has_numeric_literal",
-          "random_enemy_reference",
-          "requires_single_target"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "随机一名敌人失去7点生命。",
-        "en": "A random enemy loses 7 HP."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -15187,56 +14447,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_target_action.ncr_targetlosestrengththisturn.selected_enemy.singleenemyonly.5e4156a7c7",
-      "Name": {
-        "zhHans": "Template Target Action / Ncr Targetlosestrengththisturn / Selected Enemy / Singleenemyonly / 5e4156a7c7",
-        "en": "Template Target Action / Ncr Targetlosestrengththisturn / Selected Enemy / Singleenemyonly / 5e4156a7c7"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "ncr_targetlosestrengththisturn",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "event_enemy_reference",
-          "has_numeric_literal",
-          "requires_selected_enemy",
-          "requires_single_target",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "该敌人在本回合失去8点力量。",
-        "en": "The enemy loses 8 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -15285,7 +14497,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -15323,59 +14536,10 @@
       "Parameters": []
     },
     {
-      "Id": "native.template_target_action.r_targetlosestrengththisturn.selected_enemy.singleenemyonly.d107b96823",
+      "Id": "native.template_target_action.t_poison.selected_enemy.singleenemyonly.575bcae0d4",
       "Name": {
-        "zhHans": "Template Target Action / R Targetlosestrengththisturn / Selected Enemy / Singleenemyonly / D107b96823",
-        "en": "Template Target Action / R Targetlosestrengththisturn / Selected Enemy / Singleenemyonly / D107b96823"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "r_targetlosestrengththisturn",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "event_enemy_reference",
-          "has_numeric_literal",
-          "requires_selected_enemy",
-          "requires_single_target",
-          "strength_reference",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "该敌人在本回合失去1点力量。",
-        "en": "That enemy loses 1 Strength this turn."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
-    },
-    {
-      "Id": "native.template_target_action.t_poison.selected_enemy.singleenemyonly.fca9baf1b6",
-      "Name": {
-        "zhHans": "Template Target Action / T Poison / Selected Enemy / Singleenemyonly / Fca9baf1b6",
-        "en": "Template Target Action / T Poison / Selected Enemy / Singleenemyonly / Fca9baf1b6"
+        "zhHans": "Template Target Action / T Poison / Selected Enemy / Singleenemyonly / 575bcae0d4",
+        "en": "Template Target Action / T Poison / Selected Enemy / Singleenemyonly / 575bcae0d4"
       },
       "ReferenceOnly": true,
       "GenerationEligible": false,
@@ -15389,6 +14553,7 @@
         "CardFilter": "any",
         "Flags": [
           "apply_status_reference",
+          "event_enemy_reference",
           "has_numeric_literal",
           "poison_reference",
           "scalable_reward_wording"
@@ -15414,7 +14579,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -15448,56 +14614,6 @@
         "en": "Remove all Block and Artifact from the enemy."
       },
       "Parameters": []
-    },
-    {
-      "Id": "native.template_target_action.t_strangle.selected_enemy.singleenemyonly.8d78c6503f",
-      "Name": {
-        "zhHans": "Template Target Action / T Strangle / Selected Enemy / Singleenemyonly / 8d78c6503f",
-        "en": "Template Target Action / T Strangle / Selected Enemy / Singleenemyonly / 8d78c6503f"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "template_target_action",
-        "Variant": "t_strangle",
-        "Target": "selected_enemy",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "any_card_played_reference",
-          "count_unit_reference",
-          "event_enemy_reference",
-          "has_numeric_literal",
-          "repeated_or_multiplicative",
-          "requires_selected_enemy",
-          "this_turn_reference"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "本回合你每打出一张牌，该敌人失去2点生命。",
-        "en": "Whenever you play a card this turn, that enemy loses 2 HP."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ]
-        }
-      ]
     },
     {
       "Id": "native.template_target_action.t_xstrengthloss.selected_enemy.singleenemyonly.d4517ae4bd",
@@ -15539,7 +14655,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -15585,7 +14702,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -15636,7 +14754,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -15896,7 +15015,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -16016,7 +15136,8 @@
           "Name": "cost_marker",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -16172,7 +15293,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -16223,7 +15345,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -16417,9 +15540,46 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
+    },
+    {
+      "Id": "native.trigger.event.self.abilitytrigger.7ee690a540",
+      "Name": {
+        "zhHans": "Trigger / Event / Self / Abilitytrigger / 7ee690a540",
+        "en": "Trigger / Event / Self / Abilitytrigger / 7ee690a540"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "trigger",
+        "Variant": "event",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "attack_damage_reference",
+          "block_reference",
+          "repeated_or_multiplicative"
+        ],
+        "Values": [],
+        "Condition": null,
+        "Trigger": {
+          "Kind": "attack_dealt_damage",
+          "Lifetime": "combat",
+          "ThresholdSlot": null,
+          "DurationSlot": null
+        }
+      },
+      "ExampleText": {
+        "zhHans": "每当你的攻击造成未被格挡的伤害时。",
+        "en": "Whenever your Attack deals unblocked damage."
+      },
+      "Parameters": []
     },
     {
       "Id": "native.trigger.event.self.abilitytrigger.8dab6a05d4",
@@ -16466,7 +15626,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -16588,7 +15749,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -16743,7 +15905,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17135,41 +16298,6 @@
       "Parameters": []
     },
     {
-      "Id": "native.trigger.event.self.conditionaltrigger.1abe3b3a49",
-      "Name": {
-        "zhHans": "Trigger / Event / Self / Conditionaltrigger / 1abe3b3a49",
-        "en": "Trigger / Event / Self / Conditionaltrigger / 1abe3b3a49"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "trigger",
-        "Variant": "event",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "count_unit_reference",
-          "delayed_effect"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": {
-          "Kind": "next_turn_start",
-          "Lifetime": "next_turn",
-          "ThresholdSlot": null,
-          "DurationSlot": null
-        }
-      },
-      "ExampleText": {
-        "zhHans": "在下个回合。",
-        "en": "Next turn."
-      },
-      "Parameters": []
-    },
-    {
       "Id": "native.trigger.event.self.conditionaltrigger.1b3ba998ec",
       "Name": {
         "zhHans": "Trigger / Event / Self / Conditionaltrigger / 1b3ba998ec",
@@ -17201,8 +16329,8 @@
         }
       },
       "ExampleText": {
-        "zhHans": "本回合每当你打出一张牌时。",
-        "en": "Whenever you play a card this turn."
+        "zhHans": "打出此牌后，你在本回合每打出一张牌时，",
+        "en": "After you play this card, whenever you play a card this turn,"
       },
       "Parameters": []
     },
@@ -17322,7 +16450,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -17409,7 +16538,8 @@
           "Name": "percentage",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17497,7 +16627,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17551,7 +16682,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17603,7 +16735,8 @@
           "Name": "duration",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17639,8 +16772,8 @@
         }
       },
       "ExampleText": {
-        "zhHans": "本回合每当你受到一次攻击时。",
-        "en": "Whenever you are attacked this turn."
+        "zhHans": "你在这个回合每受到一次攻击，都会对攻击者",
+        "en": "Whenever you are attacked this turn, to the attacker"
       },
       "Parameters": []
     },
@@ -17678,6 +16811,43 @@
       "ExampleText": {
         "zhHans": "本回合每当你抽到一张牌时。",
         "en": "After you play this card, whenever you draw a card this turn."
+      },
+      "Parameters": []
+    },
+    {
+      "Id": "native.trigger.event.self.conditionaltrigger.cff33130e4",
+      "Name": {
+        "zhHans": "Trigger / Event / Self / Conditionaltrigger / Cff33130e4",
+        "en": "Trigger / Event / Self / Conditionaltrigger / Cff33130e4"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "trigger",
+        "Variant": "event",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "any_card_played_reference",
+          "count_unit_reference",
+          "repeated_or_multiplicative",
+          "this_turn_reference"
+        ],
+        "Values": [],
+        "Condition": null,
+        "Trigger": {
+          "Kind": "card_played",
+          "Lifetime": "this_turn",
+          "ThresholdSlot": null,
+          "DurationSlot": null
+        }
+      },
+      "ExampleText": {
+        "zhHans": "打出此牌后，你在本回合每打出一张牌时，",
+        "en": "After you play this card, whenever you play a card this turn,"
       },
       "Parameters": []
     },
@@ -17730,7 +16900,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17872,10 +17043,10 @@
       "Parameters": []
     },
     {
-      "Id": "native.trigger.event.self.modifier.900efc194c",
+      "Id": "native.trigger.event.self.modifier.ab20316d31",
       "Name": {
-        "zhHans": "Trigger / Event / Self / Modifier / 900efc194c",
-        "en": "Trigger / Event / Self / Modifier / 900efc194c"
+        "zhHans": "Trigger / Event / Self / Modifier / Ab20316d31",
+        "en": "Trigger / Event / Self / Modifier / Ab20316d31"
       },
       "ReferenceOnly": true,
       "GenerationEligible": false,
@@ -17891,6 +17062,7 @@
           "cost_wording",
           "count_unit_reference",
           "has_numeric_literal",
+          "host_discard_lifecycle",
           "repeated_or_multiplicative"
         ],
         "Values": [
@@ -17919,7 +17091,8 @@
           "Name": "threshold",
           "AcceptedSources": [
             "RuntimeValue"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17943,13 +17116,15 @@
           "Name": "destination",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17973,13 +17148,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "target",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18003,7 +17180,8 @@
           "Name": "cardType",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18027,7 +17205,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18068,7 +17247,8 @@
           "Name": "option",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18092,13 +17272,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "roomType",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18122,13 +17304,15 @@
           "Name": "act",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "event",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18152,7 +17336,8 @@
           "Name": "gold",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18176,7 +17361,8 @@
           "Name": "gold",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18200,7 +17386,8 @@
           "Name": "map",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18224,7 +17411,8 @@
           "Name": "card",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18282,7 +17470,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18323,13 +17512,15 @@
           "Name": "maximum",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "optional",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18353,7 +17544,8 @@
           "Name": "count",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18377,13 +17569,15 @@
           "Name": "cardTypes",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "count",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18407,13 +17601,15 @@
           "Name": "amount",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18437,7 +17633,8 @@
           "Name": "amount",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18461,13 +17658,15 @@
           "Name": "duration",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         },
         {
           "Name": "excludesSource",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18542,7 +17741,8 @@
           "Name": "duration",
           "AcceptedSources": [
             "NativeVariable"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18634,7 +17834,8 @@
           "Name": "zone",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -18658,7 +17859,8 @@
           "Name": "count",
           "AcceptedSources": [
             "Literal"
-          ]
+          ],
+          "SupportsNativeBindings": false
         }
       ]
     }

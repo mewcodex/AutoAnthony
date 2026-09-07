@@ -192,14 +192,29 @@ internal static class ChaosOperationExecutor
             await ExecuteWithResolvedTarget(card, index, choiceContext, cardPlay, state);
         }
 
+        if (card.IsUpgraded && card.Generated.Upgrade is { } structuralUpgrade)
+        {
+            foreach (var effect in structuralUpgrade.Effects.Where(effect =>
+                         effect.Kind == CardUpgradeKind.ExecuteOperationOnPlay))
+            {
+                if (effect.OperationIndex is not { } index || (uint)index >= (uint)operations.Count)
+                    continue;
+                await ExecuteWithResolvedTarget(card, index, choiceContext, cardPlay, state);
+            }
+        }
+
         if (operations.Any(RequiresCompositePower))
         {
             var power = (ChaosCompositePower)ModelDb.Power<ChaosCompositePower>().ToMutable();
             var permanent = card.Type == CardType.Power
                 || operations.Any(operation => operation.Template is "CL:AfterTurns" or "CL:DieOnUnblockedAttack");
-            power.Configure(card.Generated.Character, card.Definition.Slot, card.IsUpgraded, permanent,
+            var sourceDeckIndex = card.DeckVersion is { } deckVersion
+                ? card.Owner.Deck.Cards.ToList().FindIndex(candidate => ReferenceEquals(candidate, deckVersion))
+                : -1;
+            power.ConfigureTinkered(card.Generated.Character, card.Definition.Slot, card.IsUpgraded, permanent,
                 card.ResolvedSpecialXValue, card.ResolvedEnergyXValue, card.ResolvedStarXValue,
-                card.CaptureOperationValuesForPower(), cardPlay.Target?.CombatId, card.RuntimeProfileId);
+                card.CaptureOperationValuesForPower(), cardPlay.Target?.CombatId, card.RuntimeProfileId,
+                card.EffectiveDefinitionPayload, sourceDeckIndex);
             await PowerCmd.Apply(choiceContext, power, card.Owner.Creature, 1m, card.Owner.Creature, card);
             if (ChaosDiagnostics.VerboseRuntime)
                 Log.Info($"[AutoAnthony] Armed trigger effect for slot {card.Definition.Slot}: {card.DynamicTitle}");
@@ -232,6 +247,23 @@ internal static class ChaosOperationExecutor
             return;
         }
         if (source is null) return;
+        if (!string.IsNullOrEmpty(power.SourceTinkeredDefinitionPayload))
+            // This proxy has already been created from the shared slot, so assigning the SavedProperty alone would
+            // replace Generated without rebuilding cached DynamicVars/cost/keywords. Apply through the public
+            // boundary to make the reconstructed trigger execute the edited operation values as well as its shape.
+            source.ApplyCapturedDefinition(CardTinkeringApi.DeserializeCard(
+                power.SourceTinkeredDefinitionPayload));
+        static bool MatchesSource(ChaosCardModel candidate, ChaosCompositePower sourcePower) =>
+            candidate.Definition.Slot == sourcePower.Slot
+            && candidate.RuntimeProfileId == sourcePower.ProfileId
+            && candidate.EffectiveDefinitionPayload == sourcePower.SourceTinkeredDefinitionPayload;
+        var deckVersion = (uint)power.SourceDeckIndex < (uint)owner.Deck.Cards.Count
+                          && owner.Deck.Cards[power.SourceDeckIndex] is ChaosCardModel indexed
+                          && MatchesSource(indexed, power)
+            ? indexed
+            : owner.Deck.Cards.OfType<ChaosCardModel>().FirstOrDefault(candidate => MatchesSource(candidate, power));
+        if (deckVersion is not null)
+            source.DeckVersion = deckVersion;
         source.ResolvedSpecialXValue = power.SpecialXValue;
         source.SetResolvedXValues(power.ResolvedEnergyXValue, power.ResolvedStarXValue);
         if (power.SourceUpgraded && source.IsUpgradable) CardCmd.Upgrade(source);
@@ -1301,8 +1333,9 @@ internal static class ChaosOperationExecutor
                 return;
             case "CL:ChooseDrawCardToHand":
             {
-                var count = ExecutableGeneratedCardCount(amount);
-                if (count == 0) return;
+                // Stratagem's native clause is a fixed one-card selection and intentionally has no printed numeric
+                // DynamicVar. Treating OperationAmount==0 as a generated-card count used to skip the effect.
+                var count = SelectionCountForEffect(operation, amount);
                 var selected = await SelectFromCombatPileIfAny(choiceContext, PileType.Draw.GetPile(card.Owner),
                     card.Owner, new CardSelectorPrefs(SelectionPrompt("DISCARD_TO_HAND"), count));
                 foreach (var selectedCard in selected) await CardPileCmd.Add(selectedCard, PileType.Hand);
@@ -1557,8 +1590,10 @@ internal static class ChaosOperationExecutor
             case "NCR:Summon": await OstyCmd.Summon(choiceContext, card.Owner, amount, card); return;
             case "NCR:SummonX":
             {
-                var x = RuntimeSpecValue(card, operationIndex, "amount", card.ResolveEffectEnergyXValue());
-                for (var i = 0; i < x; i++) await OstyCmd.Summon(choiceContext, card.Owner, 1, card);
+                var summonAmount = RuntimeSpecValue(card, operationIndex, "amount", Math.Max(1, amount));
+                var x = RuntimeSpecValue(card, operationIndex, "hits", card.ResolveEffectEnergyXValue());
+                for (var i = 0; i < x; i++)
+                    await OstyCmd.Summon(choiceContext, card.Owner, summonAmount, card);
                 return;
             }
             case "NCR:OstyDamage":
@@ -1860,10 +1895,12 @@ internal static class ChaosOperationExecutor
 
     private static bool DerivativeIsUpgraded(ChaosCardModel card, int operationIndex)
     {
+        if (!card.IsUpgraded || card.Generated.Upgrade is not { } upgrade) return false;
         var operation = card.Generated.Operations[operationIndex];
-        return DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId)
-            && card.IsUpgraded && card.Generated.Upgrade?.Effects.Any(effect =>
-                effect.Kind == CardUpgradeKind.UpgradeDerivative && effect.OperationIndex == operationIndex) == true;
+        return upgrade.Effects.Any(effect => effect.OperationIndex == operationIndex
+            && (effect.Kind == CardUpgradeKind.UpgradeReferencedCards
+                || effect.Kind == CardUpgradeKind.UpgradeDerivative
+                && DerivativeSlotCatalog.SupportsUpgrade(operation.Template, operation.DerivativeId)));
     }
 
     private static bool GeneratedCardsAreUpgraded(ChaosCardModel card, int operationIndex) =>
@@ -2080,9 +2117,10 @@ internal static class ChaosOperationExecutor
                     playerCombatState?.OrbQueue.Orbs.Select(orb => orb.Id).Distinct().Count() ?? 0, card.Owner);
                 return;
             case "D:TriggerDarkPassives":
-                foreach (var orb in playerCombatState?.OrbQueue.Orbs
-                             .Where(candidate => ChaosOrbResolver.MatchesSource(candidate, operation)).ToList() ?? [])
-                    await OrbCmd.Passive(choiceContext, orb, null);
+                for (var repeat = 0; repeat < UpgradedOperationRepeatCount(card, operationIndex); repeat++)
+                    foreach (var orb in playerCombatState?.OrbQueue.Orbs
+                                 .Where(candidate => ChaosOrbResolver.MatchesSource(candidate, operation)).ToList() ?? [])
+                        await OrbCmd.Passive(choiceContext, orb, null);
                 return;
             case "D:ExhaustAllStatuses":
                 foreach (var status in playerCombatState?.AllCards
@@ -2157,8 +2195,9 @@ internal static class ChaosOperationExecutor
                 return;
             case "D:TriggerLightningPassivesAtTarget":
                 if (state.Target is not null)
-                    foreach (var orb in playerCombatState?.OrbQueue.Orbs.OfType<LightningOrb>().ToList() ?? [])
-                        await OrbCmd.Passive(choiceContext, orb, state.Target);
+                    for (var repeat = 0; repeat < UpgradedOperationRepeatCount(card, operationIndex); repeat++)
+                        foreach (var orb in playerCombatState?.OrbQueue.Orbs.OfType<LightningOrb>().ToList() ?? [])
+                            await OrbCmd.Passive(choiceContext, orb, state.Target);
                 return;
             case "D:AutoPlayRandomAttackFromDraw":
             {
@@ -2475,9 +2514,13 @@ internal static class ChaosOperationExecutor
         if (operation.Template == "A:ProxyAtomic_Orbit")
         {
             var power = (ChaosCompositePower)ModelDb.Power<ChaosCompositePower>().ToMutable();
-            power.Configure(card.Generated.Character, card.Definition.Slot, card.IsUpgraded, permanent: true,
+            power.ConfigureTinkered(card.Generated.Character, card.Definition.Slot, card.IsUpgraded, permanent: true,
                 card.ResolvedSpecialXValue, card.ResolvedEnergyXValue, card.ResolvedStarXValue,
-                card.CaptureOperationValuesForPower(), profileId: card.RuntimeProfileId);
+                card.CaptureOperationValuesForPower(), sourceTargetCombatId: null, profileId: card.RuntimeProfileId,
+                sourceTinkeredDefinitionPayload: card.EffectiveDefinitionPayload,
+                sourceDeckIndex: card.DeckVersion is { } deckVersion
+                    ? card.Owner.Deck.Cards.ToList().FindIndex(candidate => ReferenceEquals(candidate, deckVersion))
+                    : -1);
             await PowerCmd.Apply(choiceContext, power, card.Owner.Creature, 1m, card.Owner.Creature, card);
             return;
         }
@@ -2871,8 +2914,20 @@ internal static class ChaosOperationExecutor
         }
         else if (operation.Template == "I:Upgrade")
         {
-            var selected = await SelectFromHandForUpgradeIfAny(choiceContext, card.Owner, card);
-            if (selected is not null) UpgradeExistingCombatCard(selected, operation.Template);
+            var upgradesAll = card.IsUpgraded && card.Generated.Upgrade?.Effects.Any(effect =>
+                effect.Kind == CardUpgradeKind.SelectAllCards
+                && effect.OperationIndex == operationIndex) == true;
+            if (upgradesAll)
+            {
+                foreach (var selected in PileType.Hand.GetPile(card.Owner).Cards
+                             .Where(candidate => candidate.IsUpgradable).ToArray())
+                    UpgradeExistingCombatCard(selected, operation.Template);
+            }
+            else
+            {
+                var selected = await SelectFromHandForUpgradeIfAny(choiceContext, card.Owner, card);
+                if (selected is not null) UpgradeExistingCombatCard(selected, operation.Template);
+            }
         }
         else if (operation.Template == "I:UpgradeThatCard" && operation.CardTargetSlot is { } slot && state.CardSlots.TryGetValue(slot, out var selected) && selected.IsUpgradable) UpgradeExistingCombatCard(selected, operation.Template);
         else if (operation.Template == "I:UpgradeThatCard" && state.LastMovedCard is { IsUpgradable: true } moved) UpgradeExistingCombatCard(moved, operation.Template);
@@ -3812,6 +3867,14 @@ internal static class ChaosOperationExecutor
             "star_x" => Math.Max(0, card.ResolveEffectStarXValue() + slot.Offset),
             _ => slot.BaseValue + slot.Offset
         };
+    }
+
+    private static int UpgradedOperationRepeatCount(ChaosCardModel card, int operationIndex)
+    {
+        if (!card.IsUpgraded || card.Generated.Upgrade is not { } upgrade) return 1;
+        return Math.Max(1, 1 + upgrade.Effects.Where(effect =>
+                effect.Kind == CardUpgradeKind.RepeatOperation && effect.OperationIndex == operationIndex)
+            .Sum(effect => effect.Delta ?? 0));
     }
 
 }
