@@ -7,12 +7,50 @@ using MegaCrit.Sts2.Core.Models.Cards;
 namespace AutoAnthony;
 
 /// <summary>
+/// Optional exact decomposition adapter for native cards owned by an external component profile. The adapter
+/// supplies semantics and instance-state copying; AutoAnthony supplies the generated host, upgrade projection,
+/// persistence, and runtime interpreter.
+/// </summary>
+public interface IExternalNativeCardAdapter
+{
+    string ProfileId { get; }
+    bool CanHandle(CardModel source);
+    bool TryCreateDefinition(CardModel source, out GeneratedCard definition);
+    void CopyInstanceState(CardModel source, ChaosCardModel destination) { }
+}
+
+/// <summary>
 /// Game-side bridge for the read-only native-card decomposition catalog. Merely resolving or previewing a card is
 /// side-effect free; no native card or card pool is replaced by this API.
 /// </summary>
 public static class AutoAnthonyNativeCardApi
 {
-    public const int ApiVersion = 1;
+    public const int ApiVersion = 3;
+    private static readonly object AdapterSync = new();
+    private static readonly Dictionary<string, IExternalNativeCardAdapter> ExternalAdapters =
+        new(StringComparer.Ordinal);
+
+    public static void RegisterExternalAdapter(IExternalNativeCardAdapter adapter)
+    {
+        ArgumentNullException.ThrowIfNull(adapter);
+        if (string.IsNullOrWhiteSpace(adapter.ProfileId) || adapter.ProfileId.Any(character => character > 0x7f))
+            throw new ArgumentException("External native-card profile IDs must be non-empty ASCII strings.",
+                nameof(adapter));
+        if (Enum.GetValues<GeneratedCharacter>().Any(character => string.Equals(adapter.ProfileId,
+                ComponentProfileRequest.BuiltInId(character), StringComparison.Ordinal)))
+            throw new ArgumentException("Built-in native-card adapters cannot be replaced.", nameof(adapter));
+        lock (AdapterSync)
+            if (!ExternalAdapters.TryAdd(adapter.ProfileId, adapter))
+                throw new InvalidOperationException(
+                    $"An external native-card adapter is already registered for '{adapter.ProfileId}'.");
+        AutoAnthonyEditorApi.RegisterExternalCapabilities(adapter.ProfileId,
+            ExternalEditorCapabilities.NativeCardDecomposition
+            | ExternalEditorCapabilities.FreeformCardCreation);
+    }
+
+    /// <summary>Whether untouched native cards should display their reviewed component projection.</summary>
+    public static bool ComponentDescriptionsEnabled =>
+        ChaosModSettings.Enabled && ChaosModSettings.DecomposeOriginalCards;
 
     public static bool TryResolve(CardModel card, out NativeCardDecomposition decomposition)
     {
@@ -25,7 +63,13 @@ public static class AutoAnthonyNativeCardApi
             }
             : null;
         decomposition = NativeCardDecompositionApi.Resolve(card.Id.Entry, bindings)!;
-        return decomposition is not null;
+        if (decomposition is null
+            || !string.Equals(decomposition.ClassName, card.GetType().Name, StringComparison.Ordinal))
+        {
+            decomposition = null!;
+            return false;
+        }
+        return true;
     }
 
     public static bool CanMaterialize(CardModel card) =>
@@ -35,6 +79,60 @@ public static class AutoAnthonyNativeCardApi
     public static bool CanMaterializeExact(CardModel card) =>
         TryResolve(card, out var decomposition)
         && NativeCardDecompositionApi.TryCreateDefinition(decomposition.CatalogId, out _, out _);
+
+    public static bool TryGetComponentDescriptionTemplate(CardModel card, bool upgraded, bool chinese,
+        out string template)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        if (!TryResolve(card, out var decomposition))
+            return TryGetExternalComponentDescriptionTemplate(card, upgraded, chinese, out template);
+        return NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
+            decomposition.CatalogId, upgraded, chinese, out template);
+    }
+
+    /// <summary>Resolves either a built-in or external native card to an executable component definition.</summary>
+    public static bool TryCreateDefinition(CardModel card, out string profileId, out GeneratedCard definition)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        if (TryResolve(card, out var decomposition)
+            && NativeCardDecompositionApi.TryCreateDefinition(decomposition.CatalogId, out definition, out _))
+        {
+            profileId = ComponentProfileRequest.BuiltInId(definition.Character);
+            return true;
+        }
+        if (TryExternalAdapter(card, out var adapter)
+            && adapter.TryCreateDefinition(card, out definition))
+        {
+            if (!ComponentApi.TryGetProfileRequest(adapter.ProfileId, false, out var request)
+                || definition.Character != request.Character)
+                throw new InvalidDataException(
+                    $"External native-card adapter '{adapter.ProfileId}' returned a definition for another profile.");
+            profileId = adapter.ProfileId;
+            definition = OperationRuntimeSpecCompiler.Attach(definition);
+            return true;
+        }
+        profileId = string.Empty;
+        definition = null!;
+        return false;
+    }
+
+    public static bool TryGetExternalComponentDescriptionTemplate(CardModel card, bool upgraded, bool chinese,
+        out string template)
+    {
+        if (!TryExternalAdapter(card, out var adapter)
+            || !adapter.TryCreateDefinition(card, out var definition))
+        {
+            template = string.Empty;
+            return false;
+        }
+        var operations = OperationRuntimeSpecCompiler.Attach(definition.Operations);
+        if (upgraded && definition.Upgrade is { } upgrade)
+            operations = CardUpgradeGenerator.ApplyEffectsToOperations(operations, upgrade.Effects);
+        template = chinese
+            ? CardDescriptionRenderer.Render(operations)
+            : EnglishCardDescriptionRenderer.Render(operations);
+        return true;
+    }
 
     /// <summary>
     /// Creates a detached base-definition preview for an executable native recipe. It does not copy upgrade,
@@ -60,6 +158,43 @@ public static class AutoAnthonyNativeCardApi
         CopyPermanentGrowth(source, preview);
         CopyLocalKeywordDelta(source, preview);
         return true;
+    }
+
+    /// <summary>Creates a detached preview from either the built-in catalog or a registered external adapter.</summary>
+    public static bool TryCreateProfilePreview(Player owner, CardModel source, out ChaosCardModel preview)
+    {
+        if (TryCreateBasePreview(owner, source, out preview)) return true;
+        if (!TryExternalAdapter(source, out var adapter)
+            || !adapter.TryCreateDefinition(source, out var definition))
+        {
+            preview = null!;
+            return false;
+        }
+        preview = AutoAnthonyFreeformCardApi.CreatePreview(owner, adapter.ProfileId, definition,
+            source.PortraitPath);
+        for (var level = 0; level < source.CurrentUpgradeLevel && preview.IsUpgradable; level++)
+        {
+            preview.UpgradeInternal();
+            preview.FinalizeUpgradeInternal();
+        }
+        adapter.CopyInstanceState(source, preview);
+        CopyLocalKeywordDelta(source, preview);
+        return true;
+    }
+
+    private static bool TryExternalAdapter(CardModel card, out IExternalNativeCardAdapter adapter)
+    {
+        IExternalNativeCardAdapter[] adapters;
+        lock (AdapterSync)
+            adapters = ExternalAdapters.Values.OrderBy(candidate => candidate.ProfileId, StringComparer.Ordinal)
+                .ToArray();
+        var matches = adapters.Where(candidate => candidate.CanHandle(card)).ToArray();
+        if (matches.Length > 1)
+            throw new InvalidOperationException(
+                $"Multiple external native-card adapters claimed {card.Id}: "
+                + string.Join(", ", matches.Select(match => match.ProfileId)));
+        adapter = matches.SingleOrDefault()!;
+        return adapter is not null;
     }
 
     private static void CopyPermanentGrowth(CardModel source, ChaosCardModel preview)

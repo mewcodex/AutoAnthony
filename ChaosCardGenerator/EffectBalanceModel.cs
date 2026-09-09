@@ -119,6 +119,10 @@ internal static class EffectBalanceModel
     // Native Tyranny places the persistent premium near 1.18; one-turn repeatable draw retains the prior 1.22.
     private const double PersistentTriggeredDrawValueMultiplier = 1.18d;
     private const double TemporaryTriggeredDrawValueMultiplier = 1.22d;
+    // Thrash is the native anchor. Its one-card transfer contributes about 650 points after the intrinsic 4x2
+    // Damage packet and random-Exhaust payment are removed. Keep this as a per-consumed-Attack value so future
+    // structured variants with a larger count cannot retain the one-card price.
+    private const int ExhaustedAttackDamageTransferValuePerCard = 650;
 
     /// <summary>
     /// Occurrence prior for trigger/condition families only. Scalable numeric rewards are priced after their
@@ -168,7 +172,7 @@ internal static class EffectBalanceModel
         // Corruption's persistent rule makes every Skill cost 0. At the shared three-active-turn valuation horizon,
         // merely gaining five Energy at each turn start is worth 5 * 650 * 3 = 9,750. Free Skills are more flexible,
         // can exceed five Energy in a developed hand, and retain unspent-card sequencing value, so this rule must
-        // sit strictly above that benchmark. Its paired "Exhaust that Skill" payment is priced separately by
+        // sit strictly above that benchmark. Its paired referenced-card Exhaust payment is priced separately by
         // NegativeEffectTuning and scales with the actual persistent Skill-play cadence.
         if (atom.Template == "A:rule"
             && OperationRuntimeSpecCompiler.GetOrCompile(atom).Variant == "skills_cost_zero")
@@ -197,9 +201,10 @@ internal static class EffectBalanceModel
             return first * RandomColorlessCardValue;
         if (atom.Template == "D:AddRandomPowerToHand") return first * RandomPowerCardValue;
         if (atom.Template == "N:Create"
-            && spec is { Opcode: "create_copy", Variant: "referenced_attack" })
-            // Juggling copies the actual third Attack, preserving its full effects and upgrade. It is much closer
-            // to gaining another playable card than to the no-number fallback used by generic utility text.
+            && spec is { Opcode: "create_copy", Variant: "referenced_attack" or "referenced_card" })
+            // The component copies the actual card carried by its trigger, preserving the full definition and
+            // upgrade. It is much closer to gaining another playable card than to the no-number fallback used by
+            // generic utility text. The referenced_attack variant is retained only for old snapshots.
             return 1_400;
         // Fit one linear Summon price from the clean native anchors instead of introducing an arbitrary breakpoint:
         // Bodyguard (5 alone), Afterlife (6 + Exhaust), Pull Aggro (4 + Block 7) and Reanimate (20 + Exhaust)
@@ -1710,6 +1715,9 @@ internal static class EffectBalanceModel
             return DoubleEnergyXModifierValue(operation, operationIndex, operations);
         if (operation.Template == "R:DoubleEitherXAtThreshold")
             return GlobalXDoubleModifierValue(operation, operations);
+        if (operation.Template == "I:AddExhaustedAttackDamage")
+            return ExhaustedAttackDamageTransferValuePerCard
+                   * ExhaustedAttackTransferCount(operationIndex, operations);
         if (operation.Template == "M:RepeatAreaOnKill")
             // Echoing Slash repeats its actual all-enemy Damage packet, including targeting and on-hit adaptation.
             // Roughly 0.45 kills from the first wave preserves the native card's former ~700 rider without giving
@@ -1809,6 +1817,19 @@ internal static class EffectBalanceModel
             }
         }
         return resolutionValue;
+    }
+
+    private static int ExhaustedAttackTransferCount(int operationIndex,
+        IReadOnlyList<GeneratorOperation> operations)
+    {
+        if (operationIndex <= 0 || operations[operationIndex - 1].Template != "I:ExhaustRandomAttack")
+            return 1;
+        var payment = operations[operationIndex - 1];
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(payment);
+        var count = spec.Values.FirstOrDefault(value => value.Id is "amount" or "count" or "cards") is { } slot
+            ? slot.Source == "fixed" ? slot.BaseValue + slot.Offset : 1
+            : 1;
+        return Math.Max(1, count);
     }
 
     private static double RollingDamageGrowthValue(GeneratorOperation operation, int operationIndex,

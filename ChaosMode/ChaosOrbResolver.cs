@@ -28,6 +28,11 @@ internal static class ChaosOrbResolver
     {
         var id = OrbSlotCatalog.ResolveOutput(operation.OrbOutputId, operation.Template)?.Id
             ?? throw new InvalidOperationException($"Operation {operation.Template} has no output Orb slot.");
+        // If this effect was invoked by AfterOrbEvoked while a native Channel command is waiting to insert its own
+        // Orb, generated Orbs may use the temporary vacancy but must leave one slot open before the hook returns.
+        // This is different from an explicit Evoke/Dualcast: those have no pending outer Orb and should retain every
+        // generated Orb normally.
+        var preservePendingEnqueueVacancy = ChaosOrbChannelContext.HasPendingEnqueue;
         for (var index = 0; index < count; index++)
         {
             switch (id)
@@ -44,15 +49,35 @@ internal static class ChaosOrbResolver
                 default: throw new InvalidOperationException($"Unknown Orb slot id '{id}'.");
             }
         }
+        if (preservePendingEnqueueVacancy)
+            await PreservePendingEnqueueVacancy(choiceContext, owner);
     }
 
-    internal static IEnumerable<IHoverTip> HoverTips(GeneratorOperation operation)
+    private static async Task PreservePendingEnqueueVacancy(PlayerChoiceContext choiceContext, Player owner)
     {
-        var ids = new[]
+        var queue = owner.PlayerCombatState?.OrbQueue;
+        if (queue is null || queue.Capacity <= 0 || queue.Orbs.Count < queue.Capacity) return;
+
+        // The trigger which emitted these Orbs is still active, so its own AfterOrbEvoked callback is suppressed by
+        // ChaosCompositePower's re-entry guard. Other generated Orb triggers use the same reservation protocol.
+        await OrbCmd.EvokeNext(choiceContext, owner);
+    }
+
+    /// <summary>
+    /// Materializes at most one hover tip for each concrete Orb type referenced by the card. A Power may legally
+    /// Channel the same Orb both immediately and from a later trigger; deduplicating the semantic IDs before asking
+    /// ModelDb for hover models keeps repeated card-hover refreshes bounded and avoids feeding duplicate canonical
+    /// Orb tips into the UI's nested hover layout.
+    /// </summary>
+    internal static IEnumerable<IHoverTip> HoverTips(IEnumerable<GeneratorOperation> operations)
+    {
+        var ids = operations
+            .Where(operation => OrbSlotCatalog.IsSlotOperation(operation.Template))
+            .SelectMany(operation => new[]
             {
                 OrbSlotCatalog.ResolveSource(operation.OrbSourceId, operation.Template)?.Id,
                 OrbSlotCatalog.ResolveOutput(operation.OrbOutputId, operation.Template)?.Id
-            }
+            })
             .Where(id => id is not null)
             .Where(id => id != "random")
             .Distinct(StringComparer.Ordinal);

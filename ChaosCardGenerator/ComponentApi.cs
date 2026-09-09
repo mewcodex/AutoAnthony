@@ -16,6 +16,66 @@ public static class ComponentSemanticFlags
 }
 
 /// <summary>
+/// Localization-independent editor grouping. External packages may assign an explicit category to an atom;
+/// built-in and legacy atoms are classified from their structured runtime contract.
+/// </summary>
+public enum ComponentCategory
+{
+    Automatic,
+    Trigger,
+    Damage,
+    Defense,
+    Resource,
+    CardManipulation,
+    Status,
+    Orb,
+    Summon,
+    Growth,
+    Keyword,
+    Modifier,
+    Negative,
+    Utility
+}
+
+public static class ComponentCategoryApi
+{
+    public static ComponentCategory Resolve(ComponentAtom atom)
+    {
+        ArgumentNullException.ThrowIfNull(atom);
+        if (atom.Category != ComponentCategory.Automatic) return atom.Category;
+        if (atom.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger)
+            return ComponentCategory.Trigger;
+        if (atom.Scope == OperationScope.Modifier) return ComponentCategory.Modifier;
+
+        var spec = atom.RuntimeSpec ?? OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        if (spec.Flags.Contains(ComponentSemanticFlags.Negative)) return ComponentCategory.Negative;
+        if (spec.Flags.Contains(ComponentSemanticFlags.EnemyDamage)
+            || spec.Opcode.Contains("damage", StringComparison.Ordinal)) return ComponentCategory.Damage;
+        if (spec.Flags.Contains("block_reference")
+            || spec.Opcode.Contains("block", StringComparison.Ordinal)) return ComponentCategory.Defense;
+        if (spec.Opcode.Contains("orb", StringComparison.Ordinal)
+            || spec.SourceZone.Contains("orb", StringComparison.Ordinal)
+            || spec.DestinationZone.Contains("orb", StringComparison.Ordinal)) return ComponentCategory.Orb;
+        if (spec.Opcode.Contains("summon", StringComparison.Ordinal)
+            || spec.Opcode.Contains("osty", StringComparison.Ordinal)) return ComponentCategory.Summon;
+        if (spec.Flags.Contains("permanent_growth")
+            || spec.Opcode.Contains("permanent", StringComparison.Ordinal)) return ComponentCategory.Growth;
+        if (spec.Opcode.Contains("energy", StringComparison.Ordinal)
+            || spec.Opcode.Contains("star", StringComparison.Ordinal)) return ComponentCategory.Resource;
+        if (spec.SourceZone != "none" || spec.DestinationZone != "none"
+            || spec.Opcode.Contains("card", StringComparison.Ordinal)
+            || spec.Opcode.Contains("draw", StringComparison.Ordinal)
+            || spec.Opcode.Contains("discard", StringComparison.Ordinal)
+            || spec.Opcode.Contains("exhaust", StringComparison.Ordinal)
+            || spec.Opcode.Contains("transform", StringComparison.Ordinal)) return ComponentCategory.CardManipulation;
+        if (spec.Opcode.Contains("keyword", StringComparison.Ordinal)) return ComponentCategory.Keyword;
+        if (spec.Opcode.Contains("power", StringComparison.Ordinal)
+            || spec.Opcode.Contains("status", StringComparison.Ordinal)) return ComponentCategory.Status;
+        return ComponentCategory.Utility;
+    }
+}
+
+/// <summary>
 /// Immutable request used to resolve the component inventory and policies for one generated pool.
 /// Ultimate Chaos is a profile choice, not a second set of value rules hidden in the assembler.
 /// </summary>
@@ -151,7 +211,11 @@ public interface IComponentKeywordRule
     bool CanUpgradeRemove(GeneratedCard card) => true;
 }
 
-public sealed record ComponentKeywordDefinition(string KeywordId, IComponentKeywordRule? Rule = null);
+public sealed record ComponentKeywordDefinition(
+    string KeywordId,
+    IComponentKeywordRule? Rule = null,
+    string ChineseName = "",
+    string EnglishName = "");
 
 /// <summary>Stable ASCII keyword registry shared by source recipes, upgrade generation and snapshots.</summary>
 public static class ComponentKeywordApi
@@ -184,6 +248,12 @@ public static class ComponentKeywordApi
     {
         ValidateId(keywordId, nameof(keywordId));
         lock (Sync) return Definitions.ContainsKey(keywordId);
+    }
+
+    public static bool TryGetDefinition(string keywordId, out ComponentKeywordDefinition definition)
+    {
+        ValidateId(keywordId, nameof(keywordId));
+        lock (Sync) return Definitions.TryGetValue(keywordId, out definition!);
     }
 
     internal static void EnsureCanRegister(IEnumerable<ComponentKeywordDefinition> definitions)
@@ -363,6 +433,53 @@ public static class ComponentApi
     public static IReadOnlyList<ComponentProfileRequest> RegisteredProfiles
     {
         get { lock (Sync) return Registered.Keys.OrderBy(key => key.ProfileId, StringComparer.Ordinal).ToArray(); }
+    }
+
+    /// <summary>
+    /// Resolves a public profile identity without forcing profile construction. Built-in profile IDs are always
+    /// available; external IDs become visible after their explicit profile registration.
+    /// </summary>
+    public static bool TryGetProfileRequest(string profileId, bool unlockComponentRoles,
+        out ComponentProfileRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(profileId) || profileId.Any(character => character > 0x7f))
+        {
+            request = default;
+            return false;
+        }
+        foreach (var character in Enum.GetValues<GeneratedCharacter>())
+        {
+            if (!string.Equals(profileId, ComponentProfileRequest.BuiltInId(character),
+                    StringComparison.Ordinal)) continue;
+            request = new ComponentProfileRequest(character, unlockComponentRoles);
+            return true;
+        }
+        lock (Sync)
+        {
+            var match = Registered.Keys.FirstOrDefault(key =>
+                string.Equals(key.ProfileId, profileId, StringComparison.Ordinal)
+                && key.UnlockComponentRoles == unlockComponentRoles);
+            if (!string.IsNullOrEmpty(match.ProfileId))
+            {
+                request = match;
+                return true;
+            }
+            // External packages normally register only the native profile. Resolve() derives the unlocked union
+            // from it, so expose that derived request without requiring a duplicate registration.
+            if (unlockComponentRoles)
+            {
+                var native = Registered.Keys.FirstOrDefault(key =>
+                    string.Equals(key.ProfileId, profileId, StringComparison.Ordinal)
+                    && !key.UnlockComponentRoles);
+                if (!string.IsNullOrEmpty(native.ProfileId))
+                {
+                    request = new ComponentProfileRequest(profileId, native.Character, true);
+                    return true;
+                }
+            }
+        }
+        request = default;
+        return false;
     }
 
     public static void RegisterProfileProvider(IComponentProfileProvider provider)

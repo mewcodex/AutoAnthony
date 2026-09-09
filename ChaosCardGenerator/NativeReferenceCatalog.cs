@@ -98,7 +98,7 @@ internal static class NativeReferenceCatalog
     private static void ValidateRuntimeApi(JsonElement[] sourceCards)
     {
         var exposed = NativeCardDecompositionApi.Cards;
-        Require(NativeCardDecompositionApi.Components.Count == 449,
+        Require(NativeCardDecompositionApi.Components.Count == 451,
             "runtime API component-definition count differs from the source catalog");
         Require(NativeCardDecompositionApi.Keywords.Count == 7,
             "runtime API keyword-definition count differs from the source catalog");
@@ -132,6 +132,14 @@ internal static class NativeReferenceCatalog
             Require(NativeCardDecompositionApi.TryCreateDefinition(card.CatalogId, out _, out var unsupported),
                 $"runtime API could not materialize the exact upgrade for {card.CatalogId}: "
                 + string.Join(',', unsupported));
+            foreach (var upgraded in new[] { false, true })
+            foreach (var chinese in new[] { false, true })
+                Require(NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
+                            card.CatalogId, upgraded, chinese, out var template)
+                        && !string.IsNullOrWhiteSpace(template)
+                        && !template.Contains("[[", StringComparison.Ordinal),
+                    $"runtime API could not render the component description for {card.CatalogId} "
+                    + $"(upgraded={upgraded}, chinese={chinese})");
             exactDefinitions++;
         }
         Require(exactDefinitions == 481, "runtime API exact-upgrade coverage is incomplete");
@@ -144,6 +152,27 @@ internal static class NativeReferenceCatalog
         RequireUpgradeText("native/defect/spinner", "生成", "hannel", minimumOccurrences: 2);
         RequireUpgradeText("native/ironclad/armaments", "所有牌", "ALL cards");
         RequireUpgradeText("native/silent/knife_trap", "升级", "Upgrade");
+        RequireComponentDescriptionTemplate("native/ironclad/setup_strike",
+            "{Damage:diff()}", "{StrengthPower:diff()}");
+        RequireComponentDescriptionTemplate("native/ironclad/barricade",
+            "格挡", "Block");
+        var eventRarityCards = exposed.Where(card => card.Base.Rarity == "Event").ToArray();
+        Require(eventRarityCards.Length == 27,
+            "native Event-rarity card count differs from the reviewed catalog");
+        foreach (var card in eventRarityCards)
+        {
+            Require(card.Components.Count > 0 && card.Components.All(component => component.Text is not null),
+                $"Event-rarity card {card.CatalogId} lacks printable component text");
+            foreach (var chinese in new[] { false, true })
+                Require(NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
+                            card.CatalogId, upgraded: false, chinese, out var template)
+                        && !string.IsNullOrWhiteSpace(template),
+                    $"Event-rarity card {card.CatalogId} did not render from components");
+        }
+        Require(NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
+                    "native/silent/prepared", upgraded: true, chinese: true, out var prepared)
+                && Count(prepared, "{Cards:diff()}") == 2,
+            "Prepared does not bind its upgraded draw and discard amounts to the same native variable");
     }
 
     private static void RequireStructuralUpgrade(string catalogId, CardUpgradeKind kind)
@@ -161,6 +190,17 @@ internal static class NativeReferenceCatalog
                 && Count(upgrade.UpgradedChineseDescription, chinese) >= minimumOccurrences
                 && Count(upgrade.UpgradedEnglishDescription, english) >= minimumOccurrences,
             $"native structural upgrade {catalogId} has an incomplete localized projection");
+    }
+
+    private static void RequireComponentDescriptionTemplate(string catalogId, string chinese, string english)
+    {
+        Require(NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
+                    catalogId, upgraded: false, chinese: true, out var chineseTemplate)
+                && NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
+                    catalogId, upgraded: false, chinese: false, out var englishTemplate)
+                && chineseTemplate.Contains(chinese, StringComparison.Ordinal)
+                && englishTemplate.Contains(english, StringComparison.Ordinal),
+            $"runtime API component-description projection {catalogId} is incomplete");
     }
 
     private static int Count(string source, string value)

@@ -7,8 +7,10 @@ namespace AutoAnthony;
 /// <summary>
 /// Keeps compatibility with optional act-selection frameworks deliberately soft. AutoAnthony owns generated card
 /// pools for the lifetime of a run and never patches the act-transition method, so replacing an entry in
-/// RunState.Acts must not be mistaken for starting a new run. The only ordering requirement is that optional act
-/// registries finish their ModelDb initialization before the generated-card preview is assembled.
+/// RunState.Acts must not be mistaken for starting a new run. The generation overlay is synchronously released
+/// before vanilla run entry begins, allowing an act framework to await an interactive route selection without a
+/// higher CanvasLayer intercepting its input. The remaining ordering requirement is that optional act registries
+/// finish their ModelDb initialization before the generated-card preview is assembled.
 /// </summary>
 internal static class OptionalActSelectionFrameworkCompatibility
 {
@@ -34,6 +36,7 @@ internal static class OptionalActSelectionFrameworkCompatibility
         }
 
         Log.Info("[AutoAnthony] Optional act-selection framework detected. Generated card pools remain bound to "
-                 + "the run snapshot across act replacement; AutoAnthony does not intercept EnterAct.");
+                 + "the run snapshot across act replacement; the generation overlay releases input before "
+                 + "interactive run entry, and AutoAnthony does not intercept EnterAct.");
     }
 }

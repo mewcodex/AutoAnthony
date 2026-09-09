@@ -21,7 +21,6 @@ using MegaCrit.Sts2.Core.Models.CardPools;
 using MegaCrit.Sts2.Core.Models.Enchantments;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.Models.Orbs;
-using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Rewards;
@@ -63,8 +62,6 @@ internal sealed class ChaosExecutionState
 
 internal static class ChaosOperationExecutor
 {
-    private static readonly System.Reflection.MethodInfo? FinishHandSelectionVisuals =
-        HarmonyLib.AccessTools.Method(typeof(NPlayerHand), "OnSelectModeSourceFinished");
     private static readonly System.Reflection.MethodInfo? CancelHandSelectionVisuals =
         HarmonyLib.AccessTools.Method(typeof(NPlayerHand), "CancelHandSelectionIfNecessary");
 
@@ -481,7 +478,9 @@ internal static class ChaosOperationExecutor
     {
         var operations = card.Generated.Operations;
         var selectedEffect = operations[operationIndex];
-        if (selectedEffect.CardTargetSlot is not { } slot || state.CardSlots.ContainsKey(slot)) return;
+        if (selectedEffect.CardTargetSlot is not { } slot
+            || state.CardSlots.ContainsKey(slot)
+            || state.CardSelections.ContainsKey(slot)) return;
 
         var selector = CardSelectorForSlot(operations, slot);
         if (selector is null)
@@ -528,9 +527,12 @@ internal static class ChaosOperationExecutor
             PretendCardsCanBePlayed = selectedEffect.Template == "R:PlaySelectedSkillMultipleTimes"
         };
         var selected = (await SelectFromHandIfAny(choiceContext, card.Owner, prefs, filter, card)).ToArray();
+        // The selector marker and its consumer are one logical operation. Record an empty result too: otherwise
+        // a selected Exhaust consumer cannot distinguish "no legal selection" from "not resolved yet" and opens
+        // a second, spurious selection screen.
+        state.CardSelections[slot] = selected;
         if (selected.Length == 0) return;
         state.CardSlots[slot] = selected[0];
-        state.CardSelections[slot] = selected;
     }
 
     internal static GeneratorOperation? CardSelectorForSlot(IReadOnlyList<GeneratorOperation> operations,
@@ -584,7 +586,7 @@ internal static class ChaosOperationExecutor
             return;
         }
 
-        if (operation.Template.Contains(":Proxy", StringComparison.Ordinal))
+        if (RequiresOriginalOperationRoute(operation.Template))
         {
             await ExecuteOriginalOperation(card, index, choiceContext, cardPlay, state, operation);
             return;
@@ -1256,8 +1258,9 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "CL:PutEventCardOnDrawTop":
-                if (state.EventCard?.Pile?.Type == PileType.Discard)
-                    await CardPileCmd.Add(state.EventCard, PileType.Draw, CardPilePosition.Top);
+                if (ReferencedCard(operation, state) is { } cardToMove
+                    && cardToMove.Pile?.Type != PileType.Draw)
+                    await CardPileCmd.Add(cardToMove, PileType.Draw, CardPilePosition.Top);
                 return;
             case "CL:DamageOtherEnemiesEqual":
             {
@@ -1292,7 +1295,8 @@ internal static class ChaosOperationExecutor
             case "CL:RollingAllDamage":
             {
                 var baseDamage = state.EventAmount > 0 ? state.EventAmount : amount;
-                var (damage, hits) = DamageAndHits(card, baseDamage, state);
+                var (damage, hits) = DamageAndHits(card, baseDamage, state,
+                    damageOperationIndex: operationIndex);
                 for (var hit = 0; hit < hits; hit++)
                     await CreatureCmd.Damage(choiceContext, combatState.HittableEnemies, damage,
                         ValueProp.Unpowered, card.Owner.Creature, card, cardPlay);
@@ -1351,7 +1355,9 @@ internal static class ChaosOperationExecutor
                 // The next-turn trigger owns the timing. Executing the linked payoff here makes the reviewed
                 // trigger + effect composition work independently of ChaosCardModel's legacy pile hook; the
                 // hook remains as a compatibility fallback for already-saved cards authored before the split.
-                await TryAddToHand(card);
+                // Persistent triggers execute through a detached reconstruction. Moving that model creates a
+                // second copy while the real combat card remains in its pile and later returns through the fallback.
+                await TryAddToHand(LiveCombatSourceCard(card));
                 return;
             case "CL:IncreaseRollingDamage":
             case "CL:AtNextTurnStart":
@@ -1557,7 +1563,7 @@ internal static class ChaosOperationExecutor
                 return;
             // The trigger above is deliberately inert here. Only its explicitly linked replay operation may
             // autoplay the source card; arbitrary linked effects must never inherit native Bombardment behaviour.
-            case "R:PlayThisCard": await CardCmd.AutoPlay(choiceContext, card, null); return;
+            case "R:PlayThisCard": await CardCmd.AutoPlay(choiceContext, LiveCombatSourceCard(card), null); return;
             default: throw new InvalidOperationException($"Unimplemented Regent operation: {operation.Template}");
         }
     }
@@ -1599,10 +1605,10 @@ internal static class ChaosOperationExecutor
             case "NCR:OstyDamage":
             {
                 if (card.Owner.Osty is not { } targetedOsty || state.Target is null) return;
-                var (value, hits) = DamageAndHits(card, amount, state);
-                var command = await DamageCmd.Attack(value).WithHitCount(hits).FromOsty(targetedOsty, card, cardPlay)
-                    .Targeting(state.Target).WithHitFx(card.Definition.HitFx).Execute(choiceContext);
-                var results = command.Results.SelectMany(result => result).ToArray();
+                var (value, hits) = DamageAndHits(card, amount, state,
+                    damageOperationIndex: operationIndex);
+                var results = await ExecuteOstyAttackHits(choiceContext, targetedOsty, card, cardPlay,
+                    value, hits, state.Target);
                 state.LastAttackKilled |= results.Any(result => result.WasTargetKilled);
                 state.LastDamageDealt = decimal.ToInt32(results.Sum(result => result.TotalDamage));
                 return;
@@ -1612,11 +1618,10 @@ internal static class ChaosOperationExecutor
                 {
                     // Osty's area attack is still this card's damage. Route it through the same calculation as
                     // targeted Osty attacks so permanent ExtraDamage and compatible damage/repeat modifiers apply.
-                    var (value, hits) = DamageAndHits(card, amount, state);
-                    var command = await DamageCmd.Attack(value).WithHitCount(hits)
-                        .FromOsty(areaOsty, card, cardPlay)
-                        .TargetingAllOpponents(combatState).WithHitFx(card.Definition.HitFx).Execute(choiceContext);
-                    var results = command.Results.SelectMany(result => result).ToArray();
+                    var (value, hits) = DamageAndHits(card, amount, state,
+                        damageOperationIndex: operationIndex);
+                    var results = await ExecuteOstyAttackHits(choiceContext, areaOsty, card, cardPlay,
+                        value, hits, target: null, combatState);
                     state.LastAttackKilled |= results.Any(result => result.WasTargetKilled);
                     state.LastDamageDealt = decimal.ToInt32(results.Sum(result => result.TotalDamage));
                 }
@@ -1640,7 +1645,8 @@ internal static class ChaosOperationExecutor
             case "NCR:UnpoweredDamage":
                 if (state.Target is not null)
                 {
-                    var (damage, hits) = DamageAndHits(card, amount, state);
+                    var (damage, hits) = DamageAndHits(card, amount, state,
+                        damageOperationIndex: operationIndex);
                     for (var hit = 0; hit < hits; hit++)
                         await CreatureCmd.Damage(choiceContext, state.Target, damage,
                             ValueProp.Unpowered, card.Owner.Creature, card, cardPlay);
@@ -1799,7 +1805,8 @@ internal static class ChaosOperationExecutor
                 if (state.Target is not null)
                 {
                     var doom = state.Target.GetPower<DoomPower>()?.Amount ?? 0;
-                    var (damage, hits) = DamageAndHits(card, doom, state);
+                    var (damage, hits) = DamageAndHits(card, doom, state,
+                        damageOperationIndex: operationIndex);
                     await DamageCmd.Attack(damage).WithHitCount(hits).FromCard(card, cardPlay).Targeting(state.Target)
                         .WithHitFx(card.Definition.HitFx).Execute(choiceContext);
                 }
@@ -2165,8 +2172,12 @@ internal static class ChaosOperationExecutor
                 for (var i = 0; i < count; i++)
                 {
                     for (var repeat = 0; repeat < repeats; repeat++)
+                    {
                         await OrbCmd.EvokeNext(choiceContext, card.Owner,
                             dequeue: repeat == repeats - 1);
+                        if (repeat != repeats - 1)
+                            await Cmd.CustomScaledWait(0.15f, 0.25f);
+                    }
                 }
                 return;
             }
@@ -2174,7 +2185,14 @@ internal static class ChaosOperationExecutor
                 var evokeCount = OrbEvokeRepeatCount(operation, amount);
                 if (evokeCount == 0 || playerCombatState?.OrbQueue.Orbs.Count is null or 0) return;
                 for (var i = 0; i < evokeCount; i++)
+                {
                     await OrbCmd.EvokeNext(choiceContext, card.Owner, dequeue: i == evokeCount - 1);
+                    // Dualcast, Quadcast and Multi-Cast deliberately leave a short command gap between repeated
+                    // Evokes. Without it the Orb tween and hook queue still own the first activation when the next
+                    // one starts, which can collapse the remaining activations and strand the source card in Play.
+                    if (i != evokeCount - 1)
+                        await Cmd.CustomScaledWait(0.15f, 0.25f);
+                }
                 return;
             case "D:EvokeLeftmostOrb":
                 evokeCount = OrbEvokeRepeatCount(operation, amount);
@@ -2182,7 +2200,11 @@ internal static class ChaosOperationExecutor
                 // Consuming Shadow has no numeric slot: its printed action means one activation. The game's Orb
                 // queue stores the visually leftmost Orb at the back, while EvokeNext addresses the rightmost one.
                 for (var i = 0; i < evokeCount; i++)
+                {
                     await OrbCmd.EvokeLast(choiceContext, card.Owner, dequeue: i == evokeCount - 1);
+                    if (i != evokeCount - 1)
+                        await Cmd.CustomScaledWait(0.15f, 0.25f);
+                }
                 return;
             case "D:GainTemporaryFocusPerUniqueOrb":
             {
@@ -2219,7 +2241,9 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "D:ReturnEventCardToHand":
-                if (state.EventCard is not null) await TryAddToHand(state.EventCard);
+                if (ReferencedCard(operation, state) is { } cardToReturn
+                    && cardToReturn.Pile?.Type != PileType.Hand)
+                    await TryAddToHand(cardToReturn);
                 return;
             case "D:ExhaustSelectedHandCard":
                 if (operation.CardTargetSlot is { } slot && state.CardSlots.TryGetValue(slot, out var selectedCard))
@@ -2304,6 +2328,17 @@ internal static class ChaosOperationExecutor
         if (operation.Template == "A:VoidFormFirstCardsFree")
         {
             await ApplyGeneratedProxyPower<VoidFormPower>(card, operationIndex, choiceContext);
+            return;
+        }
+        if (operation.Template == "CL:ProxyAtomic_Alchemize")
+        {
+            // This is a stateless action, not a run-scoped reward flag. Execute it directly for every actual
+            // resolution instead of delegating through a detached native card, so Replay/triggered uses cannot
+            // inherit proxy lifecycle state and appear to work only once in the run.
+            await CreatureCmd.TriggerAnim(card.Owner.Creature, "Cast", card.Owner.Character.CastAnimDelay);
+            var potion = PotionFactory.CreateRandomPotionInCombat(card.Owner,
+                card.Owner.RunState.Rng.CombatPotionGeneration).ToMutable();
+            await PotionCmd.TryToProcure(potion, card.Owner);
             return;
         }
         if (operation.Template == "I:ProxyAtomic_WhiteNoise")
@@ -2444,7 +2479,8 @@ internal static class ChaosOperationExecutor
             var activeCombat = card.CombatState ?? card.Owner.Creature.CombatState;
             if (activeCombat is null) return;
             var baseDamage = card.OperationAmount(operationIndex);
-            var (damage, hits) = DamageAndHits(card, baseDamage, state, Math.Max(0, card.ResolveEffectStarXValue()));
+            var (damage, hits) = DamageAndHits(card, baseDamage, state,
+                Math.Max(0, card.ResolveEffectStarXValue()), operationIndex);
             if (hits <= 0) return;
             await DamageCmd.Attack(damage).WithHitCount(hits).FromCard(card, cardPlay)
                 .TargetingRandomOpponents(activeCombat)
@@ -2458,7 +2494,8 @@ internal static class ChaosOperationExecutor
         {
             if (state.Target is null) return;
             var baseDamage = card.OperationAmount(operationIndex);
-            var (damage, hits) = DamageAndHits(card, baseDamage, state, Math.Max(0, card.ResolveEffectEnergyXValue()));
+            var (damage, hits) = DamageAndHits(card, baseDamage, state,
+                Math.Max(0, card.ResolveEffectEnergyXValue()), operationIndex);
             if (hits <= 0) return;
             await DamageCmd.Attack(damage).WithHitCount(hits).FromCard(card, cardPlay)
                 .Targeting(state.Target).WithHitFx(card.Definition.HitFx).Execute(choiceContext);
@@ -2468,10 +2505,10 @@ internal static class ChaosOperationExecutor
         {
             if (card.Owner.Osty is not { } osty || state.Target is null) return;
             var baseDamage = card.OperationAmount(operationIndex);
-            var (damage, hits) = DamageAndHits(card, baseDamage, state);
+            var (damage, hits) = DamageAndHits(card, baseDamage, state,
+                damageOperationIndex: operationIndex);
             if (hits <= 0) return;
-            await DamageCmd.Attack(damage).WithHitCount(hits).FromOsty(osty, card, cardPlay)
-                .Targeting(state.Target).WithHitFx(card.Definition.HitFx).Execute(choiceContext);
+            await ExecuteOstyAttackHits(choiceContext, osty, card, cardPlay, damage, hits, state.Target);
             return;
         }
         if (operation.Template == "I:ProxyAtomic_Tempest")
@@ -2613,11 +2650,14 @@ internal static class ChaosOperationExecutor
         {
             case "Begone":
             {
+                // Replacing Minion Strike with a cheaper derivative can raise Begone's structured amount above
+                // its native implicit one-card count. The description, upgrade and budget all use that amount;
+                // executing only FirstOrDefault made every such variant transform exactly one card.
+                var count = TransformProxySelectionCount(card.OperationAmount(operationIndex));
                 var selected = (await SelectFromHandIfAny(choiceContext, card.Owner,
-                    new CardSelectorPrefs(CardSelectorPrefs.TransformSelectionPrompt, 1),
-                    candidate => candidate.IsTransformable, card)).FirstOrDefault();
-                if (selected is null) return true;
-                await TransformToDerivatives(card, operationIndex, operation, [selected],
+                    new CardSelectorPrefs(CardSelectorPrefs.TransformSelectionPrompt, count),
+                    candidate => candidate.IsTransformable, card)).ToList();
+                await TransformToDerivatives(card, operationIndex, operation, selected,
                     TransformPreviewStyle(choiceContext));
                 return true;
             }
@@ -2657,6 +2697,14 @@ internal static class ChaosOperationExecutor
     private static CardModel? SelectedCard(GeneratorOperation operation, ChaosExecutionState state) =>
         operation.CardTargetSlot is { } slot && state.CardSlots.TryGetValue(slot, out var selected) ? selected : null;
 
+    /// <summary>
+    /// Resolves one card supplied either by an explicit selector or by the event/iteration that owns a linked
+    /// payoff. The ordering is intentional: an explicit named slot is the most precise source, a for-each item is
+    /// more specific than the outer event, and the outer event is the general fallback.
+    /// </summary>
+    private static CardModel? ReferencedCard(GeneratorOperation operation, ChaosExecutionState state) =>
+        SelectedCard(operation, state) ?? state.LastMovedCard ?? state.IterationCard ?? state.EventCard;
+
     private static IReadOnlyList<CardModel> SelectedCards(GeneratorOperation operation, ChaosExecutionState state)
     {
         if (operation.CardTargetSlot is not { } slot) return [];
@@ -2664,8 +2712,19 @@ internal static class ChaosOperationExecutor
         return state.CardSlots.TryGetValue(slot, out var card) ? [card] : [];
     }
 
+    internal static IReadOnlyList<CardModel>? ResolvedCardSelection(
+        GeneratorOperation operation, ChaosExecutionState state) =>
+        operation.CardTargetSlot is { } slot
+        && state.CardSelections.TryGetValue(slot, out var selected)
+            ? selected
+            : null;
+
     internal static int HandExhaustSelectionCount(int printedAmount, int availableCards) =>
         Math.Min(Math.Max(1, printedAmount), Math.Max(0, availableCards));
+
+    internal static bool RequiresOriginalOperationRoute(string template) =>
+        template.Contains(":Proxy", StringComparison.Ordinal)
+        || GeneratedValueProxyTemplates.Contains(template);
 
     private static async Task Exhaust(ChaosCardModel card, GeneratorOperation operation,
         OperationRuntimeSpec spec, int amount,
@@ -2677,10 +2736,8 @@ internal static class ChaosOperationExecutor
             targets = spec.CardFilter == "non_attack"
                 ? hand.Where(candidate => candidate.Type != CardType.Attack)
                 : hand;
-        else if (spec.Variant == "referenced" && operation.CardTargetSlot is { } slot
-                 && state.CardSlots.TryGetValue(slot, out var selectedCard)) targets = [selectedCard];
-        else if (spec.Variant == "referenced"
-                 && (state.IterationCard ?? state.EventCard) is { } referencedCard) targets = [referencedCard];
+        else if (spec.Variant == "referenced" && ReferencedCard(operation, state) is { } referencedCard)
+            targets = [referencedCard];
         else if (spec.Variant == "random")
         {
             var pool = spec.CardFilter == "attack"
@@ -2696,6 +2753,14 @@ internal static class ChaosOperationExecutor
                 pool.Remove(randomCard);
             }
             targets = selected;
+        }
+        else if (spec.Variant == "selected"
+                 && ResolvedCardSelection(operation, state) is { } resolvedSelection)
+        {
+            // ResolveCardSelectionForOperation already presented this named-slot choice. Reuse those exact card
+            // models; prompting again made the first choice visual-only and Exhausted only the second choice.
+            var count = HandExhaustSelectionCount(amount, resolvedSelection.Count);
+            targets = resolvedSelection.Take(count);
         }
         else
         {
@@ -2732,11 +2797,8 @@ internal static class ChaosOperationExecutor
         IEnumerable<CardModel> created = [];
         if (spec.Opcode == "create_copy" && spec.Variant == "this_card")
             created = Enumerable.Range(0, count).Select(_ => card.CreateClone());
-        else if (spec.Opcode == "create_copy" && spec.Variant == "referenced_attack"
-                 && operation.CardTargetSlot is { } slot && state.CardSlots.TryGetValue(slot, out var selected))
-            created = Enumerable.Range(0, count).Select(_ => selected.CreateClone());
-        else if (spec.Opcode == "create_copy" && spec.Variant == "referenced_attack"
-                 && (state.IterationCard ?? state.EventCard) is { } referencedCard)
+        else if (spec.Opcode == "create_copy" && spec.Variant is ("referenced_card" or "referenced_attack")
+                 && ReferencedCard(operation, state) is { } referencedCard)
             created = Enumerable.Range(0, count).Select(_ => referencedCard.CreateClone());
         else if (spec.Opcode == "create_card" && spec.Variant == "current_character_random")
             created = CardFactory.GetDistinctForCombat(card.Owner,
@@ -2782,9 +2844,35 @@ internal static class ChaosOperationExecutor
 
     internal static async Task<bool> TryAddToHand(CardModel card)
     {
+        // Return effects can have both a current structured trigger and an old-save lifecycle fallback. Treat an
+        // already completed move as success instead of adding the same model to Hand twice.
+        if (card.Pile?.Type == PileType.Hand) return true;
         if (AvailableHandSlots(card.Owner) == 0) return false;
         await CardPileCmd.Add(card, PileType.Hand);
         return card.Pile?.Type == PileType.Hand;
+    }
+
+    /// <summary>
+    /// Composite Powers reconstruct their source from saved values after the original play has completed. That
+    /// detached model is valid for calculations, but moving or auto-playing it creates an extra combat card. Resolve
+    /// the exact live clone through DeckVersion; combat-only generated cards fall back to their full definition.
+    /// </summary>
+    private static ChaosCardModel LiveCombatSourceCard(ChaosCardModel source)
+    {
+        if (source.Pile?.IsCombatPile == true) return source;
+        var candidates = source.Owner.PlayerCombatState?.AllCards.OfType<ChaosCardModel>()
+            .Where(candidate => candidate.Pile?.IsCombatPile == true)
+            .ToArray() ?? [];
+        if (source.DeckVersion is { } deckVersion)
+        {
+            var exact = candidates.FirstOrDefault(candidate => ReferenceEquals(candidate.DeckVersion, deckVersion));
+            if (exact is not null) return exact;
+        }
+        return candidates.FirstOrDefault(candidate =>
+                   candidate.Definition.Slot == source.Definition.Slot
+                   && candidate.RuntimeProfileId == source.RuntimeProfileId
+                   && candidate.EffectiveDefinitionPayload == source.EffectiveDefinitionPayload)
+               ?? source;
     }
 
     private static async Task<IReadOnlyList<CardModel>> MoveSelectedDiscardCardsToHand(
@@ -2910,7 +2998,7 @@ internal static class ChaosOperationExecutor
             card.EnergyCost.AddThisCombat(-amount);
         else if (operation.Template == "I:PlayThisCard")
         {
-            await CardCmd.AutoPlay(choiceContext, card, null);
+            await CardCmd.AutoPlay(choiceContext, LiveCombatSourceCard(card), null);
         }
         else if (operation.Template == "I:Upgrade")
         {
@@ -2929,8 +3017,9 @@ internal static class ChaosOperationExecutor
                 if (selected is not null) UpgradeExistingCombatCard(selected, operation.Template);
             }
         }
-        else if (operation.Template == "I:UpgradeThatCard" && operation.CardTargetSlot is { } slot && state.CardSlots.TryGetValue(slot, out var selected) && selected.IsUpgradable) UpgradeExistingCombatCard(selected, operation.Template);
-        else if (operation.Template == "I:UpgradeThatCard" && state.LastMovedCard is { IsUpgradable: true } moved) UpgradeExistingCombatCard(moved, operation.Template);
+        else if (operation.Template == "I:UpgradeThatCard"
+                 && ReferencedCard(operation, state) is { IsUpgradable: true } referenced)
+            UpgradeExistingCombatCard(referenced, operation.Template);
         else if (operation.Template == "I:PlayTopCardAndExhaust")
             await AutoPlayFromDrawPileSequentially(choiceContext, card.Owner, 1, CardPilePosition.Top, forceExhaust: true);
         else if (operation.Template == "I:PlayTopXCards")
@@ -3026,6 +3115,31 @@ internal static class ChaosOperationExecutor
         await PowerCmd.Apply(choiceContext, power, card.Owner.Creature, amount, card.Owner.Creature, card);
     }
 
+    private static async Task<IReadOnlyList<DamageResult>> ExecuteOstyAttackHits(
+        PlayerChoiceContext choiceContext, Creature osty, ChaosCardModel card, CardPlay cardPlay,
+        decimal damage, int hits, Creature? target, ICombatState? combatState = null)
+    {
+        var results = new List<DamageResult>();
+        for (var hit = 0; hit < Math.Max(0, hits); hit++)
+        {
+            // Osty attacks are discrete attacks in the native character kit. Executing one command with an
+            // aggregate HitCount makes several generated repeat/dependency paths resolve only the first Osty
+            // attack (and prevents per-attack hooks such as Reaper Form from seeing the rest). Keep the printed
+            // per-hit value while issuing the actual number of Osty attacks.
+            var command = target is not null
+                ? await DamageCmd.Attack(damage).FromOsty(osty, card, cardPlay)
+                    .Targeting(target).WithHitFx(card.Definition.HitFx).Execute(choiceContext)
+                : await DamageCmd.Attack(damage).FromOsty(osty, card, cardPlay)
+                    .TargetingAllOpponents(combatState
+                        ?? card.CombatState
+                        ?? card.Owner.Creature.CombatState
+                        ?? throw new InvalidOperationException("Osty area attack has no combat state."))
+                    .WithHitFx(card.Definition.HitFx).Execute(choiceContext);
+            results.AddRange(command.Results.SelectMany(result => result));
+        }
+        return results;
+    }
+
     internal static (decimal Damage, int Hits) DamageAndHits(ChaosCardModel card, decimal baseDamage,
         ChaosExecutionState state, int baseHits = 1, int damageOperationIndex = -1)
     {
@@ -3097,7 +3211,8 @@ internal static class ChaosOperationExecutor
             else if (modifier.Template == "D:RepeatPerOrb")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += (playerCombatState?.OrbQueue.Orbs.Count ?? 0) * dependencyRepeats;
+                dynamicHitTotal += DynamicRepeatCount(card, index,
+                    playerCombatState?.OrbQueue.Orbs.Count ?? 0, dependencyRepeats);
             }
             else if (IsFlatExtraHitModifier(modifierSpec))
                 additionalHits += Math.Max(1, modifierAmount) * dependencyRepeats;
@@ -3126,22 +3241,24 @@ internal static class ChaosOperationExecutor
             else if (modifier.Template == "NCR:RepeatPerVoidPlayedCombat")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
-                    entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Keywords.Contains(CardKeyword.Ethereal))
-                    * dependencyRepeats;
+                dynamicHitTotal += DynamicRepeatCount(card, index,
+                    CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                        entry.CardPlay.Player == card.Owner
+                        && entry.CardPlay.Card.Keywords.Contains(CardKeyword.Ethereal)), dependencyRepeats);
             }
             else if (modifier.Template == "NCR:RepeatPerOstyAttackThisTurn")
-                additionalHits += CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
-                    entry.CardPlay.Player == card.Owner
-                    && entry.CardPlay.Card.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)
-                    && combatState is not null && entry.HappenedThisTurn(combatState)) * dependencyRepeats;
+                additionalHits += DynamicRepeatCount(card, index,
+                    CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                        entry.CardPlay.Player == card.Owner
+                        && entry.CardPlay.Card.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)
+                        && combatState is not null && entry.HappenedThisTurn(combatState)), dependencyRepeats);
             else if (modifier.Template == "NCR:DamagePerExhaustedSoul")
             {
-                var prefix = index > 0 && card.Generated.Operations[index - 1].Template == "NCR:ForEachExhaustedSoul"
-                    ? card.Generated.Operations[index - 1]
-                    : card.Generated.Operations.FirstOrDefault(candidate => candidate.Template == "NCR:ForEachExhaustedSoul");
-                damage += modifierAmount * (prefix is null ? 0 : PileType.Exhaust.GetPile(card.Owner).Cards
-                    .Count(candidate => ChaosDerivativeResolver.Matches(candidate, prefix))) * dependencyRepeats;
+                // ForEachExhaustedSoul already supplies the live derivative count through dependencyRepeats.
+                // Counting the pile again squares that count (10 Souls => 100 applications), which looks like
+                // the previous bonus was written back into the card every time it is played. Keep the calculation
+                // purely local to this damage resolution and apply the linked modifier exactly once per match.
+                damage += DependencyScaledDamageBonus(modifierAmount, dependencyRepeats);
             }
             else if (modifier.Template == "NCR:DamagePerOstyAttackCard")
                 damage += modifierAmount * (playerCombatState?.AllCards.Count(candidate =>
@@ -3152,17 +3269,19 @@ internal static class ChaosOperationExecutor
             else if (modifier.Template == "R:RepeatPerSkillPlayedThisTurn")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
-                    entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Type == CardType.Skill
-                    && combatState is not null && entry.HappenedThisTurn(combatState)) * dependencyRepeats;
+                dynamicHitTotal += DynamicRepeatCount(card, index,
+                    CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
+                        entry.CardPlay.Player == card.Owner && entry.CardPlay.Card.Type == CardType.Skill
+                        && combatState is not null && entry.HappenedThisTurn(combatState)), dependencyRepeats);
             }
             else if (modifier.Template == "R:RepeatPerStarGainedThisTurn")
             {
                 hasDynamicHitTotal = true;
-                dynamicHitTotal += CombatManager.Instance.History.Entries.OfType<StarsModifiedEntry>()
+                dynamicHitTotal += DynamicRepeatCount(card, index,
+                    CombatManager.Instance.History.Entries.OfType<StarsModifiedEntry>()
                     .Where(entry => entry.Actor == card.Owner.Creature && entry.Amount > 0
-                        && combatState is not null && entry.HappenedThisTurn(combatState)).Sum(entry => entry.Amount)
-                    * dependencyRepeats;
+                        && combatState is not null && entry.HappenedThisTurn(combatState)).Sum(entry => entry.Amount),
+                    dependencyRepeats);
             }
             else if (modifier.Template == "R:BonusPerGeneratedCardThisCombat")
                 damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardGeneratedEntry>()
@@ -3203,6 +3322,18 @@ internal static class ChaosOperationExecutor
             || !CardEffectRules.IsRepeatableDependencyModifier(modifier)) return 1;
         return Math.Max(0, DependencyMultiplier(card, modifierIndex, state.Target,
             state.PriorAttackHitsOnTargetAtPlayStart));
+    }
+
+    private static int DynamicRepeatCount(ChaosCardModel card, int modifierIndex, int liveCount,
+        int dependencyRepeats)
+    {
+        // A count prefix and its dependency-only repeat modifier describe the same live count. Multiplying the
+        // two counts squares it (for example, four played Ethereal cards became sixteen hits). Standalone repeat
+        // modifiers still multiply their own live count by any independent dependency context.
+        var prefix = DependencyPrefix(card, modifierIndex);
+        return prefix is not null && CardEffectRules.IsMultiplicativeDependencyPrefix(prefix)
+            ? dependencyRepeats
+            : Math.Max(0, liveCount) * dependencyRepeats;
     }
 
     internal static void IncreaseCardDamageForRun(ChaosCardModel card, int amount)
@@ -3383,9 +3514,9 @@ internal static class ChaosOperationExecutor
             "NCR:ForEachCardDrawnThisTurn" => CombatManager.Instance.History.Entries.OfType<CardDrawnEntry>()
                 .Count(entry => combatState is not null && entry.Actor == card.Owner.Creature
                     && entry.HappenedThisTurn(combatState)),
-            "NCR:ForEachDoomThreshold" => Math.Max(0,
-                (int)(target?.GetPower<DoomPower>()?.Amount ?? 0))
-                / Math.Max(1, prefixIndex < 0 ? 10 : card.OperationAmount(prefixIndex)),
+            "NCR:ForEachDoomThreshold" => DoomThresholdMultiplier(
+                (int)(target?.GetPower<DoomPower>()?.Amount ?? 0),
+                prefixIndex < 0 ? 10 : RuntimeSpecValue(card, prefixIndex, "threshold", 10)),
             "NCR:ForEachOstyAttackThisTurn" => CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
                 entry.CardPlay.Player == card.Owner
                 && entry.CardPlay.Card.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)
@@ -3413,6 +3544,17 @@ internal static class ChaosOperationExecutor
             _ => 1
         };
     }
+
+    /// <summary>
+    /// Converts Doom stacks into complete threshold groups. The threshold slot is deliberately not upgradable, so
+    /// callers must read it from the structured runtime spec rather than OperationAmount, which represents only the
+    /// operation's upgradeable value and returns zero for a trigger with no upgradeable slot.
+    /// </summary>
+    internal static int DoomThresholdMultiplier(int doom, int threshold) =>
+        Math.Max(0, doom) / Math.Max(1, threshold);
+
+    internal static decimal DependencyScaledDamageBonus(decimal amountPerMatch, int matchCount) =>
+        amountPerMatch * Math.Max(0, matchCount);
 
     private static int CountPriorAttackHits(ChaosCardModel card, Creature? target)
     {
@@ -3463,27 +3605,21 @@ internal static class ChaosOperationExecutor
         prefs = ClampSelectionPrefs(prefs, candidates.Count);
         if (context is ThrowingPlayerChoiceContext)
             return SelectAutomatically(player, candidates, prefs);
-        // NPlayerHand normally keeps every selected holder in its centre container until the supplied source emits
-        // ExecutionFinished. That visual ownership contract is fragile for generated effects: persistent triggers
-        // execute through reconstructed proxy cards, and multiplayer may branch/resume the choice on a different
-        // action queue from the source model. If either lifetime ends first, the selected model remains in the Hand
-        // pile while its holder is permanently stranded in the centre (an empty hand slot plus an unresponsive card).
-        //
-        // The interpreter already owns the selected CardModel result and every operation below performs its actual
-        // pile mutation explicitly. It therefore does not need source-lifetime visual retention. Passing no source
-        // makes NPlayerHand return the holder as part of completing the same selection transaction, on both peers,
-        // before the interpreter applies Exhaust/Discard/Transform/Move/Upgrade.
+        // Follow the native hand-selection ownership contract. NPlayerHand keeps the selected holders in its centre
+        // container until this exact source emits ExecutionFinished; direct card plays are completed by CardModel,
+        // while reconstructed trigger sources are completed in ExecuteTriggered's finally block. Bypassing that
+        // contract with a null source lets selection visuals finish before the subsequent Exhaust/Discard/Transform
+        // command owns the selected holder, which can strand either that holder or the played card in the centre.
         CardModel[] selected;
         try
         {
-            selected = (await CardSelectCmd.FromHand(context, player, prefs, filter, null!)).ToArray();
+            selected = (await CardSelectCmd.FromHand(context, player, prefs, filter, source)).ToArray();
         }
         catch
         {
             CloseFailedHandSelection(player, source);
             throw;
         }
-        ReleaseOrphanedHandSelectionHolders(player, selected, source);
         var completed = CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
         if (completed.Count > selected.Distinct().Count())
             Log.Warn($"[AutoAnthony] Hand selector returned {selected.Length} card(s) for mandatory "
@@ -3500,54 +3636,18 @@ internal static class ChaosOperationExecutor
         prefs = ClampSelectionPrefs(prefs, candidates.Count);
         if (context is ThrowingPlayerChoiceContext)
             return SelectAutomatically(player, candidates, prefs);
-        // See SelectFromHandIfAny: generated selections must close their holder transaction immediately instead of
-        // coupling it to a proxy/source model's ExecutionFinished event across multiplayer action queues.
+        // See SelectFromHandIfAny: the source owns selected holders until the complete discard effect finishes.
         CardModel[] selected;
         try
         {
-            selected = (await CardSelectCmd.FromHandForDiscard(context, player, prefs, filter, null!)).ToArray();
+            selected = (await CardSelectCmd.FromHandForDiscard(context, player, prefs, filter, source)).ToArray();
         }
         catch
         {
             CloseFailedHandSelection(player, source);
             throw;
         }
-        ReleaseOrphanedHandSelectionHolders(player, selected, source);
         return CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
-    }
-
-    /// <summary>
-    /// A completed hand selector must leave every selected model either back in the ordinary hand container or ready
-    /// for the interpreter's explicit pile mutation. NPlayerHand normally performs that cleanup immediately when the
-    /// selector source is null. Keep this postcondition explicit because a cancelled/resumed multiplayer choice or a
-    /// reconstructed trigger source can otherwise leave the backend card in Hand while its holder remains in the
-    /// centre selection container, making the card impossible to play.
-    /// </summary>
-    private static void ReleaseOrphanedHandSelectionHolders(Player player, IReadOnlyList<CardModel> selected,
-        AbstractModel source)
-    {
-        if (!LocalContext.IsMe(player) || selected.Count == 0 || NPlayerHand.Instance is not { } hand) return;
-        var stranded = selected.Where(candidate =>
-        {
-            if (!ReferenceEquals(candidate.Owner, player) || candidate.Pile?.Type != PileType.Hand) return false;
-            var holder = hand.GetCardHolder(candidate);
-            return holder is NSelectedHandCardHolder || holder is null;
-        }).ToArray();
-        if (stranded.Length == 0) return;
-
-        try
-        {
-            if (FinishHandSelectionVisuals is null)
-                throw new MissingMethodException(typeof(NPlayerHand).FullName, "OnSelectModeSourceFinished");
-            FinishHandSelectionVisuals.Invoke(hand, [null]);
-            Log.Warn($"[AutoAnthony] Recovered {stranded.Length} selected Hand card holder(s) left detached after "
-                     + $"{source.Id}; cards=[{string.Join(',', stranded.Select(card => card.Id.Entry))}].");
-        }
-        catch (Exception exception)
-        {
-            Log.Error($"[AutoAnthony] Could not recover detached Hand selection holders after {source.Id}: "
-                      + exception);
-        }
     }
 
     private static void CloseFailedHandSelection(Player player, AbstractModel source)
@@ -3689,19 +3789,18 @@ internal static class ChaosOperationExecutor
                 Log.Warn($"[AutoAnthony] Auto-selected {selected.Id} for an upgrade effect running without a choice context.");
             return selected;
         }
-        // The returned model is upgraded in-place after this task completes; retaining its holder until an external
-        // source event is unnecessary and can strand it when a multiplayer choice branches to another queue.
+        // Upgrade selection follows the same source-owned holder lifecycle as Exhaust/Discard. The direct card or
+        // reconstructed trigger source emits ExecutionFinished after the in-place upgrade has completed.
         CardModel? result;
         try
         {
-            result = await CardSelectCmd.FromHandForUpgrade(context, player, null!);
+            result = await CardSelectCmd.FromHandForUpgrade(context, player, source);
         }
         catch
         {
             CloseFailedHandSelection(player, source);
             throw;
         }
-        if (result is not null) ReleaseOrphanedHandSelectionHolders(player, [result], source);
         return result;
     }
 
@@ -3831,6 +3930,12 @@ internal static class ChaosOperationExecutor
             return Math.Max(1, amount);
         return 1;
     }
+
+    /// <summary>
+    /// Native Begone has an implicit one-card payload, while derivative substitution and upgrades can materialize
+    /// an explicit larger amount. Both shapes share the same executor and must never collapse a printed count to 1.
+    /// </summary>
+    internal static int TransformProxySelectionCount(int amount) => Math.Max(1, amount);
     /// <summary>
     /// Fixed-count status-to-discard clauses can reach this boundary without a materialized DynamicVar (notably
     /// detached previews and migrated snapshots). Recover their structured fixed base value in that case. X-backed

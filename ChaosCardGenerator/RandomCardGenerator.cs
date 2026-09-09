@@ -755,6 +755,10 @@ public static class CardTemplateValidator
         if (card.Tags.Contains(CardTag.Strike) && card.Name is not null
             && (!card.Name.Chinese.EndsWith("打击", StringComparison.Ordinal) || !card.Name.English.EndsWith(" Strike", StringComparison.Ordinal)))
             throw new InvalidOperationException("打击牌名称必须锁定“打击 / Strike”后缀。");
+        if (card.Name is not null
+            && !CardNameGenerator.NameRespectsHangRule(card.Name,
+                CardEffectRules.IsHangDamageFamily(card.Operations)))
+            throw new InvalidOperationException("只有带吊杀伤害规则的牌名可以包含“吊杀 / Hang”，且该规则牌必须包含它。");
         if (card.Upgrade is { } upgrade)
         {
             var addedKeywords = GeneratedCardTagPolicy.AddedKeywords(upgrade);
@@ -887,6 +891,12 @@ public static class CardDescriptionRenderer
     private static bool MustRenderLast(GeneratorOperation operation) =>
         operation.Template == "CL:NoBlockFromCards";
 
+    internal static string JoinChineseClause(string prefix, string payoff) =>
+        prefix.EndsWith("都会", StringComparison.Ordinal)
+        && payoff.StartsWith("奥斯提", StringComparison.Ordinal)
+            ? prefix + "让" + payoff
+            : prefix + payoff;
+
     internal static string RenderNextAttackGrant(GeneratorOperation trigger,
         IReadOnlyList<GeneratorOperation> effects, Func<GeneratorOperation, string> text, bool chinese)
     {
@@ -957,8 +967,8 @@ public static class CardDescriptionRenderer
             if (CardEffectRules.IsDependencyPrefix(operation) && index + 1 < effects.Count
                 && CardEffectRules.IsLegalDependencyPayoff(operation, effects[index + 1]))
             {
-                pieces.Add(CardTextStyle.Chinese(operation).TrimEnd('。')
-                    + CardTextStyle.Chinese(effects[++index]));
+                pieces.Add(JoinChineseClause(CardTextStyle.Chinese(operation).TrimEnd('。'),
+                    CardTextStyle.Chinese(effects[++index])));
                 continue;
             }
             pieces.Add(CardTextStyle.Chinese(operation));
@@ -978,8 +988,8 @@ public static class CardDescriptionRenderer
                 && CardEffectRules.IsLegalDependencyPayoff(operation, effects[index + 1]))
             {
                 var payoff = effects[++index];
-                var combined = CardTextStyle.Chinese(operation).TrimEnd('。')
-                    + CardTextStyle.Chinese(payoff);
+                var combined = JoinChineseClause(CardTextStyle.Chinese(operation).TrimEnd('。'),
+                    CardTextStyle.Chinese(payoff));
                 pieces.Add(AdaptAttackReceivedPayoff(payoff, combined, chinese: true));
                 continue;
             }
@@ -1060,8 +1070,8 @@ public static class CardDescriptionRenderer
                 var chosen = OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
                     is "selected" or "i_exhaustselectedattack";
                 lines.Add(new RenderedLine(chosen
-                    ? "选择你手牌中的一张攻击牌，将其消耗，并将它的伤害添加给这张牌。"
-                    : "消耗你的手牌中随机一张攻击牌，并将它的伤害添加给这张牌。", false));
+                    ? "选择你手牌中的一张攻击牌，将其消耗，并将消耗的牌的攻击力添加到这张牌。"
+                    : "消耗你的手牌中随机一张攻击牌，并将消耗的牌的攻击力添加到这张牌。", false));
                 index++;
                 continue;
             }
@@ -1085,7 +1095,7 @@ public static class CardDescriptionRenderer
                         RenderAttackReceivedEffects(effects), chinese: true);
                     lines.Add(new RenderedLine(effects.Length == 0
                             ? "你在这个回合每受到一次攻击。"
-                            : $"你在这个回合每受到一次攻击，都会{attackRenderedEffects}",
+                            : JoinChineseClause("你在这个回合每受到一次攻击，都会", attackRenderedEffects),
                         MustRenderLast(operation) || effects.Any(MustRenderLast)));
                     continue;
                 }
@@ -1100,7 +1110,8 @@ public static class CardDescriptionRenderer
                     && renderedEffects.StartsWith("在本回合", StringComparison.Ordinal))
                     renderedEffects = renderedEffects[1..];
                 lines.Add(new RenderedLine(
-                    effects.Length == 0 ? CardTextStyle.Chinese(operation) : $"{triggerText}{separator}{renderedEffects}",
+                    effects.Length == 0 ? CardTextStyle.Chinese(operation)
+                        : JoinChineseClause(triggerText + separator, renderedEffects),
                     MustRenderLast(operation) || effects.Any(MustRenderLast)));
                 continue;
             }
@@ -1119,7 +1130,8 @@ public static class CardDescriptionRenderer
             }
         }
 
-        return string.Join("\n", lines.OrderBy(line => line.Last ? 1 : 0).Select(line => line.Text));
+        return CardTextStyle.NormalizeRenderedChineseEnergyNotation(
+            string.Join("\n", lines.OrderBy(line => line.Last ? 1 : 0).Select(line => line.Text)));
     }
 }
 
@@ -1128,6 +1140,7 @@ public static class GeneratorSelfTest
 {
     public static void Run()
     {
+        CardTextStyle.ValidateEnergyNotation();
         // Cheap static catalog audits run before the randomized stress loops so decomposition regressions fail fast.
         EffectBalanceModel.Validate();
         SlyKeywordTuning.Validate();
@@ -1208,6 +1221,13 @@ public static class GeneratorSelfTest
                 packageLocalizationAtom.LocalizedText.EnglishTemplate!)]));
         if (!ReferenceEquals(ComponentApi.Resolve(packageRequest), packageProfile)
             || !ComponentApi.RegisteredProfiles.Contains(packageRequest)
+            || !ComponentApi.TryGetProfileRequest(packageRequest.ProfileId, false, out var resolvedPackageRequest)
+            || resolvedPackageRequest != packageRequest
+            || CardTinkeringApi.GetComponentPrototypes(packageRequest).Count != packageCatalog.Atoms.Count
+            || CardTinkeringApi.GetComponentPrototypes(packageRequest)
+                .Any(prototype => prototype.Category == ComponentCategory.Automatic)
+            || !CardTinkeringApi.GetKeywordPrototypes(packageRequest)
+                .Any(keyword => keyword.Id == "selftest:charged" && keyword.AllowedOnBaseCard)
             || !ComponentPackageApi.RegisteredPackages.Contains("selftest:package", StringComparer.Ordinal)
             || !ComponentKeywordApi.IsRegistered("selftest:charged")
             || !ComponentLocalizationApi.TryGet(packageLocalizationAtom.SemanticId,
@@ -1230,7 +1250,7 @@ public static class GeneratorSelfTest
             || customKeywordRoundTrip.Upgrade.Effects.Single().KeywordId != "selftest:charged")
             throw new InvalidOperationException("自定义关键词ID没有稳定通过卡牌/升级快照往返。");
         if (ComponentApi.ApiVersion != 3 || ComponentPackageApi.ApiVersion != 3
-            || CardTinkeringApi.ApiVersion != 5
+            || CardTinkeringApi.ApiVersion != 6
             || !GeneratedCardTagPolicy.AddedKeywords(new CardUpgradePlan(1,
                     [new CardUpgradeEffect(CardUpgradeKind.GrantInnate)], "测试。", [], "Test."))
                 .Contains(CardTag.Innate)
@@ -1239,6 +1259,31 @@ public static class GeneratorSelfTest
                         KeywordId: "selftest:charged")], "测试。", [], "Test."))
                 .Contains("selftest:charged"))
             throw new InvalidOperationException("API v3关键词升级迁移投影不完整。");
+
+        var nestedTriggerCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad);
+        var hpLostTrigger = nestedTriggerCatalog.Atoms.First(atom =>
+            atom.Template == "A:whenOwnerHpLostDuringTurn");
+        var vulnerableReductionTrigger = nestedTriggerCatalog.Atoms.First(atom =>
+            atom.Template == "C:VulnerableEnemyDamageReductionThisTurn");
+        var nestedTriggers = new[]
+        {
+            new GeneratorOperation(hpLostTrigger.Template, hpLostTrigger.Scope, string.Empty,
+                new Dictionary<string, int>(), RuntimeSpec: hpLostTrigger.RuntimeSpec,
+                LocalizedText: hpLostTrigger.LocalizedText),
+            new GeneratorOperation(vulnerableReductionTrigger.Template, vulnerableReductionTrigger.Scope,
+                string.Empty,
+                new Dictionary<string, int> { ["triggerIndex"] = 0 },
+                RuntimeSpec: vulnerableReductionTrigger.RuntimeSpec,
+                LocalizedText: vulnerableReductionTrigger.LocalizedText)
+        };
+        var nestedTriggerShell = new GeneratedCard(1, GeneratedCardType.Power, TargetMode.Other,
+            GeneratedRarity.Rare, string.Empty, [], nestedTriggers, Character: GeneratedCharacter.Ironclad);
+        var nestedTriggerValidation = CardTinkeringApi.Validate(nestedTriggerShell, nestedTriggers);
+        if (nestedTriggerValidation.IsValid
+            || !nestedTriggerValidation.Errors.Contains(
+                "trigger components cannot be nested below another trigger", StringComparer.Ordinal))
+            throw new InvalidOperationException(
+                "Card-tinkering validation accepted a stateful trigger as another trigger's payoff.");
 
         foreach (var character in Enum.GetValues<GeneratedCharacter>())
         {
@@ -1679,6 +1724,8 @@ public static class GeneratorSelfTest
         var shiv = DerivativeSlotCatalog.All.Single(definition => definition.Id == "shiv");
         var gazeValueProbe = DerivativeSlotCatalog.All.Single(definition => definition.Id == "gaze");
         var swordValueProbe = DerivativeSlotCatalog.All.Single(definition => definition.Id == "sword");
+        var minionSacrificeValueProbe = DerivativeSlotCatalog.All.Single(definition =>
+            definition.Id == "minion_sacrifice");
         if (DerivativeSlotCatalog.AdjustFixedProducerCount("N:CreateShiv", "将3张小刀加入手牌。", gazeValueProbe)
                 != "将2张小刀加入手牌。"
             || DerivativeSlotCatalog.AdjustFixedProducerCount("N:CreateInkShiv", "将2张墨影小刀加入手牌。", gazeValueProbe)
@@ -1694,6 +1741,8 @@ public static class GeneratorSelfTest
             || DerivativeSlotCatalog.AdjustFixedProducerCount("I:ProxyAtomic_Charge",
                 "选择你抽牌堆中的2张牌，将其变化为仆从俯冲。", shiv)
                 != "选择你抽牌堆中的4张牌，将其变化为仆从俯冲。"
+            || DerivativeSlotCatalog.AdjustFixedProducerCount("I:ProxyAtomic_Begone", 1,
+                minionSacrificeValueProbe) != 2
             || DerivativeSlotCatalog.AdjustFixedProducerCount("I:ProxyAtomic_Seance",
                 "将你抽牌堆中的一张牌变化为灵魂。", shiv)
                 != "将你抽牌堆中的2张牌变化为灵魂。"
@@ -1711,6 +1760,31 @@ public static class GeneratorSelfTest
         CardNameGenerator.ValidateCompositionRules();
         CardNameGenerator.ValidateCatalog(CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad));
         CardNameGenerator.ValidateCatalog(CharacterComponentCatalogs.Get(GeneratedCharacter.Silent));
+        var necrobinderNameCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder);
+        var hangNameProbe = new GeneratedCard(1, GeneratedCardType.Attack, TargetMode.SingleEnemy,
+            GeneratedRarity.Common, string.Empty, Array.Empty<CardTag>(),
+            [
+                new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly, "造成6点伤害。",
+                    new Dictionary<string, int>(), RequiresSingleTarget: true),
+                new GeneratorOperation("NCR:DoubleHangDamage", OperationScope.SingleEnemyOnly,
+                    "这张牌的伤害受“吊杀”影响。让所有“吊杀”牌对这名敌人造成的伤害翻倍。",
+                    new Dictionary<string, int>(), RequiresSingleTarget: true)
+            ], Character: GeneratedCharacter.Necrobinder);
+        var ordinaryNameProbe = hangNameProbe with
+        {
+            Operations = [hangNameProbe.Operations[0]]
+        };
+        var nameProbeRandom = new Random(20260907);
+        var generatedHangName = CardNameGenerator.Generate(necrobinderNameCatalog, hangNameProbe, nameProbeRandom);
+        if (!CardNameGenerator.NameRespectsHangRule(generatedHangName, isHang: true))
+            throw new InvalidOperationException("吊杀组件没有强制生成吊杀牌名。 ");
+        for (var index = 0; index < 200; index++)
+        {
+            var ordinaryName = CardNameGenerator.Generate(necrobinderNameCatalog, ordinaryNameProbe,
+                nameProbeRandom);
+            if (!CardNameGenerator.NameRespectsHangRule(ordinaryName, isHang: false))
+                throw new InvalidOperationException("没有吊杀组件的牌仍可抽到吊杀牌名。 ");
+        }
         var numericSource = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes
             .SelectMany(recipe => recipe.Atoms.Select(atom => (Recipe: recipe, Atom: atom)))
             .First(item => System.Text.RegularExpressions.Regex.IsMatch(item.Atom.ChineseText, @"\d"));
@@ -2898,7 +2972,7 @@ public static class GeneratorSelfTest
             new("A:ProxyAtomic_ForbiddenGrimoire", OperationScope.AbilityRule,
                 "在战斗结束时，你可以从你的牌组中选一张牌移除。", false, CardReferenceRequirement.None),
             new("I:ProxyAtomic_Transfigure", OperationScope.Independent,
-                "给一张手牌添加重放。其耗能增加1。", false, CardReferenceRequirement.HandCard),
+                "选择一张手牌，使其获得重放。该牌的耗能增加1。", false, CardReferenceRequirement.HandCard),
             new("A:ruleShivsRetain", OperationScope.AbilityRule, "小刀获得保留。", false,
                 CardReferenceRequirement.None)
         };
@@ -3094,6 +3168,9 @@ public static class GeneratorSelfTest
             new Dictionary<string, int> { ["amount"] = 1, ["triggerIndex"] = 0 });
         var linkedTurnEndStars = new GeneratorOperation("R:GainStars", OperationScope.NonTargeted, "获得1蓝星。",
             new Dictionary<string, int> { ["amount"] = 1, ["triggerIndex"] = 0 });
+        var linkedTurnEndTemporaryStrength = new GeneratorOperation("N:TempStrength",
+            OperationScope.NonTargeted, "本回合获得2点力量。",
+            new Dictionary<string, int> { ["amount"] = 2, ["triggerIndex"] = 0 });
         var doubleVulnerableAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes
             .Single(recipe => recipe.Id == "MoltenFist").Atoms
             .Single(CardEffectRules.IsDoubleTargetVulnerable);
@@ -3136,6 +3213,10 @@ public static class GeneratorSelfTest
             || CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs([turnEndTrigger, linkedTurnEndStars])
             || !CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs([turnStartTrigger, linkedTurnEndDraw]))
             throw new InvalidOperationException("回合结束触发器仍允许抽牌或回复能量/蓝星。");
+        if (CardEffectRules.HasNoTurnEndTurnLocalPayoffs([turnEndTrigger, linkedTurnEndTemporaryStrength])
+            || !CardEffectRules.HasNoTurnEndTurnLocalPayoffs(
+                [turnStartTrigger, linkedTurnEndTemporaryStrength]))
+            throw new InvalidOperationException("回合结束触发器仍允许仅持续本回合的后续效果。");
         if (EffectSelectionTuning.RepeatedFamilyWeightBasisPoints([blockAtom], []) != 10_000
             || EffectSelectionTuning.RepeatedFamilyWeightBasisPoints([blockAtom],
                 repeatedFieldProbe.Take(1).ToArray()) != 2_000
@@ -3488,15 +3569,15 @@ public static class GeneratorSelfTest
         var randomAttackExhaust = new GeneratorOperation("I:ExhaustRandomAttack", OperationScope.Independent,
             "随机消耗手牌中的一张攻击牌。", new Dictionary<string, int>());
         var addExhaustedDamage = new GeneratorOperation("I:AddExhaustedAttackDamage", OperationScope.Independent,
-            "将它的伤害添加给这张牌。", new Dictionary<string, int>());
+            "将消耗的牌的攻击力添加到这张牌。", new Dictionary<string, int>());
         var chosenAttackAssembly = CardUpgradeGenerator.ApplyEffectsToOperations(
             [randomAttackExhaust, addExhaustedDamage],
             [new CardUpgradeEffect(CardUpgradeKind.ChooseExhaust, 0)]);
         if (OperationRuntimeSpecCompiler.GetOrCompile(chosenAttackAssembly[0]).Variant != "i_exhaustselectedattack"
             || CardDescriptionRenderer.Render(chosenAttackAssembly)
-                != "选择你手牌中的一张攻击牌，将其消耗，并将它的伤害添加给这张牌。"
+                != "选择你手牌中的一张攻击牌，将其消耗，并将消耗的牌的攻击力添加到这张牌。"
             || EnglishCardDescriptionRenderer.Render(chosenAttackAssembly)
-                != "Choose an Attack in your Hand to Exhaust and add its damage to this card.")
+                != "Choose an Attack in your Hand to Exhaust and add the Exhausted card's Attack damage to this card.")
             throw new InvalidOperationException("随机消耗攻击牌升级没有同步痛殴组合的执行规格或双语描述。");
         var mandatoryExhaustCountRandom = new Random(20260913);
         var mandatoryExhaustCounts = Enumerable.Range(0, 100_000)
@@ -3768,7 +3849,7 @@ public static class GeneratorSelfTest
         var selfCostPenaltyTwo = selfCostPenalty with { ChineseText = "这张牌的耗能增加2。" };
         var selfCostPenaltyThree = selfCostPenalty with { ChineseText = "这张牌的耗能增加3。" };
         var transfigureTradeoff = new GeneratorOperation("I:ProxyAtomic_Transfigure",
-            OperationScope.Independent, "给一张手牌添加重放。其耗能增加1。", new Dictionary<string, int>());
+            OperationScope.Independent, "选择一张手牌，使其获得重放。该牌的耗能增加1。", new Dictionary<string, int>());
         var exhaustOtherCard = new GeneratorOperation("N:Exhaust", OperationScope.NonTargeted,
             "消耗手牌中的一张牌。", new Dictionary<string, int>());
         var exhaustSelectedDrawCard = new GeneratorOperation("NCR:ExhaustSelectedDrawCard",
@@ -4253,12 +4334,83 @@ public static class GeneratorSelfTest
                     var trigger = new GeneratorOperation(triggerAtom.Template, triggerAtom.Scope,
                         string.Empty, new Dictionary<string, int>(),
                         RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(triggerAtom));
-                    if (!CardEffectRules.CanSupplySpecificTriggerPayload(trigger, atom))
+                    var hasLinkedProvider = recipe.Atoms.Take(atomIndex)
+                        .Where((_, providerIndex) => recipe.TriggerOwners[providerIndex] == owner)
+                        .Any(providerAtom => CardEffectRules.OperationSuppliesReferencedCard(
+                            new GeneratorOperation(providerAtom.Template, providerAtom.Scope,
+                                string.Empty, new Dictionary<string, int>(),
+                                RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(providerAtom))));
+                    if (!CardEffectRules.CanSupplySpecificTriggerPayload(trigger, atom)
+                        && !hasLinkedProvider)
                         throw new InvalidOperationException(
                             $"{characterValue}/{recipe.Id}/{atom.Template} 错接到 {triggerAtom.Template}。");
                 }
             }
         }
+
+        var juggling = catalog.Recipes.Single(recipe => recipe.Id == "Juggling");
+        var referencedCardCopy = juggling.Atoms.Single(atom => atom.Template == "N:Create");
+        var referencedCopySpec = OperationRuntimeSpecCompiler.GetOrCompile(referencedCardCopy);
+        var exhaustTurnEnd = catalog.Recipes.Single(recipe => recipe.Id == "HowlFromBeyond")
+            .Atoms.Single(atom => atom.Template == "C:AtTurnEndIfInExhaust");
+        var exhaustTurnEndOperation = new GeneratorOperation(exhaustTurnEnd.Template, exhaustTurnEnd.Scope,
+            exhaustTurnEnd.ChineseText, new Dictionary<string, int>(), CardTargetSlot: "thisCard",
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(exhaustTurnEnd));
+        var linkedCopyOperation = new GeneratorOperation(referencedCardCopy.Template, referencedCardCopy.Scope,
+            referencedCardCopy.ChineseText, new Dictionary<string, int> { ["triggerIndex"] = 0 },
+            RuntimeSpec: referencedCopySpec);
+        if (referencedCopySpec is not
+                { Opcode: "create_copy", Variant: "referenced_card", CardFilter: "any" }
+            || !referencedCopySpec.Flags.Contains("requires_referenced_card_payload")
+            || !CardEffectRules.TriggerSuppliesReferencedCard(exhaustTurnEndOperation)
+            || !CardEffectRules.CanSupplySpecificTriggerPayload(exhaustTurnEndOperation, referencedCardCopy)
+            || !CardEffectRules.HasValidTriggerPayloadAssembly(
+                [exhaustTurnEndOperation, linkedCopyOperation]))
+            throw new InvalidOperationException(
+                "杂耍的复制后件必须是通用引用牌组件，并可连接消耗牌堆中的本牌触发器。 ");
+        var genericExhaustCopy = juggling with
+        {
+            Id = "AuditGenericReferencedCardCopy",
+            Cost = 1,
+            Type = GeneratedCardType.Skill,
+            Target = TargetMode.Other,
+            Tags = [CardTag.Exhaust],
+            Atoms = [exhaustTurnEnd, referencedCardCopy],
+            TriggerOwners = [-1, 0]
+        };
+        if (!new ComponentAssemblyGenerator(new Random(20260907), GeneratedCharacter.Ironclad)
+                .CanAssemble(genericExhaustCopy))
+            throw new InvalidOperationException(
+                "通用引用牌复制组件必须能组装“回合结束时若本牌在消耗牌堆中，复制到手牌”。 ");
+
+        var aggression = catalog.Recipes.Single(recipe => recipe.Id == "Aggression");
+        var genericUpgrade = aggression.Atoms.Single(atom => atom.Template == "I:UpgradeThatCard");
+        var genericUpgradeSpec = OperationRuntimeSpecCompiler.GetOrCompile(genericUpgrade);
+        var linkedUpgradeOperation = new GeneratorOperation(genericUpgrade.Template, genericUpgrade.Scope,
+            string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 },
+            RuntimeSpec: genericUpgradeSpec);
+        if (genericUpgradeSpec is not
+                { Opcode: "upgrade_card", Variant: "referenced", CardFilter: "any" }
+            || !genericUpgradeSpec.Flags.Contains("requires_referenced_card_payload")
+            || !CardEffectRules.CanSupplySpecificTriggerPayload(exhaustTurnEndOperation, genericUpgrade)
+            || !CardEffectRules.HasValidTriggerPayloadAssembly(
+                [exhaustTurnEndOperation, linkedUpgradeOperation]))
+            throw new InvalidOperationException(
+                "升级引用牌必须是可连接任意带牌触发器的通用组件。 ");
+
+        var genericUpgradeOperation = new GeneratorOperation(genericUpgrade.Template, genericUpgrade.Scope,
+            genericUpgrade.ChineseText, new Dictionary<string, int>(), RuntimeSpec: genericUpgradeSpec);
+        var stompCostReduction = catalog.Recipes.Single(recipe => recipe.Id == "Stomp")
+            .Atoms.Single(atom => atom.Template == "C:whileInCombat");
+        var stompCostOperation = new GeneratorOperation(stompCostReduction.Template, stompCostReduction.Scope,
+            stompCostReduction.ChineseText, new Dictionary<string, int>(),
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(stompCostReduction));
+        if (CardTextStyle.Chinese(linkedCopyOperation) != "将该牌的一张复制品加入你的手牌。"
+            || CardTextStyle.Chinese(genericUpgradeOperation) != "升级该牌。"
+            || !CardTextStyle.Chinese(stompCostOperation).Contains("该牌的耗能", StringComparison.Ordinal)
+            || CardEffectRules.NeedsExternalCardSlot(stompCostOperation))
+            throw new InvalidOperationException(
+                "引用牌结果必须使用“该牌”，而本牌耗能计数器不得误申明外部卡牌槽位。 ");
 
         var coolants = defectCatalog.Recipes.Single(recipe => recipe.Id == "Coolant");
         var coolantDraw = coolants with
@@ -4465,7 +4617,9 @@ public static class GeneratorSelfTest
                 "对所有敌人造成1点伤害。然后将该伤害增加1点。", chinese: true)
                 != "对所有敌人造成1点伤害，并且将该伤害增加1点。"
             || CardDescriptionRenderer.JoinTriggeredEffects("Lose 2 HP. Deal 9 damage.", chinese: false)
-                != "Lose 2 HP and deal 9 damage.")
+                != "Lose 2 HP and deal 9 damage."
+            || CardDescriptionRenderer.JoinChineseClause("每当条件满足时，都会", "奥斯提造成2点伤害。")
+                != "每当条件满足时，都会让奥斯提造成2点伤害。")
             throw new InvalidOperationException("条件绑定的中英文多效果必须合并为同一个句法作用域："
                 + renderedVulnerableConditional);
         var attackReceivedTrigger = new GeneratorOperation("C:untilTurnEndAttackReceived",
@@ -4586,7 +4740,7 @@ public static class GeneratorSelfTest
                 { ChineseText = "在这个回合，你打出的下1张攻击牌获得效果：" }, nextAttackReplay])
                 != "在这个回合，你打出的下1张攻击牌会被额外打出一次。"
             || CardDescriptionRenderer.Render([persistentNextAttackGrant, nextAttackFree])
-                != "你打出的下一张攻击牌耗能变为0。"
+                != "你打出的下一张攻击牌耗能变为0{energyPrefix:energyIcons(1)}。"
             || !CardEffectRules.HasValidNextAttackGrantAssembly([nextTwoAttacks, perfectedNextAttack])
             || CardEffectRules.HasValidNextAttackGrantAssembly([nextTwoAttacks, unsupportedExtraHit])
             || !CardEffectRules.IsNonUpgradeableNumericMarker(nextAttackReplay)
@@ -4984,17 +5138,17 @@ public static class GeneratorSelfTest
             || NumericGenerationTuning.ThinEnemyStrengthGainTail(3, 98) != 2)
             throw new InvalidOperationException("牌堆顶打出并消耗必须是纯正面效果；给予敌人力量必须保留足额负面补偿。 ");
         AssertInvalid(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Common,
-            "你在本回合中每打出过一张攻击牌，其耗能减少1。", Array.Empty<CardTag>(),
+            "本回合每打出过一张攻击牌，该牌的耗能减少1。", Array.Empty<CardTag>(),
             new[]
             {
-                new GeneratorOperation("C:whileInCombat", OperationScope.ConditionalTrigger, "你在本回合中每打出过一张攻击牌，其耗能减少1。", new Dictionary<string, int>())
+                new GeneratorOperation("C:whileInCombat", OperationScope.ConditionalTrigger, "本回合每打出过一张攻击牌，该牌的耗能减少1。", new Dictionary<string, int>())
             }));
         CardTemplateValidator.Validate(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Common,
-            "获得5点格挡。你在本回合中每打出过一张攻击牌，其耗能减少1。", Array.Empty<CardTag>(),
+            "获得5点格挡。本回合每打出过一张攻击牌，该牌的耗能减少1。", Array.Empty<CardTag>(),
             new[]
             {
                 new GeneratorOperation("N:B", OperationScope.NonTargeted, "获得5点格挡。", new Dictionary<string, int>()),
-                new GeneratorOperation("C:whileInCombat", OperationScope.ConditionalTrigger, "你在本回合中每打出过一张攻击牌，其耗能减少1。", new Dictionary<string, int>())
+                new GeneratorOperation("C:whileInCombat", OperationScope.ConditionalTrigger, "本回合每打出过一张攻击牌，该牌的耗能减少1。", new Dictionary<string, int>())
             }));
 
         AssertInvalid(new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other, GeneratedRarity.Common, "每消耗一张牌，获得5点格挡。", Array.Empty<CardTag>(),
@@ -5393,7 +5547,8 @@ public static class GeneratorSelfTest
         if (!orbitUpgrades.Any(upgrade => upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceThreshold))
             || orbitUpgrades.Any(upgrade => upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceThreshold && effect.Delta != -1))
             || orbitUpgrades.Where(upgrade => upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceThreshold))
-                .Any(upgrade => !upgrade.UpgradedChineseDescription.Contains("花费3点能量", StringComparison.Ordinal)))
+                .Any(upgrade => !upgrade.UpgradedChineseDescription.Contains(
+                    "花费{energyPrefix:energyIcons(3)}", StringComparison.Ordinal)))
             throw new InvalidOperationException("普通能量返还门槛升级必须把4降低为3。");
 
         var starTriggerAtom = regentCatalog.Recipes.Single(recipe => recipe.Id == "ChildOfTheStars").Atoms[0];

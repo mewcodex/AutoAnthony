@@ -18,13 +18,17 @@ public enum ComponentSurpriseMode
 /// <summary>Immutable settings used to generate one run.</summary>
 public sealed record ComponentRunSettings(
     bool Enabled,
+    bool AddGeneratedCards,
     bool UltimateChaos,
     bool NumericBalanceOptimization,
     bool NumericRandomMode,
     bool ReplaceStartingCards,
     bool PreserveOriginalCards,
     bool RandomCardArt,
-    ComponentSurpriseMode SurpriseMode);
+    ComponentSurpriseMode SurpriseMode)
+{
+    public bool AddOriginalCards => PreserveOriginalCards;
+}
 
 /// <summary>
 /// Stable access to AutoAnthony's run-generation settings. External character adapters should resolve the
@@ -32,10 +36,11 @@ public sealed record ComponentRunSettings(
 /// </summary>
 public static class ComponentRunSettingsApi
 {
-    public const int ApiVersion = 1;
+    public const int ApiVersion = 2;
 
     public static ComponentRunSettings Local => new(
         ChaosModSettings.Enabled,
+        ChaosModSettings.AddGeneratedCards,
         ChaosModSettings.EffectiveUltimateChaos,
         ChaosModSettings.EffectiveNumericBalanceOptimization,
         ChaosModSettings.EffectiveNumericRandomMode,
@@ -59,6 +64,9 @@ public static class ComponentRunSettingsApi
         var local = Local;
         settings = new ComponentRunSettings(
             marker.MultiplayerModEnabled,
+            marker.MultiplayerAddGeneratedCardsSpecified
+                ? marker.MultiplayerAddGeneratedCards
+                : true,
             marker.MultiplayerUltimateChaos,
             marker.MultiplayerNumericBalanceOptimizationSpecified
                 ? marker.MultiplayerNumericBalanceOptimization

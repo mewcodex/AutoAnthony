@@ -61,7 +61,12 @@ public static class ExternalConsumer
         _ = ComponentRunSettingsApi.TryResolveMultiplayer([], out _);
         _ = AutoAnthonySettingsApi.ApiVersion;
         _ = AutoAnthonySettingsApi.Current;
+        _ = AutoAnthonySettingsApi.Current.AddGeneratedCards;
+        _ = AutoAnthonySettingsApi.Current.AddOriginalCards;
+        _ = AutoAnthonySettingsApi.Current.DecomposeOriginalCards;
         _ = AutoAnthonySettingsApi.Current.ActiveSurpriseMode;
+        _ = ComponentRunSettingsApi.Local.AddGeneratedCards;
+        _ = ComponentRunSettingsApi.Local.AddOriginalCards;
         using var progress = ComponentGenerationProgressApi.Create(1);
         progress.Report(1);
         _ = ComponentSurpriseApi.IsGenerated(null);
@@ -76,19 +81,42 @@ public static class ExternalConsumer
         _ = CardTinkeringApi.GetEffectiveCost(tinkeringProbe);
         _ = CardTinkeringApi.GetKeywordValue(CardTag.Innate);
         _ = CardTinkeringApi.GetComponentPrototypes();
+        _ = CardTinkeringApi.GetComponentPrototypes(request);
+        _ = CardTinkeringApi.GetComponentPrototypes(profileId);
+        _ = CardTinkeringApi.GetKeywordPrototypes(request);
+        _ = CardTinkeringApi.GetKeywordPrototypes(profileId);
         _ = CardTinkeringApi.GetEditableValues(new GeneratorOperation("probe", OperationScope.Independent,
             string.Empty, new Dictionary<string, int>()));
         _ = CardTinkeringApi.Validate(tinkeringProbe, []);
         _ = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(tinkeringProbe));
         _ = CardTinkeringApi.Rebuild(tinkeringProbe, []);
         _ = AutoAnthonyFreeformCardApi.ApiVersion;
+        Func<Player, string, GeneratedCard, ChaosCardModel> createExternalPreview =
+            AutoAnthonyFreeformCardApi.CreatePreview;
+        _ = createExternalPreview;
         _ = AutoAnthonyEditorApi.ApiVersion;
+        _ = AutoAnthonyEditorApi.Supports(profileId, ExternalEditorCapabilities.GeneratedCardEditing);
+        Action<string, ExternalEditorCapabilities> registerEditorCapabilities =
+            AutoAnthonyEditorApi.RegisterExternalCapabilities;
+        _ = registerEditorCapabilities;
         Func<GeneratedCard, int, AutoAnthonyEditorIdentity> rerollIdentity =
             AutoAnthonyEditorApi.RerollEditorIdentity;
         Action<ChaosCardModel, GeneratedCard, AutoAnthonyEditorIdentity> applyIdentity =
             AutoAnthonyEditorApi.ApplyEditorDefinition;
         _ = rerollIdentity;
         _ = applyIdentity;
+        Func<string, GeneratedCard, int, AutoAnthonyEditorIdentity> rerollExternalIdentity =
+            AutoAnthonyEditorApi.RerollEditorIdentity;
+        Action<ChaosCardModel, string, GeneratedCard, AutoAnthonyEditorIdentity> applyExternalIdentity =
+            AutoAnthonyEditorApi.ApplyEditorDefinition;
+        _ = rerollExternalIdentity;
+        _ = applyExternalIdentity;
+        Func<Player, bool> resolveActiveProfile = player =>
+            ExternalComponentCharacterApi.TryGetActiveProfile(player, out _);
+        Func<ChaosCardModel, bool> resolveCardProfile = card =>
+            ExternalComponentCharacterApi.TryGetProfileId(card, out _);
+        _ = resolveActiveProfile;
+        _ = resolveCardProfile;
         _ = NativeCardDecompositionApi.ApiVersion;
         _ = NativeCardDecompositionApi.Cards;
         _ = NativeCardDecompositionApi.Components;
@@ -97,6 +125,12 @@ public static class ExternalConsumer
         _ = NativeCardDecompositionApi.TryCreateDefinition("native/ironclad/setup_strike",
             out _, out _);
         _ = AutoAnthonyNativeCardApi.ApiVersion;
+        Func<CardModel, bool> resolveNative = card =>
+            AutoAnthonyNativeCardApi.TryCreateDefinition(card, out _, out _);
+        Func<Player, CardModel, bool> createNativePreview = (player, card) =>
+            AutoAnthonyNativeCardApi.TryCreateProfilePreview(player, card, out _);
+        _ = resolveNative;
+        _ = createNativePreview;
     }
 
     public static async Task CompileTriggerBridge(ChaosCardModel card, Player player,
@@ -120,6 +154,23 @@ public sealed class SmokeAncientRelicAdapter : IExternalAncientRelicAdapter
     public bool ShouldOverrideArchaicTooth(Player player) => false;
     public bool ShouldOverrideDustyTome(Player player) => false;
     public CardModel AncientCard(Player player, int index) => throw new NotSupportedException();
+}
+
+public sealed class SmokeIdentityProvider : IExternalEditorIdentityProvider
+{
+    public AutoAnthonyEditorIdentity RerollIdentity(GeneratedCard current, int seed) =>
+        new(current.Name!, string.Empty, null, null, null);
+}
+
+public sealed class SmokeNativeCardAdapter : IExternalNativeCardAdapter
+{
+    public string ProfileId => "api_smoke:character";
+    public bool CanHandle(CardModel source) => false;
+    public bool TryCreateDefinition(CardModel source, out GeneratedCard definition)
+    {
+        definition = null!;
+        return false;
+    }
 }
 
 public sealed class SmokeValuation : IComponentValuation

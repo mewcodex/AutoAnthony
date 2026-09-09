@@ -8,13 +8,15 @@ internal static class ChaosModSettings
 {
     private sealed class SettingsData
     {
-        public int Schema { get; set; } = 14;
+        public int Schema { get; set; } = 16;
         public bool Enabled { get; set; } = true;
+        public bool AddGeneratedCards { get; set; } = true;
         public bool ReplaceStartingCards { get; set; } = true;
         public bool UltimateChaos { get; set; }
         public bool NumericBalanceOptimization { get; set; }
         public bool NumericRandomMode { get; set; }
         public bool PreserveOriginalCards { get; set; }
+        public bool DecomposeOriginalCards { get; set; }
         public bool RandomCardArt { get; set; }
         public bool AnytimeCardEditing { get; set; }
         public bool ShowGenerationModeHoverTips { get; set; } = true;
@@ -29,11 +31,13 @@ internal static class ChaosModSettings
         OS.GetUserDataDir(), "AutoAnthony", "settings.json");
     private static bool _loaded;
     private static bool _enabled = true;
+    private static bool _addGeneratedCards = true;
     private static bool _replaceStartingCards = true;
     private static bool _ultimateChaos;
     private static bool _numericBalanceOptimization;
     private static bool _numericRandomMode;
     private static bool _preserveOriginalCards;
+    private static bool _decomposeOriginalCards;
     private static bool _randomCardArt;
     private static bool _anytimeCardEditing;
     private static bool _showGenerationModeHoverTips = true;
@@ -51,6 +55,7 @@ internal static class ChaosModSettings
     internal static bool EffectiveNumericBalanceOptimization =>
         _numericBalanceOverride ?? NumericBalanceOptimization;
     internal static bool EffectiveNumericRandomMode => _numericRandomOverride ?? NumericRandomMode;
+    internal static bool EffectiveGeneratedCardsEnabled => Enabled && AddGeneratedCards;
 
     internal static bool Enabled
     {
@@ -122,10 +127,44 @@ internal static class ChaosModSettings
         set
         {
             EnsureLoaded();
-            if (_preserveOriginalCards == value) return;
-            _preserveOriginalCards = value;
+            var normalized = value || !_addGeneratedCards;
+            if (_preserveOriginalCards == normalized) return;
+            _preserveOriginalCards = normalized;
             Save();
-            Log.Info($"[AutoAnthony] Original non-Basic cards {(value ? "preserved" : "replaced")}; the change applies to newly generated runs.");
+            Log.Info($"[AutoAnthony] Original cards {(normalized ? "enabled" : "disabled")}; the change applies to newly generated runs.");
+        }
+    }
+
+    internal static bool DecomposeOriginalCards
+    {
+        get { EnsureLoaded(); return _decomposeOriginalCards; }
+        set
+        {
+            EnsureLoaded();
+            if (_decomposeOriginalCards == value) return;
+            _decomposeOriginalCards = value;
+            Save();
+            Log.Info($"[AutoAnthony] Original-card component descriptions {(value ? "enabled" : "disabled")}.");
+        }
+    }
+
+    internal static bool AddGeneratedCards
+    {
+        get { EnsureLoaded(); return _addGeneratedCards; }
+        set
+        {
+            EnsureLoaded();
+            if (_addGeneratedCards == value) return;
+            _addGeneratedCards = value;
+            if (!value)
+            {
+                // A run must contain at least one of the generated and original pools. Without generated cards,
+                // the complete vanilla pool/starting deck/relic behavior is authoritative.
+                _preserveOriginalCards = true;
+                _replaceStartingCards = false;
+            }
+            Save();
+            Log.Info($"[AutoAnthony] Generated cards {(value ? "enabled" : "disabled")}; the change applies to newly generated runs.");
         }
     }
 
@@ -167,10 +206,11 @@ internal static class ChaosModSettings
         set
         {
             EnsureLoaded();
-            if (_replaceStartingCards == value) return;
-            _replaceStartingCards = value;
+            var normalized = value && _addGeneratedCards;
+            if (_replaceStartingCards == normalized) return;
+            _replaceStartingCards = normalized;
             Save();
-            Log.Info($"[AutoAnthony] Starting-card replacement {(value ? "enabled" : "disabled")}; the change applies to newly generated runs.");
+            Log.Info($"[AutoAnthony] Starting-card replacement {(normalized ? "enabled" : "disabled")}; the change applies to newly generated runs.");
         }
     }
 
@@ -285,11 +325,15 @@ internal static class ChaosModSettings
             if (!File.Exists(SettingsPath)) return;
             var json = File.ReadAllText(SettingsPath);
             _enabled = ParseEnabled(json);
+            _addGeneratedCards = ParseBooleanSetting(json, true,
+                "AddGeneratedCards", "add_generated_cards", "addAutoAnthonyCards");
             _replaceStartingCards = ParseReplaceStartingCards(json);
             _ultimateChaos = ParseUltimateChaos(json);
             _numericBalanceOptimization = ParseNumericBalanceOptimization(json);
             _numericRandomMode = ParseBooleanSetting(json, false, "NumericRandomMode", "numeric_random_mode");
             _preserveOriginalCards = ParseBooleanSetting(json, false, "PreserveOriginalCards", "preserve_original_cards");
+            _decomposeOriginalCards = ParseBooleanSetting(json, false,
+                "DecomposeOriginalCards", "decompose_original_cards");
             _randomCardArt = ParseBooleanSetting(json, false, "RandomCardArt", "random_card_art");
             _anytimeCardEditing = ParseBooleanSetting(json, false,
                 "AnytimeCardEditing", "anytime_card_editing");
@@ -301,15 +345,19 @@ internal static class ChaosModSettings
             _surpriseModePro = ParseSurpriseModePro(json);
             _historyOptimizationSignatures = ParseHistoryOptimizationSignatures(json);
             NormalizeSurpriseModes(ref _surpriseMode, ref _surpriseModeLite, ref _surpriseModePro);
+            NormalizePoolSettings(ref _addGeneratedCards, ref _preserveOriginalCards,
+                ref _replaceStartingCards);
         }
         catch (Exception exception)
         {
             _enabled = true;
+            _addGeneratedCards = true;
             _replaceStartingCards = true;
             _ultimateChaos = false;
             _numericBalanceOptimization = false;
             _numericRandomMode = false;
             _preserveOriginalCards = false;
+            _decomposeOriginalCards = false;
             _randomCardArt = false;
             _anytimeCardEditing = false;
             _showGenerationModeHoverTips = true;
@@ -331,11 +379,13 @@ internal static class ChaosModSettings
                 new SettingsData
                 {
                     Enabled = _enabled,
+                    AddGeneratedCards = _addGeneratedCards,
                     ReplaceStartingCards = _replaceStartingCards,
                     UltimateChaos = _ultimateChaos,
                     NumericBalanceOptimization = _numericBalanceOptimization,
                     NumericRandomMode = _numericRandomMode,
                     PreserveOriginalCards = _preserveOriginalCards,
+                    DecomposeOriginalCards = _decomposeOriginalCards,
                     RandomCardArt = _randomCardArt,
                     AnytimeCardEditing = _anytimeCardEditing,
                     ShowGenerationModeHoverTips = _showGenerationModeHoverTips,
@@ -576,6 +626,14 @@ internal static class ChaosModSettings
         }
     }
 
+    private static void NormalizePoolSettings(ref bool addGeneratedCards, ref bool preserveOriginalCards,
+        ref bool replaceStartingCards)
+    {
+        if (addGeneratedCards) return;
+        preserveOriginalCards = true;
+        replaceStartingCards = false;
+    }
+
     internal static void AuditCompatibility()
     {
         if (!ParseEnabled("{\"Enabled\":true}")
@@ -595,7 +653,12 @@ internal static class ChaosModSettings
             throw new InvalidOperationException("Numeric Balance Optimization setting compatibility audit failed.");
         if (!ParseBooleanSetting("{\"NumericRandomMode\":true}", false, "NumericRandomMode")
             || ParseBooleanSetting("{\"Schema\":10}", false, "NumericRandomMode")
+            || !ParseBooleanSetting("{\"Schema\":14}", true, "AddGeneratedCards")
+            || ParseBooleanSetting("{\"add_generated_cards\":0}", true,
+                "AddGeneratedCards", "add_generated_cards")
             || !ParseBooleanSetting("{\"preserve_original_cards\":1}", false, "PreserveOriginalCards", "preserve_original_cards")
+            || !ParseBooleanSetting("{\"decompose_original_cards\":1}", false,
+                "DecomposeOriginalCards", "decompose_original_cards")
             || !ParseBooleanSetting("{\"random_card_art\":1}", false, "RandomCardArt", "random_card_art")
             || !ParseBooleanSetting("{\"anytime_card_editing\":1}", false,
                 "AnytimeCardEditing", "anytime_card_editing")
@@ -604,6 +667,12 @@ internal static class ChaosModSettings
             || ParseBooleanSetting("{\"show_generation_mode_hover_tips\":false}", true,
                 "ShowGenerationModeHoverTips", "show_generation_mode_hover_tips"))
             throw new InvalidOperationException("New generation-setting compatibility audit failed.");
+        var addGenerated = false;
+        var addOriginal = false;
+        var replaceStarting = true;
+        NormalizePoolSettings(ref addGenerated, ref addOriginal, ref replaceStarting);
+        if (addGenerated || !addOriginal || replaceStarting)
+            throw new InvalidOperationException("Card-pool setting dependency normalization failed.");
         if (!ParseReplaceStartingCards("{\"ReplaceStartingCards\":true}")
             || ParseReplaceStartingCards("{\"replace_starting_cards\":0}")
             || !ParseReplaceStartingCards("{\"Schema\":7,\"UltimateChaos\":true}"))

@@ -876,7 +876,8 @@ internal static class NegativeEffectTuning
             "R:DiscardTopOfDraw" => 100d,
             // Random or automatic consumption is an additive payment. Player-selected and "up to" Exhaust is
             // controlled deck-thinning and is priced as a positive effect instead.
-            "N:Exhaust" when spec is { Variant: "referenced", CardFilter: "skill" } =>
+            "N:Exhaust" when spec is { Variant: "referenced", CardFilter: "skill" }
+                || IsSkillPlayedReferencedExhaust(operation, operations) =>
                 EffectBalanceModel.ReferencedSkillExhaustValuePerCard,
             "N:Exhaust" when spec.Variant is "random" or "referenced" or "top" => 100d,
             "I:ExhaustRandomAttack" => 100d,
@@ -904,6 +905,16 @@ internal static class NegativeEffectTuning
                 frequency = Math.Max(1d, EffectBalanceModel.ExpectedTriggerResolutions(trigger, 2.4d));
         }
         return unitValue * amount * frequency;
+    }
+
+    private static bool IsSkillPlayedReferencedExhaust(GeneratorOperation operation,
+        IReadOnlyList<GeneratorOperation>? operations)
+    {
+        if (operations is null
+            || !operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
+            || triggerIndex < 0 || triggerIndex >= operations.Count)
+            return false;
+        return OperationRuntimeSpecCompiler.GetOrCompile(operations[triggerIndex]).Trigger?.Kind == "skill_played";
     }
 
     internal static double TotalLinearCompensationValue(IReadOnlyList<GeneratorOperation> operations)

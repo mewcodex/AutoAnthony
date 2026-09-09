@@ -31,7 +31,9 @@ The catalog contains 567 records derived from 559 non-multiplayer source classes
 
 The token/derivative pool contains `Disintegration`, `Fuel`, `GiantRock`, `Luminesce`, `MindRot`, `MinionDiveBomb`, `MinionSacrifice`, `MinionStrike`, `Shiv`, `Sloth`, `Soul`, `SovereignBlade`, `SweepingGaze`, and `WasteAway`.
 
-`Fasten` and `DeprecatedCard` are included explicitly. Event-rarity cards retain their actual in-run behavior. `Unplayable` is represented as a first-class keyword (`不可被打出`) and is assigned according to the native source rather than inferred from rarity.
+`Fasten` and `DeprecatedCard` are included explicitly. Event-rarity cards retain their actual in-run behavior and
+provide per-component bilingual text so their untouched native instances can also use component-composed
+descriptions. `Unplayable` is represented as a first-class keyword (`不可被打出`) and is assigned according to the native source rather than inferred from rarity.
 
 ## Reconstruction model
 

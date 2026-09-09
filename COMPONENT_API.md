@@ -1,6 +1,6 @@
 # AutoAnthony component API
 
-Status: API v3. Component catalogs, occurrence control, numeric parameter control, runtime execution, presentation
+Status: component API v3 / editor catalog API v6. Component catalogs, occurrence control, numeric parameter control, runtime execution, presentation
 and external-character definition hosting are public, localization-independent interfaces. The public contract is
 covered by an external-consumer compile test; built-in generation remains covered by the full generator self-test
 and a historical full-pool drift corpus.
@@ -47,6 +47,7 @@ native card and native pool unchanged.
 | `RequiresSingleTarget` | Whether the completed card must select one enemy. |
 | `CardReference` | Required card-selection slot, if any. |
 | `RuntimeSpec` | Opcode, variant, target, zones, flags, named value slots, condition and trigger. |
+| `Category` | Optional localization-independent editor category; `Automatic` derives it from RuntimeSpec. |
 | `Multiplicity` | Computed component occurrence scope. |
 
 External Template names are never inspected to infer gameplay. Use the public `ComponentSemanticFlags` constants
@@ -100,6 +101,16 @@ The linked payoff is an ordinary component such as `N:B`, `N:Draw`, `N:E`, `R:Ga
 Doom, Summon, or an Orb action. It keeps exactly the same executor route and per-unit value as its immediate form;
 only the trigger cadence changes its total value. Resource refunds use the same delayed cadence instead of a
 separate Energy-only discount.
+
+Card-bearing triggers form a second generic composition surface. A payoff whose RuntimeSpec requires
+`requires_referenced_card_payload` may follow any trigger that structurally supplies a card (played, drawn,
+generated, exhausted, iterated, or the host card observed in one of its own pile-state triggers). It may also consume
+a card emitted by an earlier card-moving provider in the same trigger. For example, Juggling's
+`create_copy/referenced_card` payoff is not Attack-specific: its native trigger supplies an Attack, while the same
+payoff may legally follow `turn_end_if_self_in_exhaust` and copy the host card into Hand. The shared contract also
+supports generic actions such as upgrading that referenced card. Damage modifiers, random-enemy autoplay and other
+actions that actually require an Attack retain their filtered payload contracts.
+Older `create_copy/referenced_attack` snapshots remain executable but are not emitted by the reviewed catalog.
 
 Shared immediate authoring IDs now also cover permanent Strength (`N:Self`), permanent Dexterity (`N:Dex`),
 temporary enemy Strength loss (`T:TempStrengthLoss`), retain-hand-this-turn (`N:RetainHandThisTurn`), a random
@@ -456,9 +467,16 @@ live saves are migrated card-by-card; schema 10 is the current structured format
 ## Card-editor and settings services
 
 `CardTinkeringApi` is the localization-independent integration surface for companion editors. Its API version is
-`5`. It serializes the complete structured card payload, evaluates the production whole-card budget, validates a
+`6`. It serializes the complete structured card payload, evaluates the production whole-card budget, validates a
 replacement operation list, and rebuilds descriptions/upgrades without parsing rendered prose. Values use the
 generator's native currency: `100` units equal one point of ordinary single-target damage.
+
+Profile-aware editors should call `GetComponentPrototypes(ComponentProfileRequest)` (or the stable-profile-ID
+overload) and `GetKeywordPrototypes`. These enumerate the resolved external profile rather than only the six
+built-in catalogs, preserve ownership as `ProfileId`, and expose profile-local base/add/remove keyword permissions.
+`ComponentCategory` is explicit component metadata with a RuntimeSpec-only fallback; an editor never needs to
+classify components by Chinese or English template text. `ComponentApi.TryGetProfileRequest` resolves built-in,
+registered external, and derived Ultimate-Chaos requests without scraping internal registries.
 
 Prefer `EvaluateBudget` when an editor needs the exact production inequality. It exposes positive value, linear
 downside compensation, multiplicative downside capacity, net value, and the ordinary shell upper bound.
@@ -470,13 +488,17 @@ operation that should be installed and repaired at runtime.
 are suitable for an editor's own persistence and multiplayer payload, but AutoAnthony does not synchronize that
 payload for the editor.
 
-`AutoAnthonySettingsApi` v2 exposes one immutable snapshot of every user-facing setting. It deliberately does not
+`AutoAnthonySettingsApi` v4 exposes one immutable snapshot of every user-facing setting, including the independent
+`AddGeneratedCards` pool switch and the immediate `DecomposeOriginalCards` presentation switch. The latter keeps
+native execution intact while projecting untouched original-card descriptions from the structured component catalog.
+`ComponentRunSettingsApi` v2 carries the pool switch separately from the master
+`Enabled` flag, so disabling random-pool insertion does not disable component execution or native-card editing. It deliberately does not
 expose mutation; effective run and host-authoritative multiplayer settings remain the responsibility of
 `ComponentRunSettingsApi`.
 
 ### Explicit per-card identity editing
 
-`AutoAnthonyEditorApi` v1 is the only supported path for renaming an ordinary generated card or assigning a new
+`AutoAnthonyEditorApi` v2 is the only supported path for renaming an ordinary generated card or assigning a new
 portrait to that individual card. `RerollEditorIdentity` is side-effect free and deterministic for a fixed
 `GeneratedCard` and seed. It reuses production component relevance, cost/type/color matching, same-character name
 parts, the Strike/Form suffix rules, enabled portrait replacements, and the Random Card Art setting. Ordinary cards
@@ -495,3 +517,25 @@ target, rarity, character, tags, and shell-owned upgrade behavior. The edited de
 variant are saved on the card instance. Missing cosmetic providers on another machine render the stable native
 fallback. Calling `ApplyTinkeredDefinition` directly continues to reject name changes and does not read a portrait
 override, so merely installing AutoAnthony without an editor preserves its existing behavior.
+
+External profiles register `IExternalEditorIdentityProvider` and use the ProfileId overloads. The provider owns
+its name corpus, portrait sources, Ancient-size boundary and cosmetic fallback validation; AutoAnthony persists the
+chosen identity and enforces the live card's profile and immutable shell. `AutoAnthonyFreeformCardApi` v2 likewise
+accepts ProfileId for preview, deck and combat creation and obtains the concrete host from the external runtime
+registration. `ExternalComponentCharacterApi.TryGetProfileId` and `TryGetActiveProfile` expose profile ownership
+without relying on a borrowed `GeneratedCharacter` archetype.
+
+External editor support is opt-in and independent from external-character generation. Registering
+`ComponentPackageRegistration`, `ExternalComponentCharacterRegistration`, and its runtime host grants **no** editor
+capabilities. An external character which only wants AutoAnthony random cards stops there. A character which also
+wants editor support calls `AutoAnthonyEditorApi.RegisterExternalCapabilities`; editor consumers must check
+`AutoAnthonyEditorApi.Supports` before presenting their UI. Registering an identity provider opts into identity and
+generated-card editing, while registering a native-card adapter opts into native decomposition/freeform hosting.
+Consequently neither AutoAnthony nor an editor silently treats every external Profile as editable.
+
+For exact decomposition of an external character's native cards, register `IExternalNativeCardAdapter` through
+`AutoAnthonyNativeCardApi` v3. It identifies the owning native cards, returns a complete structured `GeneratedCard`,
+and copies character-specific per-instance state after materialization. `TryCreateDefinition`,
+`TryCreateProfilePreview`, and the component-description method then work for built-in and registered external
+cards. Untouched native cards remain native, and the adapter—not AutoAnthony—remains authoritative for mechanics
+that cannot be represented in the common component state.

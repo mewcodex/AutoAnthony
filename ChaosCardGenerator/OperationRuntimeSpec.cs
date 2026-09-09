@@ -669,6 +669,8 @@ public static class OperationRuntimeSpecCompiler
             "N:AllTempStrengthLoss" or "R:EnemiesLoseStrengthThisTurn" =>
                 CompileSharedPowerAction(operation, "strength_loss_this_turn", "all_enemies"),
             "CL:AddRandomZeroCostCardsToHand" => CompileRandomZeroCostCards(operation),
+            "I:UpgradeThatCard" => Spec("upgrade_card", "referenced", "referenced_card",
+                cardFilter: "any", flags: ["requires_referenced_card_payload"]),
             "CL:ProxyAtomic_Discovery" or "CL:ProxyAtomic_Splash" or "I:ProxyAtomic_Quasar" =>
                 CompileCardChoice(operation),
             "D:DrawAndDiscardNonZero" => CompileDrawAndDiscardNonZero(operation),
@@ -831,11 +833,14 @@ public static class OperationRuntimeSpecCompiler
             && text.Contains("弃牌堆", StringComparison.Ordinal)
             && (text.Contains("此牌", StringComparison.Ordinal) || text.Contains("这张牌", StringComparison.Ordinal)))
             flags.Add("copy_this_to_discard");
-        if (operation.Template == "N:Exhaust" && text == "消耗那张非攻击牌。")
+        if (operation.Template == "N:Exhaust" && text is "消耗那张非攻击牌。" or "消耗该非攻击牌。")
             flags.Add("referenced_non_attack_exhaust");
         if (operation.Template is "D:ReplayEventCard" or "D:ReturnEventCardToHand"
             or "CL:PutEventCardOnDrawTop" or "I:PlayAtRandomEnemy")
             flags.Add("requires_event_card_payload");
+        if (spec is { Opcode: "create_copy", Variant: "referenced_card" }
+            or { Opcode: "upgrade_card", Variant: "referenced" })
+            flags.Add("requires_referenced_card_payload");
         if (operation.Template is "NCR:ApplyEventDamageAsDoom" or "NCR:AllEnemiesLoseEventHp")
             flags.Add("requires_event_amount_payload");
         if (operation.Template == "NCR:ApplyEventDamageAsDoom")
@@ -925,6 +930,10 @@ public static class OperationRuntimeSpecCompiler
             && operation.Template != "I:UpgradeThatCard"
             && operation.Template != "CL:PutEventCardOnDrawTop"
             && operation.Template is not ("D:ReplayEventCard" or "D:ReturnEventCardToHand")
+            && spec.Trigger is null
+            && spec.Target != "referenced_card"
+            && !flags.Contains("requires_event_card_payload")
+            && !flags.Contains("requires_referenced_card_payload")
             && !text.Contains("那张攻击牌", StringComparison.Ordinal)
             && !text.Contains("对一名随机敌人打出这张牌", StringComparison.Ordinal)
             && !text.Contains("将该攻击牌额外打出", StringComparison.Ordinal)
@@ -1979,6 +1988,10 @@ public static class OperationRuntimeSpecCompiler
                 && operation.Template != "I:UpgradeThatCard"
                 && operation.Template != "CL:PutEventCardOnDrawTop"
                 && operation.Template is not ("D:ReplayEventCard" or "D:ReturnEventCardToHand")
+                && spec.Trigger is null
+                && spec.Target != "referenced_card"
+                && !spec.Flags.Contains("requires_event_card_payload")
+                && !spec.Flags.Contains("requires_referenced_card_payload")
                 && !operation.ChineseText.Contains("那张攻击牌", StringComparison.Ordinal)
                 && !operation.ChineseText.Contains("对一名随机敌人打出这张牌", StringComparison.Ordinal)
                 && !operation.ChineseText.Contains("将该攻击牌额外打出", StringComparison.Ordinal)
@@ -2188,9 +2201,19 @@ public static class OperationRuntimeSpecCompiler
                 sourceZone: "current_character_pool", destinationZone: "hand",
                 flags: text.Contains("升级过", StringComparison.Ordinal) ? ["upgrade_generated"] : [],
                 values: [Count(1, explicitValue: false)]);
+        // A referenced-card copy consumes the card supplied by its trigger rather than the host card.  Juggling's
+        // native trigger happens to supply an Attack, but copying itself has no Attack-only semantic requirement;
+        // keeping the filter generic lets the same component follow any compatible card-bearing trigger.
+        if ((text.Contains("这张牌", StringComparison.Ordinal)
+                || text.Contains("该牌", StringComparison.Ordinal))
+            && text.Contains("复制", StringComparison.Ordinal)
+            && text.Contains("手牌", StringComparison.Ordinal))
+            return Spec("create_copy", "referenced_card", "referenced_card", destinationZone: "hand",
+                values: [Count(1, explicitValue: false)]);
         if (text.Contains("此牌", StringComparison.Ordinal) && text.Contains("复制", StringComparison.Ordinal))
             return Spec("create_copy", "this_card", "self_card", destinationZone: "discard",
                 values: [Count(1, explicitValue: false)]);
+        // Compatibility-only spelling for saved definitions authored before the generic referenced-card shape.
         if (text.Contains("那张攻击牌", StringComparison.Ordinal))
             return Spec("create_copy", "referenced_attack", "referenced_card", destinationZone: "hand",
                 cardFilter: "attack", values: [Count(1, explicitValue: false)]);
@@ -2221,7 +2244,11 @@ public static class OperationRuntimeSpecCompiler
             return Spec("exhaust_card", "all", "all_cards", sourceZone: "hand", cardFilter: "non_attack");
         if (text.Contains("所有手牌", StringComparison.Ordinal))
             return Spec("exhaust_card", "all", "all_cards", sourceZone: "hand");
-        if (text.Contains("那张技能牌", StringComparison.Ordinal))
+        if (text is "消耗该牌。" or "消耗那张牌。")
+            return Spec("exhaust_card", "referenced", "referenced_card", sourceZone: "hand",
+                values: [Count(1, explicitValue: false)]);
+        if (text.Contains("那张技能牌", StringComparison.Ordinal)
+            || text.Contains("该技能牌", StringComparison.Ordinal))
             return Spec("exhaust_card", "referenced", "referenced_card", sourceZone: "hand",
                 cardFilter: "skill", values: [Count(1, explicitValue: false)]);
         if (text.Contains("随机", StringComparison.Ordinal))
@@ -2278,9 +2305,14 @@ public static class OperationRuntimeSpecCompiler
                 ? "special_x" : "energy_x", LegacyXOffset(operation.ChineseText))
             : new RuntimeValueSlot("damage", FirstNumber(operation.ChineseText, 0));
         var usesXHits = operation.Template is "T:DX" or "T:D_EnergyX";
+        var fixedHits = Regex.Match(operation.ChineseText, @"伤害(\d+)次",
+            RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
         var values = new List<RuntimeValueSlot> { damage };
         if (usesXHits)
             values.Add(new RuntimeValueSlot("hits", 0, "energy_x", LegacyXOffset(operation.ChineseText)));
+        else if (fixedHits.Success)
+            values.Add(new RuntimeValueSlot("hits",
+                int.Parse(fixedHits.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
         var thresholdMatch = Regex.Match(operation.ChineseText, @"至少(?:为)?(\d+)",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
         if (thresholdMatch.Success)

@@ -7,7 +7,7 @@ using MegaCrit.Sts2.Core.Nodes;
 namespace AutoAnthony;
 
 /// <summary>
-/// Loading overlay shared by generated-pool assembly and the remaining vanilla run-start pipeline.
+/// Loading overlay used while generated pools are being assembled or transferred between multiplayer peers.
 /// </summary>
 internal sealed class ChaosGenerationProgressOverlay : IDisposable
 {
@@ -140,6 +140,15 @@ internal sealed class ChaosGenerationProgressOverlay : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        // Hide synchronously and release input before QueueFree. The overlay is sometimes attached to the game's
+        // transition node, and optional run-start flows may open an interactive route/event screen before the next
+        // process frame. Leaving a MouseFilter.Stop control alive until that frame makes the visible choice
+        // impossible to click and deadlocks the awaited vanilla start task.
+        if (_host is not null)
+        {
+            _host.MouseFilter = Control.MouseFilterEnum.Ignore;
+            _host.Visible = false;
+        }
         if (_layer is not null) _layer.Visible = false;
         ForceDrawSafely();
         SafeRelease();

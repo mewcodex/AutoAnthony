@@ -1217,10 +1217,15 @@ public static class CardNameGenerator
             throw new InvalidOperationException(
                 $"Card-name catalog {catalog.Character} does not own generated card {card.Character}.");
         var isStrike = card.Tags.Contains(CardTag.Strike);
-        var sources = BuildSourcePool(catalog, card, excludeStrikeSources: false);
+        var isHang = CardEffectRules.IsHangDamageFamily(card.Operations);
+        var sources = BuildSourcePool(catalog, card, excludeStrikeSources: false, excludeHangSource: true);
         var suffixSources = isStrike
             ? sources
-            : BuildSourcePool(catalog, card, excludeStrikeSources: true);
+            : BuildSourcePool(catalog, card, excludeStrikeSources: true, excludeHangSource: true);
+        var hangSource = isHang
+            ? Parts.GetValueOrDefault("Hang")
+                ?? throw new InvalidOperationException("The reviewed Hang name fragment is missing.")
+            : null;
 
         // Decide once per source for this generated card. Previously every rejected name candidate rerolled this
         // choice, and two independently sampled 20% split chances made roughly 36% of two-source names contain
@@ -1238,9 +1243,9 @@ public static class CardNameGenerator
             // Draw both source names independently with replacement. This keeps every retry concentrated around
             // effects that actually resemble the generated card instead of exhausting the best source and drifting
             // toward an unrelated tail. Only the completed bilingual name remains unique within the generated pool.
-            var first = sources.Sample(random);
-            var second = isStrike ? first : suffixSources.Sample(random);
-            if (TryCreateUniqueName(first, second, isStrike, card.Type, preserveTwoCharacterWords,
+            var first = hangSource ?? sources.Sample(random);
+            var second = isStrike && hangSource is null ? first : suffixSources.Sample(random);
+            if (TryCreateUniqueName(first, second, isStrike, isHang, card.Type, preserveTwoCharacterWords,
                     usedChineseNames, usedEnglishNames, ref fallback) is { } candidate)
                 return candidate;
         }
@@ -1249,9 +1254,13 @@ public static class CardNameGenerator
         // unusually saturated historic/custom catalog still fails only when its legal name space is truly exhausted.
         var fallbackSources = sources.Sources.OrderByDescending(source => source.Weight).ToArray();
         var fallbackSuffixSources = suffixSources.Sources.OrderByDescending(source => source.Weight).ToArray();
-        foreach (var first in fallbackSources)
-        foreach (var second in isStrike ? [first] : fallbackSuffixSources)
-            if (TryCreateUniqueName(first.Parts, second.Parts, isStrike, card.Type, preserveTwoCharacterWords,
+        foreach (var first in hangSource is null
+                     ? fallbackSources.Select(source => source.Parts)
+                     : [hangSource])
+        foreach (var second in isStrike && hangSource is null
+                     ? [first]
+                     : fallbackSuffixSources.Select(source => source.Parts))
+            if (TryCreateUniqueName(first, second, isStrike, isHang, card.Type, preserveTwoCharacterWords,
                     usedChineseNames, usedEnglishNames, ref fallback) is { } candidate)
                 return candidate;
 
@@ -1259,6 +1268,7 @@ public static class CardNameGenerator
     }
 
     private static GeneratedCardName? TryCreateUniqueName(NameParts first, NameParts second, bool isStrike,
+        bool isHang,
         GeneratedCardType cardType, IReadOnlyDictionary<string, bool> preserveTwoCharacterWords,
         ISet<string>? usedChineseNames, ISet<string>? usedEnglishNames, ref GeneratedCardName? fallback)
     {
@@ -1267,7 +1277,8 @@ public static class CardNameGenerator
             : ComposeChinese(first, second, preserveTwoCharacterWords);
         var english = ComposeEnglish(first, second, isStrike);
         var candidate = new GeneratedCardName(chinese, english, new[] { first.Id, second.Id }.Distinct().ToArray());
-        if (!NameFitsCardType(candidate, cardType) || !NameRespectsStrikeRule(candidate, isStrike)) return null;
+        if (!NameFitsCardType(candidate, cardType) || !NameRespectsStrikeRule(candidate, isStrike)
+            || !NameRespectsHangRule(candidate, isHang)) return null;
         fallback ??= candidate;
         if ((usedChineseNames?.Contains(chinese) ?? false) || (usedEnglishNames?.Contains(english) ?? false))
             return null;
@@ -1277,7 +1288,7 @@ public static class CardNameGenerator
     }
 
     private static WeightedNameSourcePool BuildSourcePool(IComponentCatalog catalog, GeneratedCard card,
-        bool excludeStrikeSources)
+        bool excludeStrikeSources, bool excludeHangSource)
     {
         var descriptionSchemas = card.Operations.Select(RelationSchema).ToHashSet(StringComparer.Ordinal);
         var templates = card.Operations.Select(operation => operation.Template).ToHashSet(StringComparer.Ordinal);
@@ -1285,7 +1296,8 @@ public static class CardNameGenerator
         var candidates = catalog.Recipes
             // A localized title may end in the translated word for Strike without carrying the gameplay Strike tag
             // (Leading Strike is the native example). Such a source is still reserved for Strike-card names.
-            .Where(recipe => !excludeStrikeSources || !IsStrikeNameSource(recipe))
+            .Where(recipe => (!excludeStrikeSources || !IsStrikeNameSource(recipe))
+                && (!excludeHangSource || recipe.Id != "Hang"))
             .Select(recipe =>
             {
                 var recipeSchemas = recipe.Atoms.Select(RelationSchema).ToHashSet(StringComparer.Ordinal);
@@ -1331,6 +1343,9 @@ public static class CardNameGenerator
             : !name.Chinese.Contains("打击", StringComparison.Ordinal)
               && !name.English.Contains("Strike", StringComparison.OrdinalIgnoreCase);
     }
+
+    internal static bool NameRespectsHangRule(GeneratedCardName name, bool isHang) =>
+        name.SourceCardIds.Contains("Hang", StringComparer.Ordinal) == isHang;
 
     private static int DiceSimilarity(IReadOnlySet<string> left, IReadOnlySet<string> right)
     {
@@ -1488,6 +1503,15 @@ public static class CardNameGenerator
         if (!Parts.TryGetValue("Hang", out var hang)
             || !hang.ChineseParts.SequenceEqual(["吊杀"], StringComparer.Ordinal))
             throw new InvalidOperationException("中文卡名“吊杀”必须作为不可拆分的完整词块。");
+        var hangName = new GeneratedCardName(
+            ComposeChinese(hang, new NameParts("Blade", ["利", "刃"], "", "Blade", ""), new Dictionary<string, bool>()),
+            ComposeEnglish(hang, new NameParts("Blade", ["利", "刃"], "", "Blade", ""), isStrike: false),
+            [hang.Id, "Blade"]);
+        if (!hangName.Chinese.Contains("吊杀", StringComparison.Ordinal)
+            || !hangName.English.Contains("Hang", StringComparison.OrdinalIgnoreCase)
+            || !NameRespectsHangRule(hangName, isHang: true)
+            || NameRespectsHangRule(hangName, isHang: false))
+            throw new InvalidOperationException($"吊杀卡名没有保持专用中英文词块：{hangName.Chinese}/{hangName.English}。");
 
         var strikeFirst = new NameParts("AshenStrike", ["灰烬", "打击"], "", "Ashen", " Strike");
         var strikeSecond = new NameParts("PerfectedStrike", ["完美", "打击"], "", "Perfected", " Strike");
@@ -1515,7 +1539,11 @@ public static class CardNameGenerator
 
     private static string ComposeEnglish(NameParts first, NameParts second, bool isStrike)
     {
-        var prefix = first.EnglishPrefix;
+        // Hang is a gameplay family rather than a freely reusable title fragment. When it is deliberately chosen
+        // as the fixed first source, preserve the complete word as a prefix instead of discarding its middle stem.
+        var prefix = first.Id == "Hang" && first.Id != second.Id
+            ? first.EnglishMiddle + " "
+            : first.EnglishPrefix;
         var middle = prefix.Length == 0 || char.IsWhiteSpace(prefix[^1])
             ? CapitalizeFirstLetter(second.EnglishMiddle)
             : second.EnglishMiddle;

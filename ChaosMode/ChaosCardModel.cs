@@ -212,12 +212,27 @@ public abstract class ChaosCardModel : CardModel
     protected ChaosCardModel() : base(0, CardType.Skill, CardRarity.Common, TargetType.Self) { }
 
     /// <summary>
+    /// Saved properties are filled after the canonical slot has been cloned. The clone can therefore still carry
+    /// DynamicVars, cost and keyword caches materialized for the slot's pool definition when a per-card definition
+    /// payload is assigned. Rebuild only after every saved property has been restored so freeform, ordinary
+    /// tinkering and editor-identity payloads all expose variables from their restored operation list.
+    /// </summary>
+    protected override void AfterDeserialized()
+    {
+        base.AfterDeserialized();
+        RebuildCachedCardState();
+    }
+
+    /// <summary>
     /// Applies or clears an editor-owned definition without changing the shared generated pool slot. Printed cost,
     /// type, target, rarity, keywords, identity and shell-owned upgrades are immutable at this boundary.
     /// </summary>
     public void ApplyTinkeredDefinition(GeneratedCard? definition)
     {
         AssertMutable();
+        if (DefinitionProfileId is { Length: > 0 } externalProfileId)
+            AutoAnthonyEditorApi.RequireSupport(externalProfileId,
+                ExternalEditorCapabilities.GeneratedCardEditing);
         if (_editorDefinition is not null)
         {
             definition ??= Definition.Card with { Name = _editorDefinition.Name };
@@ -291,14 +306,23 @@ public abstract class ChaosCardModel : CardModel
         RebuildCachedCardState();
     }
 
-    /// <summary>Restores an already validated definition captured by this mod's trigger power.</summary>
+    /// <summary>
+    /// Restores the exact definition captured by a trigger Power onto its detached execution proxy. Unlike ordinary
+    /// per-card tinkering, a captured definition can legitimately have a different shell from the proxy's shared slot:
+    /// freeform/native decompositions and editor identity changes retain their own cost, type, target and rarity. The
+    /// Power payload was validated when the source card armed it, so only the runtime-host character boundary applies
+    /// here. Treating this as ordinary tinkering makes the first delayed trigger throw before recursion limiting runs.
+    /// </summary>
     internal void ApplyCapturedDefinition(GeneratedCard definition)
     {
         AssertMutable();
         definition = OperationRuntimeSpecCompiler.Attach(definition);
-        EnsureSameShell(Definition.Card, definition, allowIdentityChange: true);
-        _tinkeredDefinition = definition;
-        _tinkeredDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+        EnsureFreeformCharacter(definition);
+        _freeformDefinition = definition;
+        _freeformDefinitionPayload = CardTinkeringApi.SerializeCard(definition);
+        _tinkeredDefinition = null;
+        _tinkeredDefinitionPayload = string.Empty;
+        ClearEditorDefinition();
         RebuildCachedCardState();
     }
 
@@ -512,8 +536,7 @@ public abstract class ChaosCardModel : CardModel
         if (HasTag("channel")) yield return HoverTipFactory.Static(StaticHoverTip.Channeling);
         if (HasTag("evoke"))
             yield return HoverTipFactory.Static(StaticHoverTip.Evoke);
-        foreach (var operation in operations.Where(operation => OrbSlotCatalog.IsSlotOperation(operation.Template)))
-            foreach (var tip in ChaosOrbResolver.HoverTips(operation)) yield return tip;
+        foreach (var tip in ChaosOrbResolver.HoverTips(operations)) yield return tip;
         if (Template("D:TriggerLightningPassivesAtTarget")) yield return HoverTipFactory.FromOrb<LightningOrb>();
 
         for (var index = 0; index < operations.Count; index++)
@@ -1714,7 +1737,9 @@ internal static class ChaosRuntimeDescriptionRenderer
             {
                 var prefix = Text(card, effectiveOperations, index, chinese).TrimEnd('.', '。');
                 var payoff = Text(card, effectiveOperations, effectIndices[++cursor], chinese);
-                var combined = chinese ? prefix + payoff : prefix + " " + LowerFirst(payoff);
+                var combined = chinese
+                    ? CardDescriptionRenderer.JoinChineseClause(prefix, payoff)
+                    : prefix + " " + LowerFirst(payoff);
                 pieces.Add(attackReceived
                     ? CardDescriptionRenderer.AdaptAttackReceivedPayoff(
                         card.Generated.Operations[effectIndices[cursor]], combined, chinese)
@@ -1764,8 +1789,8 @@ internal static class ChaosRuntimeDescriptionRenderer
                 && operations[index + 1].Template == "I:AddExhaustedAttackDamage")
             {
                 lines.Add(chinese
-                    ? "消耗你的手牌中随机一张攻击牌，并将它的伤害添加给这张牌。"
-                    : "Exhaust a random Attack in your Hand and add its damage to this card.");
+                    ? "消耗你的手牌中随机一张攻击牌，并将消耗的牌的攻击力添加到这张牌。"
+                    : "Exhaust a random Attack in your Hand and add the Exhausted card's Attack damage to this card.");
                 index++;
                 continue;
             }
@@ -1804,7 +1829,8 @@ internal static class ChaosRuntimeDescriptionRenderer
                 if (attackReceived)
                 {
                     lines.Add(chinese
-                        ? $"你在这个回合每受到一次攻击，都会{renderedEffects}"
+                        ? CardDescriptionRenderer.JoinChineseClause(
+                            "你在这个回合每受到一次攻击，都会", renderedEffects)
                         : $"Whenever you are attacked this turn, {LowerFirst(renderedEffects)}");
                     continue;
                 }
@@ -1818,7 +1844,7 @@ internal static class ChaosRuntimeDescriptionRenderer
                         : OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger?.Kind == "attack_received" ? "，都会"
                         : operation.Template == "C:ifLastDrawnSkill" || trigger.StartsWith("如果", StringComparison.Ordinal) ? "，则"
                         : "，";
-                    lines.Add($"{trigger}{separator}{renderedEffects}");
+                    lines.Add(CardDescriptionRenderer.JoinChineseClause(trigger + separator, renderedEffects));
                 }
                 else if (operation.Template == "C:playableIfDrawPileEmpty")
                     lines.Add($"{trigger}. {UpperFirst(renderedEffects)}");
@@ -1839,7 +1865,8 @@ internal static class ChaosRuntimeDescriptionRenderer
             }
         }
 
-        return string.Join('\n', lines);
+        var rendered = string.Join('\n', lines);
+        return chinese ? CardTextStyle.NormalizeRenderedChineseEnergyNotation(rendered) : rendered;
     }
 
     private static string Text(ChaosCardModel card, IReadOnlyList<GeneratorOperation> effectiveOperations,

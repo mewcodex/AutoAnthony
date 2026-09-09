@@ -41,6 +41,10 @@ namespace AutoAnthony.Patches;
 [HarmonyPatch(typeof(StartRunLobby), "BeginRunForAllPlayers")]
 internal static class MultiplayerGenerationModePatch
 {
+    private const int SnapshotChunkCharacters = 24_000;
+    private const int MaximumSnapshotChunks = 64;
+    private const int MaximumSnapshotCharacters = SnapshotChunkCharacters * MaximumSnapshotChunks;
+
     private sealed class HostPreparation(
         string preparationId,
         string seed,
@@ -55,17 +59,26 @@ internal static class MultiplayerGenerationModePatch
         internal HashSet<ulong> ExpectedPeers { get; } = expectedPeers.ToHashSet();
         internal Dictionary<ulong, string> PeerFingerprints { get; } = new();
         internal string HostFingerprint { get; set; } = string.Empty;
+        internal string AuthoritativePayload { get; set; } = string.Empty;
         internal ChaosGenerationProgressOverlay? Progress { get; set; }
         internal bool HostComplete { get; set; }
         internal bool Starting { get; set; }
         internal bool Cancelled { get; set; }
     }
 
-    private sealed class ClientPreparation(string preparationId)
+    private sealed class ClientPreparation(string preparationId, ChaosPoolPreparationMessage request, ulong hostId)
     {
         internal string PreparationId { get; } = preparationId;
+        internal ChaosPoolPreparationMessage Request { get; } = request;
+        internal ulong HostId { get; } = hostId;
         internal string Fingerprint { get; set; } = string.Empty;
+        internal string PayloadFingerprint { get; set; } = string.Empty;
+        internal int PayloadLength { get; set; }
+        internal string?[]? Chunks { get; set; }
+        internal int ReceivedChunks { get; set; }
+        internal string AuthoritativePayload { get; set; } = string.Empty;
         internal ChaosGenerationProgressOverlay? Progress { get; set; }
+        internal bool RestoreStarted { get; set; }
         internal bool Complete { get; set; }
         internal bool Cancelled { get; set; }
     }
@@ -77,6 +90,9 @@ internal static class MultiplayerGenerationModePatch
 
         internal MessageHandlerDelegate<ChaosPoolPreparationAckMessage> Acknowledgement { get; } =
             (message, senderId) => ReceiveAcknowledgement(lobby, message, senderId);
+
+        internal MessageHandlerDelegate<ChaosPoolSnapshotChunkMessage> SnapshotChunk { get; } =
+            (message, senderId) => ReceiveSnapshotChunk(lobby, message, senderId);
 
         internal MessageHandlerDelegate<ChaosPoolPreparationCancelMessage> Cancellation { get; } =
             (message, senderId) => ReceiveCancellation(lobby, message, senderId);
@@ -96,10 +112,13 @@ internal static class MultiplayerGenerationModePatch
         if (!__instance.NetService.Type.IsMultiplayer() || Volatile.Read(ref _callingOriginal) > 0) return true;
         RegisterLobbyHandlers(__instance);
 
-        // Disabled hosts only need to synchronize the mode switch and can begin immediately.
-        if (!ChaosModSettings.Enabled)
+        // Hosts that do not add generated cards only synchronize the independent mode switches. AutoAnthony's
+        // component runtime remains enabled for explicitly materialized/tinkered cards.
+        if (!ChaosModSettings.EffectiveGeneratedCardsEnabled)
         {
-            AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: false,
+            AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null,
+                enabled: ChaosModSettings.Enabled,
+                addGeneratedCards: ChaosModSettings.AddGeneratedCards,
                 ultimateChaos: ChaosModSettings.UltimateChaos,
                 replaceStartingCards: ChaosModSettings.ReplaceStartingCards,
                 numericBalanceOptimization: ChaosModSettings.NumericBalanceOptimization,
@@ -143,22 +162,32 @@ internal static class MultiplayerGenerationModePatch
         {
             // Preserve the existing behavior for lobbies made entirely of unsupported modded characters.
             AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: true,
-                ChaosModSettings.UltimateChaos, ChaosModSettings.ReplaceStartingCards,
-                ChaosModSettings.NumericBalanceOptimization, ChaosModSettings.NumericRandomMode,
-                ChaosModSettings.PreserveOriginalCards, ChaosModSettings.RandomCardArt);
+                addGeneratedCards: true,
+                ultimateChaos: ChaosModSettings.UltimateChaos,
+                replaceStartingCards: ChaosModSettings.ReplaceStartingCards,
+                numericBalanceOptimization: ChaosModSettings.NumericBalanceOptimization,
+                numericRandomMode: ChaosModSettings.NumericRandomMode,
+                preserveOriginalCards: ChaosModSettings.PreserveOriginalCards,
+                randomCardArt: ChaosModSettings.RandomCardArt);
             return true;
         }
         if (provisionalCharacters.Length == 0) provisionalCharacters = [GeneratedCharacter.Ironclad];
 
         var preparationId = Guid.NewGuid().ToString("N");
         AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: true,
-            ChaosModSettings.UltimateChaos, ChaosModSettings.ReplaceStartingCards,
-            ChaosModSettings.NumericBalanceOptimization, ChaosModSettings.NumericRandomMode,
-            ChaosModSettings.PreserveOriginalCards, ChaosModSettings.RandomCardArt);
+            addGeneratedCards: true,
+            ultimateChaos: ChaosModSettings.UltimateChaos,
+            replaceStartingCards: ChaosModSettings.ReplaceStartingCards,
+            numericBalanceOptimization: ChaosModSettings.NumericBalanceOptimization,
+            numericRandomMode: ChaosModSettings.NumericRandomMode,
+            preserveOriginalCards: ChaosModSettings.PreserveOriginalCards,
+            randomCardArt: ChaosModSettings.RandomCardArt);
         var marker = modifiers.OfType<ChaosPoolSnapshotModifier>()
             .Last(snapshot => snapshot.MultiplayerGenerationModeSpecified);
+        var localLobbyId = __instance.LocalPlayer.id;
+        var localTransportId = __instance.NetService.NetId;
         var state = new HostPreparation(preparationId, seed, modifiers, marker,
-            __instance.Players.Where(player => player.id != __instance.NetService.NetId)
+            __instance.Players.Where(player => player.id != localLobbyId)
                 .Select(player => player.id));
         lock (PreparationGate)
         {
@@ -171,6 +200,7 @@ internal static class MultiplayerGenerationModePatch
             PreparationId = preparationId,
             Seed = seed,
             CharacterMask = EncodeCharacters(provisionalCharacters),
+            AddGeneratedCards = true,
             UltimateChaos = ChaosModSettings.UltimateChaos,
             ReplaceStartingCards = ChaosModSettings.ReplaceStartingCards,
             NumericBalanceOptimization = ChaosModSettings.NumericBalanceOptimization,
@@ -179,8 +209,12 @@ internal static class MultiplayerGenerationModePatch
             RandomCardArt = ChaosModSettings.RandomCardArt
         };
         __instance.NetService.SendMessage(request);
-        Log.Info($"[AutoAnthony] Started concurrent multiplayer pool preparation {preparationId}: "
-                 + $"peers={state.ExpectedPeers.Count}, seed={seed}.");
+        Log.Info($"[AutoAnthony] Started host-authoritative multiplayer pool preparation {preparationId}: "
+                 + $"peers={state.ExpectedPeers.Count}, seed={seed}, "
+                 + $"localLobby={localLobbyId}, localTransport={localTransportId}.");
+        if (localLobbyId != localTransportId)
+            Log.Warn("[AutoAnthony] The host lobby-player ID differs from the transport NetId; "
+                     + "the preparation roster will use the lobby's authoritative local-player identity.");
         TaskHelper.RunSafely(PrepareHostAsync(__instance, state, provisionalCharacters, request));
         return false;
     }
@@ -196,6 +230,11 @@ internal static class MultiplayerGenerationModePatch
                 request.NumericRandomMode, request.PreserveOriginalCards, request.RandomCardArt);
             var generationFingerprint = ChaosPoolSnapshot.MultiplayerGameplayFingerprint(
                 ChaosRunDefinitions.GetAllCards());
+            var payload = ChaosPoolSnapshot.GetAuthoritativeMultiplayerPayload(provisionalCharacters,
+                request.Seed, ChaosRunDefinitions.GetAllCards());
+            if (payload.Length > MaximumSnapshotCharacters)
+                throw new InvalidDataException(
+                    $"The authoritative multiplayer pool snapshot is too large ({payload.Length} characters).");
             lock (PreparationGate)
             {
                 if (!HostPreparations.TryGetValue(lobby, out var current)
@@ -207,14 +246,17 @@ internal static class MultiplayerGenerationModePatch
                     return;
                 }
                 state.HostFingerprint = generationFingerprint;
+                state.AuthoritativePayload = payload;
                 state.HostComplete = true;
                 state.Marker.MultiplayerGenerationFingerprint = generationFingerprint;
                 state.Progress = generatedProgress;
                 generatedProgress = null;
             }
             state.Progress?.ShowWaitingForPlayers();
-            Log.Info($"[AutoAnthony] Host completed concurrent multiplayer pool preparation "
-                     + $"{state.PreparationId}: fingerprint={generationFingerprint}.");
+            Log.Info($"[AutoAnthony] Host completed host-authoritative multiplayer pool preparation "
+                     + $"{state.PreparationId}: fingerprint={generationFingerprint}, "
+                     + $"snapshot={payload.Length} characters.");
+            SendAuthoritativeSnapshot(lobby, state, payload, generationFingerprint);
             TryReleasePreparedRun(lobby, state.PreparationId);
         }
         catch (Exception exception)
@@ -233,6 +275,13 @@ internal static class MultiplayerGenerationModePatch
         ulong senderId)
     {
         if (lobby.NetService.Type != NetGameType.Client) return;
+        if (!IsClientHost(lobby, senderId))
+        {
+            Log.Warn($"[AutoAnthony] Ignored multiplayer pool preparation {message.PreparationId} from "
+                     + $"non-host peer {senderId}; localPeer={lobby.NetService.NetId}, "
+                     + $"host={ClientHostId(lobby)?.ToString() ?? "unknown"}.");
+            return;
+        }
         ClientPreparation state;
         lock (PreparationGate)
         {
@@ -249,59 +298,162 @@ internal static class MultiplayerGenerationModePatch
                 existing.Progress?.Dispose();
                 ClientPreparations.Remove(lobby);
             }
-            state = new ClientPreparation(message.PreparationId);
+            state = new ClientPreparation(message.PreparationId, message, senderId)
+            {
+                Progress = ChaosGenerationProgressOverlay.Create(1)
+            };
             ClientPreparations.Add(lobby, state);
         }
 
-        Log.Info($"[AutoAnthony] Client received concurrent multiplayer pool preparation "
-                 + $"{message.PreparationId} from {senderId}.");
-        TaskHelper.RunSafely(PrepareClientAsync(lobby, state, message));
+        Log.Info($"[AutoAnthony] Client received host-authoritative multiplayer pool preparation "
+                 + $"{message.PreparationId} from host {senderId}; localPeer={lobby.NetService.NetId}.");
+        state.Progress?.ShowWaitingForPlayers();
     }
 
-    private static async Task PrepareClientAsync(StartRunLobby lobby, ClientPreparation state,
-        ChaosPoolPreparationMessage request)
+    private static void ReceiveSnapshotChunk(StartRunLobby lobby, ChaosPoolSnapshotChunkMessage message,
+        ulong senderId)
     {
-        ChaosGenerationProgressOverlay? generatedProgress = null;
+        if (lobby.NetService.Type != NetGameType.Client || !IsClientHost(lobby, senderId)) return;
+        ClientPreparation? state;
+        string? payload = null;
+        string? failure = null;
+        lock (PreparationGate)
+        {
+            if (!ClientPreparations.TryGetValue(lobby, out state)
+                || state.PreparationId != message.PreparationId || state.Cancelled || state.Complete
+                || state.HostId != senderId)
+                return;
+            if (message.ChunkCount is < 1 or > MaximumSnapshotChunks
+                || message.ChunkIndex < 0 || message.ChunkIndex >= message.ChunkCount
+                || message.PayloadLength is < 1 or > MaximumSnapshotCharacters
+                || message.Chunk.Length > SnapshotChunkCharacters
+                || string.IsNullOrWhiteSpace(message.PayloadFingerprint)
+                || string.IsNullOrWhiteSpace(message.GameplayFingerprint))
+            {
+                failure = "host sent malformed generated-pool snapshot metadata";
+            }
+            else if (state.Chunks is null)
+            {
+                state.Chunks = new string?[message.ChunkCount];
+                state.PayloadLength = message.PayloadLength;
+                state.PayloadFingerprint = message.PayloadFingerprint;
+                state.Fingerprint = message.GameplayFingerprint;
+            }
+            else if (state.Chunks.Length != message.ChunkCount
+                     || state.PayloadLength != message.PayloadLength
+                     || state.PayloadFingerprint != message.PayloadFingerprint
+                     || state.Fingerprint != message.GameplayFingerprint)
+            {
+                failure = "host changed generated-pool snapshot metadata during transfer";
+            }
+
+            if (failure is null && state.Chunks![message.ChunkIndex] is null)
+            {
+                state.Chunks[message.ChunkIndex] = message.Chunk;
+                state.ReceivedChunks++;
+            }
+            if (failure is null && state.ReceivedChunks == state.Chunks!.Length && !state.RestoreStarted)
+            {
+                state.RestoreStarted = true;
+                payload = string.Concat(state.Chunks!);
+                if (payload.Length != state.PayloadLength
+                    || ChaosPoolSnapshot.MultiplayerFingerprint(payload) != state.PayloadFingerprint)
+                {
+                    failure = "generated-pool snapshot transfer failed integrity validation";
+                    payload = null;
+                }
+            }
+        }
+
+        if (failure is not null)
+        {
+            FailClientPreparation(lobby, message.PreparationId, failure);
+            return;
+        }
+        if (payload is not null && state is not null)
+            TaskHelper.RunSafely(RestoreClientSnapshotAsync(lobby, state, payload));
+    }
+
+    private static async Task RestoreClientSnapshotAsync(StartRunLobby lobby, ClientPreparation state,
+        string payload)
+    {
         try
         {
-            var characters = DecodeCharacters(request.CharacterMask);
-            generatedProgress = await ChaosRunDefinitions.ActivateAsync(characters, request.Seed,
-                request.UltimateChaos, request.ReplaceStartingCards, request.NumericBalanceOptimization,
-                request.NumericRandomMode, request.PreserveOriginalCards, request.RandomCardArt);
+            // Return from the network callback before installing ModelDb-backed definitions on the main thread.
+            await Task.Yield();
+            var characters = DecodeCharacters(state.Request.CharacterMask);
+            var reboundPayload = ChaosPoolSnapshot.RebindMultiplayerActiveCharacters(payload, characters,
+                state.Request.Seed);
+            var report = ChaosRunDefinitions.ActivateFromSave(characters, state.Request.Seed, reboundPayload);
+            if (report.RegeneratedCards != 0)
+                throw new InvalidDataException(
+                    $"The host-authored multiplayer snapshot required {report.RegeneratedCards} regenerated cards.");
             var fingerprint = ChaosPoolSnapshot.MultiplayerGameplayFingerprint(
                 ChaosRunDefinitions.GetAllCards());
+            if (!string.Equals(fingerprint, state.Fingerprint, StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    $"The restored host snapshot has gameplay fingerprint {fingerprint}, expected {state.Fingerprint}.");
             lock (PreparationGate)
             {
                 if (!ClientPreparations.TryGetValue(lobby, out var current)
                     || !ReferenceEquals(current, state) || state.Cancelled)
                 {
-                    generatedProgress?.Dispose();
-                    generatedProgress = null;
                     ChaosRunDefinitions.DeactivateRun();
                     return;
                 }
                 state.Fingerprint = fingerprint;
                 state.Complete = true;
-                state.Progress = generatedProgress;
-                generatedProgress = null;
+                state.AuthoritativePayload = payload;
             }
             state.Progress?.ShowWaitingForPlayers();
-            Log.Info($"[AutoAnthony] Client completed concurrent multiplayer pool preparation "
-                     + $"{state.PreparationId}: fingerprint={fingerprint}.");
+            Log.Info($"[AutoAnthony] Client installed host-authored multiplayer pool snapshot "
+                     + $"{state.PreparationId}: fingerprint={fingerprint}, "
+                     + $"snapshot={payload.Length} characters, localPeer={lobby.NetService.NetId}, "
+                     + $"host={state.HostId}.");
             SendAcknowledgement(lobby, state.PreparationId, success: true, fingerprint, string.Empty);
         }
         catch (Exception exception)
         {
-            Log.Error($"[AutoAnthony] Client multiplayer pool preparation failed: {exception}");
+            Log.Error($"[AutoAnthony] Client could not install the host-authored multiplayer pool snapshot: {exception}");
             var failure = $"{exception.GetType().Name}: {exception.Message}";
             if (failure.Length > 512) failure = failure[..512];
             SendAcknowledgement(lobby, state.PreparationId, success: false, string.Empty, failure);
             CancelClientPreparation(lobby, state.PreparationId, restoreLobby: true);
         }
-        finally
+    }
+
+    private static void FailClientPreparation(StartRunLobby lobby, string preparationId, string failure)
+    {
+        Log.Error($"[AutoAnthony] Client rejected multiplayer pool snapshot {preparationId}: {failure}.");
+        SendAcknowledgement(lobby, preparationId, success: false, string.Empty, failure);
+        CancelClientPreparation(lobby, preparationId, restoreLobby: true);
+    }
+
+    private static void SendAuthoritativeSnapshot(StartRunLobby lobby, HostPreparation state, string payload,
+        string gameplayFingerprint)
+    {
+        var payloadFingerprint = ChaosPoolSnapshot.MultiplayerFingerprint(payload);
+        var chunkCount = Math.Max(1, (payload.Length + SnapshotChunkCharacters - 1) / SnapshotChunkCharacters);
+        foreach (var peerId in state.ExpectedPeers.ToArray())
         {
-            generatedProgress?.Dispose();
+            for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                var offset = chunkIndex * SnapshotChunkCharacters;
+                var length = Math.Min(SnapshotChunkCharacters, payload.Length - offset);
+                lobby.NetService.SendMessage(new ChaosPoolSnapshotChunkMessage
+                {
+                    PreparationId = state.PreparationId,
+                    PayloadFingerprint = payloadFingerprint,
+                    GameplayFingerprint = gameplayFingerprint,
+                    PayloadLength = payload.Length,
+                    ChunkIndex = chunkIndex,
+                    ChunkCount = chunkCount,
+                    Chunk = payload.Substring(offset, length)
+                }, peerId);
+            }
         }
+        Log.Info($"[AutoAnthony] Sent host-authored multiplayer pool snapshot {state.PreparationId} "
+                 + $"in {chunkCount} reliable chunk(s) to {state.ExpectedPeers.Count} peer(s).");
     }
 
     private static void SendAcknowledgement(StartRunLobby lobby, string preparationId, bool success,
@@ -349,7 +501,7 @@ internal static class MultiplayerGenerationModePatch
     private static void ReceiveCancellation(StartRunLobby lobby, ChaosPoolPreparationCancelMessage message,
         ulong senderId)
     {
-        if (lobby.NetService.Type != NetGameType.Client) return;
+        if (lobby.NetService.Type != NetGameType.Client || !IsClientHost(lobby, senderId)) return;
         Log.Warn($"[AutoAnthony] Host {senderId} cancelled multiplayer pool preparation "
                  + $"{message.PreparationId}.");
         CancelClientPreparation(lobby, message.PreparationId, restoreLobby: true);
@@ -450,7 +602,9 @@ internal static class MultiplayerGenerationModePatch
         }
     }
 
-    internal static ChaosGenerationProgressOverlay? TakePreparedProgress(StartRunLobby lobby)
+    internal sealed record PreparedMultiplayerPools(string Payload, ChaosGenerationProgressOverlay? Progress);
+
+    internal static PreparedMultiplayerPools? TakePreparedPools(StartRunLobby lobby)
     {
         lock (PreparationGate)
         {
@@ -459,13 +613,13 @@ internal static class MultiplayerGenerationModePatch
                 HostPreparations.Remove(lobby);
                 var progress = host.Progress;
                 host.Progress = null;
-                return progress;
+                return new PreparedMultiplayerPools(host.AuthoritativePayload, progress);
             }
             if (!ClientPreparations.TryGetValue(lobby, out var client)) return null;
             ClientPreparations.Remove(lobby);
             var clientProgress = client.Progress;
             client.Progress = null;
-            return clientProgress;
+            return new PreparedMultiplayerPools(client.AuthoritativePayload, clientProgress);
         }
     }
 
@@ -477,6 +631,7 @@ internal static class MultiplayerGenerationModePatch
             var handlers = new LobbyMessageHandlers(lobby);
             lobby.NetService.RegisterMessageHandler(handlers.Preparation);
             lobby.NetService.RegisterMessageHandler(handlers.Acknowledgement);
+            lobby.NetService.RegisterMessageHandler(handlers.SnapshotChunk);
             lobby.NetService.RegisterMessageHandler(handlers.Cancellation);
             RegisteredHandlers.Add(lobby, handlers);
         }
@@ -490,6 +645,7 @@ internal static class MultiplayerGenerationModePatch
             {
                 lobby.NetService.UnregisterMessageHandler(handlers.Preparation);
                 lobby.NetService.UnregisterMessageHandler(handlers.Acknowledgement);
+                lobby.NetService.UnregisterMessageHandler(handlers.SnapshotChunk);
                 lobby.NetService.UnregisterMessageHandler(handlers.Cancellation);
                 RegisteredHandlers.Remove(lobby);
             }
@@ -555,6 +711,12 @@ internal static class MultiplayerGenerationModePatch
             .Where(character => character != GeneratedCharacter.Colorless && (mask & 1 << (int)character) != 0)
             .ToArray();
 
+    private static ulong? ClientHostId(StartRunLobby lobby) =>
+        lobby.NetService is INetClientGameService { NetClient: { } client } ? client.HostNetId : null;
+
+    private static bool IsClientHost(StartRunLobby lobby, ulong senderId) =>
+        ClientHostId(lobby) is { } hostId && senderId == hostId;
+
     internal static void AuditPreparationProtocol()
     {
         var request = new ChaosPoolPreparationMessage
@@ -562,6 +724,7 @@ internal static class MultiplayerGenerationModePatch
             PreparationId = "PREPARATION_AUDIT",
             Seed = "SEED_AUDIT",
             CharacterMask = EncodeCharacters([GeneratedCharacter.Ironclad, GeneratedCharacter.Regent]),
+            AddGeneratedCards = true,
             UltimateChaos = true,
             ReplaceStartingCards = false,
             NumericBalanceOptimization = true,
@@ -579,6 +742,7 @@ internal static class MultiplayerGenerationModePatch
             || restored.PreparationId != request.PreparationId
             || restored.Seed != request.Seed
             || restored.CharacterMask != request.CharacterMask
+            || !restored.AddGeneratedCards
             || !restored.UltimateChaos
             || restored.ReplaceStartingCards
             || !restored.NumericBalanceOptimization
@@ -589,6 +753,33 @@ internal static class MultiplayerGenerationModePatch
                 .SequenceEqual([GeneratedCharacter.Ironclad, GeneratedCharacter.Regent]))
             throw new InvalidOperationException(
                 $"Multiplayer pool-preparation message failed round-trip validation ({writer.BytePosition} bytes).");
+
+        var chunk = new ChaosPoolSnapshotChunkMessage
+        {
+            PreparationId = request.PreparationId,
+            PayloadFingerprint = "0123456789ABCDEF",
+            GameplayFingerprint = "FEDCBA9876543210",
+            PayloadLength = 48_000,
+            ChunkIndex = 1,
+            ChunkCount = 2,
+            Chunk = new string('A', SnapshotChunkCharacters)
+        };
+        writer.Reset();
+        chunk.Serialize(writer);
+        reader.Reset(writer.Buffer);
+        var restoredChunk = new ChaosPoolSnapshotChunkMessage();
+        restoredChunk.Deserialize(reader);
+        if (writer.BytePosition > SnapshotChunkCharacters + 256
+            || restoredChunk.PreparationId != chunk.PreparationId
+            || restoredChunk.PayloadFingerprint != chunk.PayloadFingerprint
+            || restoredChunk.GameplayFingerprint != chunk.GameplayFingerprint
+            || restoredChunk.PayloadLength != chunk.PayloadLength
+            || restoredChunk.ChunkIndex != chunk.ChunkIndex
+            || restoredChunk.ChunkCount != chunk.ChunkCount
+            || restoredChunk.Chunk != chunk.Chunk)
+            throw new InvalidOperationException(
+                $"Multiplayer pool-snapshot chunk failed round-trip validation ({writer.BytePosition} bytes).");
+        Log.Info("[AutoAnthony] Host-authoritative multiplayer preparation message audit passed.");
     }
 
     private static void RestoreCancelledLobby(StartRunLobby lobby)
@@ -617,7 +808,7 @@ internal static class MultiplayerGenerationModePatch
     }
 
     private static void AddGenerationMarker(List<ModifierModel> modifiers, string? poolSnapshot,
-        string? generationFingerprint, bool enabled,
+        string? generationFingerprint, bool enabled, bool addGeneratedCards,
         bool ultimateChaos, bool replaceStartingCards, bool numericBalanceOptimization, bool numericRandomMode,
         bool preserveOriginalCards, bool randomCardArt)
     {
@@ -629,6 +820,8 @@ internal static class MultiplayerGenerationModePatch
         var marker = (ChaosPoolSnapshotModifier)ModelDb.Modifier<ChaosPoolSnapshotModifier>().ToMutable();
         marker.MultiplayerGenerationModeSpecified = true;
         marker.MultiplayerModEnabled = enabled;
+        marker.MultiplayerAddGeneratedCardsSpecified = true;
+        marker.MultiplayerAddGeneratedCards = addGeneratedCards;
         marker.MultiplayerUltimateChaos = ultimateChaos;
         marker.MultiplayerReplaceStartingCardsSpecified = true;
         marker.MultiplayerReplaceStartingCards = replaceStartingCards;
@@ -641,7 +834,7 @@ internal static class MultiplayerGenerationModePatch
         marker.MultiplayerGenerationFingerprint = generationFingerprint ?? string.Empty;
         marker.PoolSnapshot = poolSnapshot ?? string.Empty;
         modifiers.Add(marker);
-        Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, RandomCardArt={marker.MultiplayerRandomCardArt}, DeterministicFingerprint={!string.IsNullOrEmpty(marker.MultiplayerGenerationFingerprint)}, LegacyAuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
+        Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, AddGeneratedCards={marker.MultiplayerAddGeneratedCards}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, RandomCardArt={marker.MultiplayerRandomCardArt}, DeterministicFingerprint={!string.IsNullOrEmpty(marker.MultiplayerGenerationFingerprint)}, LegacyAuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
     }
 }
 
@@ -784,8 +977,10 @@ internal static class ChaosModelDbReadyPatch
                 AuditAncientRelicCardRouting();
                 AuditLibraryCards();
                 AuditPowerDescriptionProjection();
+                AuditRestoredDefinitionCache();
                 AuditCombatUpgradeOperations();
                 AuditGeneratedCardAfflictions();
+                MultiplayerGenerationModePatch.AuditPreparationProtocol();
                 const string numericRandomMultiplayerSeed = "AUTOANTHONY_NUMERIC_RANDOM_MULTIPLAYER_AUDIT";
                 ChaosRunDefinitions.ActivateForStartupAudit(
                     [GeneratedCharacter.Ironclad, GeneratedCharacter.Regent],
@@ -793,7 +988,6 @@ internal static class ChaosModelDbReadyPatch
                 ChaosPoolSnapshot.AuditAuthoritativeMultiplayerRoundTrip(
                     [GeneratedCharacter.Ironclad, GeneratedCharacter.Regent], numericRandomMultiplayerSeed,
                     ChaosRunDefinitions.GetAllCards());
-                MultiplayerGenerationModePatch.AuditPreparationProtocol();
                 Log.Info("[AutoAnthony] Numeric-random authoritative multiplayer snapshot audit passed.");
                 ChaosRunDefinitions.ActivateForStartupAudit(
                     [GeneratedCharacter.Ironclad, GeneratedCharacter.Silent, GeneratedCharacter.Defect,
@@ -969,6 +1163,14 @@ internal static class ChaosModelDbReadyPatch
             var dustyTips = dustyTome.HoverTipsExcludingRelic.ToArray();
             if (dustyTome.AncientCard != second || dustyTips.Length != 1)
                 throw new InvalidOperationException($"Dusty Tome generated-card preview audit failed for {character}.");
+            if (dustyTips[0] is not MegaCrit.Sts2.Core.HoverTips.CardHoverTip
+                { Card: ChaosCardModel frozenPreview }
+                || !frozenPreview.HasFreeformDefinition
+                || ChaosCardGenerator.GeneratedCardEffectIdentity.Signature(frozenPreview.Generated)
+                    != ChaosCardGenerator.GeneratedCardEffectIdentity.Signature(
+                        ((ChaosCardModel)secondCard).Generated))
+                throw new InvalidOperationException(
+                    $"Dusty Tome did not freeze the generated Ancient definition shown for {character}.");
 
             var upgradedReward = secondCard.ToMutable();
             CardCmd.Upgrade(upgradedReward);
@@ -1055,6 +1257,135 @@ internal static class ChaosModelDbReadyPatch
         if (ChaosOperationExecutor.CardSelectorForSlot(choiceProbe, "card1")?.Template != "N_SELECT_HAND_CARD"
             || ChaosOperationExecutor.CardSelectorForSlot(choiceProbe, "eventCard") is not null)
             throw new InvalidOperationException("AutoAnthony triggered card-choice slot routing audit failed.");
+
+        var repeatedOrbHoverProbe = new GeneratorOperation[]
+        {
+            Structured(new("D:ChannelLightning", OperationScope.NonTargeted,
+                "生成3个闪电充能球。", new Dictionary<string, int>())),
+            Structured(new("A:turnStart", OperationScope.AbilityTrigger,
+                "在你的回合开始时。", new Dictionary<string, int>())),
+            Structured(new("D:ChannelLightning", OperationScope.NonTargeted,
+                "生成3个闪电充能球。", new Dictionary<string, int> { ["triggerIndex"] = 1 }))
+        };
+        if (ChaosOrbResolver.HoverTips(repeatedOrbHoverProbe).Count() != 1)
+            throw new InvalidOperationException(
+                "Immediate and turn-start references to the same Orb must share one bounded hover tip.");
+
+        var orbChannelFrame = ChaosOrbChannelContext.Push(pendingEnqueue: true);
+        try
+        {
+            if (!ChaosOrbChannelContext.HasPendingEnqueue)
+                throw new InvalidOperationException("Orb channel reservation context was not visible to nested effects.");
+            var nestedOrbChannelFrame = ChaosOrbChannelContext.Push(pendingEnqueue: false);
+            try
+            {
+                if (ChaosOrbChannelContext.HasPendingEnqueue)
+                    throw new InvalidOperationException("A nested Orb channel inherited its parent's enqueue state.");
+            }
+            finally
+            {
+                ChaosOrbChannelContext.Pop(nestedOrbChannelFrame);
+            }
+            if (!ChaosOrbChannelContext.HasPendingEnqueue)
+                throw new InvalidOperationException("A nested Orb channel discarded its parent's reservation.");
+            ChaosOrbChannelContext.MarkEnqueued(orbChannelFrame);
+            if (ChaosOrbChannelContext.HasPendingEnqueue)
+                throw new InvalidOperationException("Orb channel reservation was not released after enqueue.");
+        }
+        finally
+        {
+            ChaosOrbChannelContext.Pop(orbChannelFrame);
+        }
+
+        // A trigger Power executes through a detached shared-slot proxy. Full-shell sources (native decomposition,
+        // freeform definitions or an editor identity) may legitimately differ from that slot in cost/type/target.
+        // Exercise the restore path before the expensive pool audits so the former AfterOrbEvoked exception cannot
+        // hide behind an unrelated later generation failure.
+        var capturedProxy = (ChaosCardModel)ChaosCardRegistry
+            .Canonical(GeneratedCharacter.Defect, 0).ToMutable();
+        var capturedShell = capturedProxy.Generated with
+        {
+            Cost = capturedProxy.Generated.Cost == 0 ? 1 : 0
+        };
+        capturedProxy.ApplyCapturedDefinition(capturedShell);
+        if (capturedProxy.Generated.Cost != capturedShell.Cost
+            || capturedProxy.EffectiveDefinitionPayload != CardTinkeringApi.SerializeCard(capturedShell)
+            || GeneratedCardEffectIdentity.Signature(capturedProxy.Generated)
+               != GeneratedCardEffectIdentity.Signature(capturedShell))
+            throw new InvalidOperationException(
+                "Composite-Power detached proxy did not restore a captured full-shell definition.");
+    }
+
+    private static void AuditRestoredDefinitionCache()
+    {
+        // Reproduce the real load order for an editor/freeform card: ModelDb first clones a canonical chaos slot
+        // whose DynamicVars may already be materialized, then SavedProperties assigns the replacement definition.
+        // AfterDeserialized must discard the slot cache and rebuild it from that saved definition.
+        var host = (ChaosCardModel)ChaosCardRegistry.Canonical(GeneratedCharacter.Defect, 0);
+        _ = host.DynamicVars;
+        var sourceRecipe = CharacterComponentCatalogs.Get(GeneratedCharacter.Defect).Recipes
+            .Single(recipe => recipe.Id == "CreativeAi");
+        var restoredOperations = sourceRecipe.Atoms.Select((atom, index) => new GeneratorOperation(
+            atom.Template, atom.Scope,
+            atom.LocalizedText?.RenderChinese(atom.RuntimeSpec
+                ?? throw new InvalidOperationException("Creative AI audit component has no RuntimeSpec."))
+            ?? throw new InvalidOperationException("Creative AI audit component has no localized text."),
+            sourceRecipe.TriggerOwners[index] < 0
+                ? new Dictionary<string, int>()
+                : new Dictionary<string, int> { ["triggerIndex"] = sourceRecipe.TriggerOwners[index] },
+            RequiresSingleTarget: atom.RequiresSingleTarget,
+            RuntimeSpec: atom.RuntimeSpec,
+            LocalizedText: atom.LocalizedText,
+            LocalizationId: atom.SemanticId)).ToArray();
+        var restoredDefinition = host.Generated with
+        {
+            Cost = 1,
+            Type = GeneratedCardType.Power,
+            Target = TargetMode.Other,
+            Operations = restoredOperations,
+            Upgrade = null
+        };
+        var payload = CardTinkeringApi.SerializeCard(restoredDefinition);
+        var save = new SerializableCard
+        {
+            Id = host.Id,
+            Props = new SavedProperties
+            {
+                strings =
+                [
+                    new SavedProperties.SavedProperty<string>(
+                        nameof(ChaosCardModel.FreeformDefinitionPayload), payload)
+                ]
+            }
+        };
+        var restoredFreeform = (ChaosCardModel)CardModel.FromSerializable(save);
+        if (restoredFreeform.EffectiveDefinitionPayload != payload
+            || !restoredFreeform.DynamicVars.TryGetValue("Amount1", out var restoredAmount)
+            || restoredAmount.BaseValue != 1)
+            throw new InvalidOperationException(
+                "A loaded freeform definition retained the canonical slot's DynamicVar cache.");
+
+        var template = ChaosRuntimeDescriptionRenderer.Render(restoredFreeform, chinese: true);
+        if (!template.Contains("{Amount1:diff()}", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "A loaded freeform definition did not bind its restored amount slot into card text.");
+        const string auditDescriptionId = "AUTO_ANTHONY_FREEFORM_LOAD_AUDIT.description";
+        LocManager.Instance.GetTable("cards").MergeWith(new Dictionary<string, string>
+        {
+            [auditDescriptionId] = template
+        });
+        var formatted = new LocString("cards", auditDescriptionId);
+        restoredFreeform.DynamicVars.AddTo(formatted);
+        formatted.Add("InCombat", false);
+        formatted.Add(new IfUpgradedVar(UpgradeDisplay.Normal));
+        formatted.Add("energyPrefix", "defect");
+        formatted.Add("singleStarIcon", "[img]res://images/packed/sprite_fonts/star_icon.png[/img]");
+        var formattedText = formatted.GetFormattedText();
+        if (formattedText.Contains("{Amount1", StringComparison.Ordinal)
+            || !formattedText.Contains("1", StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"A loaded freeform definition left its amount unresolved: {formattedText}");
+        Log.Info("[AutoAnthony] Saved freeform definition cache rebuild audit passed.");
     }
 
     private static void EnsureLibraryCardsInModelDb()
@@ -1380,6 +1711,14 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.SelectionCountForEffect(transformTwo, 2) != 2
             || ChaosOperationExecutor.SelectionCountForEffect(repeatSelectedSkill, 3) != 1
             || ChaosOperationExecutor.SelectionCountForEffect(stratagemChoice, 0) != 1
+            || ChaosOperationExecutor.TransformProxySelectionCount(0) != 1
+            || ChaosOperationExecutor.TransformProxySelectionCount(2) != 2
+            || ChaosOperationExecutor.TransformProxySelectionCount(3) != 3
+            || ChaosOperationExecutor.DoomThresholdMultiplier(8, 9) != 0
+            || ChaosOperationExecutor.DoomThresholdMultiplier(9, 9) != 1
+            || ChaosOperationExecutor.DoomThresholdMultiplier(19, 9) != 2
+            || ChaosOperationExecutor.DependencyScaledDamageBonus(5, 10) != 50
+            || ChaosOperationExecutor.DependencyScaledDamageBonus(5, 11) != 55
             || ChaosOperationExecutor.ExecutableGeneratedCardCount(-1) != 0
             || ChaosOperationExecutor.GeneratedCardChoiceCandidateCount(0) != 0
             || ChaosOperationExecutor.GeneratedCardChoiceCandidateCount(4) != 4
@@ -1395,7 +1734,7 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(2, 0)
             || !ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(2, 2))
             throw new InvalidOperationException(
-                "Generated-card counts or empty generated-choice guards failed their runtime audit.");
+                "Generated-card counts, dependency multipliers, or empty generated-choice guards failed their runtime audit.");
         var firstCardTrigger = StructuredProbe("A:firstCardPlayedEachTurn", OperationScope.AbilityTrigger,
             "每回合中，当你打出第一张牌时，");
         var replayPayoff = StructuredProbe("D:ReplayEventCard", OperationScope.NonTargeted,
@@ -1475,6 +1814,19 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.HandExhaustSelectionCount(0, 5) != 1
             || ChaosOperationExecutor.HandExhaustSelectionCount(2, 0) != 0)
             throw new InvalidOperationException("Hand-exhaust selection ignores its printed amount or available hand size.");
+        if (!ChaosOperationExecutor.RequiresOriginalOperationRoute("A:VoidFormFirstCardsFree")
+            || !ChaosOperationExecutor.RequiresOriginalOperationRoute("A:ProxyAtomic_VoidForm")
+            || ChaosOperationExecutor.RequiresOriginalOperationRoute("N:B"))
+            throw new InvalidOperationException("Generated-value original-operation routing lost the split Void Form rule.");
+        var resolvedEmptySelection = new ChaosExecutionState();
+        resolvedEmptySelection.CardSelections["card1"] = Array.Empty<CardModel>();
+        var selectedExhaustProbe = triggeredSelectedExhaust with { CardTargetSlot = "card1" };
+        if (ChaosOperationExecutor.ResolvedCardSelection(selectedExhaustProbe, resolvedEmptySelection) is not
+            { Count: 0 }
+            || ChaosOperationExecutor.ResolvedCardSelection(selectedExhaustProbe, new ChaosExecutionState())
+                is not null)
+            throw new InvalidOperationException(
+                "Resolved empty hand selections can no longer suppress a duplicate consumer prompt.");
         if (ChaosOperationExecutor.ClampedSelectionBounds(2, 2, 5) != (2, 2)
             || ChaosOperationExecutor.ClampedSelectionBounds(3, 3, 2) != (2, 2)
             || ChaosOperationExecutor.ClampedSelectionBounds(0, 3, 2) != (0, 2))
@@ -1636,7 +1988,7 @@ internal static class ChaosModelDbReadyPatch
         var handUpgrade = new GeneratorOperation("I:Upgrade", OperationScope.Independent,
             "升级手牌中的一张牌。", new Dictionary<string, int>());
         var movedUpgrade = new GeneratorOperation("I:UpgradeThatCard", OperationScope.Independent,
-            "升级那张攻击牌。", new Dictionary<string, int>());
+            "升级该牌。", new Dictionary<string, int>());
         var discardUpgrade = new GeneratorOperation("NCR:UpgradeRandomDiscardCards", OperationScope.NonTargeted,
             "随机升级弃牌堆中的2张牌。", new Dictionary<string, int>());
         if (!upgradeAtoms.All(atom => CardEffectRules.IsExistingCombatCardUpgrade(new GeneratorOperation(
@@ -1654,6 +2006,20 @@ internal static class ChaosModelDbReadyPatch
             || !SeedBeforeLoadPatch.RequiresGeneratedPoolActivation(null, containsGeneratedCards: true)
             || !SeedBeforeLoadPatch.RequiresGeneratedPoolActivation("AA1:test", containsGeneratedCards: false))
             throw new InvalidOperationException("Vanilla/legacy generated-save activation audit failed.");
+        var standaloneFreeform = new SerializableCard
+        {
+            Props = new SavedProperties
+            {
+                strings =
+                [
+                    new SavedProperties.SavedProperty<string>(
+                        nameof(ChaosCardModel.FreeformDefinitionPayload), "FREEFORM_AUDIT")
+                ]
+            }
+        };
+        if (!SeedBeforeLoadPatch.IsStandaloneFreeformCard(standaloneFreeform)
+            || SeedBeforeLoadPatch.IsStandaloneFreeformCard(new SerializableCard()))
+            throw new InvalidOperationException("Standalone component-card save routing audit failed.");
 
         var cases = new (GeneratedCharacter Generated, CharacterModel Character, Type PoolType, int Basics)[]
         {
@@ -2109,7 +2475,7 @@ internal static class SeedBeforeSingleplayerPatch
         ref Task<RunState> __result)
     {
         if (Volatile.Read(ref _callingOriginal) > 0) return true;
-        if (!ChaosModSettings.Enabled)
+        if (!ChaosModSettings.EffectiveGeneratedCardsEnabled)
         {
             SurpriseCardKnowledge.BeginNewRun();
             ChaosRunDefinitions.DeactivateRun();
@@ -2169,6 +2535,11 @@ internal static class SeedBeforeSingleplayerPatch
                      + $"NumericRandom={ChaosRunDefinitions.ActiveNumericRandomMode}, "
                      + $"PreserveOriginal={ChaosRunDefinitions.ActivePreserveOriginalCards}.");
         }
+
+        // The overlay describes AutoAnthony's generation work, not the remainder of vanilla's run-start task.
+        // Release it before optional act-selection frameworks can present an interactive route choice.
+        generationProgress?.Dispose();
+        generationProgress = null;
 
         Task<RunState> originalTask;
         Interlocked.Increment(ref _callingOriginal);
@@ -2265,6 +2636,9 @@ internal static class SeedBeforeMultiplayerPatch
         var generationMarker = modifiers.OfType<ChaosPoolSnapshotModifier>()
             .LastOrDefault(snapshot => snapshot.MultiplayerGenerationModeSpecified);
         var enabled = generationMarker?.MultiplayerModEnabled ?? ChaosModSettings.Enabled;
+        var addGeneratedCards = generationMarker?.MultiplayerAddGeneratedCardsSpecified == true
+            ? generationMarker.MultiplayerAddGeneratedCards
+            : generationMarker is null ? ChaosModSettings.AddGeneratedCards : true;
         var ultimateChaos = generationMarker?.MultiplayerUltimateChaos
                             ?? ChaosModSettings.EffectiveUltimateChaos;
         var replaceStartingCards = generationMarker?.MultiplayerReplaceStartingCardsSpecified == true
@@ -2282,6 +2656,9 @@ internal static class SeedBeforeMultiplayerPatch
             : ChaosModSettings.RandomCardArt;
         if (generationMarker is not null && enabled != ChaosModSettings.Enabled)
             Log.Info($"[AutoAnthony] Using host multiplayer enabled setting instead of the local setting: Enabled={enabled}.");
+        if (generationMarker?.MultiplayerAddGeneratedCardsSpecified == true
+            && addGeneratedCards != ChaosModSettings.AddGeneratedCards)
+            Log.Info($"[AutoAnthony] Using host multiplayer card-pool setting instead of the local setting: AddGeneratedCards={addGeneratedCards}.");
         if (generationMarker is not null && ultimateChaos != ChaosModSettings.UltimateChaos)
             Log.Info($"[AutoAnthony] Using host multiplayer generation mode instead of the local setting: UltimateChaos={ultimateChaos}.");
         if (generationMarker?.MultiplayerReplaceStartingCardsSpecified == true
@@ -2292,8 +2669,31 @@ internal static class SeedBeforeMultiplayerPatch
             Log.Info($"[AutoAnthony] Using host multiplayer numeric setting instead of the local setting: NumericBalanceOptimization={numericBalanceOptimization}.");
         var characters = lobby.Players.Select(player => ChaosCharacterMapping.From(player.character))
             .Where(character => character.HasValue).Select(character => character!.Value).ToArray();
-        ChaosGenerationProgressOverlay? generationProgress = null;
-        if (enabled && characters.Length > 0 && !string.IsNullOrEmpty(generationMarker?.PoolSnapshot))
+        var preparedPools = MultiplayerGenerationModePatch.TakePreparedPools(lobby);
+        using var preparedProgress = preparedPools?.Progress;
+        ChaosGenerationProgressOverlay? generationProgress = preparedProgress;
+        if (enabled && addGeneratedCards && characters.Length > 0
+            && !string.IsNullOrEmpty(preparedPools?.Payload))
+        {
+            var hostPayload = preparedPools.Payload;
+            var fingerprint = ChaosPoolSnapshot.MultiplayerFingerprint(hostPayload);
+            var reboundPayload = ChaosPoolSnapshot.RebindMultiplayerActiveCharacters(hostPayload, characters, seed);
+            var report = ChaosRunDefinitions.ActivateFromSave(characters, seed, reboundPayload);
+            if (report.RegeneratedCards != 0)
+                throw new InvalidDataException(
+                    $"The prepared host multiplayer pool snapshot required {report.RegeneratedCards} regenerated cards.");
+            var gameplayFingerprint = ChaosPoolSnapshot.MultiplayerGameplayFingerprint(
+                ChaosRunDefinitions.GetAllCards());
+            if (!string.IsNullOrWhiteSpace(generationMarker?.MultiplayerGenerationFingerprint)
+                && !string.Equals(gameplayFingerprint, generationMarker.MultiplayerGenerationFingerprint,
+                    StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    $"The prepared host multiplayer pool snapshot differs from the begin-run marker (host={generationMarker.MultiplayerGenerationFingerprint}, local={gameplayFingerprint}).");
+            Log.Info($"[AutoAnthony] Activated host-authored multiplayer pools without peer regeneration: "
+                     + $"snapshot={fingerprint}, gameplay={gameplayFingerprint}, cards={report.RestoredCards}.");
+        }
+        else if (enabled && addGeneratedCards && characters.Length > 0
+            && !string.IsNullOrEmpty(generationMarker?.PoolSnapshot))
         {
             var hostPayload = generationMarker.PoolSnapshot;
             var fingerprint = ChaosPoolSnapshot.MultiplayerFingerprint(hostPayload);
@@ -2302,18 +2702,15 @@ internal static class SeedBeforeMultiplayerPatch
             if (report.RegeneratedCards != 0)
                 throw new InvalidDataException(
                     $"The authoritative multiplayer pool snapshot required {report.RegeneratedCards} regenerated cards.");
-            generationProgress = MultiplayerGenerationModePatch.TakePreparedProgress(lobby);
             Log.Info($"[AutoAnthony] Restored host-authoritative multiplayer pools: fingerprint={fingerprint}, cards={report.RestoredCards}.");
         }
-        else if (enabled && characters.Length > 0)
+        else if (enabled && addGeneratedCards && characters.Length > 0)
         {
             generationProgress = await ChaosRunDefinitions.ActivateAsync(characters, seed, ultimateChaos,
                 replaceStartingCards, numericBalanceOptimization, numericRandomMode, preserveOriginalCards,
                 randomCardArt);
-            // The host generated these exact pools before broadcasting the start message, so ActivateAsync can
-            // legitimately reuse them without returning a new overlay. Preserve the original host overlay until
-            // vanilla finishes entering the first room.
-            generationProgress ??= MultiplayerGenerationModePatch.TakePreparedProgress(lobby);
+            // Older peers may not support the host-authored snapshot protocol. Keep deterministic regeneration as
+            // a compatibility path, then verify the lightweight begin-run fingerprint below.
             if (!string.IsNullOrWhiteSpace(generationMarker?.MultiplayerGenerationFingerprint))
             {
                 var localFingerprint = ChaosPoolSnapshot.MultiplayerGameplayFingerprint(
@@ -2328,7 +2725,7 @@ internal static class SeedBeforeMultiplayerPatch
                 Log.Warn("[AutoAnthony] The host did not provide a generated-pool fingerprint; using deterministic peer generation for compatibility with an older version.");
         }
         using var progress = generationProgress;
-        if (enabled && ChaosRunDefinitions.IsRunActive)
+        if (enabled && addGeneratedCards && ChaosRunDefinitions.IsRunActive)
         {
             ChaosCardDiscovery.ResetGeneratedCardsForNewRun();
             ChaosPoolSnapshot.PrimeRunPayload(ChaosRunDefinitions.ActiveCharacters,
@@ -2340,6 +2737,10 @@ internal static class SeedBeforeMultiplayerPatch
             ChaosRunDefinitions.DeactivateRun();
             Log.Info("[AutoAnthony] Multiplayer card-pool replacement is disabled for this run.");
         }
+        // As in singleplayer, the generated-pool overlay must not survive into vanilla's async room/act entry.
+        // Besides preventing stale black screens, this lets optional route selectors receive mouse input.
+        generationProgress?.Dispose();
+        generationProgress = null;
 
         Task<RunState> originalTask;
         Interlocked.Increment(ref _callingOriginal);
@@ -2462,13 +2863,14 @@ internal static class SeedBeforeLoadPatch
             return;
         }
 
-        var containsGeneratedCards = save.Players.SelectMany(player => player.Deck)
-            .Any(card => card.Id is { } id && ChaosCardRegistry.IsGeneratedCardId(id));
-        if (!RequiresGeneratedPoolActivation(snapshot, containsGeneratedCards))
+        var containsPoolManagedGeneratedCards = save.Players.SelectMany(player => player.Deck)
+            .Any(card => card.Id is { } id && ChaosCardRegistry.IsGeneratedCardId(id)
+                         && !IsStandaloneFreeformCard(card));
+        if (!RequiresGeneratedPoolActivation(snapshot, containsPoolManagedGeneratedCards))
         {
             ChaosRunDefinitions.DeactivateRun();
             Log.Info($"[AutoAnthony] Treated {source} as a vanilla run because it contains neither an "
-                     + "AutoAnthony pool snapshot nor generated card IDs.");
+                     + "AutoAnthony pool snapshot nor pool-managed generated card IDs.");
             return;
         }
 
@@ -2500,6 +2902,11 @@ internal static class SeedBeforeLoadPatch
 
     internal static bool RequiresGeneratedPoolActivation(string? snapshot, bool containsGeneratedCards) =>
         !string.IsNullOrWhiteSpace(snapshot) || containsGeneratedCards;
+
+    internal static bool IsStandaloneFreeformCard(SerializableCard card) =>
+        card.Props?.strings?.Any(property =>
+            property.name == nameof(ChaosCardModel.FreeformDefinitionPayload)
+            && !string.IsNullOrWhiteSpace(property.value)) == true;
 
     private static void Postfix(RunState __result)
     {
@@ -2976,7 +3383,7 @@ internal static class ChaosCardLibraryPoolPatch
         // as Apparition are not replaced by this mod and must remain visible beside the generated set.
         var useGeneratedCharacterAncients = ChaosRunDefinitions.IsRunActive
             ? !ChaosRunDefinitions.ActivePreserveOriginalCards
-            : ChaosModSettings.Enabled && !ChaosModSettings.PreserveOriginalCards;
+            : ChaosModSettings.EffectiveGeneratedCardsEnabled && !ChaosModSettings.PreserveOriginalCards;
         filters[ancientsFilter] = card =>
             ChaosCardLibraryRules.IsAncientTabCard(card, useGeneratedCharacterAncients);
     }

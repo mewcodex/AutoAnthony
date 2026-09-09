@@ -36,6 +36,12 @@ public sealed class ChaosPoolSnapshotModifier : ModifierModel
     public bool MultiplayerModEnabled { get; set; }
 
     [SavedProperty]
+    public bool MultiplayerAddGeneratedCardsSpecified { get; set; }
+
+    [SavedProperty]
+    public bool MultiplayerAddGeneratedCards { get; set; }
+
+    [SavedProperty]
     public bool MultiplayerUltimateChaos { get; set; }
 
     [SavedProperty]
@@ -1646,6 +1652,8 @@ public static class ChaosPoolSnapshot
         var carrier = (ChaosPoolSnapshotModifier)ModelDb.Modifier<ChaosPoolSnapshotModifier>().ToMutable();
         carrier.MultiplayerGenerationModeSpecified = true;
         carrier.MultiplayerModEnabled = true;
+        carrier.MultiplayerAddGeneratedCardsSpecified = true;
+        carrier.MultiplayerAddGeneratedCards = true;
         carrier.MultiplayerUltimateChaos = true;
         carrier.MultiplayerReplaceStartingCardsSpecified = true;
         carrier.MultiplayerReplaceStartingCards = false;
@@ -1663,6 +1671,8 @@ public static class ChaosPoolSnapshot
         if (packetWriter.BytePosition > 2_048
             || restoredCarrier.PoolSnapshot.Length != 0
             || restoredCarrier.MultiplayerGenerationFingerprint != gameplayFingerprint
+            || !restoredCarrier.MultiplayerAddGeneratedCardsSpecified
+            || !restoredCarrier.MultiplayerAddGeneratedCards
             || !restoredCarrier.MultiplayerRandomCardArtSpecified
             || !restoredCarrier.MultiplayerRandomCardArt)
             throw new InvalidOperationException(

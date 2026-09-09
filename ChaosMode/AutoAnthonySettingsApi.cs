@@ -17,8 +17,12 @@ public sealed record AutoAnthonySettingsSnapshot(
     bool ShowCardInternalIds,
     bool SurpriseMode,
     bool SurpriseModeLite,
-    bool SurpriseModePro)
+    bool SurpriseModePro,
+    bool AddGeneratedCards,
+    bool DecomposeOriginalCards)
 {
+    public bool AddOriginalCards => PreserveOriginalCards;
+
     public bool AnySurpriseMode => SurpriseMode || SurpriseModeLite || SurpriseModePro;
 
     public ComponentSurpriseMode ActiveSurpriseMode => SurpriseModePro
@@ -37,7 +41,7 @@ public sealed record AutoAnthonySettingsSnapshot(
 /// </summary>
 public static class AutoAnthonySettingsApi
 {
-    public const int ApiVersion = 2;
+    public const int ApiVersion = 4;
 
     public static AutoAnthonySettingsSnapshot Current => new(
         ChaosModSettings.Enabled,
@@ -52,5 +56,7 @@ public static class AutoAnthonySettingsApi
         ChaosModSettings.ShowCardInternalIds,
         ChaosModSettings.SurpriseMode,
         ChaosModSettings.SurpriseModeLite,
-        ChaosModSettings.SurpriseModePro);
+        ChaosModSettings.SurpriseModePro,
+        ChaosModSettings.AddGeneratedCards,
+        ChaosModSettings.DecomposeOriginalCards);
 }

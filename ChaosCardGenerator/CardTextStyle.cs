@@ -8,6 +8,24 @@ namespace ChaosCardGenerator;
 /// </summary>
 public static class CardTextStyle
 {
+    private const string EnergyIcon = "{energyPrefix:energyIcons(1)}";
+    private const string PrintedValuePattern = @"(?:\d+|X|\{[A-Za-z0-9_]+:(?:diff|inverseDiff)\(\)\})";
+    private static readonly Regex LegacyEnergyIcon = new(
+        @"\[img\]res://images/packed/sprite_fonts/[a-z0-9_]*energy_icon\.png\[/img\]",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex EnergyAmount = new(
+        $@"(?<amount>{PrintedValuePattern})点能量",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex NumericCostWord = new(
+        $@"(?<amount>{PrintedValuePattern})(?<icon>\{{energyPrefix:energyIcons\(1\)\}})?费(?!用)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex CostAmount = new(
+        $@"(?<prefix>耗能(?:(?![，。！？；;\r\n]).){{0,24}}?(?:为|变为|降为|降低至|不为|大于等于|不少于|减少|增加))(?<amount>{PrintedValuePattern})(?<icon>\{{energyPrefix:energyIcons\(1\)\}})?",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex DynamicPrintedValue = new(
+        @"^\{(?<name>[A-Za-z0-9_]+):(?:diff|inverseDiff)\(\)\}$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     public static string Chinese(GeneratorOperation operation) => Chinese(operation, operation.ChineseText);
 
     public static string Chinese(GeneratorOperation operation, string effectiveText)
@@ -39,8 +57,8 @@ public static class CardTextStyle
             "C:untilTurnEndCardDrawn" => effectiveText.Replace("本回合每当你抽到一张牌时",
                 "打出此牌后，你在本回合每抽到一张牌", StringComparison.Ordinal),
             "I:Create" => Regex.Replace(effectiveText,
-                @"^将一张随机攻击牌加入手牌。其本回合费用为0。?$",
-                "将一张随机攻击牌加入你的手牌。那张牌在本回合内可以免费打出。"),
+                @"^将一张随机攻击牌加入(?:你的)?手牌。(?:其本回合费用为0|该牌在本回合费用为0|该牌在本回合内可以免费打出)。?$",
+                "将一张随机攻击牌加入你的手牌。该牌在本回合内可以免费打出。"),
             "I:DrawUntilNonAttack" => Regex.Replace(effectiveText,
                 @"^抽牌，直到抽到一张非攻击牌。?$", "抽牌直到你抽到一张非攻击牌。"),
             "I:AutoPlayRandomAttackFromHand" => Regex.Replace(effectiveText,
@@ -52,12 +70,12 @@ public static class CardTextStyle
                 @"^在本场战斗中，此卡的基础伤害增加(\d+)点。?$",
                 "将这张牌在本场战斗中的伤害增加$1点。"),
             "I:SetCostZero" => Regex.Replace(effectiveText,
-                @"^费用变为0。?$", "这张牌的耗能变为0。"),
+                @"^费用变为0。?$", "该牌的耗能变为0。"),
             "I:PreventDrawThisTurn" => Regex.Replace(effectiveText,
                 @"^本回合不能再抽牌。?$", "你在本回合内不能再抽牌。"),
             "I:CopySelectedCardNextTurn" => Regex.Replace(effectiveText,
-                @"^选择一张手牌。在下个回合将它的(\d+)张复制加入手牌。?$",
-                "选择一张牌。在下个回合将这张牌的$1张复制品加入你的手牌。"),
+                @"^选择一张(?:手)?牌。在下个回合，?(?:将它的|将这张牌的|将该牌的)(\d+)张复制(?:品)?加入(?:你的)?手牌。?$",
+                "选择一张手牌。在下个回合，将该牌的$1张复制品加入你的手牌。"),
             "I:ReplayNextSkills" => effectiveText.Replace("在本回合，你打出的下", "在这个回合，你打出的下", StringComparison.Ordinal),
             "I:Upgrade" => effectiveText.Replace("升级手牌中的一张牌", "升级你手牌中的一张牌", StringComparison.Ordinal),
             "M:value" => effectiveText.Replace("这张牌造成等同于当前格挡的伤害", "造成你当前格挡值的伤害", StringComparison.Ordinal),
@@ -152,22 +170,23 @@ public static class CardTextStyle
                 "你在本回合每获得1颗蓝星", StringComparison.Ordinal),
             "R:WheneverDrawn" => effectiveText.Replace("每当抽到此牌时", "每当你抽到这张牌时", StringComparison.Ordinal),
             "R:CostDownWhenDrawn" => Regex.Replace(effectiveText, @"^本场战斗此牌耗能减少(\d+)。?$",
-                "这张牌的耗能减少$1。"),
+                "该牌的耗能减少$1。"),
             "R:DamageUpWhenDrawn" => Regex.Replace(effectiveText, @"^本场战斗此牌基础伤害增加(\d+)。?$",
-                "在这场战斗中其伤害增加$1点。"),
+                "在这场战斗中，该牌的伤害增加$1点。"),
             "R:KingsSwordDoubleDamageThisTurn" => effectiveText.Replace("本回合君王之剑对该敌人造成双倍伤害",
                 "君王之剑在本回合对敌人造成双倍伤害", StringComparison.Ordinal),
             "R:MoveDiscardCardToDrawTop" => effectiveText.Replace("将弃牌堆中的一张牌放到抽牌堆顶",
                 "将你弃牌堆中的一张牌放到抽牌堆顶部", StringComparison.Ordinal),
-            "R:PlayAtTurnEndIfTopOfDraw" or "R:PlayThisCard" => effectiveText.Replace("打出此牌", "则将其打出", StringComparison.Ordinal),
+            "R:PlayAtTurnEndIfTopOfDraw" or "R:PlayThisCard" => effectiveText.Replace("则将其打出", "打出此牌", StringComparison.Ordinal),
             "R:NextTurn" => effectiveText.Replace("下个回合开始时", "在你的下个回合开始时", StringComparison.Ordinal),
             "R:AtTurnStartIfInExhaust" => effectiveText.Replace("若此牌", "如果这张牌", StringComparison.Ordinal)
                 .Replace("如果此牌", "如果这张牌", StringComparison.Ordinal),
             "R:AddDebrisToHand" => effectiveText.Replace("残骸", "碎屑", StringComparison.Ordinal)
                 .Replace("加入手牌", "加入你的手牌", StringComparison.Ordinal),
             "R:AddRandomColorlessToHand" => effectiveText.Replace("加入手牌", "加入你的手牌", StringComparison.Ordinal),
-            "R:CopySelectedColorlessCard" => effectiveText.Replace("选择手牌中的一张无色牌，将它的一张复制加入手牌",
-                "选择你手牌中的一张无色牌。将这张牌的一张复制品放入你的手牌", StringComparison.Ordinal),
+            "R:CopySelectedColorlessCard" => Regex.Replace(effectiveText,
+                @"^选择手牌中的一张无色牌，(?:将它的|将该牌的)一张复制(?:品)?加入手牌。?$",
+                "选择你手牌中的一张无色牌。将该牌的一张复制品放入你的手牌。"),
             "R:FillHandWithDebris" => effectiveText.Replace("残骸", "碎屑", StringComparison.Ordinal)
                 .Replace("加入手牌", "加入你的手牌", StringComparison.Ordinal),
             "R:PutKingsSwordInHand" => effectiveText.Replace("放入手牌", "放入你的手牌", StringComparison.Ordinal),
@@ -187,6 +206,21 @@ public static class CardTextStyle
                 "你每在一回合内打出$1张技能牌，就将这张牌放入你的手牌。"),
             _ => effectiveText
         };
+
+        // A referenced-card payoff acts on the card supplied by its trigger/provider, not on the card which owns
+        // the component. Normalize legacy pronouns here so an individually inspected component cannot be mistaken
+        // for a self-card operation.
+        if (runtimeSpec.Target == "referenced_card"
+            || runtimeSpec.Flags.Contains("requires_event_card_payload")
+            || runtimeSpec.Flags.Contains("requires_referenced_card_payload"))
+        {
+            text = text
+                .Replace("那张技能牌", "该技能牌", StringComparison.Ordinal)
+                .Replace("那张攻击牌", "该攻击牌", StringComparison.Ordinal)
+                .Replace("那张非攻击牌", "该非攻击牌", StringComparison.Ordinal)
+                .Replace("那张牌", "该牌", StringComparison.Ordinal)
+                .Replace("这张牌", "该牌", StringComparison.Ordinal);
+        }
 
         if (operation.Template is "N_SELECT_HAND_CARD" or "N_SELECT_HAND_ATTACK")
             text = text.Replace("选择手牌中的", "选择你手牌中的", StringComparison.Ordinal);
@@ -252,6 +286,68 @@ public static class CardTextStyle
             throw new InvalidOperationException($"卡牌耗能效果误用了“费用”：{text}");
         if (Regex.IsMatch(text, @"(?m)^每回合(?:开始|结束)时"))
             throw new InvalidOperationException($"回合时点缺少玩家归属：{text}");
+    }
+
+    /// <summary>
+    /// Applies the v111 card-text convention after numeric localization tokens have been inserted. Resource gains,
+    /// losses, and payments use energyIcons(), which keeps the game's existing repeated-icon/large-count folding
+    /// behavior. Printed card costs and cost filters keep their numeric value followed by one energy glyph.
+    /// </summary>
+    public static string NormalizeRenderedChineseEnergyNotation(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+
+        var normalized = LegacyEnergyIcon.Replace(text, EnergyIcon)
+            .Replace("费用", "耗能", StringComparison.Ordinal);
+
+        // An amount of Energy is a resource display: 2 Energy is normally two glyphs and the built-in formatter
+        // decides when a large amount should collapse. X remains a printed X followed by the resource glyph.
+        normalized = EnergyAmount.Replace(normalized, match =>
+            EnergyResource(match.Groups["amount"].Value));
+
+        // A card-cost label is always numeric (0[E] card / a copy costing 0[E]), never “0-cost card” or 0[E]-cost.
+        normalized = NumericCostWord.Replace(normalized, match =>
+            match.Groups["amount"].Value + EnergyIcon);
+
+        // Cost mutations and filters likewise retain the number and add exactly one glyph. This deliberately runs
+        // after resource replacement so “gain 2 Energy” cannot be mistaken for a card-cost expression.
+        normalized = CostAmount.Replace(normalized, match =>
+            match.Groups["prefix"].Value + match.Groups["amount"].Value + EnergyIcon);
+
+        // Legacy snapshots may already contain the glyph. Keep this pass idempotent.
+        var duplicate = EnergyIcon + EnergyIcon;
+        while (normalized.Contains(duplicate, StringComparison.Ordinal))
+            normalized = normalized.Replace(duplicate, EnergyIcon, StringComparison.Ordinal);
+        return normalized;
+    }
+
+    internal static void ValidateEnergyNotation()
+    {
+        var source = "获得2点能量。失去6点能量。你每花费4点能量。" +
+                     "将一张随机0费牌加入手牌。该牌的耗能变为0。该牌的耗能减少2。" +
+                     $"所有0{EnergyIcon}费牌获得保留。";
+        var expected = $"获得{{energyPrefix:energyIcons(2)}}。失去{{energyPrefix:energyIcons(6)}}。" +
+                       $"你每花费{{energyPrefix:energyIcons(4)}}。将一张随机0{EnergyIcon}牌加入手牌。" +
+                       $"该牌的耗能变为0{EnergyIcon}。该牌的耗能减少2{EnergyIcon}。" +
+                       $"所有0{EnergyIcon}牌获得保留。";
+        var actual = NormalizeRenderedChineseEnergyNotation(source);
+        if (actual != expected)
+            throw new InvalidOperationException($"费用图标静态文风归一失败：{actual}");
+
+        var dynamicSource = "获得{Energy0:diff()}点能量。该牌的耗能增加{Cost1:diff()}。";
+        var dynamicExpected = $"获得{{Energy0:energyIcons()}}。该牌的耗能增加{{Cost1:diff()}}{EnergyIcon}。";
+        var dynamicActual = NormalizeRenderedChineseEnergyNotation(dynamicSource);
+        if (dynamicActual != dynamicExpected)
+            throw new InvalidOperationException($"费用图标动态文风归一失败：{dynamicActual}");
+        ValidateRenderedChinese(actual);
+        ValidateRenderedChinese(dynamicActual);
+    }
+
+    private static string EnergyResource(string amount)
+    {
+        var dynamic = DynamicPrintedValue.Match(amount);
+        if (dynamic.Success) return $"{{{dynamic.Groups["name"].Value}:energyIcons()}}";
+        return amount == "X" ? "X" + EnergyIcon : $"{{energyPrefix:energyIcons({amount})}}";
     }
 
     private static string NormalizeCommon(string text)

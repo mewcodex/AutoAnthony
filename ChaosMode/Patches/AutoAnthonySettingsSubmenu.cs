@@ -115,10 +115,14 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
             "AUTO_ANTHONY_CATEGORY_POOL");
         ChaosSettingsToggle.UltimateChaosInstance = AddOption(pool.Content, optionTemplate,
             ChaosSettingsToggle.UltimateChaosLineName, "AUTO_ANTHONY_ULTIMATE_CHAOS");
-        ChaosSettingsToggle.ReplaceStartingCardsInstance = AddOption(pool.Content, optionTemplate,
-            ChaosSettingsToggle.ReplaceStartingCardsLineName, "AUTO_ANTHONY_REPLACE_STARTING_CARDS");
+        ChaosSettingsToggle.AddGeneratedCardsInstance = AddOption(pool.Content, optionTemplate,
+            ChaosSettingsToggle.AddGeneratedCardsLineName, "AUTO_ANTHONY_ADD_GENERATED_CARDS");
         ChaosSettingsToggle.PreserveOriginalCardsInstance = AddOption(pool.Content, optionTemplate,
             ChaosSettingsToggle.PreserveOriginalCardsLineName, "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS");
+        ChaosSettingsToggle.DecomposeOriginalCardsInstance = AddOption(pool.Content, optionTemplate,
+            ChaosSettingsToggle.DecomposeOriginalCardsLineName, "AUTO_ANTHONY_DECOMPOSE_ORIGINAL_CARDS");
+        ChaosSettingsToggle.ReplaceStartingCardsInstance = AddOption(pool.Content, optionTemplate,
+            ChaosSettingsToggle.ReplaceStartingCardsLineName, "AUTO_ANTHONY_REPLACE_STARTING_CARDS");
         ChaosSettingsToggle.AnytimeCardEditingInstance = ChaosSettingsToggle.IsCardTinkeringLoaded
             ? AddOption(pool.Content, optionTemplate, ChaosSettingsToggle.AnytimeCardEditingLineName,
                 "AUTO_ANTHONY_ANYTIME_CARD_EDITING")
@@ -167,7 +171,9 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                  {
                      ChaosSettingsToggle.EnabledInstance, ChaosSettingsToggle.NumericBalanceOptimizationInstance,
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
-                     ChaosSettingsToggle.ReplaceStartingCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
+                     ChaosSettingsToggle.AddGeneratedCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
+                     ChaosSettingsToggle.DecomposeOriginalCardsInstance,
+                     ChaosSettingsToggle.ReplaceStartingCardsInstance,
                      ChaosSettingsToggle.AnytimeCardEditingInstance,
                      ChaosSettingsToggle.RandomCardArtInstance,
                      ChaosSettingsToggle.GenerationModeHoverTipsInstance,
@@ -192,7 +198,9 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                  {
                      ChaosSettingsToggle.EnabledInstance, ChaosSettingsToggle.NumericBalanceOptimizationInstance,
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
-                     ChaosSettingsToggle.ReplaceStartingCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
+                     ChaosSettingsToggle.AddGeneratedCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
+                     ChaosSettingsToggle.DecomposeOriginalCardsInstance,
+                     ChaosSettingsToggle.ReplaceStartingCardsInstance,
                      ChaosSettingsToggle.AnytimeCardEditingInstance,
                      ChaosSettingsToggle.RandomCardArtInstance,
                      ChaosSettingsToggle.GenerationModeHoverTipsInstance,
@@ -202,6 +210,9 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
         {
             if (!GodotObject.IsInstanceValid(toggle)) continue;
             var locked = inRun && ChaosSettingsToggle.AppliesNextRun(ChaosSettingsToggle.GetKind(toggle!));
+            if (toggle == ChaosSettingsToggle.ReplaceStartingCardsInstance
+                && !ChaosModSettings.AddGeneratedCards)
+                locked = true;
             if (locked) toggle!.Disable();
             else toggle!.Enable();
             if (toggle!.GetParent() is CanvasItem row)

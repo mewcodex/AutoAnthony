@@ -824,14 +824,18 @@ public sealed class ChaosCompositePower : PowerModel
     public override async Task AfterDamageGiven(PlayerChoiceContext choiceContext, Creature? dealer, DamageResult result,
         ValueProp props, Creature target, CardModel? cardSource)
     {
-        if (dealer == Owner && target.IsEnemy && props.IsPoweredAttack() && cardSource?.Type == CardType.Attack)
+        // Native Reaper Form accepts both the Necrobinder and her Pet as the dealer. The powered-attack flag is
+        // the semantic source of truth; requiring the generated source card itself to be an Attack incorrectly
+        // rejects Osty's attacks emitted by Skills/Powers and makes their damage invisible to this trigger family.
+        var ownerOrOwnedPet = dealer == Owner || dealer?.PetOwner?.Creature == Owner;
+        if (ownerOrOwnedPet && target.IsEnemy && props.IsPoweredAttack())
         {
             await FireTriggers("attack_damaged_enemy", choiceContext, eventCreature: target);
-            // "Deals damage" triggers require positive unblocked damage. Keep the broader damaged-enemy event
-            // separate for effects whose native wording does not impose that requirement.
-            if (result.UnblockedDamage > 0)
+            // Match ReaperFormPower: the Doom amount is based on damage dealt after mitigation, and blocked hits
+            // do not fire. TotalDamage is the native value used by that Power for both the player and Osty.
+            if (result.TotalDamage > 0)
                 await FireTriggers("attack_dealt_damage", choiceContext, eventCreature: target,
-                    eventAmount: result.UnblockedDamage);
+                    eventAmount: result.TotalDamage);
         }
     }
 

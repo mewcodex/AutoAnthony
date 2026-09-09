@@ -8,6 +8,8 @@ edit an individual native card without replacing the game's card pools or conver
 ## Invariants
 
 - Native cards remain native until the player changes and commits that exact card.
+- The optional `Decompose Original Cards` display setting renders untouched native cards from the same component
+  projection without replacing their native execution model.
 - Opening or cancelling the editor never mutates the deck.
 - Catalog identity and behavior use ASCII IDs and structured runtime specifications, never rendered text.
 - Event, Quest, Curse, Status, Token, deprecated, Fasten, and all nine Mad Science variants remain in the catalog.

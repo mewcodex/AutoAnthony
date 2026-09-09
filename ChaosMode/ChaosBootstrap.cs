@@ -47,6 +47,6 @@ public static class ChaosBootstrap
                 Log.Error($"[AutoAnthony] Patch failed for {type.FullName}: {ex}");
             }
         }
-        Log.Info($"[AutoAnthony] Initialized with {ChaosCardRegistry.Count} fixed card slots and {applied} Harmony patch classes; Enabled={ChaosModSettings.Enabled}, ReplaceStartingCards={ChaosModSettings.ReplaceStartingCards}, Ultimate Chaos={ChaosModSettings.UltimateChaos}.");
+        Log.Info($"[AutoAnthony] Initialized with {ChaosCardRegistry.Count} fixed card slots and {applied} Harmony patch classes; Enabled={ChaosModSettings.Enabled}, AddGeneratedCards={ChaosModSettings.AddGeneratedCards}, ReplaceStartingCards={ChaosModSettings.ReplaceStartingCards}, DecomposeOriginalCards={ChaosModSettings.DecomposeOriginalCards}, Ultimate Chaos={ChaosModSettings.UltimateChaos}.");
     }
 }

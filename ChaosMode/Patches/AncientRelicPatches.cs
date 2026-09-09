@@ -17,6 +17,10 @@ namespace AutoAnthony.Patches;
 
 internal static class ChaosAncientRelics
 {
+    private sealed record BoundDustyTomeCard(string DefinitionPayload, string PortraitPath);
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DustyTome, BoundDustyTomeCard>
+        BoundDustyTomeCards = new();
     private static readonly System.Reflection.FieldInfo ArchaicToothStarterCardField =
         AccessTools.Field(typeof(ArchaicTooth), "_serializableStarterCard");
     private static readonly System.Reflection.FieldInfo ArchaicToothAncientCardField =
@@ -111,9 +115,50 @@ internal static class ChaosAncientRelics
         //
         // The referenced upgraded card is the useful part of this relic option. Store that preview eagerly as a
         // stable one-element array, so Darv setup never executes arbitrary generated-card tip construction.
+        BoundDustyTomeCards.Remove(dustyTome);
+        var preview = card;
+        if (card is ChaosCardModel generated)
+        {
+            // A generated slot id is stable, but its slot definition may be rebound if a stale pool is repaired
+            // between event setup and relic acquisition. Freeze the exact option identity shown by Darv so the
+            // upgraded card awarded later cannot silently become another generated Ancient with the same id.
+            var snapshot = new BoundDustyTomeCard(
+                ChaosCardGenerator.CardTinkeringApi.SerializeCard(generated.Generated),
+                generated.PortraitPath);
+            BoundDustyTomeCards.Add(dustyTome, snapshot);
+            var frozenPreview = (ChaosCardModel)generated.ToMutable();
+            frozenPreview.ApplyCapturedDefinition(
+                ChaosCardGenerator.CardTinkeringApi.DeserializeCard(snapshot.DefinitionPayload));
+            frozenPreview.FreeformPortraitPath = snapshot.PortraitPath;
+            preview = frozenPreview;
+        }
+
         dustyTome.AncientCard = card.Id;
         DustyTomeExtraHoverTipsField.SetValue(dustyTome,
-            new IHoverTip[] { HoverTipFactory.FromCard(card, upgrade: true) });
+            new IHoverTip[] { HoverTipFactory.FromCard(preview, upgrade: true) });
+    }
+
+    internal static bool TryCreateBoundDustyTomeCard(DustyTome dustyTome, Player player,
+        out CardModel ancient)
+    {
+        if (!BoundDustyTomeCards.TryGetValue(dustyTome, out var snapshot)
+            || AncientCanonical(player, 1) is not ChaosCardModel canonical)
+        {
+            ancient = null!;
+            return false;
+        }
+
+        var captured = player.RunState.CreateCard(canonical, player) as ChaosCardModel;
+        if (captured is null)
+        {
+            ancient = null!;
+            return false;
+        }
+        captured.ApplyCapturedDefinition(
+            ChaosCardGenerator.CardTinkeringApi.DeserializeCard(snapshot.DefinitionPayload));
+        captured.FreeformPortraitPath = snapshot.PortraitPath;
+        ancient = captured;
+        return true;
     }
 
     internal static bool IsStoredGeneratedCard(ModelId? id) =>
@@ -249,7 +294,8 @@ internal static class DustyTomeObtainedPatch
     {
         var player = __instance.Owner;
         if (!ChaosAncientRelics.ShouldOverrideDustyTome(player)) return true;
-        if (!ChaosAncientRelics.TryCreateStoredAncient(player, __instance.AncientCard, 1, out var ancient))
+        if (!ChaosAncientRelics.TryCreateBoundDustyTomeCard(__instance, player, out var ancient)
+            && !ChaosAncientRelics.TryCreateStoredAncient(player, __instance.AncientCard, 1, out ancient))
         {
             Log.Warn($"[AutoAnthony] Dusty Tome's cached card did not match its actual owner {player.NetId}; rebuilding the reward from that player's active Ancient pool.");
             ancient = ChaosAncientRelics.CreateAncient(player, 1);

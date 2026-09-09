@@ -314,6 +314,7 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
+        "needs_external_card_slot",
         "replenishes_hand",
         "requires_player_choice",
         "set_cost_zero_this_turn",
@@ -1120,7 +1121,6 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "count_unit_reference",
         "effect_family_draw",
         "requires_event_card_payload"
       ],
@@ -1974,6 +1974,7 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
+        "needs_external_card_slot",
         "replenishes_hand",
         "requires_player_choice",
         "set_cost_zero_this_turn",
@@ -3936,7 +3937,6 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "count_unit_reference",
         "requires_event_card_payload"
       ],
       "Values": [],
@@ -4535,6 +4535,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -4542,6 +4543,14 @@
         {
           "Id": "damage",
           "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -4554,44 +4563,6 @@
   },
   {
     "Id": "defect/gunkup/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
-        {
-          "Id": "extra_hits",
-          "BaseValue": 2,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 2,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "defect/gunkup/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_self_action",
@@ -5830,6 +5801,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -5837,6 +5809,14 @@
         {
           "Id": "damage",
           "BaseValue": 10,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -5849,44 +5829,6 @@
   },
   {
     "Id": "defect/refract/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
-        {
-          "Id": "extra_hits",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "defect/refract/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_self_action",
@@ -7141,6 +7083,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -7148,6 +7091,14 @@
         {
           "Id": "damage",
           "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7160,44 +7111,6 @@
   },
   {
     "Id": "defect/uproar/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
-        {
-          "Id": "extra_hits",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "defect/uproar/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_self_action",
@@ -7258,6 +7171,7 @@
       "Flags": [
         "cost_wording",
         "count_unit_reference",
+        "needs_external_card_slot",
         "replenishes_hand",
         "this_turn_reference"
       ],
@@ -7351,14 +7265,14 @@
     "Id": "ironclad/aggression/2",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_independent_action",
-      "Variant": "i_upgradethatcard",
-      "Target": "self",
+      "Opcode": "upgrade_card",
+      "Variant": "referenced",
+      "Target": "referenced_card",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "count_unit_reference"
+        "requires_referenced_card_payload"
       ],
       "Values": [],
       "Condition": null,
@@ -8437,11 +8351,8 @@
       "Target": "referenced_card",
       "SourceZone": "hand",
       "DestinationZone": "none",
-      "CardFilter": "skill",
-      "Flags": [
-        "count_unit_reference",
-        "skill_card_reference"
-      ],
+      "CardFilter": "any",
+      "Flags": [],
       "Values": [
         {
           "Id": "count",
@@ -9319,6 +9230,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -9326,6 +9238,14 @@
         {
           "Id": "damage",
           "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9338,44 +9258,6 @@
   },
   {
     "Id": "ironclad/fightme/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
-        {
-          "Id": "extra_hits",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "ironclad/fightme/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "apply_power",
@@ -9405,7 +9287,7 @@
     }
   },
   {
-    "Id": "ironclad/fightme/3",
+    "Id": "ironclad/fightme/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "apply_power",
@@ -9661,7 +9543,6 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "count_unit_reference",
         "random_enemy_reference",
         "requires_event_card_payload",
         "requires_player_choice"
@@ -10176,14 +10057,15 @@
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "create_copy",
-      "Variant": "referenced_attack",
+      "Variant": "referenced_card",
       "Target": "referenced_card",
       "SourceZone": "none",
       "DestinationZone": "hand",
-      "CardFilter": "attack",
+      "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
-        "replenishes_hand"
+        "replenishes_hand",
+        "requires_referenced_card_payload"
       ],
       "Values": [
         {
@@ -11684,6 +11566,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -11691,6 +11574,14 @@
         {
           "Id": "damage",
           "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11703,44 +11594,6 @@
   },
   {
     "Id": "ironclad/thrash/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
-        {
-          "Id": "extra_hits",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "ironclad/thrash/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_independent_action",
@@ -11759,7 +11612,7 @@
     }
   },
   {
-    "Id": "ironclad/thrash/3",
+    "Id": "ironclad/thrash/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "template_independent_action",
@@ -11945,6 +11798,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -11956,44 +11810,14 @@
           "Offset": 0,
           "Upgradable": true,
           "Explicit": true
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "ironclad/twinstrike/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
+        },
         {
-          "Id": "extra_hits",
-          "BaseValue": 1,
+          "Id": "hits",
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
           "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
         }
       ],
       "Condition": null,
@@ -16894,7 +16718,9 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
-        "replay_reference"
+        "needs_external_card_slot",
+        "replay_reference",
+        "requires_player_choice"
       ],
       "Values": [
         {
@@ -17699,6 +17525,7 @@
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "count_unit_reference",
         "has_numeric_literal",
         "printed_damage_value"
       ],
@@ -17710,44 +17537,14 @@
           "Offset": 0,
           "Upgradable": true,
           "Explicit": true
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "regent/celestialmight/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_hits",
-      "Variant": "flat_extra",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
-      ],
-      "Values": [
+        },
         {
-          "Id": "extra_hits",
-          "BaseValue": 2,
+          "Id": "hits",
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
           "Explicit": true
-        },
-        {
-          "Id": "repeat_count",
-          "BaseValue": 2,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": false
         }
       ],
       "Condition": null,
@@ -18468,6 +18265,7 @@
       "Flags": [
         "count_unit_reference",
         "has_numeric_literal",
+        "needs_external_card_slot",
         "requires_hand_cards",
         "requires_player_choice",
         "skill_card_reference"
@@ -19550,6 +19348,7 @@
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
+        "needs_external_card_slot",
         "replenishes_hand",
         "requires_hand_cards",
         "requires_player_choice"
@@ -24611,6 +24410,7 @@
         "count_unit_reference",
         "delayed_effect",
         "has_numeric_literal",
+        "needs_external_card_slot",
         "replenishes_hand",
         "requires_player_choice"
       ],

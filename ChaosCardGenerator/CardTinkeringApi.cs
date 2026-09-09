@@ -56,6 +56,25 @@ public sealed record CardTinkeringComponentPrototype(
     IReadOnlyList<GeneratedCharacter> Characters,
     CardReferenceRequirement CardReference);
 
+/// <summary>One component palette entry as exposed by a specific built-in or external generation profile.</summary>
+public sealed record CardTinkeringProfileComponentPrototype(
+    string Id,
+    GeneratorOperation Operation,
+    string ProfileId,
+    GeneratedCharacter BalanceArchetype,
+    CardReferenceRequirement CardReference,
+    ComponentCategory Category);
+
+/// <summary>Profile-local keyword availability for card creation and generated upgrades.</summary>
+public sealed record CardTinkeringKeywordPrototype(
+    string Id,
+    CardTag? NativeTag,
+    string ChineseName,
+    string EnglishName,
+    bool AllowedOnBaseCard,
+    bool AllowedAsUpgradeAddition,
+    bool AllowedAsUpgradeRemoval);
+
 /// <summary>A scalar which a freeform editor may safely replace without changing the operation's behavior kind.</summary>
 public sealed record CardTinkeringEditableValue(
     string Id,
@@ -70,7 +89,7 @@ public sealed record CardTinkeringEditableValue(
 /// </summary>
 public static class CardTinkeringApi
 {
-    public const int ApiVersion = 5;
+    public const int ApiVersion = 6;
     private const int PayloadSchema = 2;
     private const double StarEnergyEquivalent = 0.5d;
 
@@ -152,6 +171,64 @@ public static class CardTinkeringApi
             .Select(pair => new CardTinkeringComponentPrototype(pair.Key, pair.Value.Operation,
                 pair.Value.Owners.OrderBy(owner => owner).ToArray(), pair.Value.CardReference))
             .ToArray();
+    }
+
+    /// <summary>
+    /// Enumerates a resolved profile's actual component palette. Ownership is represented by stable ProfileId,
+    /// and category comes from component metadata or the localization-independent RuntimeSpec classifier.
+    /// </summary>
+    public static IReadOnlyList<CardTinkeringProfileComponentPrototype> GetComponentPrototypes(
+        ComponentProfileRequest request)
+    {
+        var profile = ComponentApi.Resolve(request);
+        return profile.ComponentCatalog.Atoms
+            .Select(atom =>
+            {
+                var operation = CreatePrototypeOperation(atom);
+                return new CardTinkeringProfileComponentPrototype(
+                    atom.SemanticId ?? OperationRuntimeSpecCompiler.StructuralExactKey(operation),
+                    operation, request.ProfileId, request.Character, atom.CardReference,
+                    ComponentCategoryApi.Resolve(atom));
+            })
+            .OrderBy(entry => entry.Operation.Scope)
+            .ThenBy(entry => entry.Category)
+            .ThenBy(entry => entry.Id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public static IReadOnlyList<CardTinkeringProfileComponentPrototype> GetComponentPrototypes(
+        string profileId, bool unlockComponentRoles = false)
+    {
+        if (!ComponentApi.TryGetProfileRequest(profileId, unlockComponentRoles, out var request))
+            throw new InvalidOperationException($"No component generation profile is registered for '{profileId}'.");
+        return GetComponentPrototypes(request);
+    }
+
+    public static IReadOnlyList<CardTinkeringKeywordPrototype> GetKeywordPrototypes(
+        ComponentProfileRequest request)
+    {
+        var policy = ComponentApi.Resolve(request).KeywordPolicy;
+        var native = Enum.GetValues<CardTag>()
+            .Where(GeneratedCardTagPolicy.IsNativeKeyword)
+            .Select(tag => new CardTinkeringKeywordPrototype(
+                "autoanthony:" + tag.ToString().ToLowerInvariant(), tag, string.Empty, tag.ToString(),
+                policy.AllowsBase(tag), policy.AllowsAddition(tag), policy.AllowsRemoval(tag)));
+        var custom = ComponentKeywordApi.RegisteredKeywordIds.Select(id =>
+        {
+            _ = ComponentKeywordApi.TryGetDefinition(id, out var definition);
+            return new CardTinkeringKeywordPrototype(id, null,
+                definition?.ChineseName ?? string.Empty, definition?.EnglishName ?? string.Empty,
+                policy.AllowsCustomBase(id), policy.AllowsCustomAddition(id), policy.AllowsCustomRemoval(id));
+        });
+        return native.Concat(custom).OrderBy(entry => entry.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    public static IReadOnlyList<CardTinkeringKeywordPrototype> GetKeywordPrototypes(
+        string profileId, bool unlockComponentRoles = false)
+    {
+        if (!ComponentApi.TryGetProfileRequest(profileId, unlockComponentRoles, out var request))
+            throw new InvalidOperationException($"No component generation profile is registered for '{profileId}'.");
+        return GetKeywordPrototypes(request);
     }
 
     public static IReadOnlyList<CardTinkeringEditableValue> GetEditableValues(GeneratorOperation operation)
@@ -716,11 +793,13 @@ public static class CardTinkeringApi
                 && (trigger is null || OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger
                     is not { Kind: "attack_received", Lifetime: "this_turn" }))
                 errors.Add("retaliation Damage requires the this-turn attack-received trigger");
+            if (operation.Template == "M:repeat"
+                && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant == "flat_extra"
+                && trigger is null)
+                errors.Add("flat extra-hit modifiers require a linked condition; unconditional hits belong on Damage");
             if (operation.Template == "I:AddExhaustedAttackDamage"
                 && previousImmediate?.Template != "I:ExhaustRandomAttack")
                 errors.Add("add-exhausted-Attack-Damage requires the adjacent attack-exhaust step");
-            if (operation.Template == "I:UpgradeThatCard" && previousImmediate?.Template != "N:Move")
-                errors.Add("upgrade-that-card requires the adjacent card-move step");
             if (operation.Template == "CL:ReturnThisToHand"
                 && (trigger?.Template != "CL:AtNextTurnStart"
                     || !operations.Take(triggerIndex).Any(CardEffectRules.IsOrdinaryOnPlayEffect)))
@@ -734,6 +813,9 @@ public static class CardTinkeringApi
                 errors.Add("standalone event dependency components cannot be nested under another trigger");
             if (CardEffectRules.IsExtremeLifecycleDownside(operation) && trigger is not null)
                 errors.Add("extreme lifecycle downsides cannot be nested below a trigger");
+            if (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                && trigger is not null)
+                errors.Add("trigger components cannot be nested below another trigger");
             if (operation.Scope == OperationScope.AbilityRule && trigger is not null)
                 errors.Add("Power rule components cannot be nested below a trigger");
 

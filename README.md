@@ -15,8 +15,8 @@ Slay the Spire 2 `0.111.x`.
 
 - Replaces each supported pool while preserving its rarity counts and broad native distributions.
 - Stores complete structured card definitions in run snapshots for stable save/load and multiplayer behavior.
-- Offers Ultimate Chaos, balanced/aggressive values, numeric randomization, original-pool preservation, starting-card
-  replacement, random card art, and three Surprise display modes.
+- Offers Ultimate Chaos, balanced/aggressive values, numeric randomization, independent generated/original card-pool
+  inclusion, starting-card replacement, random card art, and three Surprise display modes.
 - With the Card Tinkering add-on installed, the Edit Anytime setting opens its workbench from the deck screen outside
   combat, including post-combat reward screens.
 - Keeps generated operations independent from localized prose through versioned `OperationRuntimeSpec` records.
@@ -65,6 +65,9 @@ external-character adapter.
 
 Card-editor companion mods should also read the
 [Card Tinkering and Settings API](https://github.com/mewcodex/AutoAnthony/wiki/Card-Tinkering-and-Settings-API).
+
+The optional **Decompose Original Cards** setting displays supported original cards through the reviewed component
+renderer even before they are recombined; their native behavior remains unchanged.
 
 The API uses stable ASCII identifiers and structured runtime metadata. It does not require BaseLib, RitsuLib, or a
 particular custom-character framework.

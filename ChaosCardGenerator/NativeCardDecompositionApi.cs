@@ -340,6 +340,138 @@ public static class NativeCardDecompositionApi
         return true;
     }
 
+    /// <summary>
+    /// Renders an executable native card through the same component composition pipeline used by generated cards.
+    /// Numeric component slots that are explicitly bound to a native DynamicVar remain SmartFormat references, so
+    /// the native card keeps its ordinary upgrade and combat-preview behavior without being replaced by a generated
+    /// card instance. Printable reference records (including Event-rarity cards) are composed from their ordered
+    /// component occurrences; records without a printable operation fall back to their reviewed structured template.
+    /// </summary>
+    public static bool TryCreateComponentDescriptionTemplate(string catalogId, bool upgraded, bool chinese,
+        out string template)
+    {
+        var source = Get(catalogId);
+        if (source.ExecutionSupport != NativeCardExecutionSupport.ExecutableRecipe)
+        {
+            if (TryRenderStructuredReferenceComponents(source, chinese, out template))
+                return true;
+            // Some non-combat lifecycle records intentionally have no printable operation (for example a bare
+            // keyword-only Status). Their reviewed native template remains the only complete presentation.
+            template = chinese ? source.DescriptionTemplate.Chinese : source.DescriptionTemplate.English;
+            return true;
+        }
+        if (!TryCreateDefinition(catalogId, out var definition, out _))
+        {
+            template = string.Empty;
+            return false;
+        }
+
+        var effects = upgraded ? definition.Upgrade?.Effects ?? [] : [];
+        var operations = upgraded && definition.Upgrade is { } upgrade
+            ? CardUpgradeGenerator.ApplyEffectsToOperations(definition.Operations, upgrade.Effects)
+            : definition.Operations.ToArray();
+        if (operations.Length != source.Components.Count)
+            throw new InvalidDataException($"Native component rendering changed the operation count for {catalogId}.");
+
+        var boundOperations = operations.Select((operation, index) =>
+            BindNativeDynamicValues(operation, source.Components[index])).ToArray();
+        var renderedChinese = CardDescriptionRenderer.Render(boundOperations);
+        var renderedEnglish = EnglishCardDescriptionRenderer.Render(boundOperations);
+        if (upgraded)
+            ProjectStructuralUpgradeText(boundOperations, effects,
+                ref renderedChinese, ref renderedEnglish);
+        template = chinese ? renderedChinese : renderedEnglish;
+        return true;
+    }
+
+    private static bool TryRenderStructuredReferenceComponents(NativeCardDecomposition source, bool chinese,
+        out string template)
+    {
+        template = string.Empty;
+        if (source.Components.Count == 0
+            || source.Components.Any(component => component.Text is null
+                                                  || string.IsNullOrWhiteSpace(chinese
+                                                      ? component.Text.Chinese
+                                                      : component.Text.English)))
+            return false;
+
+        var childIndices = source.Components
+            .Select((component, index) => (component, index))
+            .Where(item => item.component.TriggerOwner >= 0)
+            .GroupBy(item => item.component.TriggerOwner)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.index).ToArray());
+        var owned = childIndices.Values.SelectMany(indices => indices).ToHashSet();
+        var visiting = new HashSet<int>();
+
+        string RenderNode(int index)
+        {
+            if (!visiting.Add(index))
+                throw new InvalidDataException($"Native structured component cycle in {source.CatalogId}.");
+            var component = source.Components[index];
+            var text = chinese ? component.Text!.Chinese : component.Text!.English;
+            if (childIndices.TryGetValue(index, out var children))
+                foreach (var child in children) text += RenderNode(child);
+            visiting.Remove(index);
+            return text;
+        }
+
+        var lines = Enumerable.Range(0, source.Components.Count)
+            .Where(index => !owned.Contains(index))
+            .Select(RenderNode)
+            .ToArray();
+        if (lines.Length == 0) return false;
+        template = string.Join('\n', lines);
+        return true;
+    }
+
+    private static GeneratorOperation BindNativeDynamicValues(GeneratorOperation operation,
+        NativeCardComponentDescriptor component)
+    {
+        if (operation.LocalizedText is not { } localized) return operation;
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        var chinese = localized.RenderChinese(spec);
+        var english = localized.RenderEnglish(spec) ?? EnglishCardDescriptionRenderer.OperationText(operation);
+        var changed = false;
+        foreach (var (slotId, argument) in component.Arguments)
+        {
+            var binding = argument.NativeBindings?.SingleOrDefault();
+            if (binding is null
+                || binding.ValueTransform.Scale != 1m
+                || binding.ValueTransform.Offset != 0m)
+                continue;
+            var chineseToken = NativeDynamicToken(localized, slotId, binding.Variable, chinese: true);
+            var englishToken = NativeDynamicToken(localized, slotId, binding.Variable, chinese: false);
+            if (!localized.TryReplaceRenderedSlot(chinese, spec, slotId, chineseToken,
+                    chinese: true, out var boundChinese)
+                || !localized.TryReplaceRenderedSlot(english, spec, slotId, englishToken,
+                    chinese: false, out var boundEnglish))
+                continue;
+            chinese = boundChinese;
+            english = boundEnglish;
+            changed = true;
+        }
+        if (!changed) return operation;
+        // These templates intentionally contain native SmartFormat variable names rather than [[runtime slots]].
+        // They are presentation-only and are installed on a native CardModel immediately before its own formatter
+        // runs; execution and component parameter validation continue to use the original localized definition.
+        return operation with
+        {
+            ChineseText = chinese,
+            LocalizedText = new OperationLocalizedText(chinese, english)
+        };
+    }
+
+    private static string NativeDynamicToken(OperationLocalizedText localized, string slotId,
+        string variable, bool chinese)
+    {
+        var source = chinese ? localized.ChineseTemplate : localized.EnglishTemplate ?? string.Empty;
+        if (source.Contains($"[[{slotId}:energy]]", StringComparison.Ordinal))
+            return $"{{{variable}:energyIcons()}}";
+        if (source.Contains($"[[{slotId}:stars]]", StringComparison.Ordinal))
+            return $"{{{variable}:starIcons()}}";
+        return $"{{{variable}:diff()}}";
+    }
+
     private static IReadOnlyList<NativeCardDecomposition> Load()
     {
         var assembly = Assembly.GetExecutingAssembly();

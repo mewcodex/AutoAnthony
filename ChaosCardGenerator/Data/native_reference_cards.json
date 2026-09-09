@@ -1009,7 +1009,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.choose_generated_card.random_current_character.generated_card.independent.735034126a",
+          "ComponentId": "native.choose_generated_card.random_current_character.generated_card.independent.31921c439c",
           "SemanticId": "colorless/discovery/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -1042,6 +1042,7 @@
               "cost_wording",
               "count_unit_reference",
               "has_numeric_literal",
+              "needs_external_card_slot",
               "replenishes_hand",
               "requires_player_choice",
               "set_cost_zero_this_turn",
@@ -1069,8 +1070,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "从3张随机牌中选择1张加入手牌。其本回合耗能为0。",
-            "en": "Choose 1 of 3 random cards to add into your Hand. It costs 0 this turn."
+            "zhHans": "从3张随机牌中选择1张加入手牌。该牌在本回合耗能为0。",
+            "en": "Choose 1 of 3 random cards to add into your Hand. That card costs 0 this turn."
           }
         }
       ]
@@ -3534,7 +3535,7 @@
           }
         },
         {
-          "ComponentId": "native.template_independent_action.cl_puteventcardondrawtop.self.independent.bf4ba9788d",
+          "ComponentId": "native.template_independent_action.cl_puteventcardondrawtop.self.independent.d996742868",
           "SemanticId": "colorless/nostalgia/1",
           "TriggerOwner": 0,
           "CardReference": "None",
@@ -3549,7 +3550,6 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "count_unit_reference",
               "effect_family_draw",
               "requires_event_card_payload"
             ],
@@ -3558,7 +3558,7 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将那张牌置于抽牌堆顶端。",
+            "zhHans": "将该牌置于抽牌堆顶端。",
             "en": "Put that card on top of your Draw Pile."
           }
         }
@@ -6131,7 +6131,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.choose_generated_card.random_other_character_attack.generated_card.independent.3c7cc88645",
+          "ComponentId": "native.choose_generated_card.random_other_character_attack.generated_card.independent.8d19db672a",
           "SemanticId": "colorless/splash/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -6164,6 +6164,7 @@
               "cost_wording",
               "count_unit_reference",
               "has_numeric_literal",
+              "needs_external_card_slot",
               "replenishes_hand",
               "requires_player_choice",
               "set_cost_zero_this_turn",
@@ -6191,8 +6192,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "从3张其他角色的攻击牌中选择1张加入手牌。其本回合耗能为0。",
-            "en": "Choose 1 of 3 random Attacks from another character to add into your Hand. It costs 0 this turn."
+            "zhHans": "从3张其他角色的攻击牌中选择1张加入手牌。该牌在本回合耗能为0。",
+            "en": "Choose 1 of 3 random Attacks from another character to add into your Hand. That card costs 0 this turn."
           }
         }
       ]
@@ -12555,7 +12556,7 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将那张牌额外打出1次。",
+            "zhHans": "将该牌额外打出1次。",
             "en": "Play that card 1 additional time."
           }
         }
@@ -12668,7 +12669,7 @@
           }
         },
         {
-          "ComponentId": "native.template_independent_action.d_returneventcardtohand.self.independent.7ef61ad78a",
+          "ComponentId": "native.template_independent_action.d_returneventcardtohand.self.independent.39ead2c8a6",
           "SemanticId": "defect/feral/1",
           "TriggerOwner": 0,
           "CardReference": "None",
@@ -12683,7 +12684,6 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "count_unit_reference",
               "requires_event_card_payload"
             ],
             "Values": [],
@@ -12691,7 +12691,7 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将那张牌放回手牌。",
+            "zhHans": "将该牌放回手牌。",
             "en": "Return that card to your Hand."
           }
         }
@@ -14384,7 +14384,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.b72344d5dc",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.00e37819a4",
           "SemanticId": "defect/gunkup/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -14407,6 +14407,13 @@
                   }
                 }
               ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 3,
+              "Offset": 0,
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -14418,6 +14425,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -14429,81 +14437,27 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成4点伤害。",
-            "en": "Deal 4 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "defect/gunkup/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 2,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 2,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 2,
+                "Id": "hits",
+                "BaseValue": 3,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 2,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成2次伤害。",
-            "en": "This card deals damage 2 additional times."
+            "zhHans": "造成4点伤害3次。",
+            "en": "Deal 4 damage 3 times."
           }
         },
         {
           "ComponentId": "native.template_self_action.d_createslimeindiscard.self.nontargeted.0d4978b9ea",
-          "SemanticId": "defect/gunkup/2",
+          "SemanticId": "defect/gunkup/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -17876,7 +17830,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.b72344d5dc",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.00e37819a4",
           "SemanticId": "defect/refract/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -17899,6 +17853,13 @@
                   }
                 }
               ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -17910,6 +17871,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -17921,81 +17883,27 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成10点伤害。",
-            "en": "Deal 10 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "defect/refract/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 1,
+                "Id": "hits",
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 1,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成1次伤害。",
-            "en": "This card deals damage 1 additional time."
+            "zhHans": "造成10点伤害2次。",
+            "en": "Deal 10 damage 2 times."
           }
         },
         {
           "ComponentId": "native.template_self_action.d_channelglass.self.nontargeted.9a03f61fce",
-          "SemanticId": "defect/refract/2",
+          "SemanticId": "defect/refract/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -21505,7 +21413,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.b72344d5dc",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.00e37819a4",
           "SemanticId": "defect/uproar/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -21528,6 +21436,13 @@
                   }
                 }
               ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -21539,6 +21454,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -21550,81 +21466,27 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成6点伤害。",
-            "en": "Deal 6 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "defect/uproar/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 1,
+                "Id": "hits",
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 1,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成1次伤害。",
-            "en": "This card deals damage 1 additional time."
+            "zhHans": "造成6点伤害2次。",
+            "en": "Deal 6 damage 2 times."
           }
         },
         {
           "ComponentId": "native.template_self_action.d_autoplayrandomattackfromdraw.self.nontargeted.7cc29f131f",
-          "SemanticId": "defect/uproar/2",
+          "SemanticId": "defect/uproar/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -21824,7 +21686,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.template_independent_action.i_proxyatomic_whitenoise.self.independent.d1e5dba91b",
+          "ComponentId": "native.template_independent_action.i_proxyatomic_whitenoise.self.independent.ef67d1442b",
           "SemanticId": "defect/whitenoise/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -21841,6 +21703,7 @@
             "Flags": [
               "cost_wording",
               "count_unit_reference",
+              "needs_external_card_slot",
               "replenishes_hand",
               "this_turn_reference"
             ],
@@ -21849,8 +21712,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将一张随机能力牌加入你的手牌。这张牌在本回合内免费打出。",
-            "en": "Add a random Power into your Hand. It's free to play this turn."
+            "zhHans": "将一张随机能力牌加入你的手牌。该牌在本回合内免费打出。",
+            "en": "Add a random Power into your Hand. That card is free to play this turn."
           }
         }
       ]
@@ -22404,6 +22267,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害。",
+            "en": "Deal {Damage:diff()} damage."
           }
         }
       ]
@@ -22467,7 +22334,11 @@
         {
           "ComponentId": "trigger.when_attacked",
           "TriggerOwner": -1,
-          "Arguments": {}
+          "Arguments": {},
+          "Text": {
+            "zhHans": "每当你被攻击时，",
+            "en": "Whenever you are attacked, "
+          }
         },
         {
           "ComponentId": "deal.damage_to_attacker",
@@ -22477,6 +22348,10 @@
               "Source": "NativeVariable",
               "Id": "ThornsPower"
             }
+          },
+          "Text": {
+            "zhHans": "对攻击者造成{ThornsPower:diff()}点伤害。",
+            "en": "deal {ThornsPower:diff()} damage back."
           }
         }
       ]
@@ -22545,6 +22420,10 @@
               "Source": "Literal",
               "Value": "Attack"
             }
+          },
+          "Text": {
+            "zhHans": "只有在[gold]手牌[/gold]中每一张牌都是攻击牌时才能被打出。",
+            "en": "Can only be played if every card in your [gold]Hand[/gold] is an Attack."
           }
         },
         {
@@ -22563,6 +22442,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害。",
+            "en": "Deal {Damage:diff()} damage."
           }
         }
       ]
@@ -22636,6 +22519,10 @@
               "Source": "Literal",
               "Value": "Turn"
             }
+          },
+          "Text": {
+            "zhHans": "将一张随机技能牌添加到你的[gold]手牌[/gold]中。该牌在本回合内可以免费打出。",
+            "en": "Add a random Skill into your [gold]Hand[/gold]. It is free to play this turn."
           }
         }
       ]
@@ -22711,6 +22598,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "选择一张攻击牌或能力牌。",
+            "en": "Choose an Attack or Power card. "
           }
         },
         {
@@ -22725,6 +22616,10 @@
               "Source": "NativeVariable",
               "Id": "Cards"
             }
+          },
+          "Text": {
+            "zhHans": "将该牌的{IfUpgraded:show:{Cards}张复制品|一张复制品}加入你的[gold]手牌[/gold]。",
+            "en": "Add {IfUpgraded:show:{Cards} copies|a copy} of that card into your [gold]Hand[/gold]."
           }
         }
       ]
@@ -22792,6 +22687,10 @@
               "Source": "Literal",
               "Value": "TurnOrCombatOnUpgrade"
             }
+          },
+          "Text": {
+            "zhHans": "在这{IfUpgraded:show:场战斗|个回合}，你当前[gold]手牌[/gold]中所有牌的耗能降低至1。",
+            "en": "Reduce the cost of ALL cards in your [gold]Hand[/gold] to 1 this {IfUpgraded:show:combat|turn}."
           }
         }
       ]
@@ -22849,6 +22748,10 @@
               "Source": "Literal",
               "Value": 2
             }
+          },
+          "Text": {
+            "zhHans": "将你当前的[gold]格挡[/gold]翻倍。",
+            "en": "Double your [gold]Block[/gold]."
           }
         }
       ]
@@ -22933,6 +22836,10 @@
               "Source": "NativeVariable",
               "Id": "Repeat"
             }
+          },
+          "Text": {
+            "zhHans": "对所有敌人造成{Damage:diff()}点伤害{Repeat:diff()}次。",
+            "en": "Deal {Damage:diff()} damage to ALL enemies {Repeat:diff()} times."
           }
         }
       ]
@@ -23009,6 +22916,10 @@
               "Source": "Literal",
               "Value": "Turn"
             }
+          },
+          "Text": {
+            "zhHans": "在本回合内获得{StrengthPower:diff()}点[gold]力量[/gold]。",
+            "en": "Gain {StrengthPower:diff()} [gold]Strength[/gold] this turn."
           }
         }
       ]
@@ -23063,7 +22974,11 @@
         {
           "ComponentId": "trigger.turn_start",
           "TriggerOwner": -1,
-          "Arguments": {}
+          "Arguments": {},
+          "Text": {
+            "zhHans": "在你的回合开始时，",
+            "en": "At the start of your turn, "
+          }
         },
         {
           "ComponentId": "create.random_card",
@@ -23081,6 +22996,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "将一张随机普通牌加入你的[gold]手牌[/gold]。",
+            "en": "add a random Common card into your [gold]Hand[/gold]."
           }
         }
       ]
@@ -23243,6 +23162,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害。",
+            "en": "Deal {Damage:diff()} damage."
           }
         },
         {
@@ -23257,6 +23180,10 @@
               "Source": "Literal",
               "Value": false
             }
+          },
+          "Text": {
+            "zhHans": "本回合，你每打出一张牌，",
+            "en": "Whenever you play a card this turn, "
           }
         },
         {
@@ -23271,6 +23198,10 @@
               "Source": "Literal",
               "Value": "SelectedEnemy"
             }
+          },
+          "Text": {
+            "zhHans": "该敌人失去{ChokingDamage:diff()}点生命。",
+            "en": "the enemy loses {ChokingDamage:diff()} HP."
           }
         }
       ]
@@ -23433,6 +23364,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害。",
+            "en": "Deal {Damage:diff()} damage."
           }
         },
         {
@@ -23451,6 +23386,10 @@
               "Source": "Literal",
               "Value": "SelectedEnemy"
             }
+          },
+          "Text": {
+            "zhHans": "给予{SappingWeak:diff()}层[gold]虚弱[/gold]。",
+            "en": "Apply {SappingWeak:diff()} [gold]Weak[/gold]."
           }
         },
         {
@@ -23469,6 +23408,10 @@
               "Source": "Literal",
               "Value": "SelectedEnemy"
             }
+          },
+          "Text": {
+            "zhHans": "给予{SappingVulnerable:diff()}层[gold]易伤[/gold]。",
+            "en": "Apply {SappingVulnerable:diff()} [gold]Vulnerable[/gold]."
           }
         }
       ]
@@ -23631,6 +23574,10 @@
               "Source": "NativeVariable",
               "Id": "ViolenceHits"
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害{ViolenceHits:diff()}次。",
+            "en": "Deal {Damage:diff()} damage {ViolenceHits:diff()} times."
           }
         }
       ]
@@ -23793,6 +23740,10 @@
               "Source": "Literal",
               "Value": "Combat"
             }
+          },
+          "Text": {
+            "zhHans": "能力牌的耗能减少{CuriousReduction:diff()}{energyPrefix:energyIcons(1)}。",
+            "en": "Powers cost {CuriousReduction:diff()} {energyPrefix:energyIcons(1)} less."
           }
         }
       ]
@@ -23951,6 +23902,10 @@
               "Source": "NativeVariable",
               "Id": "ExpertiseStrength"
             }
+          },
+          "Text": {
+            "zhHans": "获得{ExpertiseStrength:diff()}点[gold]力量[/gold]。",
+            "en": "Gain {ExpertiseStrength:diff()} [gold]Strength[/gold]."
           }
         },
         {
@@ -23965,6 +23920,10 @@
               "Source": "NativeVariable",
               "Id": "ExpertiseDexterity"
             }
+          },
+          "Text": {
+            "zhHans": "获得{ExpertiseDexterity:diff()}点[gold]敏捷[/gold]。",
+            "en": "Gain {ExpertiseDexterity:diff()} [gold]Dexterity[/gold]."
           }
         }
       ]
@@ -24114,7 +24073,11 @@
         {
           "ComponentId": "trigger.combat_end",
           "TriggerOwner": -1,
-          "Arguments": {}
+          "Arguments": {},
+          "Text": {
+            "zhHans": "在战斗结束时，",
+            "en": "At the end of combat, "
+          }
         },
         {
           "ComponentId": "upgrade.random_deck_card",
@@ -24124,6 +24087,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "[gold]升级[/gold]你牌组中的一张随机牌。",
+            "en": "[gold]Upgrade[/gold] a random card in your deck."
           }
         }
       ]
@@ -24278,6 +24245,10 @@
               "Source": "NativeVariable",
               "Id": "Block"
             }
+          },
+          "Text": {
+            "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。",
+            "en": "Gain {Block:diff()} [gold]Block[/gold]."
           }
         },
         {
@@ -24296,6 +24267,10 @@
               "Source": "Literal",
               "Value": "Turn"
             }
+          },
+          "Text": {
+            "zhHans": "将一张随机牌放入你的[gold]手牌[/gold]。该牌在本回合可以免费打出。",
+            "en": "Add a random card into your [gold]Hand[/gold]. It is free to play this turn."
           }
         }
       ]
@@ -24450,6 +24425,10 @@
               "Source": "NativeVariable",
               "Id": "Block"
             }
+          },
+          "Text": {
+            "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。",
+            "en": "Gain {Block:diff()} [gold]Block[/gold]."
           }
         },
         {
@@ -24460,6 +24439,10 @@
               "Source": "NativeVariable",
               "Id": "EnergizedEnergy"
             }
+          },
+          "Text": {
+            "zhHans": "获得{EnergizedEnergy:energyIcons()}。",
+            "en": "Gain {EnergizedEnergy:energyIcons()}."
           }
         }
       ]
@@ -24614,6 +24597,10 @@
               "Source": "NativeVariable",
               "Id": "Block"
             }
+          },
+          "Text": {
+            "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。",
+            "en": "Gain {Block:diff()} [gold]Block[/gold]."
           }
         },
         {
@@ -24624,6 +24611,10 @@
               "Source": "NativeVariable",
               "Id": "WisdomCards"
             }
+          },
+          "Text": {
+            "zhHans": "抽{WisdomCards:diff()}张牌。",
+            "en": "Draw {WisdomCards:diff()} cards."
           }
         }
       ]
@@ -24815,6 +24806,10 @@
               "Source": "Literal",
               "Value": "Combat"
             }
+          },
+          "Text": {
+            "zhHans": "在你的[gold]抽牌堆[/gold]中加入{Cards:diff()}张随机攻击牌。它们在本场战斗中可以被免费打出。",
+            "en": "Add {Cards:diff()} random Attacks into your [gold]Draw Pile[/gold]. They are free to play this combat."
           }
         }
       ]
@@ -24994,6 +24989,10 @@
               "Source": "Literal",
               "Value": "NextTurn"
             }
+          },
+          "Text": {
+            "zhHans": "在下个回合获得{Energy:energyIcons()}。",
+            "en": "Next turn, gain {Energy:energyIcons()}."
           }
         }
       ]
@@ -25078,6 +25077,10 @@
               "Source": "NativeVariable",
               "Id": "Repeat"
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害{Repeat:diff()}次。",
+            "en": "Deal {Damage:diff()} damage {Repeat:diff()} times."
           }
         }
       ]
@@ -25154,6 +25157,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害。",
+            "en": "Deal {Damage:diff()} damage."
           }
         },
         {
@@ -25168,6 +25175,10 @@
               "Source": "Literal",
               "Value": "Turn"
             }
+          },
+          "Text": {
+            "zhHans": "将你在本回合打出的下一张牌放置到你的[gold]抽牌堆[/gold]顶部。",
+            "en": "Put the next card you play this turn on top of your [gold]Draw Pile[/gold]."
           }
         }
       ]
@@ -25367,6 +25378,10 @@
               "Source": "Literal",
               "Value": 2
             }
+          },
+          "Text": {
+            "zhHans": "随机对敌人造成{Damage:diff()}点伤害两次。",
+            "en": "Deal {Damage:diff()} damage to a random enemy twice."
           }
         }
       ]
@@ -25456,6 +25471,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "造成{Damage:diff()}点伤害。",
+            "en": "Deal {Damage:diff()} damage."
           }
         },
         {
@@ -25474,6 +25493,10 @@
               "Source": "Literal",
               "Value": "SelectedEnemy"
             }
+          },
+          "Text": {
+            "zhHans": "给予{VulnerablePower:diff()}层[gold]易伤[/gold]。",
+            "en": "Apply {VulnerablePower:diff()} [gold]Vulnerable[/gold]."
           }
         }
       ]
@@ -25566,6 +25589,10 @@
               "Source": "Literal",
               "Value": 1
             }
+          },
+          "Text": {
+            "zhHans": "获得等量于与你当前[gold]弃牌堆[/gold]中牌数{IfUpgraded:show:+{CalculationBase}|}的[gold]格挡[/gold]值。{InCombat:\n（获得{CalculatedBlock:diff()}点[gold]格挡[/gold]）|}",
+            "en": "Gain [gold]Block[/gold] equal to the number of cards in your [gold]Discard Pile[/gold]{IfUpgraded:show: +{CalculationBase}|}.{InCombat:\n(Gain {CalculatedBlock:diff()} [gold]Block[/gold])|}"
           }
         }
       ]
@@ -25642,6 +25669,10 @@
               "Source": "NativeVariable",
               "Id": "Block"
             }
+          },
+          "Text": {
+            "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。",
+            "en": "Gain {Block:diff()} [gold]Block[/gold]."
           }
         },
         {
@@ -25652,6 +25683,10 @@
               "Source": "NativeVariable",
               "Id": "Turns"
             }
+          },
+          "Text": {
+            "zhHans": "在接下来的{Turns:diff()}个回合开始时，",
+            "en": "At the start of the next {Turns:diff()} {Turns:plural:turn|turns}, "
           }
         },
         {
@@ -25662,6 +25697,10 @@
               "Source": "NativeVariable",
               "Id": "Block"
             }
+          },
+          "Text": {
+            "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。",
+            "en": "gain {Block:diff()} [gold]Block[/gold]."
           }
         }
       ]
@@ -25951,7 +25990,7 @@
           }
         },
         {
-          "ComponentId": "native.template_independent_action.i_upgradethatcard.self.independent.14a47130b8",
+          "ComponentId": "native.upgrade_card.referenced.referenced_card.independent.2bf7ae7bff",
           "SemanticId": "ironclad/aggression/2",
           "TriggerOwner": 0,
           "CardReference": "None",
@@ -25959,22 +25998,22 @@
           "Arguments": {},
           "RuntimeSpec": {
             "SchemaVersion": 1,
-            "Opcode": "template_independent_action",
-            "Variant": "i_upgradethatcard",
-            "Target": "self",
+            "Opcode": "upgrade_card",
+            "Variant": "referenced",
+            "Target": "referenced_card",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "count_unit_reference"
+              "requires_referenced_card_payload"
             ],
             "Values": [],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "升级那张攻击牌。",
-            "en": "Upgrade that Attack."
+            "zhHans": "升级该牌。",
+            "en": "Upgrade that card."
           }
         }
       ]
@@ -29099,7 +29138,7 @@
           }
         },
         {
-          "ComponentId": "native.exhaust_card.referenced.referenced_card.nontargeted.40683f1b86",
+          "ComponentId": "native.exhaust_card.referenced.referenced_card.nontargeted.7f2006cb1d",
           "SemanticId": "ironclad/corruption/2",
           "TriggerOwner": 1,
           "CardReference": "None",
@@ -29120,11 +29159,8 @@
             "Target": "referenced_card",
             "SourceZone": "hand",
             "DestinationZone": "none",
-            "CardFilter": "skill",
-            "Flags": [
-              "count_unit_reference",
-              "skill_card_reference"
-            ],
+            "CardFilter": "any",
+            "Flags": [],
             "Values": [
               {
                 "Id": "count",
@@ -29139,8 +29175,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "消耗那张技能牌。",
-            "en": "Exhaust that Skill."
+            "zhHans": "消耗该牌。",
+            "en": "Exhaust that card."
           }
         }
       ]
@@ -31499,7 +31535,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.a76c87c1b2",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.c8f0216a90",
           "SemanticId": "ironclad/fightme/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -31522,6 +31558,13 @@
                   }
                 }
               ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -31533,6 +31576,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -31544,81 +31588,27 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成5点伤害。",
-            "en": "Deal 5 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "ironclad/fightme/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 1,
+                "Id": "hits",
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 1,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成1次伤害。",
-            "en": "This card deals damage 1 additional time."
+            "zhHans": "造成5点伤害2次。",
+            "en": "Deal 5 damage 2 times."
           }
         },
         {
           "ComponentId": "native.apply_power.strength.self.nontargeted.b10995ffed",
-          "SemanticId": "ironclad/fightme/2",
+          "SemanticId": "ironclad/fightme/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -31676,7 +31666,7 @@
         },
         {
           "ComponentId": "native.apply_power.strength_gain.selected_enemy.singleenemyonly.d77d24cf6c",
-          "SemanticId": "ironclad/fightme/3",
+          "SemanticId": "ironclad/fightme/2",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -32379,7 +32369,7 @@
           }
         },
         {
-          "ComponentId": "native.template_independent_action.i_playatrandomenemy.self.independent.a1c0344de6",
+          "ComponentId": "native.template_independent_action.i_playatrandomenemy.self.independent.c9e295d169",
           "SemanticId": "ironclad/hellraiser/1",
           "TriggerOwner": 0,
           "CardReference": "None",
@@ -32394,7 +32384,6 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "count_unit_reference",
               "random_enemy_reference",
               "requires_event_card_payload",
               "requires_player_choice"
@@ -32404,8 +32393,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "对一名随机敌人打出这张牌。",
-            "en": "It is played against a random enemy."
+            "zhHans": "对一名随机敌人打出该牌。",
+            "en": "Play that card against a random enemy."
           }
         }
       ]
@@ -32758,8 +32747,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "则将其打出。",
-            "en": "Play it."
+            "zhHans": "打出此牌。",
+            "en": "Play this card."
           }
         }
       ]
@@ -32995,8 +32984,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将一张随机攻击牌加入手牌。其本回合费用为0。",
-            "en": "Add a random Attack to your hand. It can be played for free this turn."
+            "zhHans": "将一张随机攻击牌加入手牌。该牌在本回合费用为0。",
+            "en": "Add a random Attack to your hand. That card costs 0 this turn."
           }
         }
       ]
@@ -33805,7 +33794,7 @@
           }
         },
         {
-          "ComponentId": "native.create_copy.referenced_attack.referenced_card.nontargeted.20f367692e",
+          "ComponentId": "native.create_copy.referenced_card.referenced_card.nontargeted.8d6e068c01",
           "SemanticId": "ironclad/juggling/1",
           "TriggerOwner": 0,
           "CardReference": "None",
@@ -33822,14 +33811,15 @@
           "RuntimeSpec": {
             "SchemaVersion": 1,
             "Opcode": "create_copy",
-            "Variant": "referenced_attack",
+            "Variant": "referenced_card",
             "Target": "referenced_card",
             "SourceZone": "none",
             "DestinationZone": "hand",
-            "CardFilter": "attack",
+            "CardFilter": "any",
             "Flags": [
               "count_unit_reference",
-              "replenishes_hand"
+              "replenishes_hand",
+              "requires_referenced_card_payload"
             ],
             "Values": [
               {
@@ -33845,8 +33835,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将那张攻击牌的一张复制加入手牌。",
-            "en": "Add a copy of that Attack to your hand."
+            "zhHans": "将该牌的一张复制品加入你的手牌。",
+            "en": "Add a copy of that card into your Hand."
           }
         }
       ]
@@ -37324,8 +37314,8 @@
             }
           },
           "Text": {
-            "zhHans": "你在本回合中每打出过一张攻击牌，其耗能减少1。",
-            "en": "Costs 1 less Energy for each Attack played this turn."
+            "zhHans": "本回合每打出过一张攻击牌，该牌的耗能减少1。",
+            "en": "That card costs 1 less Energy for each Attack played this turn."
           }
         }
       ]
@@ -38153,7 +38143,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.a76c87c1b2",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.c8f0216a90",
           "SemanticId": "ironclad/thrash/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -38176,6 +38166,13 @@
                   }
                 }
               ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -38187,6 +38184,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -38198,81 +38196,27 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成4点伤害。",
-            "en": "Deal 4 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "ironclad/thrash/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 1,
+                "Id": "hits",
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 1,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成1次伤害。",
-            "en": "This card deals damage 1 additional time."
+            "zhHans": "造成4点伤害2次。",
+            "en": "Deal 4 damage 2 times."
           }
         },
         {
           "ComponentId": "native.template_independent_action.i_exhaustrandomattack.self.independent.f8bdeafc06",
-          "SemanticId": "ironclad/thrash/2",
+          "SemanticId": "ironclad/thrash/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -38300,7 +38244,7 @@
         },
         {
           "ComponentId": "native.template_independent_action.i_addexhaustedattackdamage.self.independent.a9455cbe21",
-          "SemanticId": "ironclad/thrash/3",
+          "SemanticId": "ironclad/thrash/2",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -38321,8 +38265,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将它的伤害添加给这张牌。",
-            "en": "Add its damage to this card."
+            "zhHans": "将消耗的牌的攻击力添加到这张牌。",
+            "en": "Add the Exhausted card's Attack damage to this card."
           }
         }
       ]
@@ -38869,7 +38813,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.a76c87c1b2",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.c8f0216a90",
           "SemanticId": "ironclad/twinstrike/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -38892,6 +38836,13 @@
                   }
                 }
               ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -38903,6 +38854,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -38914,76 +38866,22 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成5点伤害。",
-            "en": "Deal 5 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "ironclad/twinstrike/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 1,
+                "Id": "hits",
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 1,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成1次伤害。",
-            "en": "This card deals damage 1 additional time."
+            "zhHans": "造成5点伤害2次。",
+            "en": "Deal 5 damage 2 times."
           }
         }
       ]
@@ -41115,8 +41013,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将1张随机牌加入手牌。它获得虚无。",
-            "en": "Add 1 random card to your Hand. It gains Ethereal."
+            "zhHans": "将1张随机牌加入手牌。添加的牌获得虚无。",
+            "en": "Add 1 random card to your Hand. Cards added this way gain Ethereal."
           }
         }
       ]
@@ -53147,7 +53045,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.template_independent_action.i_proxyatomic_transfigure.self.independent.a74a0e799a",
+          "ComponentId": "native.template_independent_action.i_proxyatomic_transfigure.self.independent.2800eaec39",
           "SemanticId": "necrobinder/transfigure/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -53173,7 +53071,9 @@
               "cost_wording",
               "count_unit_reference",
               "has_numeric_literal",
-              "replay_reference"
+              "needs_external_card_slot",
+              "replay_reference",
+              "requires_player_choice"
             ],
             "Values": [
               {
@@ -53189,8 +53089,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "给一张手牌添加重放。\n其耗能增加1[img]res://images/packed/sprite_fonts/necrobinder_energy_icon.png[/img]。",
-            "en": "Add Replay to a card in your Hand.\nIt costs an extra [img]res://images/packed/sprite_fonts/necrobinder_energy_icon.png[/img]."
+            "zhHans": "选择一张手牌，使其获得重放。\n该牌的耗能增加1[img]res://images/packed/sprite_fonts/necrobinder_energy_icon.png[/img]。",
+            "en": "Choose a card in your Hand and give it Replay.\nThat card costs an extra [img]res://images/packed/sprite_fonts/necrobinder_energy_icon.png[/img]."
           }
         }
       ]
@@ -55772,7 +55672,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.b72344d5dc",
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.00e37819a4",
           "SemanticId": "regent/celestialmight/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -55784,6 +55684,24 @@
               "BaseValue": 6,
               "Offset": 0,
               "Upgradable": true
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 3,
+              "Offset": 0,
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Repeat",
+                  "BaseValue": 3,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
@@ -55795,6 +55713,7 @@
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
+              "count_unit_reference",
               "has_numeric_literal",
               "printed_damage_value"
             ],
@@ -55806,87 +55725,22 @@
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成6点伤害。",
-            "en": "Deal 6 damage."
-          }
-        },
-        {
-          "ComponentId": "native.modify_hits.flat_extra.selected_enemy.modifier.4d909eb384",
-          "SemanticId": "regent/celestialmight/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "extra_hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 2,
-              "Offset": 0,
-              "Upgradable": true,
-              "NativeBindings": [
-                {
-                  "Variable": "Repeat",
-                  "BaseValue": 3,
-                  "UpgradeDelta": 1,
-                  "ValueTransform": {
-                    "Scale": 1,
-                    "Offset": -1
-                  }
-                }
-              ]
-            },
-            "repeat_count": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 2,
-              "Offset": 0,
-              "Upgradable": false
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_hits",
-            "Variant": "flat_extra",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "damage_budget_effect",
-              "has_numeric_literal",
-              "static_extra_damage_hits"
-            ],
-            "Values": [
+              },
               {
-                "Id": "extra_hits",
-                "BaseValue": 2,
+                "Id": "hits",
+                "BaseValue": 3,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
                 "Explicit": true
-              },
-              {
-                "Id": "repeat_count",
-                "BaseValue": 2,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": false,
-                "Explicit": false
               }
             ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "这张牌额外造成2次伤害。",
-            "en": "This card deals damage 2 additional times."
+            "zhHans": "造成6点伤害3次。",
+            "en": "Deal 6 damage 3 times."
           }
         }
       ]
@@ -57866,7 +57720,7 @@
           }
         },
         {
-          "ComponentId": "native.template_self_action.r_playselectedskillmultipletimes.self.nontargeted.4e1c3b5f2a",
+          "ComponentId": "native.template_self_action.r_playselectedskillmultipletimes.self.nontargeted.d96d75031b",
           "SemanticId": "regent/decisionsdecisions/1",
           "TriggerOwner": -1,
           "CardReference": "HandCard",
@@ -57898,6 +57752,7 @@
             "Flags": [
               "count_unit_reference",
               "has_numeric_literal",
+              "needs_external_card_slot",
               "requires_hand_cards",
               "requires_player_choice",
               "skill_card_reference"
@@ -57924,8 +57779,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "选择手牌中的一张技能牌，将其打出3次。",
-            "en": "Choose a Skill in your hand. Play it 3 times."
+            "zhHans": "选择手牌中的一张技能牌，将该牌打出3次。",
+            "en": "Choose a Skill in your hand. Play that card 3 times."
           }
         }
       ]
@@ -60864,7 +60719,7 @@
           }
         },
         {
-          "ComponentId": "native.template_self_action.r_copyselectedcolorlesscard.self.nontargeted.68f264abab",
+          "ComponentId": "native.template_self_action.r_copyselectedcolorlesscard.self.nontargeted.52d5fc7827",
           "SemanticId": "regent/heirloomhammer/1",
           "TriggerOwner": -1,
           "CardReference": "HandCard",
@@ -60880,6 +60735,7 @@
             "CardFilter": "any",
             "Flags": [
               "count_unit_reference",
+              "needs_external_card_slot",
               "replenishes_hand",
               "requires_hand_cards",
               "requires_player_choice"
@@ -60889,7 +60745,7 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "选择手牌中的一张无色牌，将它的一张复制加入手牌。",
+            "zhHans": "选择手牌中的一张无色牌，将该牌的一张复制品加入手牌。",
             "en": "Choose a Colorless card in your Hand. Add a copy of that card into your Hand."
           }
         }
@@ -75776,7 +75632,7 @@
       },
       "Components": [
         {
-          "ComponentId": "native.template_independent_action.i_copyselectedcardnextturn.self.independent.a7b89c237f",
+          "ComponentId": "native.template_independent_action.i_copyselectedcardnextturn.self.independent.df24abc4cf",
           "SemanticId": "silent/nightmare/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -75802,6 +75658,7 @@
               "count_unit_reference",
               "delayed_effect",
               "has_numeric_literal",
+              "needs_external_card_slot",
               "replenishes_hand",
               "requires_player_choice"
             ],
@@ -75819,8 +75676,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "选择一张手牌。在下个回合将它的3张复制加入手牌。",
-            "en": "Choose a card in your hand. Next turn, add 3 copies of it to your hand."
+            "zhHans": "选择一张手牌。在下个回合，将该牌的3张复制品加入手牌。",
+            "en": "Choose a card in your hand. Next turn, add 3 copies of that card to your hand."
           }
         }
       ]
@@ -76544,8 +76401,8 @@
             }
           },
           "Text": {
-            "zhHans": "你在本回合中每打出过一张技能牌，其耗能减少1。",
-            "en": "Costs 1 less for each Skill played this turn."
+            "zhHans": "本回合每打出过一张技能牌，该牌的耗能减少1。",
+            "en": "That card costs 1 less for each Skill played this turn."
           }
         }
       ]
@@ -77402,7 +77259,18 @@
               "ValueSource": "fixed",
               "BaseValue": 1,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Cards",
+                  "BaseValue": 1,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {

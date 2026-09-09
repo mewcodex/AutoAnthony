@@ -16,7 +16,7 @@ internal static class HangPowerPatch
     {
         if (target != __instance.Owner || cardSource is not ChaosCardModel chaosCard)
             return;
-        if (!chaosCard.Generated.Operations.Any(operation => operation.Template == "NCR:DoubleHangDamage"))
+        if (!CardEffectRules.IsHangDamageFamily(chaosCard.Generated.Operations))
             return;
         __result = __instance.Amount;
     }

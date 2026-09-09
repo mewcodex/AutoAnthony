@@ -87,8 +87,8 @@ public static class EnglishCardDescriptionRenderer
                 var chosen = OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
                     is "selected" or "i_exhaustselectedattack";
                 lines.Add(new RenderedLine(chosen
-                    ? "Choose an Attack in your Hand to Exhaust and add its damage to this card."
-                    : "Exhaust a random Attack in your Hand and add its damage to this card.", false));
+                    ? "Choose an Attack in your Hand to Exhaust and add the Exhausted card's Attack damage to this card."
+                    : "Exhaust a random Attack in your Hand and add the Exhausted card's Attack damage to this card.", false));
                 index++;
                 continue;
             }
@@ -349,11 +349,15 @@ public static class EnglishCardDescriptionRenderer
             (text == "随机消耗手牌中的一张牌" ? "Exhaust a random card in your hand" : null) ??
             (text == "消耗选中的牌" ? "Exhaust the selected card" : null) ??
             (text == "消耗那张非攻击牌" ? "Exhaust that non-Attack card" : null) ??
+            (text is "消耗该牌" or "消耗那张牌" ? "Exhaust that card" : null) ??
             (text == "消耗那张技能牌" ? "Exhaust that Skill" : null) ??
             (text == "选择手牌中的一张牌" ? "Choose a card in your hand" : null) ??
             (text == "选择手牌中的一张攻击牌" ? "Choose an Attack in your hand" : null) ??
             (text == "将此牌的一张复制加入弃牌堆" ? "Add a copy of this card to your discard pile" : null) ??
             (text == "将那张攻击牌的一张复制加入手牌" ? "Add a copy of that Attack to your hand" : null) ??
+            (text is "将这张牌的一张复制品加入你的手牌" or "将该牌的一张复制品加入你的手牌"
+                ? "Add a copy of that card into your Hand" : null) ??
+            (text is "升级那张牌" or "升级该牌" ? "Upgrade that card" : null) ??
             (text == "升级那张攻击牌" ? "Upgrade that Attack" : null) ??
             (text == "升级手牌中的一张牌" ? "Upgrade a card in your hand" : null) ??
             (text == "打出抽牌堆顶部的牌并将其消耗" ? "Play the top card of your draw pile. Exhaust it" : null) ??
@@ -363,7 +367,8 @@ public static class EnglishCardDescriptionRenderer
             (text == "将手牌中的所有攻击牌变化为巨石+" ? "Transform all Attacks in your hand into Boulder+" : null) ??
             (text == "将一张随机攻击牌加入手牌。其本回合费用为0" ? "Add a random Attack to your hand. It can be played for free this turn" : null) ??
             (text == "抽牌，直到抽到一张非攻击牌" ? "Draw cards until you draw a non-Attack card" : null) ??
-            (text == "对一名随机敌人打出这张牌" ? "It is played against a random enemy" : null) ??
+            (text is "对一名随机敌人打出这张牌" or "对一名随机敌人打出该牌"
+                ? "Play that card against a random enemy" : null) ??
             Match(@"^将该攻击牌额外打出(\d+)次$", "Play that Attack {0} additional times") ??
             (text == "随机消耗手牌中的一张攻击牌" ? "Exhaust a random Attack in your Hand" : null) ??
             (text == "丢弃所有手牌" ? "Discard your hand" : null) ??
@@ -377,7 +382,8 @@ public static class EnglishCardDescriptionRenderer
             (text == "在本回合给手牌中的一张技能牌添加奇巧" ? "Give a Skill in your hand Sly this turn" : null) ??
             (text == "将消耗牌堆中的所有小刀对该敌人打出" ? "Play all Shivs in your Exhaust Pile against that enemy" : null) ??
             (text == "将消耗牌堆中的所有小刀+对该敌人打出" ? "Upgrade and play all Shivs in your Exhaust Pile against that enemy" : null) ??
-            Match(@"^选择一张手牌。在下个回合将它的(\d+)张复制加入手牌$", "Choose a card in your hand. Next turn, add {0} copies of it to your hand") ??
+            Match(@"^选择一张手牌。在下个回合，?(?:将它的|将该牌的)(\d+)张复制(?:品)?加入手牌$",
+                "Choose a card in your hand. Next turn, add {0} copies of that card to your hand") ??
             (text is "立即触发中毒" or "立即触发所有敌人的中毒"
                 ? "Trigger Poison on ALL enemies immediately" : null) ??
             (text == "你的下一张技能牌耗能变为0" ? "Your next Skill costs 0" : null) ??
@@ -392,7 +398,7 @@ public static class EnglishCardDescriptionRenderer
             (text == "费用变为0" ? "Set its Cost to 0" : null) ??
             Match(@"^永久获得(\d+)点最大生命$", "Permanently gain {0} Max HP") ??
             Match(@"^在本场战斗中，此卡的基础伤害增加(\d+)点$", "Permanently increase this card's base damage by {0} this combat") ??
-            (text == "将它的伤害添加给这张牌" ? "Add its damage to this card" : null) ??
+            (text == "将消耗的牌的攻击力添加到这张牌" ? "Add the Exhausted card's Attack damage to this card" : null) ??
             (text is "你的格挡不会在回合开始时移除" or "格挡不再在你的回合开始时消失" ? "Block is not removed at the start of your turn" : null) ??
             (text is "你的技能牌费用变为0" or "技能牌的耗能变为0" ? "Your Skills cost 0" : null) ??
             Match(@"^拥有易伤的敌人受到的伤害增加(\d+)%$", "Vulnerable enemies take {0}% more damage") ??
@@ -427,7 +433,9 @@ public static class EnglishCardDescriptionRenderer
             (text == "如果抽到的是技能牌" ? "If the card drawn is a Skill" : null) ??
             (text == "本回合每当你抽到一张牌时" ? "Whenever you draw a card this turn" : null) ??
             (text == "只有当抽牌堆中没有牌时" ? "Can only be played if your draw pile is empty" : null) ??
-            (text == "你在本回合中每打出过一张技能牌，其耗能减少1" ? "Costs 1 less for each Skill played this turn" : null) ??
+            (text is "你在本回合中每打出过一张技能牌，其耗能减少1"
+                or "本回合每打出过一张技能牌，该牌的耗能减少1"
+                ? "That card costs 1 less for each Skill played this turn" : null) ??
             (text == "每丢弃一张牌" ? "For each card discarded" : null) ??
             (text == "本回合每当你打出一张攻击牌时" ? "Whenever you play an Attack this turn" : null) ??
             (text == "本回合每当你受到一次攻击时" ? "Whenever you are attacked this turn" : null) ??
@@ -440,7 +448,9 @@ public static class EnglishCardDescriptionRenderer
             (text == "你打出的下一张攻击牌获得效果：" ? "Your next Attack gains:" : null) ??
             (text == "在本回合中，当你打出下一张攻击牌时" ? "This turn, when you play your next Attack" : null) ??
             (text == "当你打出下一张攻击牌时" ? "When you play your next Attack" : null) ??
-            (text == "你在本回合中每打出过一张攻击牌，其耗能减少1" ? "Costs 1 less Energy for each Attack played this turn" : null) ??
+            (text is "你在本回合中每打出过一张攻击牌，其耗能减少1"
+                or "本回合每打出过一张攻击牌，该牌的耗能减少1"
+                ? "That card costs 1 less Energy for each Attack played this turn" : null) ??
             (text == "将弃牌堆中的一张牌放到抽牌堆顶部" ? "Put a card from your discard pile on top of your draw pile" : null) ??
             (text == "将弃牌堆中的一张随机攻击牌放入手牌" ? "Put a random Attack from your discard pile into your hand" : null) ??
             (text == "将一张当前角色的随机牌加入手牌" ? "Add a random card for your current character to your hand" : null) ??

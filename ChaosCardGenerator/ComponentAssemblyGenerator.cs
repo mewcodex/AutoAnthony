@@ -2300,6 +2300,7 @@ public sealed class ComponentAssemblyGenerator
             || !CardEffectRules.HasNoFatalDoubleVulnerablePayoff(assembled)
             || !CardEffectRules.HasNoFatalSelectedEnemyPayoffs(assembled)
             || !CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs(assembled)
+            || !CardEffectRules.HasNoTurnEndTurnLocalPayoffs(assembled)
             || !CardEffectRules.HasValidEnemyTargetAssembly(finalTarget, assembled)
             || !CardEffectRules.HasNoNegativeSelfExhaustPayoffs(assembled)
             || !CardEffectRules.HasValidTriggerPayloadAssembly(assembled)
@@ -2402,6 +2403,7 @@ public sealed class ComponentAssemblyGenerator
         && CardEffectRules.HasNoFatalDoubleVulnerablePayoff(operations)
         && CardEffectRules.HasNoFatalSelectedEnemyPayoffs(operations)
         && CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs(operations)
+        && CardEffectRules.HasNoTurnEndTurnLocalPayoffs(operations)
         && CardEffectRules.HasNoNegativeSelfExhaustPayoffs(operations)
         && CardEffectRules.HasNoInvalidTriggeredStateEffects(operations)
         && CardEffectRules.HasNoStateConditionModifiers(operations)
@@ -2705,7 +2707,8 @@ public sealed class ComponentAssemblyGenerator
             && CardEffectRules.TriggerNeedsLinkedEffect(turnEndPrior)
             && (CardEffectRules.IsImmediateDrawEffect(atom)
                 || CardEffectRules.IsImmediateEnergyGainOperation(atom)
-                || CardEffectRules.IsStarGainOperation(atom)))
+                || CardEffectRules.IsStarGainOperation(atom)
+                || CardEffectRules.IsTurnLocalEffect(atom)))
             return false;
         // These operations are resolved by card lifecycle hooks rather than the ordinary operation runner.
         // Nesting one under an unrelated trigger prints a condition that runtime cannot honor.
@@ -2894,6 +2897,14 @@ public sealed class ComponentAssemblyGenerator
             return false;
         if (atom.Template == "NCR:DoubleHangDamage" && !previous.Any(CardEffectRules.IsEnemyDamage))
             return false;
+        // Flat extra-hit text is a modifier payoff, not a complete unconditional damage line. Native cards whose
+        // hit count is unconditional are authored as intrinsic multi-hit Damage; retain this atom only behind a
+        // condition which genuinely changes how often the host Damage resolves.
+        if (atom.Template == "M:repeat"
+            && OperationRuntimeSpecCompiler.GetOrCompile(atom).Variant == "flat_extra"
+            && (previous.LastOrDefault() is not { } repeatTrigger
+                || !CardEffectRules.TriggerNeedsLinkedEffect(repeatTrigger)))
+            return false;
         if (atom.Template is "CL:GainBlockEqualDamage" or "CL:DamageOtherEnemiesEqual"
             && !previous.Any(CardEffectRules.IsEnemyDamage))
             return false;
@@ -2958,8 +2969,6 @@ public sealed class ComponentAssemblyGenerator
             && (previous.LastOrDefault() is not { } grantTrigger
                 || !CardEffectRules.IsNextAttackGrantTrigger(grantTrigger)))
             return false;
-        if (atom.Template == "I:UpgradeThatCard" && previous.LastOrDefault()?.Template != "N:Move")
-            return false;
         // Grand Finale's extreme 60-damage variant is the payoff for its severe play restriction, not a
         // generally available AllD number. Other AllD values remain freely composable.
         if (IsGrandFinalePayoff(atom) && !previous.Any(IsDrawPileEmptyCondition))
@@ -3010,14 +3019,9 @@ public sealed class ComponentAssemblyGenerator
 
         if (previous.LastOrDefault() is not { } prior) return;
         var priorSpec = OperationRuntimeSpecCompiler.GetOrCompile(prior);
-        if (atom.Template == "N:Exhaust")
-            Check("referenced_skill_exhaust", atom.ChineseText == "消耗那张技能牌。"
-                    && (prior.Scope != OperationScope.AbilityTrigger
-                        || !prior.ChineseText.Contains("技能牌", StringComparison.Ordinal)),
-                spec is { Opcode: "exhaust_card", Variant: "referenced", CardFilter: "skill" }
-                    && (prior.Scope != OperationScope.AbilityTrigger
-                        || !priorSpec.Flags.Contains("skill_card_reference")),
-                atom);
+        if (atom.Template == "N:Exhaust" && atom.ChineseText is "消耗该牌。" or "消耗那张牌。")
+            Check("referenced_card_exhaust", true,
+                spec is { Opcode: "exhaust_card", Variant: "referenced", CardFilter: "any" }, atom);
         if (atom.Template == "I:PlayAtRandomEnemy")
             Check("strike_draw_replay", prior.Scope != OperationScope.AbilityTrigger
                     || !prior.ChineseText.StartsWith("每当你抽到名字中有", StringComparison.Ordinal),
@@ -3038,15 +3042,9 @@ public sealed class ComponentAssemblyGenerator
                 spec.Flags.Contains("referenced_non_attack_exhaust")
                     && (prior.Scope != OperationScope.ConditionalTrigger
                         || priorSpec.Trigger?.Kind != "for_each_exhausted_non_attack"), atom);
-        if (spec is { Opcode: "create_copy", Variant: "referenced_attack" }
-            || atom.ChineseText == "将那张攻击牌的一张复制加入手牌。")
-            Check("third_attack_copy", atom.ChineseText == "将那张攻击牌的一张复制加入手牌。"
-                    && (prior.Scope != OperationScope.AbilityTrigger
-                        || !prior.ChineseText.Contains("第3张攻击牌", StringComparison.Ordinal)),
-                spec is { Opcode: "create_copy", Variant: "referenced_attack" }
-                    && (prior.Scope != OperationScope.AbilityTrigger
-                        || priorSpec.Trigger?.Kind != "nth_attack_played_this_turn"
-                        || OperationRuntimeSpecCompiler.StaticLiteralValue(prior, "threshold", 1) != 3), atom);
+        if (spec is { Opcode: "create_copy", Variant: "referenced_card" })
+            Check("referenced_card_copy", false,
+                spec.CardFilter != "any" || !spec.Flags.Contains("requires_referenced_card_payload"), atom);
     }
 
     private bool CanCompleteFinalPlannedSlot(IroncladCardRecipe shell, int cost, int starCost,
@@ -4217,6 +4215,14 @@ public static class CardEffectRules
     private static OperationRuntimeSpec RuntimeSpec(ComponentAtom atom) =>
         OperationRuntimeSpecCompiler.GetOrCompile(atom);
 
+    /// <summary>
+    /// Identifies the generated-card damage family affected by Hang. Keep naming, validation and the runtime
+    /// HangPower hook on this single semantic predicate so a coincidental localized title can never grant Hang
+    /// damage, while every card that carries the Hang rule receives it.
+    /// </summary>
+    public static bool IsHangDamageFamily(IEnumerable<GeneratorOperation> operations) =>
+        operations.Any(operation => operation.Template == "NCR:DoubleHangDamage");
+
     public static bool IsEnemyDamageAmplificationRule(ComponentAtom atom) =>
         atom.Scope == OperationScope.AbilityRule
         && RuntimeSpec(atom).Variant is "weak_enemy_attack_damage_bonus" or "vulnerable_enemy_damage_bonus";
@@ -4685,6 +4691,35 @@ public static class CardEffectRules
     }
 
     /// <summary>
+    /// A payoff that expires at the current turn boundary has no useful lifetime when it is first applied by that
+    /// same boundary. Keep those effects available for ordinary play and earlier triggers, but do not assemble them
+    /// behind a turn-end trigger or turn-end pile condition.
+    /// </summary>
+    public static bool HasNoTurnEndTurnLocalPayoffs(IReadOnlyList<GeneratorOperation> operations)
+    {
+        for (var index = 0; index < operations.Count; index++)
+        {
+            var effect = operations[index];
+            if (!effect.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
+                || triggerIndex < 0 || triggerIndex >= index
+                || !IsTurnEndTrigger(operations[triggerIndex]))
+                continue;
+            if (IsTurnLocalEffect(effect)) return false;
+        }
+        return true;
+    }
+
+    public static bool IsTurnLocalEffect(ComponentAtom atom) =>
+        IsTurnLocalEffect(RuntimeSpec(atom));
+
+    public static bool IsTurnLocalEffect(GeneratorOperation operation) =>
+        IsTurnLocalEffect(OperationRuntimeSpecCompiler.GetOrCompile(operation));
+
+    private static bool IsTurnLocalEffect(OperationRuntimeSpec spec) =>
+        spec.Flags.Contains("this_turn_reference")
+        && spec.Trigger is null && spec.Condition is null;
+
+    /// <summary>
     /// Increasing this card's Damage for the combat is itself a compounding modifier. Repeating it behind an
     /// Attack/card/draw trigger both stacks the modifier and raises every later Damage payoff on the same card,
     /// which cannot be represented by an ordinary linear trigger multiplier. Keep the native Rampage-style
@@ -4796,15 +4831,19 @@ public static class CardEffectRules
             if (!effect.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
                 || triggerIndex < 0 || triggerIndex >= index)
                 return false;
-            if (!CanSupplySpecificTriggerPayload(operations[triggerIndex], effect)) return false;
+            if (!CanSupplySpecificTriggerPayload(operations[triggerIndex], effect)
+                && !operations.Take(index).Any(provider =>
+                    provider.Parameters.GetValueOrDefault("triggerIndex", -1) == triggerIndex
+                    && OperationSuppliesReferencedCard(provider)))
+                return false;
         }
         return true;
     }
 
     /// <summary>
-    /// True only when an effect reads transient state owned by a particular event: the event card, event amount,
-    /// or a referenced Attack/Skill. Ordinary numeric effects deliberately return false even if an original card
-    /// happened to print them after a trigger.
+    /// True only when an effect reads transient state owned by a particular event: a referenced card, event amount,
+    /// or a specifically filtered Attack/Skill. Ordinary numeric effects deliberately return false even if an
+    /// original card happened to print them after a trigger.
     /// </summary>
     public static bool RequiresSpecificTriggerPayload(ComponentAtom effect) =>
         RequiresSpecificTriggerPayload(RuntimeSpec(effect));
@@ -4814,10 +4853,12 @@ public static class CardEffectRules
 
     private static bool RequiresSpecificTriggerPayload(OperationRuntimeSpec spec) =>
         spec.Flags.Contains("requires_event_card_payload")
+        || spec.Flags.Contains("requires_referenced_card_payload")
         || spec.Flags.Contains("requires_event_amount_payload")
         || spec.Flags.Contains("referenced_non_attack_exhaust")
         || spec is { Opcode: "exhaust_card", Variant: "referenced" }
-        || spec is { Opcode: "create_copy", Variant: "referenced_attack" };
+        || spec is { Opcode: "upgrade_card", Variant: "referenced" }
+        || spec is { Opcode: "create_copy", Variant: "referenced_attack" or "referenced_card" };
 
     public static bool CanSupplySpecificTriggerPayload(GeneratorOperation trigger, ComponentAtom effect) =>
         CanSupplySpecificTriggerPayload(trigger, effect.Template, RuntimeSpec(effect));
@@ -4834,20 +4875,61 @@ public static class CardEffectRules
         return effectTemplate switch
         {
             "D:ReplayEventCard" => kind == "first_card_played_each_turn",
-            "D:ReturnEventCardToHand" => kind == "first_zero_cost_attack_played_each_turn",
-            "CL:PutEventCardOnDrawTop" => kind == "first_attack_or_skill_each_turn",
+            "D:ReturnEventCardToHand" => OperationSuppliesReferencedCard(triggerSpec),
+            "CL:PutEventCardOnDrawTop" => OperationSuppliesReferencedCard(triggerSpec),
             "I:PlayAtRandomEnemy" => kind == "strike_card_drawn",
             "NCR:ApplyEventDamageAsDoom" => kind is "attack_damaged_enemy" or "attack_dealt_damage",
             "NCR:AllEnemiesLoseEventHp" => kind == "osty_hp_lost",
+            "I:UpgradeThatCard" => OperationSuppliesReferencedCard(triggerSpec),
             _ when spec is { Opcode: "exhaust_card", Variant: "referenced" } => kind == "skill_played",
             _ when spec.Flags.Contains("referenced_non_attack_exhaust") =>
                 kind == "for_each_exhausted_non_attack",
+            _ when spec is { Opcode: "create_copy", Variant: "referenced_card" } =>
+                OperationSuppliesReferencedCard(triggerSpec),
             _ when spec is { Opcode: "create_copy", Variant: "referenced_attack" } =>
                 kind == "nth_attack_played_this_turn"
                 && OperationRuntimeSpecCompiler.StaticLiteralValue(trigger, "threshold", 1) == 3,
             _ => false
         };
     }
+
+    /// <summary>
+    /// True when an operation leaves one concrete card in the shared resolution state. Besides event triggers,
+    /// this includes card-moving providers such as Aggression's random discard-pile retrieval.
+    /// </summary>
+    internal static bool OperationSuppliesReferencedCard(GeneratorOperation operation) =>
+        OperationSuppliesReferencedCard(OperationRuntimeSpecCompiler.GetOrCompile(operation));
+
+    private static bool OperationSuppliesReferencedCard(OperationRuntimeSpec spec) =>
+        TriggerSuppliesReferencedCard(spec)
+        || spec is { Opcode: "move_card", Variant: "random" or "selected" };
+
+    /// <summary>
+    /// Card-reference payoffs consume an object supplied by the trigger rather than selecting a new card. Keep the
+    /// capability centralized so generic components can be reused without binding themselves to the native card
+    /// that introduced them. Triggers omitted here carry only a creature/amount or have an execution branch where
+    /// no card exists (for example Stars gained), and therefore cannot safely host a referenced-card payoff.
+    /// </summary>
+    internal static bool TriggerSuppliesReferencedCard(GeneratorOperation trigger) =>
+        TriggerSuppliesReferencedCard(OperationRuntimeSpecCompiler.GetOrCompile(trigger));
+
+    private static bool TriggerSuppliesReferencedCard(OperationRuntimeSpec triggerSpec) =>
+        triggerSpec.Trigger?.Kind is
+            "card_exhausted" or "strike_card_drawn"
+            or "card_drawn" or "card_drawn_during_turn" or "ethereal_card_drawn"
+            or "first_status_drawn_each_turn"
+            or "card_played" or "first_card_played_each_turn"
+            or "attack_played" or "first_attack_played_each_turn"
+            or "first_zero_cost_attack_played_each_turn" or "nth_attack_played_this_turn"
+            or "skill_played" or "power_played" or "ethereal_card_played"
+            or "first_attack_or_skill_each_turn" or "derivative_played"
+            or "energy_cost_at_least_card_played" or "energy_spent_threshold"
+            or "card_generated" or "status_generated"
+            or "for_each_discarded_card" or "for_each_exhausted_card"
+            or "for_each_exhausted_non_attack" or "for_each_exhausted_status"
+            or "next_attack" or "next_attacks_this_turn"
+            or "self_exhausted" or "turn_start_if_self_in_exhaust"
+            or "turn_end_if_self_in_exhaust" or "turn_end_if_self_on_draw_top";
 
     /// <summary>
     /// A negative duration is a payment just like lost Strength or increased cost: a better upgrade shortens it.
@@ -6339,6 +6421,7 @@ public static class CardEffectRules
             || spec.Condition?.Kind is "card_exhausted_this_turn" or "exhaust_pile_minimum"
             || template is "CL:ExhaustUpToHandCards" or "D:ExhaustAllStatuses" or "D:ExhaustSelectedHandCard"
             or "D:ForEachExhaustedStatus" or "D:ShuffleAllUnexhaustedIntoDraw" or "I:ExhaustRandomAttack"
+            or "I:AddExhaustedAttackDamage"
             or "I:PlayExhaustedShivsAtTarget" or "I:PlayTopCardAndExhaust" or "I:ProxyAtomic_Eidolon"
             or "M:DamagePerExhaustCard" or "NCR:ExhaustSelectedDrawCard" or "NCR:ForEachExhaustedSoul"
             or "R:AtTurnStartIfInExhaust") result.Add("exhaust");
@@ -6542,6 +6625,7 @@ public sealed record ComponentAtom(
     public string? SemanticId { get; init; }
     public OperationRuntimeSpec? RuntimeSpec { get; init; }
     public OperationLocalizedText? LocalizedText { get; init; }
+    public ComponentCategory Category { get; init; } = ComponentCategory.Automatic;
     public string Key => OperationRuntimeSpecCompiler.StructuralExactKey(this);
     public string FamilyKey => NumericTextSchema.Family(Template);
     public string SchemaKey => OperationRuntimeSpecCompiler.StructuralFieldKey(this);

@@ -1,4 +1,5 @@
 using ChaosCardGenerator;
+using AutoAnthony.Patches;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Logging;
@@ -48,7 +49,7 @@ public interface IExternalAncientRelicAdapter
 /// </summary>
 public static class ExternalComponentCharacterApi
 {
-    public const int ApiVersion = 3;
+    public const int ApiVersion = 4;
     private static readonly object Sync = new();
     private static readonly Dictionary<string, ExternalComponentCharacterRegistration> Registrations =
         new(StringComparer.Ordinal);
@@ -131,6 +132,52 @@ public static class ExternalComponentCharacterApi
             lock (Sync)
                 return RuntimeHosts.Values.OrderBy(value => value.ProfileId, StringComparer.Ordinal).ToArray();
         }
+    }
+
+    /// <summary>Returns the stable component profile which owns a generated card host.</summary>
+    public static bool TryGetProfileId(ChaosCardModel card, out string profileId)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        if (card is ExternalChaosCardModel external)
+        {
+            profileId = external.ExternalProfileId;
+            return true;
+        }
+        profileId = ComponentProfileRequest.BuiltInId(card.Generated.Character);
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the generated profile active for a player. External runtime delegates are evaluated outside the
+    /// registry lock so character mods may safely consult their own run state.
+    /// </summary>
+    public static bool TryGetActiveProfile(Player player, out string profileId)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        ExternalComponentCharacterRuntimeRegistration[] hosts;
+        lock (Sync) hosts = RuntimeHosts.Values.ToArray();
+        foreach (var host in hosts.OrderBy(value => value.ProfileId, StringComparer.Ordinal))
+        {
+            try
+            {
+                if (host.IsRunActive() && ReferenceEquals(host.CardPool(), player.Character.CardPool))
+                {
+                    profileId = host.ProfileId;
+                    return true;
+                }
+            }
+            catch (Exception exception)
+            {
+                Log.Error($"[AutoAnthony] External runtime host '{host.ProfileId}' failed its active-profile query: {exception}");
+            }
+        }
+        if (ChaosCharacterMapping.From(player.Character) is { } character)
+        {
+            profileId = ComponentProfileRequest.BuiltInId(character);
+            return true;
+        }
+        profileId = string.Empty;
+        return false;
     }
 
     /// <summary>Returns active external generated pools in stable profile-ID order.</summary>
@@ -262,6 +309,30 @@ public static class ExternalComponentCharacterApi
             card = null;
             return false;
         }
+    }
+
+    internal static ChaosCardModel CreateCardHost(string profileId, Player owner, bool forCombat)
+    {
+        ValidateId(profileId, nameof(profileId));
+        ArgumentNullException.ThrowIfNull(owner);
+        ExternalComponentCharacterRuntimeRegistration host;
+        lock (Sync)
+        {
+            _ = GetRegistrationLocked(profileId);
+            host = RuntimeHosts.TryGetValue(profileId, out var registered)
+                ? registered
+                : throw new InvalidOperationException(
+                    $"External component profile '{profileId}' has no runtime card host.");
+        }
+        var cardType = host.CardTypeForSlot(0);
+        var canonical = ModelDb.GetById<CardModel>(ModelDb.GetId(cardType));
+        var card = forCombat
+            ? (owner.Creature?.CombatState
+               ?? throw new InvalidOperationException("The player is not in an active combat."))
+                .CreateCard(canonical, owner) as ChaosCardModel
+            : owner.RunState.CreateCard(canonical, owner) as ChaosCardModel;
+        return card ?? throw new InvalidOperationException(
+            $"External component profile '{profileId}' did not create a ChaosCardModel host.");
     }
 
     internal static bool IsExternalRunActive(CardModel? card)
