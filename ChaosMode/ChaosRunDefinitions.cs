@@ -71,6 +71,7 @@ public static class ChaosRunDefinitions
     private static readonly Dictionary<GeneratedCharacter, bool> DefinitionReplaceStartingCardsModes = new();
     private static readonly Dictionary<GeneratedCharacter, bool> DefinitionPreserveOriginalCardsModes = new();
     private static readonly HashSet<GeneratedCharacter> ActiveCharacterSet = [];
+    private static volatile IReadOnlyList<GeneratedCharacter> _activeCharactersSnapshot = Array.Empty<GeneratedCharacter>();
     private static volatile bool _ancientFuelActive;
     private static volatile bool _activeUltimateChaos;
     private static volatile bool _activeNumericBalanceOptimization = true;
@@ -121,16 +122,17 @@ public static class ChaosRunDefinitions
     public static bool ActiveNumericRandomMode => _activeNumericRandomMode;
     public static bool ActivePreserveOriginalCards => _activePreserveOriginalCards;
     public static bool ActiveRandomCardArt => _activeRandomCardArt;
-    public static IReadOnlyList<GeneratedCharacter> ActiveCharacters
+    public static IReadOnlyList<GeneratedCharacter> ActiveCharacters => _activeCharactersSnapshot;
+    // Kept for older call sites that genuinely require a single-player run. Multiplayer callers must use
+    // ActiveCharacters or IsCharacterRunActive instead of silently choosing one player.
+    public static GeneratedCharacter? ActiveCharacter
     {
         get
         {
-            lock (Gate) return ActiveCharacterSet.OrderBy(character => character).ToArray();
+            var active = _activeCharactersSnapshot;
+            return active.Count == 1 ? active[0] : null;
         }
     }
-    // Kept for older call sites that genuinely require a single-player run. Multiplayer callers must use
-    // ActiveCharacters or IsCharacterRunActive instead of silently choosing one player.
-    public static GeneratedCharacter? ActiveCharacter => ActiveCharacters.Count == 1 ? ActiveCharacters[0] : null;
     public static bool IsRunActive => _runActive;
     public static bool IsCharacterRunActive(GeneratedCharacter character)
     {
@@ -177,6 +179,8 @@ public static class ChaosRunDefinitions
                 DefinitionPreserveOriginalCardsModes[pair.Key] = pair.Value;
             ActiveCharacterSet.Clear();
             ActiveCharacterSet.UnionWith(state.ActiveCharacters);
+            _activeCharactersSnapshot = Array.AsReadOnly(
+                ActiveCharacterSet.OrderBy(character => character).ToArray());
             _runActive = state.RunActive;
             _ancientFuelActive = state.AncientFuelActive;
             _activeUltimateChaos = state.ActiveUltimateChaos;
@@ -1460,6 +1464,8 @@ public static class ChaosRunDefinitions
     {
         ActiveCharacterSet.Clear();
         ActiveCharacterSet.UnionWith(characters);
+        _activeCharactersSnapshot = Array.AsReadOnly(
+            ActiveCharacterSet.OrderBy(character => character).ToArray());
         _runActive = ActiveCharacterSet.Count > 0;
     }
 
@@ -1587,6 +1593,7 @@ public static class ChaosRunDefinitions
         lock (Gate)
         {
             ActiveCharacterSet.Clear();
+            _activeCharactersSnapshot = Array.Empty<GeneratedCharacter>();
             _runActive = false;
             _ancientFuelActive = false;
             _activeUltimateChaos = false;
@@ -1657,6 +1664,37 @@ public static class ChaosRunDefinitions
         return cards[slot];
     }
 
+    /// <summary>
+    /// Replaces the gameplay definition behind one fixed generated-card slot for the remainder of the current run.
+    /// The slot identity and presentation assets stay stable, so existing instances can rebind without changing
+    /// their name/art source unexpectedly and future pool draws use the adjusted effects.
+    /// </summary>
+    internal static void ReplaceRunPoolCard(GeneratedCharacter character, int slot, GeneratedCard card)
+    {
+        card = OperationRuntimeSpecCompiler.Attach(card);
+        lock (Gate)
+        {
+            if (!Definitions.TryGetValue(character, out var definitions)
+                || (uint)slot >= (uint)definitions.Count)
+                throw new ArgumentOutOfRangeException(nameof(slot),
+                    $"No active {character} generated-card slot {slot} is available.");
+            var updated = definitions.ToArray();
+            var current = updated[slot];
+            updated[slot] = current with
+            {
+                Card = card,
+                RuntimeSpecs = card.Operations.Select(OperationRuntimeSpecCompiler.RequireStructured).ToArray(),
+                UpgradeValueSlots = card.Upgrade?.Effects.Select(effect => effect.ValueSlotId).ToArray() ?? []
+            };
+            Definitions[character] = Array.AsReadOnly(updated);
+            ResetCanonicalCardCaches(character);
+            InstallLocalizedTitles(character, updated);
+        }
+        // A new list reference invalidates the ordinary snapshot cache check as well, but clear explicitly so a
+        // save immediately following an adjustment cannot reuse a payload captured before this mutation.
+        ChaosPoolSnapshot.ClearRunPayloadCache();
+    }
+
     public static IReadOnlyList<ChaosCardDefinition> AncientCards => GetCards(GeneratedCharacter.Ironclad).TakeLast(AncientCount).ToArray();
 
     internal static bool ShouldUseAncientFuel(string seed)
@@ -1684,13 +1722,16 @@ public static class ChaosRunDefinitions
         return BitConverter.ToInt32(hash, 0) & int.MaxValue;
     }
 
-    private static void ResetCanonicalCardCaches(GeneratedCharacter character)
+    private static void ResetCanonicalCardCaches(GeneratedCharacter character) =>
+        ResetCanonicalCardCaches(ChaosCardRegistry.TypesFor(character));
+
+    internal static void ResetCanonicalCardCaches(IEnumerable<Type> cardTypes)
     {
         var energy = AccessTools.Field(typeof(CardModel), "_energyCost");
         var dynamicVars = AccessTools.Field(typeof(CardModel), "_dynamicVars");
         var keywords = AccessTools.Field(typeof(CardModel), "_keywords");
         var tags = AccessTools.Field(typeof(CardModel), "_tags");
-        foreach (var type in ChaosCardRegistry.TypesFor(character))
+        foreach (var type in cardTypes)
         {
             var canonical = ModelDb.GetById<CardModel>(ModelDb.GetId(type));
             energy.SetValue(canonical, null);

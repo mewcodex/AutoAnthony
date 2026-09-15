@@ -18,8 +18,7 @@ internal static class ChaosPortraitTextureCachePatch
     private static bool Prefix(CardModel __instance, ref Texture2D __result)
     {
         if (__instance is not ChaosCardModel card) return true;
-        __result = ResourceLoader.Load<Texture2D>(ChaosPortraitCompatibility.ResolvePath(card.EffectivePortraitDefinition), null,
-            ResourceLoader.CacheMode.Reuse);
+        __result = ChaosPortraitCompatibility.ResolveTexture(card.EffectivePortraitDefinition);
         return false;
     }
 }

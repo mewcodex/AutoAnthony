@@ -26,6 +26,8 @@ internal static class ChaosPortraitCompatibility
     // so resolve the winning redirected path once per native source identity.
     private static readonly ConcurrentDictionary<string, string> ResolvedPathCache =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, Texture2D> ResolvedTextureCache =
+        new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, Texture2D> DirectTextureCache =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, byte> DirectTextureMissCache =
@@ -56,6 +58,18 @@ internal static class ChaosPortraitCompatibility
 
         var resolved = ResolvePathUncached(definition);
         return ResolvedPathCache.GetOrAdd(key, resolved);
+    }
+
+    internal static Texture2D ResolveTexture(ChaosCardDefinition definition)
+    {
+        var path = ResolvePath(definition);
+        if (ResolvedTextureCache.TryGetValue(path, out var cached))
+        {
+            if (GodotObject.IsInstanceValid(cached)) return cached;
+            ResolvedTextureCache.TryRemove(path, out _);
+        }
+        var loaded = ResourceLoader.Load<Texture2D>(path, null, ResourceLoader.CacheMode.Reuse);
+        return ResolvedTextureCache.GetOrAdd(path, loaded);
     }
 
     private static string ResolvePathUncached(ChaosCardDefinition definition)

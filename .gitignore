@@ -2,6 +2,9 @@
 **/bin/
 **/obj/
 ChaosMode/build/
+CardTinkering/build/
+.codex_tmp/
+**/__pycache__/
 
 # Generated packages, logs, and local deployment metadata
 *.dll

@@ -464,6 +464,8 @@ if (poolAuditSeed is { } exactPoolSeed)
         + $"startingDamage={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.CountsAsDamage)}; "
         + $"startingDefense={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.CountsAsDefense)}; "
         + $"startingHighResource={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.IsHighResourceCard)}; "
+        + $"startingStarConsumers={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.ConsumesStars)}; "
+        + $"startingStarProducers={completedPoolCards.Take(10).Count(StartingPoolConstraintResolver.ProducesStars)}; "
         + $"generatorConstructionMs={generatorConstructionMs}; cardGenerationMs={cardGenerationMs}; "
         + $"generationLoopWallMs={generationLoopWallMs}; "
         + $"startingRepairMs={startingRepairMs}({initialStartingRepairMs}+{finalStartingRepairMs}); "

@@ -270,6 +270,39 @@ public static class ExternalComponentCharacterApi
         }
     }
 
+    /// <summary>
+    /// Updates one installed external generated-card slot for a run-wide balance adjustment. This does not require
+    /// Card Tinkering support; it uses only the ordinary external runtime host and definition registration.
+    /// </summary>
+    internal static bool TryReplaceRunPoolCard(ChaosCardModel source, GeneratedCard card)
+    {
+        if (source is not ExternalChaosCardModel external) return false;
+        card = OperationRuntimeSpecCompiler.Attach(card);
+        ExternalComponentCharacterRuntimeRegistration host;
+        int slot;
+        lock (Sync)
+        {
+            if (!RuntimeHosts.TryGetValue(external.ExternalProfileId, out host!)
+                || !Definitions.TryGetValue(external.ExternalProfileId, out var definitions))
+                return false;
+            slot = Enumerable.Range(0, host.CardCount).FirstOrDefault(index =>
+                ModelDb.GetId(host.CardTypeForSlot(index)) == source.Id, -1);
+            if (slot < 0 || (uint)slot >= (uint)definitions.Count) return false;
+            var updated = definitions.ToArray();
+            updated[slot] = updated[slot] with
+            {
+                Card = card,
+                RuntimeSpecs = card.Operations.Select(OperationRuntimeSpecCompiler.RequireStructured).ToArray(),
+                UpgradeValueSlots = card.Upgrade?.Effects.Select(effect => effect.ValueSlotId).ToArray() ?? []
+            };
+            Definitions[external.ExternalProfileId] = Array.AsReadOnly(updated);
+        }
+        ChaosRunDefinitions.ResetCanonicalCardCaches(
+            Enumerable.Range(0, host.CardCount).Select(host.CardTypeForSlot));
+        ChaosPoolSnapshot.ClearRunPayloadCache();
+        return true;
+    }
+
     internal static GeneratedCharacter BalanceArchetype(string profileId)
     {
         lock (Sync)

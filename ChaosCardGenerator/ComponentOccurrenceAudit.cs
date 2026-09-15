@@ -31,6 +31,16 @@ public static class ComponentOccurrenceAudit
         output.AppendLine($"character={character}; poolSamples={poolSamples}; sourceCards={catalog.Recipes.Count}; "
                           + $"generatedCards={generated.Count}; ultimateChaos={ultimateChaos}; "
                           + $"balancedValues={balancedValues}");
+        var finalizedStatusProducers = generatedOperations
+            .Where(operation => DerivativeSlotCatalog.IsStatusProducer(operation.Template)).ToArray();
+        var finalizedCurseProducers = finalizedStatusProducers.Count(operation =>
+            DerivativeSlotCatalog.Resolve(operation.DerivativeId, operation.Template) is { } derivative
+            && DerivativeSlotCatalog.IsCurse(derivative));
+        var finalizedCurseRate = finalizedStatusProducers.Length == 0
+            ? 0d
+            : 100d * finalizedCurseProducers / finalizedStatusProducers.Length;
+        output.AppendLine($"statusCurseEasterEgg: producers={finalizedStatusProducers.Length}; "
+                          + $"curses={finalizedCurseProducers}; rate={finalizedCurseRate:0.000}%");
 
         WriteRows(output, "family", sourceOperations.Select(atom => atom.FamilyKey),
             generatedOperations.Select(operation => NumericTextSchema.Family(operation.Template)),
@@ -62,6 +72,7 @@ public static class ComponentOccurrenceAudit
                 generatedRate.ToString("0.000"),
                 double.IsNaN(ratio) ? "n/a" : ratio.ToString("0.000")));
         }
+
         return output.ToString();
     }
 

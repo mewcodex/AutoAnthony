@@ -40,6 +40,13 @@ internal static class EffectSelectionTuning
             "N:AllPoison" or "NCR:ApplyDoomAll" => 65,
             "N:Heal" or "N_HEAL" => 20,
             "N:RetaliateDamage" => 50,
+            // Uproar's draw-pile autoplay effect loses many otherwise valid assemblies to its Attack-only
+            // execution/choice-context constraints. Accepted-card audits remained below its native occurrence
+            // after the first correction, so compensate here at the existing post-assembly calibration boundary.
+            "D:AutoPlayRandomAttackFromDraw" => 195,
+            // Body Slam's current-Block modifier needs a preceding single-target Damage anchor. Compensate for
+            // those assembly rejections so the reviewed component remains visible in Ironclad/Ultimate pools.
+            "M:value" => 150,
             "M:repeat" or "R:WheneverDrawn" => 180,
             "CL:ReturnThisToHand" => 130,
             _ => 100

@@ -66,11 +66,14 @@ public sealed class ChaosCompositePower : PowerModel
     private bool? _cachedDescriptionChinese;
     private bool _cachedDescriptionUpgraded;
     private string? _cachedDescriptionText;
+    private ChaosCardDefinition? _cachedDefinition;
+    private IReadOnlyList<GeneratorOperation>? _cachedEffectivePowerOperations;
+    private IReadOnlyList<GeneratorOperation>? _cachedDescriptionOperations;
 
-    [SavedProperty] public int Slot { get => _slot; set { AssertMutable(); _slot = value; } }
-    [SavedProperty] public GeneratedCharacter Character { get => _character; set { AssertMutable(); _character = value; } }
-    [SavedProperty] public string ProfileId { get => _profileId; set { AssertMutable(); _profileId = value ?? string.Empty; } }
-    [SavedProperty] public bool SourceUpgraded { get => _sourceUpgraded; set { AssertMutable(); _sourceUpgraded = value; } }
+    [SavedProperty] public int Slot { get => _slot; set { AssertMutable(); _slot = value; InvalidateDefinitionCaches(); } }
+    [SavedProperty] public GeneratedCharacter Character { get => _character; set { AssertMutable(); _character = value; InvalidateDefinitionCaches(); } }
+    [SavedProperty] public string ProfileId { get => _profileId; set { AssertMutable(); _profileId = value ?? string.Empty; InvalidateDefinitionCaches(); } }
+    [SavedProperty] public bool SourceUpgraded { get => _sourceUpgraded; set { AssertMutable(); _sourceUpgraded = value; InvalidateOperationCaches(); } }
     [SavedProperty] public bool Permanent { get => _permanent; set { AssertMutable(); _permanent = value; } }
     [SavedProperty] public int AttacksPlayedThisTurn { get => _attacksPlayedThisTurn; set { AssertMutable(); _attacksPlayedThisTurn = value; } }
     [SavedProperty] public bool NextAttackReplayAvailable { get => _nextAttackReplayAvailable; set { AssertMutable(); _nextAttackReplayAvailable = value; } }
@@ -91,9 +94,9 @@ public sealed class ChaosCompositePower : PowerModel
     [SavedProperty] public int DelayedTurns { get => _delayedTurns; set { AssertMutable(); _delayedTurns = value; } }
     [SavedProperty] public int RollingDamage { get => _rollingDamage; set { AssertMutable(); _rollingDamage = value; } }
     [SavedProperty] public bool IsDebuffState { get => _isDebuff; set { AssertMutable(); _isDebuff = value; } }
-    [SavedProperty] public int SpecialXValue { get => _specialXValue; set { AssertMutable(); _specialXValue = value; } }
-    [SavedProperty] public int ResolvedEnergyXValue { get => _resolvedEnergyXValue; set { AssertMutable(); _resolvedEnergyXValue = value; } }
-    [SavedProperty] public int ResolvedStarXValue { get => _resolvedStarXValue; set { AssertMutable(); _resolvedStarXValue = value; } }
+    [SavedProperty] public int SpecialXValue { get => _specialXValue; set { AssertMutable(); _specialXValue = value; InvalidateDescriptionCache(); } }
+    [SavedProperty] public int ResolvedEnergyXValue { get => _resolvedEnergyXValue; set { AssertMutable(); _resolvedEnergyXValue = value; InvalidateDescriptionCache(); } }
+    [SavedProperty] public int ResolvedStarXValue { get => _resolvedStarXValue; set { AssertMutable(); _resolvedStarXValue = value; InvalidateDescriptionCache(); } }
     // SavedProperties and BaseLib both support Int32 but not UInt32. Combat ids are small monotonically assigned
     // values, so store them as a signed value with -1 as the no-target sentinel to keep reconnect/save payloads
     // portable across the vanilla and BaseLib serializers.
@@ -124,13 +127,31 @@ public sealed class ChaosCompositePower : PowerModel
                     Log.Warn($"[AutoAnthony] Ignoring an invalid composite-Power card definition: {exception.Message}");
                 }
             }
-            _cachedDescriptionChinese = null;
-            _cachedDescriptionText = null;
+            InvalidateDefinitionCaches();
         }
     }
     [SavedProperty] public bool OwnerTurnEffectsExpired { get => _ownerTurnEffectsExpired; set { AssertMutable(); _ownerTurnEffectsExpired = value; } }
     [SavedProperty] public bool DefensiveTurnEffectsExpired { get => _defensiveTurnEffectsExpired; set { AssertMutable(); _defensiveTurnEffectsExpired = value; } }
-    [SavedProperty] public int[] CapturedOperationValues { get => _capturedOperationValues; set { AssertMutable(); _capturedOperationValues = value ?? []; } }
+    [SavedProperty] public int[] CapturedOperationValues { get => _capturedOperationValues; set { AssertMutable(); _capturedOperationValues = value ?? []; InvalidateOperationCaches(); } }
+
+    private void InvalidateDefinitionCaches()
+    {
+        _cachedDefinition = null;
+        InvalidateOperationCaches();
+    }
+
+    private void InvalidateOperationCaches()
+    {
+        _cachedEffectivePowerOperations = null;
+        _cachedDescriptionOperations = null;
+        InvalidateDescriptionCache();
+    }
+
+    private void InvalidateDescriptionCache()
+    {
+        _cachedDescriptionChinese = null;
+        _cachedDescriptionText = null;
+    }
 
     /// <summary>
     /// Every gameplay-relevant value not represented by vanilla PowerState.Amount. This compact representation
@@ -177,10 +198,11 @@ public sealed class ChaosCompositePower : PowerModel
     {
         get
         {
+            if (_cachedDefinition is not null) return _cachedDefinition;
             var definition = string.IsNullOrEmpty(ProfileId)
                 ? ChaosRunDefinitions.ForSlot(Character, Slot)
                 : ExternalComponentCharacterApi.ForSlot(ProfileId, Slot);
-            return _sourceTinkeredDefinition is null
+            return _cachedDefinition = _sourceTinkeredDefinition is null
                 ? definition
                 : definition with { Card = _sourceTinkeredDefinition };
         }
@@ -210,8 +232,7 @@ public sealed class ChaosCompositePower : PowerModel
     {
         base.AfterCloned();
         _activeTriggers = [];
-        _cachedDescriptionChinese = null;
-        _cachedDescriptionText = null;
+        InvalidateDefinitionCaches();
     }
 
     public void Configure(int slot, bool upgraded, bool permanent) => Configure(GeneratedCharacter.Ironclad, slot, upgraded, permanent);
@@ -249,10 +270,10 @@ public sealed class ChaosCompositePower : PowerModel
         OwnerTurnEffectsExpired = false;
         DefensiveTurnEffectsExpired = false;
         CapturedOperationValues = capturedOperationValues?.ToArray() ?? [];
-        _cachedDescriptionChinese = null;
-        _cachedDescriptionText = null;
-        var powerOperations = DescriptionOperations(EffectivePowerOperations());
-        NextAttackReplayAvailable = powerOperations.Any(operation => operation.Template == "I:ReplayAttack");
+        InvalidateDescriptionCache();
+        var powerOperations = EffectiveDescriptionOperations();
+        NextAttackReplayAvailable = LinkedEffectAmount(powerOperations, "I:ReplayAttack",
+            CardEffectRules.IsNextAttackGrantTrigger) > 0;
         NextAttackFreeAvailable = powerOperations.Any(operation => operation.Template == "I:SetCostZero");
         var nextAttackTrigger = powerOperations.FirstOrDefault(CardEffectRules.IsNextAttackGrantTrigger);
         NextAttackTriggersRemaining = nextAttackTrigger is null ? 0 : CardEffectRules.NextAttackGrantCount(nextAttackTrigger);
@@ -262,24 +283,26 @@ public sealed class ChaosCompositePower : PowerModel
         IgnoreArmingCardPlay = true;
         _waitForNextTurn = powerOperations.Any(operation =>
             TriggerKind(operation) == "next_turn_start");
-        var limitedTurnIndex = Definition.Card.Operations.ToList()
-            .FindIndex(operation => TriggerKind(operation) == "next_turns_start");
+        var limitedTurnIndex = FindOperationIndex(Definition.Card.Operations,
+            operation => TriggerKind(operation) == "next_turns_start");
         _remainingTurnTriggers = limitedTurnIndex < 0 ? 0 : EffectiveOperationAmount(limitedTurnIndex, 1);
-        _firstCardReplayAvailable = HasTriggerWithLinkedEffect(powerOperations,
-            "first_card_played_each_turn", "D:ReplayEventCard");
+        // Echo Form-style effects begin with the next owner turn. The card which installs this Power has already
+        // become the first card play of the current turn, so arming here would incorrectly replay the following
+        // card as well. AfterSideTurnStart is the sole place that refreshes this per-turn availability.
+        _firstCardReplayAvailable = false;
         // This trigger was originally introduced for ReturnEventCardToHand, but its payoff is now composable.
         // Arming it only for the native payoff made other legal combinations (for example status -> Fuel) inert.
         _zeroCostAttackReturnAvailable = powerOperations.Any(operation =>
             TriggerKind(operation) == "first_zero_cost_attack_played_each_turn");
         _firstAttackOrSkillAvailable = powerOperations.Any(operation => operation.Template == "CL:FirstAttackOrSkillEachTurn");
-        var delayed = powerOperations.ToList().FindIndex(operation => operation.Template == "CL:AfterTurns");
+        var delayed = FindOperationIndex(powerOperations, operation => operation.Template == "CL:AfterTurns");
         _delayedTurns = delayed < 0 ? 0 : Math.Max(1, EffectiveOperationAmount(delayed, 3));
-        var rollingIncrease = powerOperations.ToList().FindIndex(operation =>
+        var rollingIncrease = FindOperationIndex(powerOperations, operation =>
             operation.Template == "CL:IncreaseRollingDamage");
         var rollingOwner = rollingIncrease < 0
             ? -1
             : powerOperations[rollingIncrease].Parameters.GetValueOrDefault("triggerIndex", -1);
-        var rolling = powerOperations.ToList().FindIndex(operation =>
+        var rolling = FindOperationIndex(powerOperations, operation =>
             operation.Template is "N:AllD" or "CL:RollingAllDamage"
             && operation.Parameters.GetValueOrDefault("triggerIndex", -1) == rollingOwner);
         _rollingDamage = rolling < 0 ? 0 : Math.Max(0, EffectiveOperationAmount(rolling, 5));
@@ -293,8 +316,7 @@ public sealed class ChaosCompositePower : PowerModel
             && _cachedDescriptionUpgraded == SourceUpgraded)
             return _cachedDescriptionText;
         var card = Definition.Card;
-        var operations = EffectivePowerOperations();
-        var descriptionOperations = DescriptionOperations(operations);
+        var descriptionOperations = EffectiveDescriptionOperations();
         var raw = chinese
             ? CardDescriptionRenderer.Render(descriptionOperations)
             : EnglishCardDescriptionRenderer.Render(descriptionOperations);
@@ -330,6 +352,7 @@ public sealed class ChaosCompositePower : PowerModel
 
     private IReadOnlyList<GeneratorOperation> EffectivePowerOperations()
     {
+        if (_cachedEffectivePowerOperations is not null) return _cachedEffectivePowerOperations;
         var card = Definition.Card;
         IReadOnlyList<GeneratorOperation> operations = card.Operations;
         if (SourceUpgraded && card.Upgrade is { } upgrade)
@@ -338,7 +361,8 @@ public sealed class ChaosCompositePower : PowerModel
             // generic upgrader changed a selector marker such as “0-cost” into “1-cost”.
             operations = CardUpgradeGenerator.ApplyEffectsToOperations(card.Operations, upgrade.Effects);
         }
-        if (CapturedOperationValues.Length < 2) return operations;
+        if (CapturedOperationValues.Length < 2)
+            return _cachedEffectivePowerOperations = operations;
 
         var effective = operations.ToArray();
         for (var offset = 0; offset + 1 < CapturedOperationValues.Length; offset += 2)
@@ -349,8 +373,11 @@ public sealed class ChaosCompositePower : PowerModel
             effective[index] = ChaosOperationVariables.ReplaceInitialValue(operation,
                 CapturedOperationValues[offset + 1]);
         }
-        return effective;
+        return _cachedEffectivePowerOperations = effective;
     }
+
+    private IReadOnlyList<GeneratorOperation> EffectiveDescriptionOperations() =>
+        _cachedDescriptionOperations ??= DescriptionOperations(EffectivePowerOperations());
 
     private int DescriptionXValue(GeneratedCard card)
     {
@@ -486,7 +513,7 @@ public sealed class ChaosCompositePower : PowerModel
         _attacksPlayedThisTurn = 0;
         _statusDrawnThisTurn = false;
         _cardsPlayedTowardTrigger = 0;
-        _firstAttackOrSkillAvailable = DescriptionOperations(Definition.Card.Operations)
+        _firstAttackOrSkillAvailable = EffectiveDescriptionOperations()
             .Any(operation => operation.Template == "CL:FirstAttackOrSkillEachTurn");
         var effectiveOperations = EffectivePowerOperations();
         _firstCardReplayAvailable = HasTriggerWithLinkedEffect(effectiveOperations,
@@ -593,7 +620,8 @@ public sealed class ChaosCompositePower : PowerModel
     public override async Task AfterCardDrawn(PlayerChoiceContext choiceContext, CardModel card, bool fromHandDraw)
     {
         if (card.Owner != Owner.Player) return;
-        var cardsTrigger = Definition.Card.Operations.ToList().FindIndex(operation => operation.Template == "CL:EveryCardsDrawn");
+        var cardsTrigger = FindOperationIndex(Definition.Card.Operations,
+            operation => operation.Template == "CL:EveryCardsDrawn");
         if (cardsTrigger >= 0)
         {
             var threshold = Math.Max(1, EffectiveOperationAmount(cardsTrigger, 10));
@@ -626,8 +654,10 @@ public sealed class ChaosCompositePower : PowerModel
         if (IgnoreArmingCardPlay)
         {
             IgnoreArmingCardPlay = false;
-            if (cardPlay.Card.Id == ChaosCardRegistry.Canonical(Character, Slot).Id)
-                return;
+            // The first owner-card callback after this Power is applied always belongs to the card which armed it.
+            // Comparing against a canonical slot id breaks for edited/freeform/external hosts and consumes the
+            // actual next Attack instead, which made the grant appear to work only on AutoAnthony card models.
+            return;
         }
         // Unlike Echo Form's linked replay payoff, the first-card trigger itself is composable.  It must be
         // dispatched for every legal linked effect (draw, Block, channel, and so on), not only when the trigger
@@ -636,7 +666,8 @@ public sealed class ChaosCompositePower : PowerModel
         var isFirstCardPlayedThisTurn = IsFirstCardPlayThisTurn(
             CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
                 entry.CardPlay.Player.Creature == Owner && entry.HappenedThisTurn(CombatState)));
-        var cardsTrigger = Definition.Card.Operations.ToList().FindIndex(operation => operation.Template == "CL:EveryCardsPlayedThisTurn");
+        var cardsTrigger = FindOperationIndex(Definition.Card.Operations,
+            operation => operation.Template == "CL:EveryCardsPlayedThisTurn");
         if (cardsTrigger >= 0 && cardPlay.Card.Id != ChaosCardRegistry.Canonical(Character, Slot).Id)
         {
             var threshold = Math.Max(1, EffectiveOperationAmount(cardsTrigger, 5));
@@ -680,8 +711,8 @@ public sealed class ChaosCompositePower : PowerModel
             }
             if (NextAttackTriggerAvailable && NextAttackTriggersRemaining > 0)
             {
-                var nextAttackIndex = Definition.Card.Operations.ToList()
-                    .FindIndex(CardEffectRules.IsNextAttackGrantTrigger);
+                var nextAttackIndex = FindOperationIndex(Definition.Card.Operations,
+                    CardEffectRules.IsNextAttackGrantTrigger);
                 if (nextAttackIndex >= 0)
                     await FireTriggerAt(nextAttackIndex, choiceContext, cardPlay, cardPlay.Card);
                 NextAttackTriggersRemaining = Math.Max(0, NextAttackTriggersRemaining - 1);
@@ -778,7 +809,7 @@ public sealed class ChaosCompositePower : PowerModel
     {
         if (amount <= 0 || spender.Creature != Owner) return;
         var operations = Definition.Card.Operations;
-        var triggerIndex = operations.ToList().FindIndex(operation => operation.Template == "A:whenOneStarSpent");
+        var triggerIndex = FindOperationIndex(operations, operation => operation.Template == "A:whenOneStarSpent");
         if (triggerIndex < 0) return;
         var threshold = Math.Max(1, EffectiveOperationAmount(triggerIndex, 1));
         StarsSpentTowardTrigger += amount;
@@ -792,7 +823,7 @@ public sealed class ChaosCompositePower : PowerModel
     {
         if (amount <= 0 || card.Owner.Creature != Owner) return;
         var operations = Definition.Card.Operations;
-        var triggerIndex = operations.ToList().FindIndex(operation => operation.Template == "A:whenEnergySpent");
+        var triggerIndex = FindOperationIndex(operations, operation => operation.Template == "A:whenEnergySpent");
         if (triggerIndex >= 0)
         {
             var triggerThreshold = Math.Max(1, EffectiveOperationAmount(triggerIndex, 4));
@@ -804,7 +835,7 @@ public sealed class ChaosCompositePower : PowerModel
             return;
         }
         // Retain the old indivisible operation for v0.1.68-and-earlier run snapshots.
-        var orbitIndex = operations.ToList().FindIndex(operation => operation.Template == "A:ProxyAtomic_Orbit");
+        var orbitIndex = FindOperationIndex(operations, operation => operation.Template == "A:ProxyAtomic_Orbit");
         if (orbitIndex < 0) return;
         var threshold = Math.Max(1, EffectiveOperationAmount(orbitIndex, 4));
         EnergySpentTowardRefund += amount;
@@ -911,7 +942,7 @@ public sealed class ChaosCompositePower : PowerModel
                     && entry.CardPlay.Card.EnergyCost.GetResolved() == 0
                     && entry.CardPlay.Player.Creature == Owner && entry.HappenedThisTurn(CombatState)) == 0,
             "nth_attack_played_this_turn" => earlierAttacks + 1 == EffectiveOperationAmount(triggerIndex, 3),
-            "next_attack" or "next_attacks_this_turn" => NextAttackTriggerAvailable
+            "next_attack" or "next_attacks_this_turn" => !IgnoreArmingCardPlay && NextAttackTriggerAvailable
                 && NextAttackTriggersRemaining > 0,
             _ => false
         };
@@ -932,7 +963,7 @@ public sealed class ChaosCompositePower : PowerModel
             if (priorShivs == 0) bonus += RuleAmount("first_derivative_bonus_damage");
         }
 
-        if (!NextAttackTriggerAvailable || NextAttackTriggersRemaining <= 0
+        if (IgnoreArmingCardPlay || !NextAttackTriggerAvailable || NextAttackTriggersRemaining <= 0
             || dealer != Owner || !props.IsPoweredAttack()
             || cardSource is null || cardSource.Owner.Creature != Owner || cardSource.Type != CardType.Attack)
             return bonus;
@@ -974,7 +1005,7 @@ public sealed class ChaosCompositePower : PowerModel
     public override CardLocation ModifyCardPlayResultLocation(CardModel card, bool isAutoPlay, ResourceInfo resources, CardLocation location)
     {
         if (card.Owner.Creature == Owner && card.Type == CardType.Skill
-            && DescriptionOperations(Definition.Card.Operations).Any(operation => operation.Template == "N:Exhaust"
+            && EffectiveDescriptionOperations().Any(operation => operation.Template == "N:Exhaust"
                 && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == "referenced"))
             location.pileType = PileType.Exhaust;
         return location;
@@ -982,8 +1013,23 @@ public sealed class ChaosCompositePower : PowerModel
 
     public override int ModifyCardPlayCount(CardModel card, Creature? target, int playCount)
     {
-        if (card.Owner.Creature == Owner && _firstCardReplayAvailable) return playCount + 1;
-        if (card.Owner.Creature == Owner && card.Type == CardType.Attack && NextAttackReplayAvailable) return playCount + 1;
+        if (card.Owner.Creature == Owner && _firstCardReplayAvailable)
+        {
+            var additionalPlays = LinkedEffectAmount(EffectivePowerOperations(), "D:ReplayEventCard",
+                operation => TriggerKind(operation) == "first_card_played_each_turn",
+                // Replay count is structural card data: no enchantment changes it. Resolve it from the upgraded
+                // definition instead of the captured proxy value so a card loaded/upgraded before its DynamicVar
+                // cache was rebuilt cannot silently fall back to Echo Form's native value of one.
+                index => EffectiveDefinitionOperationAmount(index, 1));
+            if (additionalPlays > 0) return playCount + additionalPlays;
+        }
+        if (card.Owner.Creature == Owner && card.Type == CardType.Attack && NextAttackReplayAvailable)
+        {
+            var additionalPlays = LinkedEffectAmount(EffectivePowerOperations(), "I:ReplayAttack",
+                CardEffectRules.IsNextAttackGrantTrigger,
+                index => EffectiveOperationAmount(index, 1));
+            if (additionalPlays > 0) return playCount + additionalPlays;
+        }
         return playCount;
     }
 
@@ -1024,7 +1070,7 @@ public sealed class ChaosCompositePower : PowerModel
     public override async Task AfterDamageReceived(PlayerChoiceContext choiceContext, Creature target, DamageResult result, ValueProp props, Creature? dealer, CardModel? cardSource)
     {
         if (target == Owner && props.IsPoweredAttack() && result.UnblockedDamage > 0
-            && DescriptionOperations(Definition.Card.Operations).Any(operation => operation.Template == "CL:DieOnUnblockedAttack"))
+            && EffectiveDescriptionOperations().Any(operation => operation.Template == "CL:DieOnUnblockedAttack"))
         {
             await PowerCmd.Remove(this);
             Flash();
@@ -1044,26 +1090,42 @@ public sealed class ChaosCompositePower : PowerModel
     private bool HasTrigger(string kind) => FindTrigger(kind) >= 0;
 
     internal static bool HasTriggerWithLinkedEffect(IReadOnlyList<GeneratorOperation> operations,
-        string triggerKind, string effectTemplate)
+        string triggerKind, string effectTemplate) =>
+        LinkedEffectAmount(operations, effectTemplate,
+            operation => TriggerKind(operation) == triggerKind) > 0;
+
+    /// <summary>
+    /// Returns the total number of additional plays contributed by effects owned by matching triggers. The
+    /// structured amount slot is authoritative; the optional resolver projects upgrades, captured X values and
+    /// other runtime overrides without making localized text part of combat execution.
+    /// </summary>
+    internal static int LinkedEffectAmount(IReadOnlyList<GeneratorOperation> operations,
+        string effectTemplate, Func<GeneratorOperation, bool> triggerPredicate,
+        Func<int, int>? effectiveAmount = null)
     {
-        for (var triggerIndex = 0; triggerIndex < operations.Count; triggerIndex++)
+        var total = 0;
+        for (var effectIndex = 0; effectIndex < operations.Count; effectIndex++)
         {
-            if (TriggerKind(operations[triggerIndex]) != triggerKind) continue;
-            if (operations.Any(operation => operation.Template == effectTemplate
-                    && operation.Parameters.GetValueOrDefault("triggerIndex", -1) == triggerIndex))
-                return true;
+            var effect = operations[effectIndex];
+            if (effect.Template != effectTemplate
+                || !effect.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
+                || triggerIndex < 0 || triggerIndex >= operations.Count
+                || !triggerPredicate(operations[triggerIndex]))
+                continue;
+            total += Math.Max(1, effectiveAmount?.Invoke(effectIndex)
+                                 ?? OperationRuntimeSpecCompiler.FixedValue(effect, "amount", 1));
         }
-        return false;
+        return total;
     }
 
-    private int FindTrigger(string kind) => Definition.Card.Operations.ToList()
-        .FindIndex(operation => TriggerKind(operation) == kind);
+    private int FindTrigger(string kind) => FindOperationIndex(Definition.Card.Operations,
+        operation => TriggerKind(operation) == kind);
 
-    private bool HasRule(string variant) => DescriptionOperations(Definition.Card.Operations)
+    private bool HasRule(string variant) => EffectiveDescriptionOperations()
         .Any(operation => operation.Scope == OperationScope.AbilityRule
             && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == variant);
 
-    private bool HasCrossTurnNextAttackTrigger() => DescriptionOperations(Definition.Card.Operations)
+    private bool HasCrossTurnNextAttackTrigger() => EffectiveDescriptionOperations()
         .Any(operation => operation.Template is "C:grantNextAttack" or "C:for"
             && CardEffectRules.IsNextAttackGrantTrigger(operation));
 
@@ -1077,7 +1139,7 @@ public sealed class ChaosCompositePower : PowerModel
     private decimal RuleAmount(string variant)
     {
         var operations = Definition.Card.Operations;
-        var index = operations.ToList().FindIndex(operation => operation.Scope == OperationScope.AbilityRule
+        var index = FindOperationIndex(operations, operation => operation.Scope == OperationScope.AbilityRule
             && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == variant);
         if (index < 0) return 0m;
         return EffectiveOperationAmount(index, 0);
@@ -1086,24 +1148,10 @@ public sealed class ChaosCompositePower : PowerModel
     private int EffectiveOperationAmount(int operationIndex, int fallback)
     {
         if (TryGetCapturedOperationValue(operationIndex, out var captured)) return captured;
-        var operation = Definition.Card.Operations[operationIndex];
+        var operations = EffectivePowerOperations();
+        if ((uint)operationIndex >= (uint)operations.Count) return fallback;
+        var operation = operations[operationIndex];
         var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
-        if (SourceUpgraded && Definition.Card.Upgrade is { } upgrade)
-        {
-            foreach (var effect in upgrade.Effects.Where(effect => effect.OperationIndex == operationIndex
-                         && effect.Delta is not null
-                         && effect.Kind is CardUpgradeKind.IncreaseNumber or CardUpgradeKind.ReduceSelfDamage
-                             or CardUpgradeKind.ReduceThreshold or CardUpgradeKind.ReduceNegativeNumber))
-            {
-                var slotId = effect.ValueSlotId;
-                if (slotId is null
-                    && OperationRuntimeSpecCompiler.TryProjectLegacyExecutionUpgradeValue(operation,
-                        operation.ChineseText, out var legacyProjection))
-                    slotId = legacyProjection?.SlotId;
-                if (slotId is not null && spec.Values.Any(value => value.Id == slotId))
-                    spec = OperationRuntimeSpecCompiler.ApplyUpgradeDelta(spec, slotId, effect.Delta!.Value);
-            }
-        }
         var preferredSlot = OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
         var slot = preferredSlot is null ? spec.Values.FirstOrDefault(value => value.Upgradable)
             : spec.Values.FirstOrDefault(value => value.Id == preferredSlot);
@@ -1118,6 +1166,39 @@ public sealed class ChaosCompositePower : PowerModel
                 ResolvedStarXValue) + slot.Offset),
             _ => Math.Max(0, slot.BaseValue + slot.Offset)
         };
+    }
+
+    private int EffectiveDefinitionOperationAmount(int operationIndex, int fallback)
+    {
+        var card = Definition.Card;
+        IReadOnlyList<GeneratorOperation> operations = card.Operations;
+        if (SourceUpgraded && card.Upgrade is { } upgrade)
+            operations = CardUpgradeGenerator.ApplyEffectsToOperations(card.Operations, upgrade.Effects);
+        if ((uint)operationIndex >= (uint)operations.Count) return fallback;
+        var operation = operations[operationIndex];
+        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+        var preferredSlot = OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
+        var slot = preferredSlot is null ? spec.Values.FirstOrDefault(value => value.Upgradable)
+            : spec.Values.FirstOrDefault(value => value.Id == preferredSlot);
+        if (slot is null) return fallback;
+        return slot.Source switch
+        {
+            "special_x" => Math.Max(0, ChaosCardModel.ChaosXValueMultiplier.Apply(card,
+                SpecialXValue) + slot.Offset),
+            "energy_x" => Math.Max(0, ChaosCardModel.ChaosXValueMultiplier.Apply(card,
+                ResolvedEnergyXValue) + slot.Offset),
+            "star_x" => Math.Max(0, ChaosCardModel.ChaosXValueMultiplier.Apply(card,
+                ResolvedStarXValue) + slot.Offset),
+            _ => Math.Max(0, slot.BaseValue + slot.Offset)
+        };
+    }
+
+    private static int FindOperationIndex(IReadOnlyList<GeneratorOperation> operations,
+        Func<GeneratorOperation, bool> predicate)
+    {
+        for (var index = 0; index < operations.Count; index++)
+            if (predicate(operations[index])) return index;
+        return -1;
     }
 
     private bool TryGetCapturedOperationValue(int operationIndex, out int value)
@@ -1167,7 +1248,16 @@ public sealed class ChaosCompositePower : PowerModel
 
     private async Task FireTriggers(string kind, PlayerChoiceContext choiceContext, CardPlay? sourcePlay = null,
         CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0)
-        => await FireTriggersAny([kind], choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
+    {
+        var operations = Definition.Card.Operations;
+        for (var index = 0; index < operations.Count; index++)
+        {
+            var operation = operations[index];
+            if (operation.Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger)
+                || !string.Equals(TriggerKind(operation), kind, StringComparison.Ordinal)) continue;
+            await FireTriggerAt(index, choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
+        }
+    }
 
     internal Task FireExternalTriggerAsync(string kind, PlayerChoiceContext choiceContext,
         CardPlay? sourcePlay = null, CardModel? eventCard = null, Creature? eventCreature = null,
@@ -1208,7 +1298,7 @@ public sealed class ChaosCompositePower : PowerModel
             }
 
             TriggerChainDepth.Value = previousDepth + 1;
-            var rollingIndex = Definition.Card.Operations.ToList().FindIndex(candidate =>
+            var rollingIndex = FindOperationIndex(Definition.Card.Operations, candidate =>
                 candidate.Template is "N:AllD" or "CL:RollingAllDamage"
                 && candidate.Parameters.GetValueOrDefault("triggerIndex", -1) == index
                 && Definition.Card.Operations.Any(increase =>
@@ -1221,10 +1311,12 @@ public sealed class ChaosCompositePower : PowerModel
             await ChaosOperationExecutor.ExecuteTriggered(this, index, choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
             if (rollingIndex >= 0)
             {
-                var increaseIndex = Definition.Card.Operations.ToList().FindIndex(candidate =>
+                var increaseIndex = FindOperationIndex(Definition.Card.Operations, candidate =>
                     candidate.Template == "CL:IncreaseRollingDamage"
                     && candidate.Parameters.GetValueOrDefault("triggerIndex", -1) == index);
-                if (increaseIndex >= 0) _rollingDamage += Math.Max(0, EffectiveOperationAmount(increaseIndex, 5));
+                if (increaseIndex >= 0)
+                    _rollingDamage = AdvanceRollingDamage(_rollingDamage,
+                        EffectiveOperationAmount(increaseIndex, 5));
             }
         }
         finally
@@ -1243,6 +1335,9 @@ public sealed class ChaosCompositePower : PowerModel
 
     internal static bool TryEnterTrigger(ISet<int> activeTriggers, int triggerIndex, int currentDepth) =>
         currentDepth < MaximumNestedTriggerDepth && activeTriggers.Add(triggerIndex);
+
+    internal static int AdvanceRollingDamage(int currentDamage, int increment) =>
+        Math.Max(0, currentDamage) + Math.Max(0, increment);
 
     internal static bool IsFirstCardPlayThisTurn(int finishedOwnerCardPlays) => finishedOwnerCardPlays == 1;
 

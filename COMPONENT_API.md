@@ -488,13 +488,18 @@ operation that should be installed and repaired at runtime.
 are suitable for an editor's own persistence and multiplayer payload, but AutoAnthony does not synchronize that
 payload for the editor.
 
-`AutoAnthonySettingsApi` v4 exposes one immutable snapshot of every user-facing setting, including the independent
-`AddGeneratedCards` pool switch and the immediate `DecomposeOriginalCards` presentation switch. The latter keeps
+`AutoAnthonySettingsApi` v5 exposes one immutable snapshot of every user-facing setting, including the optional
+balance-adjustment rule, the independent `AddGeneratedCards` pool switch, and the immediate
+`DecomposeOriginalCards` presentation switch. The latter keeps
 native execution intact while projecting untouched original-card descriptions from the structured component catalog.
 `ComponentRunSettingsApi` v2 carries the pool switch separately from the master
 `Enabled` flag, so disabling random-pool insertion does not disable component execution or native-card editing. It deliberately does not
 expose mutation; effective run and host-authoritative multiplayer settings remain the responsibility of
 `ComponentRunSettingsApi`.
+
+Companions which cache metadata by operation index may register an
+`AutoAnthonyBalanceAdjustmentApi` v1 definition-change listener. Pool-level balance changes skip independently
+edited per-card definitions; the callback is only a signal to rebuild metadata for the reported live card.
 
 ### Explicit per-card identity editing
 

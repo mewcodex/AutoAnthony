@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Collections.Concurrent;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
@@ -12,11 +13,24 @@ internal static class ChaosPowerVisuals
 {
     private sealed record Binding(ChaosCardDefinition Definition);
     private static readonly ConditionalWeakTable<PowerModel, Binding> Bindings = new();
+    private static readonly ConcurrentDictionary<string, Texture2D> Textures =
+        new(StringComparer.OrdinalIgnoreCase);
 
     internal static void Bind(PowerModel power, ChaosCardDefinition definition)
     {
         Bindings.Remove(power);
         Bindings.Add(power, new Binding(definition));
+    }
+
+    internal static Texture2D LoadTexture(string path)
+    {
+        if (Textures.TryGetValue(path, out var cached))
+        {
+            if (GodotObject.IsInstanceValid(cached)) return cached;
+            Textures.TryRemove(path, out _);
+        }
+        var loaded = ResourceLoader.Load<Texture2D>(path, null, ResourceLoader.CacheMode.Reuse);
+        return Textures.GetOrAdd(path, loaded);
     }
 
     internal static bool TryGetDefinition(PowerModel power, out ChaosCardDefinition definition)
@@ -50,6 +64,10 @@ internal static class ChaosPowerVisuals
                 .FirstOrDefault(card => card.Card.Operations.Any(operation => operation.Template == template));
             if (inferred is not null)
             {
+                // Native Powers created by generated rule components are stable for their lifetime. Remember the
+                // inferred source after the first lookup instead of scanning every active generated card again
+                // whenever the UI asks for the icon, packed path, big icon, or reloads the Power node.
+                Bind(power, inferred);
                 definition = inferred;
                 return true;
             }
@@ -76,9 +94,9 @@ internal static class ChaosPowerVisualPatch
             || !ChaosPowerVisuals.TryGetDefinition(power, out var definition)) return;
         if (IconField.GetValue(__instance) is not TextureRect icon) return;
         if (ResourceLoader.Exists(definition.PowerIconPath))
-            icon.Texture = ResourceLoader.Load<Texture2D>(definition.PowerIconPath);
+            icon.Texture = ChaosPowerVisuals.LoadTexture(definition.PowerIconPath);
         if (FlashField.GetValue(__instance) is CpuParticles2D flash && ResourceLoader.Exists(definition.PowerBigIconPath))
-            flash.Texture = ResourceLoader.Load<Texture2D>(definition.PowerBigIconPath);
+            flash.Texture = ChaosPowerVisuals.LoadTexture(definition.PowerBigIconPath);
     }
 }
 
@@ -106,7 +124,7 @@ internal static class ChaosPowerIconPatch
     private static bool Prefix(PowerModel __instance, ref Texture2D __result)
     {
         if (!ChaosPowerVisuals.TryGetDefinition(__instance, out var definition)) return true;
-        __result = ResourceLoader.Load<Texture2D>(definition.PowerIconPath, null, ResourceLoader.CacheMode.Reuse);
+        __result = ChaosPowerVisuals.LoadTexture(definition.PowerIconPath);
         return false;
     }
 }
@@ -126,7 +144,7 @@ internal static class ChaosPowerBigIconPatch
     private static bool Prefix(PowerModel __instance, ref Texture2D __result)
     {
         if (!ChaosPowerVisuals.TryGetDefinition(__instance, out var definition)) return true;
-        __result = ResourceLoader.Load<Texture2D>(definition.PowerBigIconPath, null, ResourceLoader.CacheMode.Reuse);
+        __result = ChaosPowerVisuals.LoadTexture(definition.PowerBigIconPath);
         return false;
     }
 }

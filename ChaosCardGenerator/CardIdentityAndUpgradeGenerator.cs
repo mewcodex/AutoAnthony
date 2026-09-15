@@ -117,11 +117,11 @@ public static class CardUpgradeGenerator
                 continue;
             }
             else if (effect.Kind == CardUpgradeKind.IncreaseNumber
-                     && CardEffectRules.IsMandatoryDiscardOrExhaustNumber(operation)
+                     && CardEffectRules.IsReducibleNegativeNumber(operation)
                      && operation.Template != "N:Discard")
             {
-                // Compatibility guard for existing snapshots whose upgrade plan incorrectly made a mandatory
-                // discard/exhaust payment larger. Such a plan now leaves the payment unchanged.
+                // Compatibility guard for existing snapshots whose upgrade plan incorrectly made a numeric
+                // downside larger. Such a plan now leaves the payment unchanged.
                 continue;
             }
             else if (effect.Kind == CardUpgradeKind.IncreaseNumber
@@ -1040,11 +1040,18 @@ public static class CardUpgradeGenerator
                 : Regex.Replace(text, "随机", "升级过的随机", RegexOptions.CultureInvariant,
                     TimeSpan.FromMilliseconds(100));
 
-    internal static string UpgradeRandomGenerationEnglish(string text) =>
-        text.Contains("random upgraded", StringComparison.OrdinalIgnoreCase)
+    internal static string UpgradeRandomGenerationEnglish(string text)
+    {
+        var upgraded = text.Contains("random upgraded", StringComparison.OrdinalIgnoreCase)
             ? text
-            : Regex.Replace(text, @"\brandom\b", "random upgraded", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            : Regex.Replace(text, @"\brandom\b", "random upgraded",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+        return upgraded
+            .Replace("That card costs 0 this turn", "That card can be played for free this turn",
+                StringComparison.OrdinalIgnoreCase)
+            .Replace("It costs 0 this turn", "It can be played for free this turn",
+                StringComparison.OrdinalIgnoreCase);
+    }
 
 }
 
@@ -1273,11 +1280,13 @@ public static class CardNameGenerator
         ISet<string>? usedChineseNames, ISet<string>? usedEnglishNames, ref GeneratedCardName? fallback)
     {
         var chinese = isStrike
-            ? ComposeChineseStrike(first, second, preserveTwoCharacterWords)
+            ? cardType == GeneratedCardType.Attack
+                ? ComposeChineseStrike(first, second, preserveTwoCharacterWords)
+                : ComposeChineseSpecialStrike(first, second, preserveTwoCharacterWords)
             : ComposeChinese(first, second, preserveTwoCharacterWords);
         var english = ComposeEnglish(first, second, isStrike);
         var candidate = new GeneratedCardName(chinese, english, new[] { first.Id, second.Id }.Distinct().ToArray());
-        if (!NameFitsCardType(candidate, cardType) || !NameRespectsStrikeRule(candidate, isStrike)
+        if (!NameFitsCardType(candidate, cardType) || !NameRespectsStrikeRule(candidate, isStrike, cardType)
             || !NameRespectsHangRule(candidate, isHang)) return null;
         fallback ??= candidate;
         if ((usedChineseNames?.Contains(chinese) ?? false) || (usedEnglishNames?.Contains(english) ?? false))
@@ -1327,17 +1336,23 @@ public static class CardNameGenerator
         return name.ChineseParts[^1] == "打击" || name.EnglishSuffix == " Strike";
     }
 
-    private static bool NameRespectsStrikeRule(GeneratedCardName name, bool isStrike)
+    internal static bool NameRespectsStrikeRule(GeneratedCardName name, bool isStrike,
+        GeneratedCardType cardType)
     {
-        var chinesePrefix = name.Chinese.EndsWith("打击", StringComparison.Ordinal)
-            ? name.Chinese[..^2]
-            : name.Chinese;
+        var specialStrike = isStrike && cardType is GeneratedCardType.Skill or GeneratedCardType.Power;
+        var chineseRemainder = specialStrike && name.Chinese.StartsWith("打击", StringComparison.Ordinal)
+            ? name.Chinese[2..]
+            : name.Chinese.EndsWith("打击", StringComparison.Ordinal)
+                ? name.Chinese[..^2]
+                : name.Chinese;
         var englishPrefix = name.English.EndsWith(" Strike", StringComparison.OrdinalIgnoreCase)
             ? name.English[..^7]
             : name.English;
         return isStrike
-            ? name.Chinese.EndsWith("打击", StringComparison.Ordinal)
-              && !chinesePrefix.Contains("打击", StringComparison.Ordinal)
+            ? (specialStrike
+                  ? name.Chinese.StartsWith("打击", StringComparison.Ordinal)
+                  : name.Chinese.EndsWith("打击", StringComparison.Ordinal))
+              && !chineseRemainder.Contains("打击", StringComparison.Ordinal)
               && name.English.EndsWith(" Strike", StringComparison.OrdinalIgnoreCase)
               && !englishPrefix.Contains("Strike", StringComparison.OrdinalIgnoreCase)
             : !name.Chinese.Contains("打击", StringComparison.Ordinal)
@@ -1520,14 +1535,23 @@ public static class CardNameGenerator
             ComposeChineseStrike(strikeFirst, strikeSecond, preserve),
             ComposeEnglish(strikeFirst, strikeSecond, isStrike: true),
             [strikeFirst.Id, strikeSecond.Id]);
-        if (!NameRespectsStrikeRule(strikeName, isStrike: true))
+        if (!NameRespectsStrikeRule(strikeName, isStrike: true, GeneratedCardType.Attack))
             throw new InvalidOperationException($"打击卡名没有保持专用末尾后缀：{strikeName.Chinese}/{strikeName.English}。");
+
+        var specialStrikeName = new GeneratedCardName(
+            ComposeChineseSpecialStrike(strikeFirst, strikeSecond, preserve),
+            ComposeEnglish(strikeFirst, strikeSecond, isStrike: true),
+            [strikeFirst.Id, strikeSecond.Id]);
+        if (!NameRespectsStrikeRule(specialStrikeName, isStrike: true, GeneratedCardType.Skill)
+            || !specialStrikeName.Chinese.StartsWith("打击", StringComparison.Ordinal))
+            throw new InvalidOperationException($"特殊打击卡名没有保持中文首位打击词块："
+                                                + $"{specialStrikeName.Chinese}/{specialStrikeName.English}。");
 
         var ordinaryName = new GeneratedCardName(
             ComposeChinese(strikeFirst, new NameParts("Wall", ["血", "墙"], "Blood ", "Wall", ""), preserve),
             ComposeEnglish(strikeFirst, new NameParts("Wall", ["血", "墙"], "Blood ", "Wall", ""), isStrike: false),
             [strikeFirst.Id, "Wall"]);
-        if (!NameRespectsStrikeRule(ordinaryName, isStrike: false))
+        if (!NameRespectsStrikeRule(ordinaryName, isStrike: false, GeneratedCardType.Skill))
             throw new InvalidOperationException($"非打击卡名意外包含专用打击词块：{ordinaryName.Chinese}/{ordinaryName.English}。");
     }
 
@@ -1584,6 +1608,16 @@ public static class CardNameGenerator
             ? string.Empty
             : StrikePrefix(second, preserveTwoCharacterWords);
         return firstPart + secondPart + "打击";
+    }
+
+    private static string ComposeChineseSpecialStrike(NameParts first, NameParts second,
+        IReadOnlyDictionary<string, bool> preserveTwoCharacterWords)
+    {
+        var firstPart = StrikePrefix(first, preserveTwoCharacterWords);
+        var secondPart = first.Id == second.Id
+            ? string.Empty
+            : StrikePrefix(second, preserveTwoCharacterWords);
+        return "打击" + firstPart + secondPart;
     }
 
     private static string StrikePrefix(NameParts source,

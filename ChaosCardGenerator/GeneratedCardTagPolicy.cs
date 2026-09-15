@@ -12,6 +12,33 @@ public static class GeneratedCardTagPolicy
 
     public static bool IsSemanticTag(CardTag tag) => tag is CardTag.Strike or CardTag.Defend or CardTag.OstyAttack;
 
+    /// <summary>
+    /// Osty Attack is a semantic mechanic tag, not a randomly rolled keyword. Every native card whose direct
+    /// card effect makes Osty deal damage carries CardTag.OstyAttack, including Protector/Unleash whose final
+    /// damage is further modified by Osty's HP. Keep the rule tied to the dealer operation rather than to the
+    /// localized description or to an HP modifier that may be attached to an ordinary player attack.
+    /// </summary>
+    public static bool IsOstyAttackCard(IReadOnlyList<GeneratorOperation> operations) =>
+        operations.Any(operation => operation.Template is
+            "NCR:OstyDamage" or "NCR:OstyAllDamage" or "T:ProxyDamage_Atomic_Poke");
+
+    /// <summary>
+    /// Rebuilds operation-derived semantic tags for newly assembled definitions. This prevents an unrelated card
+    /// from randomly receiving OstyAttack and guarantees that every generated Osty damage card participates in
+    /// native mechanics such as Squeeze. Runtime also derives this tag so old snapshots remain compatible.
+    /// </summary>
+    public static IReadOnlyList<CardTag> NormalizeOperationDerivedTags(IEnumerable<CardTag> tags,
+        IReadOnlyList<GeneratorOperation> operations)
+    {
+        // Preserve an explicitly supplied semantic tag for an external component package. Built-in random
+        // assembly never samples OstyAttack independently, so any newly generated built-in occurrence comes from
+        // the operation rule below.
+        var normalized = tags.Distinct().ToList();
+        if (IsOstyAttackCard(operations) && !normalized.Contains(CardTag.OstyAttack))
+            normalized.Add(CardTag.OstyAttack);
+        return normalized;
+    }
+
     public static CardTag? AddedBy(CardUpgradeKind kind) => kind switch
     {
         CardUpgradeKind.GrantInnate => CardTag.Innate,

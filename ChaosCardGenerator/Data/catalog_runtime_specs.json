@@ -9740,7 +9740,7 @@
           "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
-          "Upgradable": true,
+          "Upgradable": false,
           "Explicit": false
         },
         {
@@ -11530,8 +11530,7 @@
       "Flags": [
         "count_unit_reference",
         "damage_budget_effect",
-        "has_numeric_literal",
-        "static_extra_damage_hits"
+        "has_numeric_literal"
       ],
       "Values": [
         {
@@ -15384,8 +15383,7 @@
       "CardFilter": "any",
       "Flags": [
         "count_unit_reference",
-        "damage_budget_effect",
-        "static_extra_damage_hits"
+        "damage_budget_effect"
       ],
       "Values": [],
       "Condition": null,

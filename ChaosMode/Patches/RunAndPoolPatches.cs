@@ -831,10 +831,12 @@ internal static class MultiplayerGenerationModePatch
         marker.MultiplayerPreserveOriginalCards = preserveOriginalCards;
         marker.MultiplayerRandomCardArtSpecified = true;
         marker.MultiplayerRandomCardArt = randomCardArt;
+        marker.MultiplayerBiweeklyBalanceAdjustmentsSpecified = true;
+        marker.MultiplayerBiweeklyBalanceAdjustments = ChaosModSettings.BiweeklyBalanceAdjustments;
         marker.MultiplayerGenerationFingerprint = generationFingerprint ?? string.Empty;
         marker.PoolSnapshot = poolSnapshot ?? string.Empty;
         modifiers.Add(marker);
-        Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, AddGeneratedCards={marker.MultiplayerAddGeneratedCards}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, RandomCardArt={marker.MultiplayerRandomCardArt}, DeterministicFingerprint={!string.IsNullOrEmpty(marker.MultiplayerGenerationFingerprint)}, LegacyAuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
+        Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, AddGeneratedCards={marker.MultiplayerAddGeneratedCards}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, RandomCardArt={marker.MultiplayerRandomCardArt}, BiweeklyBalanceAdjustments={marker.MultiplayerBiweeklyBalanceAdjustments}, DeterministicFingerprint={!string.IsNullOrEmpty(marker.MultiplayerGenerationFingerprint)}, LegacyAuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
     }
 }
 
@@ -967,6 +969,7 @@ internal static class ChaosModelDbReadyPatch
             LogDistributionAuditIfRequested();
             RunExternalStressAuditIfRequested();
             EnsureLibraryCardsInModelDb();
+            _ = ModelDb.Modifier<BalanceAdjustmentModifier>().Id;
             ChaosRunDefinitions.ActivateLibraryPreview();
             OptionalActSelectionFrameworkCompatibility.LogStatus();
             if (fullAudit)
@@ -1211,6 +1214,29 @@ internal static class ChaosModelDbReadyPatch
         if (ChaosOperationVariables.ReplaceInitialValue(drawAndBlock, 11).ChineseText
                 != "抽2张牌。如果抽到的是技能牌，获得11点格挡。")
             throw new InvalidOperationException("AutoAnthony secondary captured Power value replacement audit failed.");
+        if (ChaosOperationExecutor.DamagePropsForCardEffect(CardType.Power) != ValueProp.Unpowered
+            || ChaosOperationExecutor.BlockPropsForCardEffect(CardType.Power) != ValueProp.Unpowered
+            || ChaosOperationExecutor.DamagePropsForCardEffect(CardType.Attack) != ValueProp.Move
+            || ChaosOperationExecutor.BlockPropsForCardEffect(CardType.Skill) != ValueProp.Move
+            || !ChaosOperationExecutor.DamagePropsForCardEffect(CardType.Attack,
+                isTriggered: true, usePoweredCardDamage: false).HasFlag(ValueProp.Unpowered))
+            throw new InvalidOperationException("AutoAnthony Power damage/Block value-prop routing audit failed.");
+        var rollingTrigger = new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
+            string.Empty, new Dictionary<string, int>());
+        var rollingDamage = new GeneratorOperation("N:AllD", OperationScope.NonTargeted,
+            string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var rollingGrowth = new GeneratorOperation("CL:IncreaseRollingDamage", OperationScope.Modifier,
+            string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        var rollingOperations = new[] { rollingTrigger, rollingDamage, rollingGrowth };
+        if (ChaosOperationExecutor.ResolveTriggeredRollingDamage(
+                rollingOperations, 1, 5, 10, isTriggered: true) != 10
+            || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
+                [rollingTrigger, rollingDamage], 1, 5, 10, isTriggered: true) != 5
+            || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
+                rollingOperations, 1, 5, 10, isTriggered: false) != 5
+            || ChaosCompositePower.AdvanceRollingDamage(5, 5) != 10
+            || ChaosCompositePower.AdvanceRollingDamage(10, 5) != 15)
+            throw new InvalidOperationException("AutoAnthony Rolling Boulder accumulated-damage routing audit failed.");
         var enchantedShiv = Structured(new GeneratorOperation("N:CreateInkShiv", OperationScope.NonTargeted,
             "将2张墨影小刀加入手牌。", new Dictionary<string, int>(), DerivativeId: "shiv",
             DerivativeEnchantmentId: "inky"));
@@ -1235,15 +1261,6 @@ internal static class ChaosModelDbReadyPatch
             || !ChaosCompositePower.TurnLimitedTriggerExpired(currentTurnDefense, false, true)
             || ChaosCompositePower.TurnLimitedTriggerExpired(combatLongTrigger, true, true))
             throw new InvalidOperationException("AutoAnthony mixed-duration Power expiration audit failed.");
-        var damageVar = new ChaosDamageVar("PowerDamageAudit", 5, ValueProp.Move);
-        var blockVar = new ChaosBlockVar("PowerBlockAudit", 5, ValueProp.Move);
-        var unpoweredDamage = new ChaosDamageVar("UnpoweredDamageAudit", 5, ValueProp.Unpowered);
-        var proxyDamage = descriptionProbe[2] with { Template = "N:ProxyDamage_Audit" };
-        if (!ChaosCardModel.UsesFinalCombatPreviewInPower(descriptionProbe[2], damageVar)
-            || !ChaosCardModel.UsesFinalCombatPreviewInPower(descriptionProbe[0], blockVar)
-            || ChaosCardModel.UsesFinalCombatPreviewInPower(descriptionProbe[2], unpoweredDamage)
-            || ChaosCardModel.UsesFinalCombatPreviewInPower(proxyDamage, damageVar))
-            throw new InvalidOperationException("AutoAnthony Power Strength/Dexterity capture routing audit failed.");
         var choiceProbe = new GeneratorOperation[]
         {
             Structured(new("NCR:WheneverCardPlayedThisTurn", OperationScope.AbilityTrigger,
@@ -1543,10 +1560,23 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.RequiresCompositePower(immediateAbilityRule))
             throw new InvalidOperationException(
                 "The Gambit persistent-rule Power arming audit failed.");
-        if (!ChaosOperationExecutor.TriggeredDamageUsesPoweredAttack(sourceIsInCombatPile: true)
-            || ChaosOperationExecutor.TriggeredDamageUsesPoweredAttack(sourceIsInCombatPile: false))
+        var exhaustedAtTurnEnd = StructuredProbe("C:AtTurnEndIfInExhaust",
+            OperationScope.ConditionalTrigger, "在你的回合结束时，如果这张牌在你的消耗牌堆中，");
+        var whenThisCardExhausted = StructuredProbe("C:whenThisCardExhausted",
+            OperationScope.ConditionalTrigger, "当这张牌被消耗时，");
+        if (ChaosOperationExecutor.RequiresCompositePower(exhaustedAtTurnEnd)
+            || ChaosOperationExecutor.RequiresCompositePower(whenThisCardExhausted)
+            || !CardEffectRules.IsExhaustPileTurnEndTrigger(exhaustedAtTurnEnd)
+            || !CardEffectRules.IsSelfExhaustEventTrigger(whenThisCardExhausted))
             throw new InvalidOperationException(
-                "Card-lifecycle triggered damage no longer distinguishes live cards from captured Power proxies.");
+                "Self-card Exhaust lifecycle triggers were incorrectly duplicated as owner Powers.");
+        SnapshotModifierUiFilter.Audit();
+        if (!ChaosOperationExecutor.TriggeredDamageUsesPoweredAttack(sourceIsInCombatPile: true)
+            || ChaosOperationExecutor.TriggeredDamageUsesPoweredAttack(sourceIsInCombatPile: false)
+            || ChaosOperationExecutor.TriggeredDamageUsesPoweredAttack(
+                sourceIsInCombatPile: true, sourceType: CardType.Power))
+            throw new InvalidOperationException(
+                "Triggered damage no longer distinguishes live Attack/Skill cards from unpowered Power effects.");
         var numericProxyTemplates = Enum.GetValues<GeneratedCharacter>()
             .SelectMany(character => CharacterComponentCatalogs.Get(character).Recipes)
             .SelectMany(recipe => recipe.Atoms)
@@ -1645,10 +1675,10 @@ internal static class ChaosModelDbReadyPatch
                     new Dictionary<string, int> { ["triggerIndex"] = 0 })))))
             throw new InvalidOperationException("Delayed turn-start PlayerChoiceContext routing audit failed.");
         if (ChaosOperationExecutor.RandomDrawAutoplayLimit(2) != 2
-            || ChaosOperationExecutor.RandomDrawAutoplayLimit(0) != 1)
+            || ChaosOperationExecutor.RandomDrawAutoplayLimit(0) != 0)
             throw new InvalidOperationException("Random draw-pile Attack autoplay ignores its printed amount.");
         if (ChaosOperationExecutor.RandomHandAutoplayLimit(2) != 2
-            || ChaosOperationExecutor.RandomHandAutoplayLimit(0) != 1)
+            || ChaosOperationExecutor.RandomHandAutoplayLimit(0) != 0)
             throw new InvalidOperationException("Random hand Attack autoplay ignores its printed amount.");
         if (ChaosOperationExecutor.FillHandTargetCount(returnsThisToHand: false) != CardPile.MaxCardsInHand
             || ChaosOperationExecutor.FillHandTargetCount(returnsThisToHand: true) != CardPile.MaxCardsInHand - 1)
@@ -1657,6 +1687,17 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.ExecutableOrbRepeatCount(0) != 0
             || ChaosOperationExecutor.ExecutableOrbRepeatCount(-1) != 0)
             throw new InvalidOperationException("X-scaled orb operations do not treat zero payment as a no-op.");
+        var partialXDamage = new OperationRuntimeSpec(OperationRuntimeSpec.CurrentSchemaVersion,
+            "deal_damage", "random", "random_enemy", "none", "none", "any", [],
+            [new RuntimeValueSlot("damage", 5), new RuntimeValueSlot("hits", 0, "energy_x")]);
+        var upgradedPartialXDamage = OperationRuntimeSpecCompiler.ApplyUpgradeDelta(
+            partialXDamage, "hits", 1);
+        if (ChaosOperationExecutor.ResolvedRuntimeSpecValue(upgradedPartialXDamage,
+                "damage", 0, 0, 0, 0) != 5
+            || ChaosOperationExecutor.ResolvedRuntimeSpecValue(upgradedPartialXDamage,
+                "hits", 0, 0, 0, 0) != 1)
+            throw new InvalidOperationException(
+                "A partial X+1 upgrade at zero payment no longer preserves fixed damage and one execution.");
         var fixedLeftmostEvoke = Structured(new GeneratorOperation("D:EvokeLeftmostOrb",
             OperationScope.NonTargeted, "激发最左侧的充能球。", new Dictionary<string, int>()));
         var numericRightmostEvoke = Structured(new GeneratorOperation("D:EvokeRightmostOrb",
@@ -1693,6 +1734,12 @@ internal static class ChaosModelDbReadyPatch
             OperationScope.NonTargeted, "变化手牌中的2张牌。", new Dictionary<string, int>()));
         var repeatSelectedSkill = Structured(new GeneratorOperation("R:PlaySelectedSkillMultipleTimes",
             OperationScope.NonTargeted, "选择一张技能牌，将其打出3次。", new Dictionary<string, int>()));
+        var repeatSelectedSkillSpec = OperationRuntimeSpecCompiler.RequireStructured(repeatSelectedSkill);
+        var repeatSelectedSkillX = repeatSelectedSkill with
+        {
+            RuntimeSpec = OperationRuntimeSpecCompiler.ConvertFixedValuesToSpecialX(
+                repeatSelectedSkillSpec, [repeatSelectedSkillSpec.Values.Single().Id])
+        };
         var quasarChoice = Structured(new GeneratorOperation("I:ProxyAtomic_Quasar",
             OperationScope.Independent, "从3张随机无色牌中选择1张加入你的手牌。",
             new Dictionary<string, int>()));
@@ -1711,6 +1758,9 @@ internal static class ChaosModelDbReadyPatch
             || ChaosOperationExecutor.SelectionCountForEffect(transformTwo, 2) != 2
             || ChaosOperationExecutor.SelectionCountForEffect(repeatSelectedSkill, 3) != 1
             || ChaosOperationExecutor.SelectionCountForEffect(stratagemChoice, 0) != 1
+            || !ChaosOperationExecutor.SkipsCardSelectionAtZero(repeatSelectedSkillX, 0)
+            || ChaosOperationExecutor.SkipsCardSelectionAtZero(repeatSelectedSkillX, 1)
+            || ChaosOperationExecutor.SkipsCardSelectionAtZero(repeatSelectedSkill, 0)
             || ChaosOperationExecutor.TransformProxySelectionCount(0) != 1
             || ChaosOperationExecutor.TransformProxySelectionCount(2) != 2
             || ChaosOperationExecutor.TransformProxySelectionCount(3) != 3
@@ -1735,6 +1785,23 @@ internal static class ChaosModelDbReadyPatch
             || !ChaosOperationExecutor.HasGeneratedCardChoiceCandidates(2, 2))
             throw new InvalidOperationException(
                 "Generated-card counts, dependency multipliers, or empty generated-choice guards failed their runtime audit.");
+        var conditionResults = new Dictionary<int, bool>();
+        var conditionEvaluations = 0;
+        var conditionState = true;
+        if (!ChaosOperationExecutor.EvaluateConditionOnce(conditionResults, 3, () =>
+            {
+                conditionEvaluations++;
+                return conditionState;
+            }))
+            throw new InvalidOperationException("Conditional payoff snapshot audit failed its initial match.");
+        conditionState = false;
+        if (!ChaosOperationExecutor.EvaluateConditionOnce(conditionResults, 3, () =>
+            {
+                conditionEvaluations++;
+                return conditionState;
+            }) || conditionEvaluations != 1)
+            throw new InvalidOperationException(
+                "One conditional resolution was re-evaluated after an earlier payoff mutated combat state.");
         var firstCardTrigger = StructuredProbe("A:firstCardPlayedEachTurn", OperationScope.AbilityTrigger,
             "每回合中，当你打出第一张牌时，");
         var replayPayoff = StructuredProbe("D:ReplayEventCard", OperationScope.NonTargeted,
@@ -1746,6 +1813,16 @@ internal static class ChaosModelDbReadyPatch
             || ChaosCompositePower.HasTriggerWithLinkedEffect([firstCardTrigger, orbPayoff],
                 "first_card_played_each_turn", "D:ReplayEventCard"))
             throw new InvalidOperationException("First-card trigger incorrectly inherits Echo Form replay without its linked payoff.");
+        if (ChaosCompositePower.LinkedEffectAmount([firstCardTrigger, replayPayoff],
+                "D:ReplayEventCard",
+                operation => OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger?.Kind
+                    == "first_card_played_each_turn",
+                index => index == 1 ? 5 : 1) != 5
+            || ChaosCompositePower.LinkedEffectAmount([firstCardTrigger, orbPayoff],
+                "D:ReplayEventCard",
+                operation => OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger?.Kind
+                    == "first_card_played_each_turn") != 0)
+            throw new InvalidOperationException("Echo Form replay amount no longer follows its structured payoff value.");
         if (!ChaosCompositePower.IsFirstCardPlayThisTurn(1)
             || ChaosCompositePower.IsFirstCardPlayThisTurn(0)
             || ChaosCompositePower.IsFirstCardPlayThisTurn(2))
@@ -2467,7 +2544,7 @@ internal static class SeedBeforeSingleplayerPatch
         CharacterModel character,
         bool shouldSave,
         IReadOnlyList<ActModel> acts,
-        IReadOnlyList<ModifierModel> modifiers,
+        ref IReadOnlyList<ModifierModel> modifiers,
         string seed,
         GameMode gameMode,
         int ascensionLevel,
@@ -2475,6 +2552,8 @@ internal static class SeedBeforeSingleplayerPatch
         ref Task<RunState> __result)
     {
         if (Volatile.Read(ref _callingOriginal) > 0) return true;
+        modifiers = BalanceAdjustmentModifier.Configure(modifiers,
+            ChaosModSettings.Enabled && ChaosModSettings.BiweeklyBalanceAdjustments);
         if (!ChaosModSettings.EffectiveGeneratedCardsEnabled)
         {
             SurpriseCardKnowledge.BeginNewRun();
@@ -2654,6 +2733,9 @@ internal static class SeedBeforeMultiplayerPatch
         var randomCardArt = generationMarker?.MultiplayerRandomCardArtSpecified == true
             ? generationMarker.MultiplayerRandomCardArt
             : ChaosModSettings.RandomCardArt;
+        var biweeklyBalanceAdjustments = generationMarker?.MultiplayerBiweeklyBalanceAdjustmentsSpecified == true
+            ? generationMarker.MultiplayerBiweeklyBalanceAdjustments
+            : ChaosModSettings.BiweeklyBalanceAdjustments;
         if (generationMarker is not null && enabled != ChaosModSettings.Enabled)
             Log.Info($"[AutoAnthony] Using host multiplayer enabled setting instead of the local setting: Enabled={enabled}.");
         if (generationMarker?.MultiplayerAddGeneratedCardsSpecified == true
@@ -2749,6 +2831,8 @@ internal static class SeedBeforeMultiplayerPatch
             var runModifiers = modifiers.Where(modifier => modifier is not ChaosPoolSnapshotModifier snapshot
                                                             || !snapshot.MultiplayerGenerationModeSpecified)
                 .ToArray();
+            runModifiers = BalanceAdjustmentModifier.Configure(runModifiers,
+                enabled && biweeklyBalanceAdjustments).ToArray();
             originalTask = game.StartNewMultiplayerRun(lobby, shouldSave, acts, runModifiers, seed, ascensionLevel,
                 dailyTime);
         }
@@ -3144,6 +3228,11 @@ internal static class GeneratedCardHistoryPlaceholderPatch
 
 internal static class CharacterPoolPatchRouting
 {
+    private static readonly object PoolCacheGate = new();
+    private static readonly Dictionary<GeneratedCharacter, CardModel[]> StartingDeckCache = [];
+    private static readonly Dictionary<(GeneratedCharacter Character, bool ReplaceStartingCards,
+        bool PreserveOriginalCards), CardModel[]> PoolContentsCache = [];
+
     internal static bool ReplacePool<TPool>(ref CardPoolModel result) where TPool : CardPoolModel
     {
         if (!ChaosRunDefinitions.IsRunActive) return true;
@@ -3157,9 +3246,30 @@ internal static class CharacterPoolPatchRouting
         if (!ChaosRunDefinitions.IsCharacterRunActive(character)
             || !ChaosRunDefinitions.ActiveReplaceStartingCards)
             return true;
-        result = Enumerable.Range(0, ChaosRunDefinitions.BasicCountFor(character))
-            .Select(slot => ChaosCardRegistry.Canonical(character, slot)).ToArray();
+        lock (PoolCacheGate)
+        {
+            if (!StartingDeckCache.TryGetValue(character, out var cards))
+            {
+                cards = Enumerable.Range(0, ChaosRunDefinitions.BasicCountFor(character))
+                    .Select(slot => ChaosCardRegistry.Canonical(character, slot)).ToArray();
+                StartingDeckCache.Add(character, cards);
+            }
+            result = cards;
+        }
         return false;
+    }
+
+    internal static CardModel[] CachedPoolContents(GeneratedCharacter character,
+        bool replaceStartingCards, bool preserveOriginalCards, Func<CardModel[]> factory)
+    {
+        var key = (character, replaceStartingCards, preserveOriginalCards);
+        lock (PoolCacheGate)
+        {
+            if (PoolContentsCache.TryGetValue(key, out var cached)) return cached;
+            var created = factory();
+            PoolContentsCache.Add(key, created);
+            return created;
+        }
     }
 
     /// <summary>
@@ -3280,13 +3390,18 @@ internal static class ColorlessPoolContentsPatch
         if (!ChaosRunDefinitions.IsRunActive) return true;
         if (__instance is ColorlessCardPool)
         {
-            var generatedColorless = ChaosCardRegistry.ColorlessTypes
-                .Select(type => ModelDb.GetById<CardModel>(ModelDb.GetId(type)));
-            __result = ChaosRunDefinitions.ActivePreserveOriginalCards
-                ? generatedColorless.Concat(
-                        ChaosRunDefinitions.OriginalCardsForPreservedPool(GeneratedCharacter.Colorless))
-                    .ToArray()
-                : generatedColorless.ToArray();
+            var preserveOriginalCards = ChaosRunDefinitions.ActivePreserveOriginalCards;
+            __result = CharacterPoolPatchRouting.CachedPoolContents(GeneratedCharacter.Colorless,
+                replaceStartingCards: true, preserveOriginalCards, () =>
+                {
+                    var generatedColorless = ChaosCardRegistry.ColorlessTypes
+                        .Select(type => ModelDb.GetById<CardModel>(ModelDb.GetId(type)));
+                    return preserveOriginalCards
+                        ? generatedColorless.Concat(
+                                ChaosRunDefinitions.OriginalCardsForPreservedPool(GeneratedCharacter.Colorless))
+                            .ToArray()
+                        : generatedColorless.ToArray();
+                });
             return false;
         }
 
@@ -3301,23 +3416,28 @@ internal static class ColorlessPoolContentsPatch
         };
         if (character is null) return true;
 
-        var firstGeneratedSlot = ChaosRunDefinitions.ActiveReplaceStartingCards
-            ? 0
-            : ChaosRunDefinitions.BasicCountFor(character.Value);
-        var generated = ChaosCardRegistry.TypesFor(character.Value).Skip(firstGeneratedSlot)
-            .Select(type => ModelDb.GetById<CardModel>(ModelDb.GetId(type)))
-            // Preserving the original non-Basic pool is a replacement policy for Ancients, not an additive one:
-            // character rewards and Ancient relics use the two vanilla Ancients, while generated Ancient slots
-            // remain unavailable implementation placeholders for the fixed registry/snapshot schema.
-            .Where(card => !ChaosRunDefinitions.ActivePreserveOriginalCards
-                || card.Rarity != CardRarity.Ancient);
-        var originalBasic = ChaosRunDefinitions.ActiveReplaceStartingCards
-            ? Enumerable.Empty<CardModel>()
-            : OriginalBasicCards(character.Value);
-        var originalNonBasic = ChaosRunDefinitions.ActivePreserveOriginalCards
-            ? OriginalNonBasicCards(character.Value)
-            : Enumerable.Empty<CardModel>();
-        __result = originalBasic.Concat(generated).Concat(originalNonBasic).ToArray();
+        var replaceStartingCards = ChaosRunDefinitions.ActiveReplaceStartingCards;
+        var preserveOriginalCardsForCharacter = ChaosRunDefinitions.ActivePreserveOriginalCards;
+        __result = CharacterPoolPatchRouting.CachedPoolContents(character.Value, replaceStartingCards,
+            preserveOriginalCardsForCharacter, () =>
+            {
+                var firstGeneratedSlot = replaceStartingCards
+                    ? 0
+                    : ChaosRunDefinitions.BasicCountFor(character.Value);
+                var generated = ChaosCardRegistry.TypesFor(character.Value).Skip(firstGeneratedSlot)
+                    .Select(type => ModelDb.GetById<CardModel>(ModelDb.GetId(type)))
+                    // Preserving the original non-Basic pool is a replacement policy for Ancients, not an additive one:
+                    // character rewards and Ancient relics use the two vanilla Ancients, while generated Ancient slots
+                    // remain unavailable implementation placeholders for the fixed registry/snapshot schema.
+                    .Where(card => !preserveOriginalCardsForCharacter || card.Rarity != CardRarity.Ancient);
+                var originalBasic = replaceStartingCards
+                    ? Enumerable.Empty<CardModel>()
+                    : OriginalBasicCards(character.Value);
+                var originalNonBasic = preserveOriginalCardsForCharacter
+                    ? OriginalNonBasicCards(character.Value)
+                    : Enumerable.Empty<CardModel>();
+                return originalBasic.Concat(generated).Concat(originalNonBasic).ToArray();
+            });
         return false;
     }
 

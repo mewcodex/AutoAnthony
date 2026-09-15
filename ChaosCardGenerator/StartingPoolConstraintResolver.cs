@@ -15,7 +15,9 @@ public static class StartingPoolConstraintResolver
     {
         var traceRepairs = Environment.GetEnvironmentVariable("AUTOANTHONY_TRACE_POOL_REPAIR") == "1";
         var maximumRepairs = cards.Length * 4;
-        for (var repair = 0; repair <= maximumRepairs; repair++)
+        // Two additional passes allow one exact Attack and one exact Block fallback after ordinary constrained
+        // generation has exhausted its bounded search.
+        for (var repair = 0; repair <= maximumRepairs + 2; repair++)
         {
             var ostyValid = true;
             var slyValid = true;
@@ -38,19 +40,32 @@ public static class StartingPoolConstraintResolver
             var currentDamage = cards.Count(CountsAsDamage);
             var currentDefense = cards.Count(CountsAsDefense);
             var currentHighResource = cards.Count(IsHighResourceCard);
+            var enforceRegentStarBalance = cards.Any(card => card.Character == GeneratedCharacter.Regent);
+            var currentStarConsumers = enforceRegentStarBalance ? cards.Count(ConsumesStars) : 0;
+            var currentStarProducers = enforceRegentStarBalance ? cards.Count(ProducesStars) : 0;
+            var currentStarGap = currentStarConsumers - currentStarProducers;
             var damageValid = currentDamage >= minimumDamage;
             var defenseValid = currentDefense >= minimumDefense;
             var highResourceValid = currentHighResource <= MaximumHighResourceCards;
+            var starBalanceValid = !enforceRegentStarBalance || currentStarGap <= 0;
             var needsDamageHeadroom = !highResourceValid && currentDamage <= minimumDamage
                 && cards.Any(card => IsHighResourceCard(card) && CountsAsDamage(card));
             var needsDefenseHeadroom = !highResourceValid && currentDefense <= minimumDefense
                 && cards.Any(card => IsHighResourceCard(card) && CountsAsDefense(card));
-            if (ostyValid && slyValid && derivativeValid && damageValid && defenseValid && highResourceValid)
+            if (ostyValid && slyValid && derivativeValid && damageValid && defenseValid && highResourceValid
+                && starBalanceValid)
             {
                 failure = string.Empty;
                 return true;
             }
-            if (repair == maximumRepairs) break;
+            if (repair >= maximumRepairs)
+            {
+                if (TryApplyRegentCoverageFallback(cards, generator, random, minimumDamage, minimumDefense,
+                        damageValid, defenseValid, highResourceValid, starBalanceValid,
+                        currentDamage, currentDefense, currentHighResource, currentStarGap))
+                    continue;
+                break;
+            }
 
             var currentOstyGap = cards.Count(OstyPoolConstraintResolver.HasOstyEffect)
                 - cards.Count(OstyPoolConstraintResolver.HasSummonEffect);
@@ -69,6 +84,7 @@ public static class StartingPoolConstraintResolver
                     || !highResourceValid && !IsHighResourceCard(cards[index])
                         && (needsDamageHeadroom && !CountsAsDamage(cards[index])
                             || needsDefenseHeadroom && !CountsAsDefense(cards[index]))
+                    || !starBalanceValid && ConsumesStars(cards[index]) && !ProducesStars(cards[index])
                     || DerivativePoolConstraintResolver.HasProducedDerivativeReference(cards[index]))
                 .OrderByDescending(index => currentOstyGap > 0
                     && OstyPoolConstraintResolver.HasOstyEffect(cards[index]) ? 1 : 0)
@@ -83,6 +99,8 @@ public static class StartingPoolConstraintResolver
                 .ThenByDescending(index => !damageValid && !CountsAsDamage(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => !defenseValid && !CountsAsDefense(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => !highResourceValid && IsHighResourceCard(cards[index]) ? 1 : 0)
+                .ThenByDescending(index => !starBalanceValid
+                    && ConsumesStars(cards[index]) && !ProducesStars(cards[index]) ? 1 : 0)
                 .ThenBy(_ => random.Next())
                 .ToArray();
             if (candidates.Length == 0)
@@ -117,6 +135,9 @@ public static class StartingPoolConstraintResolver
                             + (CountsAsDefense(candidate) ? 1 : 0);
                         var prospectiveHighResource = currentHighResource - (IsHighResourceCard(oldCard) ? 1 : 0)
                             + (IsHighResourceCard(candidate) ? 1 : 0);
+                        var prospectiveStarGap = currentStarGap
+                            - (ConsumesStars(oldCard) ? 1 : 0) + (ProducesStars(oldCard) ? 1 : 0)
+                            + (ConsumesStars(candidate) ? 1 : 0) - (ProducesStars(candidate) ? 1 : 0);
                         if (damageValid ? prospectiveDamage < minimumDamage : prospectiveDamage < currentDamage)
                             return false;
                         if (defenseValid ? prospectiveDefense < minimumDefense : prospectiveDefense < currentDefense)
@@ -129,10 +150,15 @@ public static class StartingPoolConstraintResolver
                                 : prospectiveHighResource > currentHighResource
                                   || prospectiveHighResource == currentHighResource && !createsCoverageHeadroom)
                             return false;
+                        if (enforceRegentStarBalance && (starBalanceValid
+                                ? prospectiveStarGap > 0
+                                : prospectiveStarGap >= currentStarGap))
+                            return false;
                         var coverageImproved = !damageValid && prospectiveDamage > currentDamage
                             || !defenseValid && prospectiveDefense > currentDefense
-                            || !highResourceValid && prospectiveHighResource < currentHighResource;
-                        if (ostyValid && slyValid && derivativeValid && highResourceValid
+                            || !highResourceValid && prospectiveHighResource < currentHighResource
+                            || !starBalanceValid && prospectiveStarGap < currentStarGap;
+                        if (ostyValid && slyValid && derivativeValid && highResourceValid && starBalanceValid
                             && !coverageImproved && !createsCoverageHeadroom)
                             return false;
                         var prospectiveOstyGap = currentOstyGap
@@ -158,7 +184,8 @@ public static class StartingPoolConstraintResolver
                         Console.Error.WriteLine($"starter-repair[{repair}] {Stopwatch.GetElapsedTime(replacementStarted).TotalMilliseconds:F0}ms "
                             + $"slot={index}; damage={currentDamage}/{minimumDamage}; defense={currentDefense}/{minimumDefense}; "
                             + $"high={currentHighResource}/{MaximumHighResourceCards}; ostyGap={currentOstyGap}; "
-                            + $"slyGap={currentSlyGap}; derivativeValid={derivativeValid}");
+                            + $"stars={currentStarConsumers}/{currentStarProducers}; slyGap={currentSlyGap}; "
+                            + $"derivativeValid={derivativeValid}");
                 }
                 catch (InvalidOperationException)
                 {
@@ -173,14 +200,87 @@ public static class StartingPoolConstraintResolver
             }
             if (!replaced)
             {
+                if (TryApplyRegentCoverageFallback(cards, generator, random, minimumDamage, minimumDefense,
+                        damageValid, defenseValid, highResourceValid, starBalanceValid,
+                        currentDamage, currentDefense, currentHighResource, currentStarGap))
+                    continue;
                 failure = "Could not repair starting-deck support/coverage/resource cap without breaking another constraint.";
                 return false;
             }
         }
 
-        failure = $"Starting-deck support repair exceeded {maximumRepairs} replacements.";
+        failure = $"Starting-deck support/coverage/Star repair exceeded {maximumRepairs} ordinary replacements.";
         return false;
     }
+
+    private static bool TryApplyRegentCoverageFallback(GeneratedCard[] cards, RandomCardGenerator generator,
+        Random random, int minimumDamage, int minimumDefense, bool damageValid, bool defenseValid,
+        bool highResourceValid, bool starBalanceValid, int currentDamage, int currentDefense,
+        int currentHighResource, int currentStarGap)
+    {
+        if (!cards.Any(card => card.Character == GeneratedCharacter.Regent)
+            || damageValid && defenseValid || !starBalanceValid)
+            return false;
+
+        var fallbackKinds = !damageValid && !defenseValid
+            ? (currentDamage - minimumDamage <= currentDefense - minimumDefense
+                ? new[] { true, false }
+                : new[] { false, true })
+            : new[] { !damageValid };
+        foreach (var damage in fallbackKinds)
+        {
+            var prototype = RandomCardGenerator.RegentStartingCoverageFallbackPrototype(damage);
+            var prototypeExact = GeneratedCardEffectIdentity.Signature(prototype);
+            var prototypeTemplate = GeneratedCardEffectIdentity.TemplateSignature(prototype);
+            if (cards.Any(card => GeneratedCardEffectIdentity.Signature(card) == prototypeExact
+                    || GeneratedCardEffectIdentity.TemplateSignature(card) == prototypeTemplate))
+                continue;
+
+            var candidates = Enumerable.Range(0, cards.Length)
+                // The exact fallback has no support/reference operation. Replacing a neutral slot therefore
+                // cannot invalidate the already-repaired Osty, Sly, or derivative graphs.
+                .Where(index => !TouchesSupportGraph(cards[index]))
+                .Where(index =>
+                {
+                    var oldCard = cards[index];
+                    var prospectiveDamage = currentDamage - (CountsAsDamage(oldCard) ? 1 : 0) + (damage ? 1 : 0);
+                    var prospectiveDefense = currentDefense - (CountsAsDefense(oldCard) ? 1 : 0) + (damage ? 0 : 1);
+                    var prospectiveHighResource = currentHighResource - (IsHighResourceCard(oldCard) ? 1 : 0) + 1;
+                    var prospectiveStarGap = currentStarGap - (ConsumesStars(oldCard) ? 1 : 0)
+                        + (ProducesStars(oldCard) ? 1 : 0) + 1;
+                    return (damage ? prospectiveDamage > currentDamage : prospectiveDefense > currentDefense)
+                        && (!damageValid || prospectiveDamage >= minimumDamage)
+                        && (!defenseValid || prospectiveDefense >= minimumDefense)
+                        && (highResourceValid
+                            ? prospectiveHighResource <= MaximumHighResourceCards
+                            : prospectiveHighResource < currentHighResource)
+                        && prospectiveStarGap <= 0;
+                })
+                .OrderByDescending(index => IsHighResourceCard(cards[index]) ? 1 : 0)
+                .ThenBy(_ => random.Next())
+                .ToArray();
+            if (candidates.Length == 0) continue;
+
+            try
+            {
+                cards[candidates[0]] = generator.CreateRegentStartingCoverageFallback(damage);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                // The bounded outer pool generator remains the final fallback if identity/upgrade generation fails.
+            }
+        }
+        return false;
+    }
+
+    private static bool TouchesSupportGraph(GeneratedCard card) =>
+        OstyPoolConstraintResolver.HasOstyEffect(card)
+        || OstyPoolConstraintResolver.HasSummonEffect(card)
+        || SlyPoolConstraintResolver.HasSly(card)
+        || SlyPoolConstraintResolver.HasDiscardEffect(card)
+        || DerivativePoolConstraintResolver.HasProducedDerivativeReference(card)
+        || card.Operations.Any(operation => DerivativeSlotCatalog.IsProducer(operation.Template));
 
     public static bool CountsAsDamage(GeneratedCard card) => card.Operations.Any(operation =>
     {
@@ -212,6 +312,10 @@ public static class StartingPoolConstraintResolver
 
     public static bool IsHighResourceCard(GeneratedCard card) =>
         card.Cost > 1 || card.StarCost > 0 || card.HasStarCostX;
+
+    public static bool ConsumesStars(GeneratedCard card) => card.StarCost > 0 || card.HasStarCostX;
+
+    public static bool ProducesStars(GeneratedCard card) => card.Operations.Any(CardEffectRules.IsStarGainOperation);
 
     private static int RuntimeValueAtOne(OperationRuntimeSpec spec, string slotId, int fallback)
     {

@@ -110,6 +110,9 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
             ChaosSettingsToggle.NumericBalanceOptimizationLineName, "AUTO_ANTHONY_NUMERIC_BALANCE_OPTIMIZATION");
         ChaosSettingsToggle.NumericRandomModeInstance = AddOption(numeric.Content, optionTemplate,
             ChaosSettingsToggle.NumericRandomModeLineName, "AUTO_ANTHONY_NUMERIC_RANDOM_MODE");
+        ChaosSettingsToggle.BiweeklyBalanceAdjustmentsInstance = AddOption(numeric.Content, optionTemplate,
+            ChaosSettingsToggle.BiweeklyBalanceAdjustmentsLineName,
+            "AUTO_ANTHONY_BIWEEKLY_BALANCE_ADJUSTMENTS");
 
         var pool = AddCategory(options, ChaosSettingsToggle.PoolCategoryLineName,
             "AUTO_ANTHONY_CATEGORY_POOL");
@@ -171,6 +174,7 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                  {
                      ChaosSettingsToggle.EnabledInstance, ChaosSettingsToggle.NumericBalanceOptimizationInstance,
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
+                     ChaosSettingsToggle.BiweeklyBalanceAdjustmentsInstance,
                      ChaosSettingsToggle.AddGeneratedCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
                      ChaosSettingsToggle.DecomposeOriginalCardsInstance,
                      ChaosSettingsToggle.ReplaceStartingCardsInstance,
@@ -198,6 +202,7 @@ internal sealed class AutoAnthonySettingsSubmenu : NSubmenu
                  {
                      ChaosSettingsToggle.EnabledInstance, ChaosSettingsToggle.NumericBalanceOptimizationInstance,
                      ChaosSettingsToggle.NumericRandomModeInstance, ChaosSettingsToggle.UltimateChaosInstance,
+                     ChaosSettingsToggle.BiweeklyBalanceAdjustmentsInstance,
                      ChaosSettingsToggle.AddGeneratedCardsInstance, ChaosSettingsToggle.PreserveOriginalCardsInstance,
                      ChaosSettingsToggle.DecomposeOriginalCardsInstance,
                      ChaosSettingsToggle.ReplaceStartingCardsInstance,

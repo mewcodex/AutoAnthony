@@ -76,6 +76,7 @@ particular custom-character framework.
 
 - `ChaosMode/`: the game mod, runtime interpreter, snapshots, settings, and Harmony integration.
 - `ChaosCardGenerator/`: standalone generation, balance, component catalogs, upgrades, and audits.
+- `CardTinkering/`: optional card-editor companion source and its Auto-Anthonyology integration.
 - `ApiContractSmoke/`: an external-consumer compile test for the public API surface.
 - `scripts/`: catalog, execution, localization-boundary, and valuation audit entry points.
 - `*_unit_operations.md`: reviewed bilingual authoring inputs embedded into the generator.

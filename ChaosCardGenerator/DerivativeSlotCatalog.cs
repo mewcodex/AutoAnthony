@@ -445,8 +445,20 @@ public static class DerivativeSlotCatalog
     public static DerivativeSlotDefinition Roll(Random random, GeneratedCharacter currentCharacter,
         bool ultimateChaos, string template)
     {
-        if (IsStatusProducer(template) && random.NextDouble() < StatusCurseEasterEggChance)
-            return CurseEasterEggs[random.Next(CurseEasterEggs.Length)];
+        if (TryRollStatusCurseEasterEgg(random, template, out var curse))
+            return curse;
+
+        return RollOrdinary(random, currentCharacter, ultimateChaos, template);
+    }
+
+    /// <summary>
+    /// Rolls a normal derivative without the status-to-curse Easter egg. Production card assembly uses this path
+    /// so speculative candidates cannot gain a higher survival rate merely because a curse carries more downside
+    /// budget. The Easter egg is rolled separately after the ordinary candidate has passed generation checks.
+    /// </summary>
+    internal static DerivativeSlotDefinition RollOrdinary(Random random, GeneratedCharacter currentCharacter,
+        bool ultimateChaos, string template)
+    {
 
         if (template == "R:FillHandWithDebris")
         {
@@ -468,6 +480,18 @@ public static class DerivativeSlotCatalog
             roll -= weight;
         }
         throw new InvalidOperationException("衍生物槽位权重采样失败。");
+    }
+
+    internal static bool TryRollStatusCurseEasterEgg(Random random, string template,
+        out DerivativeSlotDefinition curse)
+    {
+        if (IsStatusProducer(template) && random.NextDouble() < StatusCurseEasterEggChance)
+        {
+            curse = CurseEasterEggs[random.Next(CurseEasterEggs.Length)];
+            return true;
+        }
+        curse = null!;
+        return false;
     }
 
     /// <summary>

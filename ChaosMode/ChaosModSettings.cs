@@ -8,13 +8,14 @@ internal static class ChaosModSettings
 {
     private sealed class SettingsData
     {
-        public int Schema { get; set; } = 16;
+        public int Schema { get; set; } = 17;
         public bool Enabled { get; set; } = true;
         public bool AddGeneratedCards { get; set; } = true;
         public bool ReplaceStartingCards { get; set; } = true;
         public bool UltimateChaos { get; set; }
         public bool NumericBalanceOptimization { get; set; }
         public bool NumericRandomMode { get; set; }
+        public bool BiweeklyBalanceAdjustments { get; set; }
         public bool PreserveOriginalCards { get; set; }
         public bool DecomposeOriginalCards { get; set; }
         public bool RandomCardArt { get; set; }
@@ -36,6 +37,7 @@ internal static class ChaosModSettings
     private static bool _ultimateChaos;
     private static bool _numericBalanceOptimization;
     private static bool _numericRandomMode;
+    private static bool _biweeklyBalanceAdjustments;
     private static bool _preserveOriginalCards;
     private static bool _decomposeOriginalCards;
     private static bool _randomCardArt;
@@ -118,6 +120,20 @@ internal static class ChaosModSettings
             _numericRandomMode = value;
             Save();
             Log.Info($"[AutoAnthony] Numeric Random Mode {(value ? "enabled" : "disabled")}; the change applies to newly generated runs.");
+        }
+    }
+
+    internal static bool BiweeklyBalanceAdjustments
+    {
+        get { EnsureLoaded(); return _biweeklyBalanceAdjustments; }
+        set
+        {
+            EnsureLoaded();
+            if (_biweeklyBalanceAdjustments == value) return;
+            _biweeklyBalanceAdjustments = value;
+            Save();
+            Log.Info($"[AutoAnthony] Biweekly balance adjustments {(value ? "enabled" : "disabled")}; "
+                     + "the change applies to newly generated runs.");
         }
     }
 
@@ -331,6 +347,8 @@ internal static class ChaosModSettings
             _ultimateChaos = ParseUltimateChaos(json);
             _numericBalanceOptimization = ParseNumericBalanceOptimization(json);
             _numericRandomMode = ParseBooleanSetting(json, false, "NumericRandomMode", "numeric_random_mode");
+            _biweeklyBalanceAdjustments = ParseBooleanSetting(json, false,
+                "BiweeklyBalanceAdjustments", "biweekly_balance_adjustments");
             _preserveOriginalCards = ParseBooleanSetting(json, false, "PreserveOriginalCards", "preserve_original_cards");
             _decomposeOriginalCards = ParseBooleanSetting(json, false,
                 "DecomposeOriginalCards", "decompose_original_cards");
@@ -356,6 +374,7 @@ internal static class ChaosModSettings
             _ultimateChaos = false;
             _numericBalanceOptimization = false;
             _numericRandomMode = false;
+            _biweeklyBalanceAdjustments = false;
             _preserveOriginalCards = false;
             _decomposeOriginalCards = false;
             _randomCardArt = false;
@@ -384,6 +403,7 @@ internal static class ChaosModSettings
                     UltimateChaos = _ultimateChaos,
                     NumericBalanceOptimization = _numericBalanceOptimization,
                     NumericRandomMode = _numericRandomMode,
+                    BiweeklyBalanceAdjustments = _biweeklyBalanceAdjustments,
                     PreserveOriginalCards = _preserveOriginalCards,
                     DecomposeOriginalCards = _decomposeOriginalCards,
                     RandomCardArt = _randomCardArt,

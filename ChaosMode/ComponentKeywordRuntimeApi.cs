@@ -30,6 +30,7 @@ public static class ComponentKeywordRuntimeApi
     private static readonly Dictionary<string, IComponentKeywordRuntimeAdapter> Adapters =
         new(StringComparer.Ordinal);
     private static readonly HashSet<string> Packages = new(StringComparer.Ordinal);
+    private static readonly (string Id, IComponentKeywordRuntimeAdapter Adapter)[] NoActiveAdapters = [];
     private static bool _frozen;
 
     public static bool RegistrationsFrozen
@@ -108,8 +109,20 @@ public static class ComponentKeywordRuntimeApi
     private static IReadOnlyList<(string Id, IComponentKeywordRuntimeAdapter Adapter)> ActiveAdapters(
         ChaosCardModel card)
     {
-        var ids = new HashSet<string>(card.Generated.CustomKeywords ?? [], StringComparer.Ordinal);
-        if (card.IsUpgraded && card.Generated.Upgrade is { } upgrade)
+        var generated = card.Generated;
+        var upgrade = card.IsUpgraded ? generated.Upgrade : null;
+        var hasBaseKeywords = generated.CustomKeywords is { Count: > 0 };
+        var hasAddedUpgradeKeyword = upgrade is not null
+            && (upgrade.AddedCustomKeywords is { Count: > 0 }
+                || upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.AddCustomKeyword));
+        if (!hasBaseKeywords && !hasAddedUpgradeKeyword)
+        {
+            lock (Sync) _frozen = true;
+            return NoActiveAdapters;
+        }
+
+        var ids = new HashSet<string>(generated.CustomKeywords ?? [], StringComparer.Ordinal);
+        if (upgrade is not null)
         {
             ids.UnionWith(GeneratedCardTagPolicy.AddedCustomKeywords(upgrade));
             ids.ExceptWith(GeneratedCardTagPolicy.RemovedCustomKeywords(upgrade));

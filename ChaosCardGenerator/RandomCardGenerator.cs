@@ -127,6 +127,12 @@ public sealed class RandomCardGenerator
         Func<GeneratedCard, bool> accept) =>
         OperationRuntimeSpecCompiler.Attach(_referenceFreeNonSpecialXAssembler.GenerateMatching(rarity, accept));
 
+    internal GeneratedCard CreateRegentStartingCoverageFallback(bool damage) =>
+        OperationRuntimeSpecCompiler.Attach(_normalAssembler.CreateRegentStartingCoverageFallback(damage));
+
+    internal static GeneratedCard RegentStartingCoverageFallbackPrototype(bool damage) =>
+        OperationRuntimeSpecCompiler.Attach(ComponentAssemblyGenerator.RegentStartingCoverageFallbackPrototype(damage));
+
     public GeneratedCard GenerateReferenceFreeSpecialX(GeneratedRarity rarity)
     {
         var card = OperationRuntimeSpecCompiler.Attach(_referenceFreeForcedSpecialXAssembler.Generate(rarity));
@@ -472,6 +478,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("同一效果字段在一张卡牌上最多只能出现两次。");
         if (!CardEffectRules.HasNoDuplicateCardUniqueEffects(card.Operations))
             throw new InvalidOperationException("不可叠加的状态或规则效果在一张卡牌上只能出现一次。");
+        if (!CardEffectRules.HasValidDrawToFullHandAssembly(card.Operations))
+            throw new InvalidOperationException("抽满手牌不能与其他抽牌效果或自身重复出现在同一张卡上。");
         if (!CardEffectRules.HasNoDuplicateXEffectKinds(card.Operations))
             throw new InvalidOperationException("X费牌不能包含两个相同形态的X费效果。");
         if (!CardEffectRules.HasValidShuffleThenDrawAssembly(card.Operations))
@@ -506,6 +514,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("能力牌不能拥有消耗 keyword。");
         if (card.Type == GeneratedCardType.Power && card.Operations.Any(CardEffectRules.IsSelfCardMovementOrReplay))
             throw new InvalidOperationException("能力牌不能移动或重新打出自身；生成自身复制品除外。");
+        if (!CardEffectRules.HasNoPlayedPowerMovementPayoffs(card.Operations))
+            throw new InvalidOperationException("打出能力牌时，不能将刚打出的能力牌移回手牌或牌堆。");
         if (card.Operations.Any(operation => operation.Template == "R:PutThisOnDraw")
             && card.Type == GeneratedCardType.Power)
             throw new InvalidOperationException("将这张牌放置于抽牌堆顶部不能用于能力牌。");
@@ -531,6 +541,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("斩杀时不能连接仍需选择已被击杀敌人的后续效果。");
         if (!CardEffectRules.HasNoTurnEndDrawOrResourcePayoffs(card.Operations))
             throw new InvalidOperationException("回合结束时不能抽牌、获得能量或获得蓝星。");
+        if (!CardEffectRules.HasNoTurnEndChoiceOrAutoplayPayoffs(card.Operations))
+            throw new InvalidOperationException("回合结束触发器不能连接选牌或可能再次打开选择的自动打出效果。");
         if (!CardEffectRules.HasNoNegativeSelfExhaustPayoffs(card.Operations))
             throw new InvalidOperationException("“这张牌被消耗时”后面不能接负面效果。");
         if (!CardEffectRules.HasNoInvalidTriggeredStateEffects(card.Operations))
@@ -752,9 +764,12 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("费用不属于战士样本分布支持集。");
         if (card.Name is not null && (string.IsNullOrWhiteSpace(card.Name.Chinese) || string.IsNullOrWhiteSpace(card.Name.English)))
             throw new InvalidOperationException("生成卡必须有完整的中英文名称。");
-        if (card.Tags.Contains(CardTag.Strike) && card.Name is not null
-            && (!card.Name.Chinese.EndsWith("打击", StringComparison.Ordinal) || !card.Name.English.EndsWith(" Strike", StringComparison.Ordinal)))
-            throw new InvalidOperationException("打击牌名称必须锁定“打击 / Strike”后缀。");
+        if (card.Tags.Contains(CardTag.Strike)
+            && !ComponentAssemblyGenerator.StrikeTagAllowed(card.Type, card.Character, card.UnifiedChaos))
+            throw new InvalidOperationException("只有战士或究极混沌可以生成非攻击牌的特殊打击。");
+        if (card.Name is not null
+            && !CardNameGenerator.NameRespectsStrikeRule(card.Name, card.Tags.Contains(CardTag.Strike), card.Type))
+            throw new InvalidOperationException("打击攻击牌必须以“打击 / Strike”结尾；特殊打击的中文名必须以“打击”开头。");
         if (card.Name is not null
             && !CardNameGenerator.NameRespectsHangRule(card.Name,
                 CardEffectRules.IsHangDamageFamily(card.Operations)))
@@ -1479,8 +1494,14 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("内置组件数值策略适配器偏离现有平衡模型。");
         if (ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Ironclad, false) != 20
             || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Silent, false) != 10
-            || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Ironclad, true) != 10)
-            throw new InvalidOperationException("战士打击标签倍率只能作用于非究极混沌的战士卡池。");
+            || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(10, GeneratedCharacter.Ironclad, true) != 10
+            || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(100, GeneratedCharacter.Ironclad, false,
+                GeneratedCardType.Skill) != 65
+            || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(100, GeneratedCharacter.Defect, true,
+                GeneratedCardType.Power) != 65
+            || ComponentAssemblyGenerator.AdjustStrikeTagNumerator(100, GeneratedCharacter.Silent, false,
+                GeneratedCardType.Skill) != 0)
+            throw new InvalidOperationException("战士打击倍率或特殊打击的角色锁不符合设定。");
         var ostyDamageProbe = new GeneratorOperation("NCR:OstyDamage", OperationScope.SingleEnemyOnly,
             "奥斯提造成6点伤害。", new Dictionary<string, int>(), RequiresSingleTarget: true);
         var summonProbe = new GeneratorOperation("NCR:Summon", OperationScope.NonTargeted,
@@ -1497,6 +1518,18 @@ public static class GeneratorSelfTest
             OperationScope.ConditionalTrigger, "本回合每打出一张奥斯提攻击牌。", new Dictionary<string, int>());
         var calcifyProbe = new GeneratorOperation("A:ProxyAtomic_Calcify", OperationScope.AbilityRule,
             "奥斯提的攻击额外造成4点伤害。", new Dictionary<string, int>());
+        var ordinaryDamageProbe = new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
+            "造成6点伤害。", new Dictionary<string, int>(), RequiresSingleTarget: true);
+        var ostyHpModifierProbe = new GeneratorOperation("NCR:OstyCurrentHpBonusDamage", OperationScope.Modifier,
+            "额外造成等同于奥斯提当前生命值的伤害。", new Dictionary<string, int>());
+        if (!GeneratedCardTagPolicy.IsOstyAttackCard([ostyDamageProbe])
+            || GeneratedCardTagPolicy.IsOstyAttackCard([ordinaryDamageProbe, ostyHpModifierProbe])
+            || !GeneratedCardTagPolicy.NormalizeOperationDerivedTags([], [ostyDamageProbe])
+                .Contains(CardTag.OstyAttack)
+            || !GeneratedCardTagPolicy.NormalizeOperationDerivedTags([CardTag.OstyAttack],
+                    [ordinaryDamageProbe, ostyHpModifierProbe])
+                .Contains(CardTag.OstyAttack))
+            throw new InvalidOperationException("奥斯提攻击标签没有从实际的奥斯提伤害组件统一派生。 ");
         if (!CardEffectRules.RequiresLivingOstyForCurrentPlay([ostyDamageProbe])
             || CardEffectRules.RequiresLivingOstyForCurrentPlay([summonProbe, ostyDamageProbe])
             || !CardEffectRules.RequiresLivingOstyForCurrentPlay([ostyDamageProbe, summonProbe])
@@ -1953,6 +1986,20 @@ public static class GeneratorSelfTest
         if (legacyMarkerUpgrade[0].ChineseText != zeroCostFilter.ChineseText)
             throw new InvalidOperationException("旧版0费筛选升级没有被兼容层忽略。");
 
+        var infernalBladeAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes
+            .Single(recipe => recipe.Id == "InfernalBlade").Atoms.Single();
+        var infernalBladeGeneration = new GeneratorOperation(infernalBladeAtom.Template,
+            infernalBladeAtom.Scope, string.Empty, new Dictionary<string, int>(),
+            RequiresSingleTarget: infernalBladeAtom.RequiresSingleTarget,
+            RuntimeSpec: infernalBladeAtom.RuntimeSpec
+                         ?? throw new InvalidOperationException("Infernal Blade catalog atom has no RuntimeSpec."));
+        var staleInfernalBladeUpgrade = CardUpgradeGenerator.ApplyEffectsToOperations([infernalBladeGeneration],
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 1, ValueSlotId: "cost_marker")]);
+        if (!CardEffectRules.IsNonUpgradeableNumericMarker(infernalBladeGeneration)
+            || OperationRuntimeSpecCompiler.UpgradeValueSlot(infernalBladeGeneration) is not null
+            || OperationRuntimeSpecCompiler.StaticLiteralValue(staleInfernalBladeUpgrade[0], "cost_marker", -1) != 0)
+            throw new InvalidOperationException("地狱之刃同款的本回合0费标记被错误当作可升级数值。");
+
         _ = CharacterComponentCatalogs.Get(GeneratedCharacter.Regent);
         var xThreshold = new GeneratorOperation("R:IfEnergyXAtLeast", OperationScope.Modifier,
             "如果X至少为4，", new Dictionary<string, int>());
@@ -2318,6 +2365,30 @@ public static class GeneratorSelfTest
                 $"诅咒彩蛋未按严重度、数量或重复触发频率获得额外负面预算："
                 + $"ordinary={ordinaryCurseValue}, severe={severeCurseValue}, extreme={extremeCurseValue}, "
                 + $"fill={fillCurseValue}, repeated={repeatedCurseValue}, multiplier={curseMultiplier}。 ");
+        var twoNegativeCardsAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Defect).Recipes
+            .Single(recipe => recipe.Id == "FightThrough").Atoms
+            .Single(atom => atom.Template == "D:CreateTwoWoundsInDiscard");
+        var twoGuilty = new GeneratorOperation(twoNegativeCardsAtom.Template,
+            twoNegativeCardsAtom.Scope, string.Empty, new Dictionary<string, int>(),
+            RequiresSingleTarget: twoNegativeCardsAtom.RequiresSingleTarget,
+            DerivativeId: "curse_guilty", RuntimeSpec: twoNegativeCardsAtom.RuntimeSpec,
+            LocalizedText: twoNegativeCardsAtom.LocalizedText);
+        var twoGuiltyCard = new GeneratedCard(1, GeneratedCardType.Skill, TargetMode.Other,
+            GeneratedRarity.Uncommon, CardDescriptionRenderer.Render([ordinaryBlock, twoGuilty]), [],
+            [ordinaryBlock, twoGuilty], Character: GeneratedCharacter.Defect);
+        var twoGuiltyUpgrades = Enumerable.Range(0, 500)
+            .Select(seed => CardUpgradeGenerator.Generate(twoGuiltyCard, new Random(seed))).ToArray();
+        var legacyGuiltyIncrease = CardUpgradeGenerator.ApplyEffectsToOperations([twoGuilty],
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 1)]);
+        if (!CardEffectRules.IsReducibleNegativeNumber(twoGuilty)
+            || twoGuiltyUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
+                effect.OperationIndex == 1 && effect.Kind == CardUpgradeKind.IncreaseNumber))
+            || !twoGuiltyUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
+                effect.OperationIndex == 1 && effect.Kind == CardUpgradeKind.ReduceNegativeNumber
+                    && effect.Delta == -1))
+            || OperationRuntimeSpecCompiler.PrimaryStaticLiteralValue(legacyGuiltyIncrease[0]) != 2)
+            throw new InvalidOperationException(
+                "诅咒牌生成数量必须作为可降低的负面数值，旧快照中的错误+数量升级必须失效。 ");
         var allDerivatives = DerivativeSlotCatalog.All.Count(definition =>
             !DerivativeSlotCatalog.IsStatus(definition) && !DerivativeSlotCatalog.IsCurse(definition));
         if (DerivativeSlotCatalog.Candidates(GeneratedCharacter.Ironclad, true, "I:Transform").Count != allDerivatives)
@@ -2443,6 +2514,10 @@ public static class GeneratorSelfTest
                         if (startingCards.Count(StartingPoolConstraintResolver.IsHighResourceCard)
                             > StartingPoolConstraintResolver.MaximumHighResourceCards)
                             throw new InvalidOperationException("初始牌堆中高于1费或带蓝星耗费的牌超过2张。");
+                        if (character == GeneratedCharacter.Regent
+                            && startingCards.Count(StartingPoolConstraintResolver.ConsumesStars)
+                            > startingCards.Count(StartingPoolConstraintResolver.ProducesStars))
+                            throw new InvalidOperationException("储君初始牌堆中消耗蓝星的牌多于产出蓝星的牌。");
                     }
                     foreach (var operation in cards.SelectMany(card => card.Operations))
                     {
@@ -2477,6 +2552,21 @@ public static class GeneratorSelfTest
             if (!resolved)
                 throw new InvalidOperationException($"{character}/Ultimate={ultimate} 无法生成满足衍生物供需约束的完整卡池。");
         }
+        var fallbackGenerator = new RandomCardGenerator(GeneratedCharacter.Regent, 0x51A7);
+        var blockFallback = fallbackGenerator.CreateRegentStartingCoverageFallback(damage: false);
+        var damageFallback = fallbackGenerator.CreateRegentStartingCoverageFallback(damage: true);
+        if (blockFallback is not { Cost: 0, StarCost: 1, Type: GeneratedCardType.Skill }
+            || !StartingPoolConstraintResolver.CountsAsDefense(blockFallback)
+            || OperationRuntimeSpecCompiler.GetOrCompile(blockFallback.Operations.Single()).Values
+                .Single(value => value.Id == "block").BaseValue != 7
+            || blockFallback.Upgrade?.Effects.Count is not > 0
+            || damageFallback is not { Cost: 0, StarCost: 1, Type: GeneratedCardType.Attack,
+                Target: TargetMode.SingleEnemy }
+            || !StartingPoolConstraintResolver.CountsAsDamage(damageFallback)
+            || OperationRuntimeSpecCompiler.GetOrCompile(damageFallback.Operations.Single()).Values
+                .Single(value => value.Id == "damage").BaseValue != 8
+            || damageFallback.Upgrade?.Effects.Count is not > 0)
+            throw new InvalidOperationException("储君初始牌攻防兜底模板或其自动升级方案不正确。");
         RandomCardGenerator? generator = null;
         var ironcladNames = new HashSet<string>(StringComparer.Ordinal);
         var ironcladEffects = new HashSet<string>(StringComparer.Ordinal);
@@ -3018,6 +3108,22 @@ public static class GeneratorSelfTest
             || !EnglishCardDescriptionRenderer.OperationText(upgradedRandomGeneration)
                 .Contains("random upgraded Attack", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("随机生成牌的升级选项没有同步更新中英文操作文本。");
+        var freeRandomAttackGeneration = new GeneratorOperation("I:Create", OperationScope.Independent,
+            "将一张随机攻击牌加入手牌。其本回合费用为0。", new Dictionary<string, int>());
+        var upgradedFreeRandomAttack = CardUpgradeGenerator.ApplyEffectsToOperations(
+            [freeRandomAttackGeneration], [randomGenerationUpgrade])[0];
+        if (CardTextStyle.Chinese(upgradedFreeRandomAttack)
+                != "将一张升级过的随机攻击牌加入你的手牌。该牌在本回合内可以免费打出。"
+            || !EnglishCardDescriptionRenderer.OperationText(upgradedFreeRandomAttack)
+                .Contains("played for free this turn", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("随机攻击牌升级后破坏了免费打出的规范描述。");
+        var replayPayoffUpgrade = new GeneratorOperation("D:ReplayEventCard", OperationScope.NonTargeted,
+            "将该牌额外打出1次。", new Dictionary<string, int>());
+        var upgradedReplayPayoff = CardUpgradeGenerator.ApplyEffectsToOperations(
+            [replayPayoffUpgrade],
+            [new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 4, ValueSlotId: "amount")])[0];
+        if (OperationRuntimeSpecCompiler.FixedValue(upgradedReplayPayoff, "amount", 0) != 5)
+            throw new InvalidOperationException("每回合首牌的额外打出次数没有遵从结构化升级值。");
         var currentCharacterGeneration = new GeneratorOperation("N:CreateCurrentCharacterCardInHand",
             OperationScope.NonTargeted, "将一张当前角色的随机牌加入手牌。", new Dictionary<string, int>());
         var upgradedCurrentCharacterGeneration = CardUpgradeGenerator.ApplyEffectsToOperations(
@@ -3064,6 +3170,18 @@ public static class GeneratorSelfTest
         if (!CardEffectRules.WouldDuplicateCardUniqueEffect([duplicateNoDrawProbe[0]], noDrawCandidate)
             || CardEffectRules.WouldDuplicateCardUniqueEffect([distinctCardUniqueProbe[1]], noDrawCandidate))
             throw new InvalidOperationException("整卡唯一效果没有在候选组件进入数值与预算流程之前正确拒绝重复。 ");
+        var drawToFullHand = new GeneratorOperation("CL:DrawToFullHand", OperationScope.Independent,
+            "抽牌直到抽满手牌。", new Dictionary<string, int>());
+        var drawToFullHandAtom = new ComponentAtom("CL:DrawToFullHand", OperationScope.Independent,
+            "抽牌直到抽满手牌。", false, CardReferenceRequirement.None);
+        var ordinaryDraw = new GeneratorOperation("N:Draw", OperationScope.NonTargeted,
+            "抽2张牌。", new Dictionary<string, int>());
+        if (drawToFullHandAtom.Multiplicity != ComponentMultiplicity.SinglePerCard
+            || CardEffectRules.HasValidDrawToFullHandAssembly([drawToFullHand, drawToFullHand])
+            || CardEffectRules.HasValidDrawToFullHandAssembly([drawToFullHand, ordinaryDraw])
+            || !CardEffectRules.HasValidDrawToFullHandAssembly([drawToFullHand])
+            || !CardEffectRules.WouldConflictWithDrawToFullHand([ordinaryDraw], drawToFullHandAtom))
+            throw new InvalidOperationException("抽满手牌必须整卡单例，且不能与任何其他抽牌效果共存。");
         var retainHandAtom = new ComponentAtom("A:ruleRetainHand", OperationScope.AbilityRule,
             "在你的回合结束时，不再丢弃你的手牌。", false, CardReferenceRequirement.None);
         var kingsSwordHitsAllAtom = new ComponentAtom("R:KingsSwordHitsAllEnemies", OperationScope.AbilityRule,
@@ -3171,6 +3289,11 @@ public static class GeneratorSelfTest
         var linkedTurnEndTemporaryStrength = new GeneratorOperation("N:TempStrength",
             OperationScope.NonTargeted, "本回合获得2点力量。",
             new Dictionary<string, int> { ["amount"] = 2, ["triggerIndex"] = 0 });
+        var linkedTurnEndAutoplay = new GeneratorOperation("D:AutoPlayRandomAttackFromDraw",
+            OperationScope.NonTargeted, "随机打出你的抽牌堆中的1张攻击牌。",
+            new Dictionary<string, int> { ["amount"] = 1, ["triggerIndex"] = 0 });
+        var linkedTurnEndChoice = new GeneratorOperation("N:Discard", OperationScope.NonTargeted,
+            "丢弃1张牌。", new Dictionary<string, int> { ["amount"] = 1, ["triggerIndex"] = 0 });
         var doubleVulnerableAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Recipes
             .Single(recipe => recipe.Id == "MoltenFist").Atoms
             .Single(CardEffectRules.IsDoubleTargetVulnerable);
@@ -3217,6 +3340,12 @@ public static class GeneratorSelfTest
             || !CardEffectRules.HasNoTurnEndTurnLocalPayoffs(
                 [turnStartTrigger, linkedTurnEndTemporaryStrength]))
             throw new InvalidOperationException("回合结束触发器仍允许仅持续本回合的后续效果。");
+        if (CardEffectRules.HasNoTurnEndChoiceOrAutoplayPayoffs([turnEndTrigger, linkedTurnEndChoice])
+            || !CardEffectRules.HasNoTurnEndChoiceOrAutoplayPayoffs(
+                [turnStartTrigger, linkedTurnEndChoice])
+            || !CardEffectRules.HasNoTurnEndChoiceOrAutoplayPayoffs(
+                [turnEndTrigger, linkedTurnEndAutoplay]))
+            throw new InvalidOperationException("回合结束触发器仍允许直接选牌，或错误禁止了原版自动打牌组合。");
         if (EffectSelectionTuning.RepeatedFamilyWeightBasisPoints([blockAtom], []) != 10_000
             || EffectSelectionTuning.RepeatedFamilyWeightBasisPoints([blockAtom],
                 repeatedFieldProbe.Take(1).ToArray()) != 2_000
@@ -3240,6 +3369,12 @@ public static class GeneratorSelfTest
             || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
                 [new ComponentAtom("M:repeat", OperationScope.Modifier, string.Empty, false,
                     CardReferenceRequirement.None)]) != 180
+            || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
+                [new ComponentAtom("D:AutoPlayRandomAttackFromDraw", OperationScope.NonTargeted,
+                    string.Empty, false, CardReferenceRequirement.None)]) != 195
+            || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
+                [new ComponentAtom("M:value", OperationScope.Modifier,
+                    string.Empty, false, CardReferenceRequirement.None)]) != 150
             || EffectSelectionTuning.PowerAuxiliaryWeight([damageAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([temporaryStrengthAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([energyGainAtom], GeneratedCardType.Power, []) != 100
@@ -3879,6 +4014,11 @@ public static class GeneratorSelfTest
             Parameters = new Dictionary<string, int> { ["triggerIndex"] = 1 }
         };
         var oneTurnDrawTrigger = twoTurnDrawTrigger with { ChineseText = "在接下来的1个回合开始时。" };
+        var postPlayFutureDrawTrigger = new GeneratorOperation("C:untilTurnEndCardDrawn",
+            OperationScope.ConditionalTrigger, "打出此牌后，你在本回合每抽到一张牌。",
+            new Dictionary<string, int>());
+        var postPlayFutureDrawPayoff = new GeneratorOperation("N:Block", OperationScope.NonTargeted,
+            "获得4点格挡。", new Dictionary<string, int> { ["triggerIndex"] = 0 });
         if (CardEffectRules.HasValidPreventDrawOrdering([preventFurtherDraw, preventTestDraw])
             || !CardEffectRules.HasValidPreventDrawOrdering([preventTestDraw, preventFurtherDraw])
             || !CardEffectRules.HasValidPreventDrawOrdering(
@@ -3886,8 +4026,13 @@ public static class GeneratorSelfTest
             || !CardEffectRules.HasValidPreventDrawOrdering(
                 [preventFurtherDraw, twoTurnDrawTrigger, twoTurnTriggeredDraw])
             || CardEffectRules.HasValidPreventDrawOrdering(
-                [preventFurtherDraw, oneTurnDrawTrigger, twoTurnTriggeredDraw]))
-            throw new InvalidOperationException("禁抽组件之后错误地接受了即时抽牌，或拒绝了真正跨多回合的抽牌触发。 ");
+                [preventFurtherDraw, oneTurnDrawTrigger, twoTurnTriggeredDraw])
+            || CardEffectRules.HasValidPreventDrawOrdering(
+                [postPlayFutureDrawTrigger, postPlayFutureDrawPayoff, preventFurtherDraw])
+            || CardEffectRules.HasValidPreventDrawOrdering(
+                [preventFurtherDraw, postPlayFutureDrawTrigger, postPlayFutureDrawPayoff]))
+            throw new InvalidOperationException(
+                "禁抽组件错误地接受了即时/当回合后续抽牌效果，或拒绝了真正跨多回合的抽牌触发。 ");
 
         var exhaustAllHand = new GeneratorOperation("N:Exhaust", OperationScope.NonTargeted,
             "消耗所有手牌。", new Dictionary<string, int>());
@@ -4347,6 +4492,25 @@ public static class GeneratorSelfTest
                 }
             }
         }
+
+        var powerPlayedTriggerAtom = defectCatalog.Recipes.Single(recipe => recipe.Id == "Storm")
+            .Atoms.Single(atom => atom.Template == "A:whenPowerPlayed");
+        var zeroCostAttackTriggerAtom = defectCatalog.Recipes.Single(recipe => recipe.Id == "Feral")
+            .Atoms.Single(atom => atom.Template == "A:firstZeroCostAttackPlayedEachTurn");
+        var returnEventCardAtom = defectCatalog.Recipes.Single(recipe => recipe.Id == "Feral")
+            .Atoms.Single(atom => atom.Template == "D:ReturnEventCardToHand");
+        GeneratorOperation TriggerOperation(ComponentAtom atom) => new(atom.Template, atom.Scope,
+            string.Empty, new Dictionary<string, int>(),
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom));
+        var returnPlayedCard = new GeneratorOperation(returnEventCardAtom.Template, returnEventCardAtom.Scope,
+            string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 },
+            RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(returnEventCardAtom));
+        if (CardEffectRules.HasNoPlayedPowerMovementPayoffs(
+                [TriggerOperation(powerPlayedTriggerAtom), returnPlayedCard])
+            || !CardEffectRules.HasNoPlayedPowerMovementPayoffs(
+                [TriggerOperation(zeroCostAttackTriggerAtom), returnPlayedCard]))
+            throw new InvalidOperationException(
+                "能力牌打出触发器仍可移动刚打出的能力牌，或误伤了普通引用牌回手组件。");
 
         var juggling = catalog.Recipes.Single(recipe => recipe.Id == "Juggling");
         var referencedCardCopy = juggling.Atoms.Single(atom => atom.Template == "N:Create");

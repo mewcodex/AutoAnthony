@@ -6480,8 +6480,7 @@
         "Flags": [
           "count_unit_reference",
           "damage_budget_effect",
-          "has_numeric_literal",
-          "static_extra_damage_hits"
+          "has_numeric_literal"
         ],
         "Values": [
           {

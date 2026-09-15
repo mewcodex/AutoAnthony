@@ -247,7 +247,7 @@ public static class DerivativePoolConstraintResolver
         ? 2
         : SpecialXCardConverter.IsOrdinaryX(card) ? 1 : 0;
 
-    private static GeneratedCard RefreshDescriptions(GeneratedCard card)
+    internal static GeneratedCard RefreshDescriptions(GeneratedCard card)
     {
         var upgrade = card.Upgrade;
         if (upgrade is not null)
@@ -340,7 +340,7 @@ public static class DerivativePoolConstraintResolver
         return result;
     }
 
-    private static GeneratedCard Rebind(GeneratedCard card, int operationIndex,
+    internal static GeneratedCard Rebind(GeneratedCard card, int operationIndex,
         DerivativeSlotDefinition selected)
     {
         var operations = card.Operations.ToArray();

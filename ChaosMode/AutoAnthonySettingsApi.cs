@@ -8,6 +8,7 @@ public sealed record AutoAnthonySettingsSnapshot(
     bool Enabled,
     bool NumericBalanceOptimization,
     bool NumericRandomMode,
+    bool BiweeklyBalanceAdjustments,
     bool UltimateChaos,
     bool ReplaceStartingCards,
     bool PreserveOriginalCards,
@@ -41,12 +42,13 @@ public sealed record AutoAnthonySettingsSnapshot(
 /// </summary>
 public static class AutoAnthonySettingsApi
 {
-    public const int ApiVersion = 4;
+    public const int ApiVersion = 5;
 
     public static AutoAnthonySettingsSnapshot Current => new(
         ChaosModSettings.Enabled,
         ChaosModSettings.NumericBalanceOptimization,
         ChaosModSettings.NumericRandomMode,
+        ChaosModSettings.BiweeklyBalanceAdjustments,
         ChaosModSettings.UltimateChaos,
         ChaosModSettings.ReplaceStartingCards,
         ChaosModSettings.PreserveOriginalCards,

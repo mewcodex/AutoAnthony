@@ -68,6 +68,12 @@ public sealed class ChaosPoolSnapshotModifier : ModifierModel
     [SavedProperty]
     public bool MultiplayerRandomCardArt { get; set; }
 
+    [SavedProperty]
+    public bool MultiplayerBiweeklyBalanceAdjustmentsSpecified { get; set; }
+
+    [SavedProperty]
+    public bool MultiplayerBiweeklyBalanceAdjustments { get; set; }
+
     // New-run lobbies carry only this compact gameplay checksum. Live saves still persist the complete pool
     // snapshot, but sending that snapshot through LobbyBeginRunMessage became unsafe once structured runtime
     // specifications increased it beyond 150 KB. Every peer deterministically builds the same six pools and
@@ -100,7 +106,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.16";
+    public const string ModVersion = "0.3.94";
     private const int SchemaVersion = 10;
     // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
     // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay
@@ -1663,6 +1669,8 @@ public static class ChaosPoolSnapshot
         carrier.MultiplayerPreserveOriginalCards = true;
         carrier.MultiplayerRandomCardArtSpecified = true;
         carrier.MultiplayerRandomCardArt = true;
+        carrier.MultiplayerBiweeklyBalanceAdjustmentsSpecified = true;
+        carrier.MultiplayerBiweeklyBalanceAdjustments = true;
         carrier.MultiplayerGenerationFingerprint = gameplayFingerprint;
         var serializedCarrier = carrier.ToSerializable();
         var packetWriter = new PacketWriter { WarnOnGrow = false };
@@ -1674,7 +1682,9 @@ public static class ChaosPoolSnapshot
             || !restoredCarrier.MultiplayerAddGeneratedCardsSpecified
             || !restoredCarrier.MultiplayerAddGeneratedCards
             || !restoredCarrier.MultiplayerRandomCardArtSpecified
-            || !restoredCarrier.MultiplayerRandomCardArt)
+            || !restoredCarrier.MultiplayerRandomCardArt
+            || !restoredCarrier.MultiplayerBiweeklyBalanceAdjustmentsSpecified
+            || !restoredCarrier.MultiplayerBiweeklyBalanceAdjustments)
             throw new InvalidOperationException(
                 $"The lightweight multiplayer generation carrier failed round-trip validation ({packetWriter.BytePosition} bytes).");
         Log.Info($"[AutoAnthony] Lightweight multiplayer carrier audit: fingerprint={gameplayFingerprint}, bytes={packetWriter.BytePosition}.");

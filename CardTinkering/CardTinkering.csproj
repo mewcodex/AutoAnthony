@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>AutoAnthonyCardTinkering</AssemblyName>
+    <RootNamespace>AutoAnthonyCardTinkering</RootNamespace>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputPath>bin\$(Configuration)\net9.0\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == '' And Exists('F:\SteamLibrary\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll')">F:\SteamLibrary\steamapps\common\Slay the Spire 2</Sts2GameDir>
+    <Sts2LibDir>$(Sts2GameDir)\data_sts2_windows_x86_64</Sts2LibDir>
+    <EnableFreeformApi Condition="'$(EnableFreeformApi)' == ''">true</EnableFreeformApi>
+    <DefineConstants Condition="'$(EnableFreeformApi)' == 'true'">$(DefineConstants);FREEFORM_API</DefineConstants>
+  </PropertyGroup>
+  <Target Name="VerifyStsGameDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(Sts2GameDir)' == '' Or !Exists('$(Sts2LibDir)\sts2.dll')"
+           Text="STS2 install not found. Set STS2_GAME_DIR or pass /p:Sts2GameDir=..." />
+  </Target>
+  <ItemGroup>
+    <Reference Include="sts2"><HintPath>$(Sts2LibDir)\sts2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(Sts2LibDir)\GodotSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Sts2LibDir)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <ProjectReference Include="..\ChaosMode\ChaosMode.csproj" Private="false" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(EnableFreeformApi)' != 'true'">
+    <Compile Remove="FreeformEditorOverlay.cs;FreeformSession.cs;FreeformSettings.cs" />
+  </ItemGroup>
+</Project>

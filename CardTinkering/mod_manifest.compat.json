@@ -1,0 +1,14 @@
+{
+  "id": "AutoAnthonyCardTinkering",
+  "name": "Auto-Anthonyology: Card Tinkering",
+  "author": "Alriph",
+  "description": "Adds Noita-inspired Training Rooms before each Boss and optional out-of-combat editing from the deck screen.",
+  "version": "0.8.19",
+  "min_game_version": "0.111.0",
+  "has_pck": false,
+  "has_dll": true,
+  "dependencies": [
+    { "id": "AutoAnthony", "min_version": "0.3.94" }
+  ],
+  "affects_gameplay": true
+}

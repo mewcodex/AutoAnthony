@@ -148,7 +148,7 @@ internal static class EffectBalanceModel
             ?.BaseValue ?? 1, 1, 8);
 
         if (PercentageValueTuning.TryEstimate(spec, out var percentageValue)) return percentageValue;
-        if (TryEstimateReplayValue(atom, first, hits, out var replayValue)) return replayValue;
+        if (TryEstimateReplayValue(atom, first, out var replayValue)) return replayValue;
         // These scarce rule effects are complete card-sized mechanics, not generic one-point status lines.
         // Explicit prices keep them out of cheap filler slots while their separate occurrence prior preserves a
         // small reconstruction path at every rarity.
@@ -1299,23 +1299,23 @@ internal static class EffectBalanceModel
     /// sit around a full strong card line per additional play; whole-card valuation separately multiplies a
     /// linked payoff by its trigger cadence.
     /// </summary>
-    private static bool TryEstimateReplayValue(ComponentAtom atom, int first, int hits, out int value)
+    private static bool TryEstimateReplayValue(ComponentAtom atom, int first, out int value)
     {
         value = atom.Template switch
         {
             // Decisions, Decisions plays the selected Skill this many times for free, including its first play.
             // Decisions, Decisions pays three Energy-equivalent Stars, Exhausts, and uses most of the card on
             // this action. One selected free Skill is worth materially more than an ordinary damage line.
-            "R:PlaySelectedSkillMultipleTimes" => hits * 1_400,
+            "R:PlaySelectedSkillMultipleTimes" => Math.Max(1, first) * 1_400,
             // Playing an unknown Attack from hand is worth roughly one and a half ordinary Energy per card: the
             // card itself and its printed cost are both supplied, with randomness discounting target/control.
             "I:AutoPlayRandomAttackFromHand" =>
                 Math.Clamp(first, 1, 5) * RandomHandAttackAutoplayValue,
-            "I:ReplayNextSkills" => Math.Clamp(first, 1, 4) * 1_100,
-            "I:ReplayAttack" => Math.Clamp(hits, 1, 4) * 1_100,
+            "I:ReplayNextSkills" => Math.Max(1, first) * 1_100,
+            "I:ReplayAttack" => Math.Max(1, first) * 1_100,
             // Echo Form's per-turn payoff is multiplied by its first-card trigger in card-level valuation.
-            "D:ReplayEventCard" => 1_280,
-            "CL:ProxyAtomic_HiddenGem" => Math.Clamp(first, 1, 4) * 1_100,
+            "D:ReplayEventCard" => Math.Max(1, first) * 1_280,
+            "CL:ProxyAtomic_HiddenGem" => Math.Max(1, first) * 1_100,
             "I:ProxyAtomic_SignalBoost" => 1_500,
             "A:ProxyAtomic_SwordSage" => Math.Max(1, first) * 2_150,
             // Transfigure bundles a powerful permanent Replay grant with a +1-cost tradeoff.
@@ -1323,7 +1323,7 @@ internal static class EffectBalanceModel
             _ when OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("replay_reference") =>
                 Math.Max(1_100, first * 1_100),
             _ when OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("extra_play_reference") =>
-                Math.Max(1_100, hits * 1_100),
+                Math.Max(1_100, first * 1_100),
             _ => 0
         };
         return value > 0;
@@ -2336,7 +2336,7 @@ internal static class EffectBalanceModel
         if (CardEffectRules.IsDependencyPrefix(operation) || CardEffectRules.IsNegativeEffect(operation)) return true;
         if (operation.Template is "CL:IncreaseRollingDamage" or "M:RepeatAreaOnKill"
             or "NCR:OstyCurrentHpBonusDamage" or "NCR:OstyMaxHpBonusDamage"
-            or "NCR:DoomPerDoomThreshold" or "R:DoubleEnergyX"
+            or "NCR:DoomPerDoomThreshold" or "NCR:RepeatPerOstyAttackThisTurn" or "R:DoubleEnergyX"
             or "R:DoubleEitherXAtThreshold" or "M:TriggeredAttackDamagePercent") return true;
         if (CardEffectRules.IsCurrentBlockDamageModifier(operation)
             || CardEffectRules.IsDynamicTotalHitModifier(operation)
@@ -2632,6 +2632,10 @@ internal static class EffectBalanceModel
             "选择手牌中的一张技能牌，将其打出5次。", false, CardReferenceRequirement.HandCard);
         var replayTwoSkills = new ComponentAtom("I:ReplayNextSkills", OperationScope.Independent,
             "在本回合，你打出的下2张技能牌会被额外打出一次。", false, CardReferenceRequirement.None);
+        var replayFirstCardFiveTimes = new ComponentAtom("D:ReplayEventCard", OperationScope.NonTargeted,
+            "将该牌额外打出5次。", false, CardReferenceRequirement.None);
+        var replayNextAttackThreeTimes = new ComponentAtom("I:ReplayAttack", OperationScope.Independent,
+            "将该攻击牌额外打出3次。", false, CardReferenceRequirement.None);
         var hiddenGem = new ComponentAtom("CL:ProxyAtomic_HiddenGem", OperationScope.Independent,
             "你抽牌堆中的一张没有重放的随机牌获得2层重放。", false, CardReferenceRequirement.None);
         var forge = new ComponentAtom("R:Forge", OperationScope.NonTargeted,
@@ -2738,6 +2742,8 @@ internal static class EffectBalanceModel
             || EstimatedEffectValue(twoLightning) != 1_000
             || EstimatedEffectValue(playSkillFiveTimes) != 7_000
             || EstimatedEffectValue(replayTwoSkills) != 2_200
+            || EstimatedEffectValue(replayFirstCardFiveTimes) != 6_400
+            || EstimatedEffectValue(replayNextAttackThreeTimes) != 3_300
             || EstimatedEffectValue(hiddenGem) != 2_200
             || EstimatedEffectValue(forge) != 700
             || EstimatedEffectValue(extraHits) != 2_000

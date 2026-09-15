@@ -62,6 +62,7 @@ API 只依赖稳定的 ASCII 标识符和结构化运行数据，不要求 BaseL
 
 - `ChaosMode/`：游戏运行时、解释器、存档、设置和 Harmony 补丁。
 - `ChaosCardGenerator/`：独立生成器、平衡模型、组件目录、升级逻辑和审计逻辑。
+- `CardTinkering/`：可选卡牌编辑衍生模组源码及其东尼算法接口适配。
 - `ApiContractSmoke/`：以外部模组身份编译的 API 契约测试。
 - `scripts/`：目录、执行、本地化边界和数值估值审计脚本。
 - `*_unit_operations.md`：经人工审核并嵌入生成器的双语组件拆解数据。

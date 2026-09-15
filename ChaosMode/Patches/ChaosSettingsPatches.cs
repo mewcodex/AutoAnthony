@@ -15,7 +15,7 @@ namespace AutoAnthony.Patches;
 
 internal static class ChaosSettingsToggle
 {
-    internal enum Kind { None, Enabled, AddGeneratedCards, ReplaceStartingCards, PreserveOriginalCards, DecomposeOriginalCards, UltimateChaos, NumericBalanceOptimization, NumericRandomMode, AnytimeCardEditing, RandomCardArt, GenerationModeHoverTips, CardInternalIds, SurpriseMode, SurpriseModeLite, SurpriseModePro }
+    internal enum Kind { None, Enabled, AddGeneratedCards, ReplaceStartingCards, PreserveOriginalCards, DecomposeOriginalCards, UltimateChaos, NumericBalanceOptimization, NumericRandomMode, BiweeklyBalanceAdjustments, AnytimeCardEditing, RandomCardArt, GenerationModeHoverTips, CardInternalIds, SurpriseMode, SurpriseModeLite, SurpriseModePro }
 
     internal const string GroupLineName = "AutoAnthonySettingsGroup";
     internal const string GroupButtonName = "AutoAnthonySettingsGroupButton";
@@ -25,6 +25,7 @@ internal static class ChaosSettingsToggle
     internal const string UltimateChaosLineName = "AutoAnthonyUltimateChaos";
     internal const string NumericBalanceOptimizationLineName = "AutoAnthonyNumericBalanceOptimization";
     internal const string NumericRandomModeLineName = "AutoAnthonyNumericRandomMode";
+    internal const string BiweeklyBalanceAdjustmentsLineName = "AutoAnthonyBiweeklyBalanceAdjustments";
     internal const string PreserveOriginalCardsLineName = "AutoAnthonyPreserveOriginalCards";
     internal const string DecomposeOriginalCardsLineName = "AutoAnthonyDecomposeOriginalCards";
     internal const string AnytimeCardEditingLineName = "AutoAnthonyAnytimeCardEditing";
@@ -45,6 +46,7 @@ internal static class ChaosSettingsToggle
     internal static NFastModeTickbox? UltimateChaosInstance { get; set; }
     internal static NFastModeTickbox? NumericBalanceOptimizationInstance { get; set; }
     internal static NFastModeTickbox? NumericRandomModeInstance { get; set; }
+    internal static NFastModeTickbox? BiweeklyBalanceAdjustmentsInstance { get; set; }
     internal static NFastModeTickbox? PreserveOriginalCardsInstance { get; set; }
     internal static NFastModeTickbox? DecomposeOriginalCardsInstance { get; set; }
     internal static NFastModeTickbox? AnytimeCardEditingInstance { get; set; }
@@ -61,6 +63,7 @@ internal static class ChaosSettingsToggle
 
     internal static readonly string[] OptionLineNames =
     [EnabledLineName, NumericCategoryLineName, NumericBalanceOptimizationLineName, NumericRandomModeLineName,
+        BiweeklyBalanceAdjustmentsLineName,
         PoolCategoryLineName, UltimateChaosLineName, AddGeneratedCardsLineName, PreserveOriginalCardsLineName,
         DecomposeOriginalCardsLineName,
         ReplaceStartingCardsLineName,
@@ -91,6 +94,10 @@ internal static class ChaosSettingsToggle
         if (instance == NumericRandomModeInstance || instance.Name.ToString() == NumericRandomModeLineName
             || lineName == NumericRandomModeLineName)
             return Kind.NumericRandomMode;
+        if (instance == BiweeklyBalanceAdjustmentsInstance
+            || instance.Name.ToString() == BiweeklyBalanceAdjustmentsLineName
+            || lineName == BiweeklyBalanceAdjustmentsLineName)
+            return Kind.BiweeklyBalanceAdjustments;
         if (instance == PreserveOriginalCardsInstance || instance.Name.ToString() == PreserveOriginalCardsLineName
             || lineName == PreserveOriginalCardsLineName)
             return Kind.PreserveOriginalCards;
@@ -130,6 +137,7 @@ internal static class ChaosSettingsToggle
         Kind.UltimateChaos => ChaosModSettings.UltimateChaos,
         Kind.NumericBalanceOptimization => ChaosModSettings.NumericBalanceOptimization,
         Kind.NumericRandomMode => ChaosModSettings.NumericRandomMode,
+        Kind.BiweeklyBalanceAdjustments => ChaosModSettings.BiweeklyBalanceAdjustments,
         Kind.PreserveOriginalCards => ChaosModSettings.PreserveOriginalCards,
         Kind.DecomposeOriginalCards => ChaosModSettings.DecomposeOriginalCards,
         Kind.AnytimeCardEditing => ChaosModSettings.AnytimeCardEditing,
@@ -144,7 +152,8 @@ internal static class ChaosSettingsToggle
 
     internal static bool AppliesNextRun(Kind kind) => kind is
         Kind.Enabled or Kind.AddGeneratedCards or Kind.ReplaceStartingCards or Kind.PreserveOriginalCards or Kind.UltimateChaos
-        or Kind.NumericBalanceOptimization or Kind.NumericRandomMode or Kind.RandomCardArt;
+        or Kind.NumericBalanceOptimization or Kind.NumericRandomMode or Kind.BiweeklyBalanceAdjustments
+        or Kind.RandomCardArt;
 
     internal static void SetValue(Kind kind, bool value)
     {
@@ -156,6 +165,7 @@ internal static class ChaosSettingsToggle
             case Kind.UltimateChaos: ChaosModSettings.UltimateChaos = value; break;
             case Kind.NumericBalanceOptimization: ChaosModSettings.NumericBalanceOptimization = value; break;
             case Kind.NumericRandomMode: ChaosModSettings.NumericRandomMode = value; break;
+            case Kind.BiweeklyBalanceAdjustments: ChaosModSettings.BiweeklyBalanceAdjustments = value; break;
             case Kind.PreserveOriginalCards: ChaosModSettings.PreserveOriginalCards = value; break;
             case Kind.DecomposeOriginalCards: ChaosModSettings.DecomposeOriginalCards = value; break;
             case Kind.AnytimeCardEditing: ChaosModSettings.AnytimeCardEditing = value; break;
@@ -184,6 +194,7 @@ internal static class ChaosSettingsToggle
             Kind.UltimateChaos => "AUTO_ANTHONY_ULTIMATE_CHAOS",
             Kind.NumericBalanceOptimization => "AUTO_ANTHONY_NUMERIC_BALANCE_OPTIMIZATION",
             Kind.NumericRandomMode => "AUTO_ANTHONY_NUMERIC_RANDOM_MODE",
+            Kind.BiweeklyBalanceAdjustments => "AUTO_ANTHONY_BIWEEKLY_BALANCE_ADJUSTMENTS",
             Kind.PreserveOriginalCards => "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS",
             Kind.DecomposeOriginalCards => "AUTO_ANTHONY_DECOMPOSE_ORIGINAL_CARDS",
             Kind.AnytimeCardEditing => "AUTO_ANTHONY_ANYTIME_CARD_EDITING",
@@ -301,6 +312,13 @@ internal static class ChaosSettingsScreenPatch
                 ChaosSettingsToggle.NumericRandomModeInstance = AddRow(content, source,
                     ChaosSettingsToggle.NumericRandomModeLineName, "AUTO_ANTHONY_NUMERIC_RANDOM_MODE",
                     insertionIndex + addedRows);
+                addedRows++;
+            }
+            if (content.GetNodeOrNull<Node>(ChaosSettingsToggle.BiweeklyBalanceAdjustmentsLineName) is null)
+            {
+                ChaosSettingsToggle.BiweeklyBalanceAdjustmentsInstance = AddRow(content, source,
+                    ChaosSettingsToggle.BiweeklyBalanceAdjustmentsLineName,
+                    "AUTO_ANTHONY_BIWEEKLY_BALANCE_ADJUSTMENTS", insertionIndex + addedRows);
                 addedRows++;
             }
             addedRows += AddCategoryIfMissing(content, source, ChaosSettingsToggle.PoolCategoryLineName,
@@ -689,6 +707,9 @@ internal static class UltimateChaosHoverTipPatch
                 ("AUTO_ANTHONY_NUMERIC_BALANCE_OPTIMIZATION", "AUTO_ANTHONY_NUMERIC_BALANCE_OPTIMIZATION_DESCRIPTION"),
             ChaosSettingsToggle.NumericRandomModeLineName =>
                 ("AUTO_ANTHONY_NUMERIC_RANDOM_MODE", "AUTO_ANTHONY_NUMERIC_RANDOM_MODE_DESCRIPTION"),
+            ChaosSettingsToggle.BiweeklyBalanceAdjustmentsLineName =>
+                ("AUTO_ANTHONY_BIWEEKLY_BALANCE_ADJUSTMENTS",
+                    "AUTO_ANTHONY_BIWEEKLY_BALANCE_ADJUSTMENTS_DESCRIPTION"),
             ChaosSettingsToggle.PreserveOriginalCardsLineName =>
                 ("AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS", "AUTO_ANTHONY_PRESERVE_ORIGINAL_CARDS_DESCRIPTION"),
             ChaosSettingsToggle.DecomposeOriginalCardsLineName =>

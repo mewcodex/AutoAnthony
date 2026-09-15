@@ -50,6 +50,7 @@ public abstract class ChaosCardModel : CardModel
     private string _editorPortraitSourceId = string.Empty;
     private string _editorPortraitVariantId = string.Empty;
     private string _editorPortraitVariantPath = string.Empty;
+    private string _balancePoolEntryId = string.Empty;
 
     protected abstract int Slot { get; }
     protected virtual GeneratedCharacter Character => GeneratedCharacter.Ironclad;
@@ -208,6 +209,16 @@ public abstract class ChaosCardModel : CardModel
     [SavedProperty] public int ResolvedSpecialXValue { get => _resolvedSpecialXValue; set { AssertMutable(); _resolvedSpecialXValue = value; } }
     internal int ResolvedEnergyXValue => _resolvedEnergyXValue;
     internal int ResolvedStarXValue => _resolvedStarXValue;
+    /// <summary>
+    /// Stable run-local identity for cards appended to the pool by a balance adjustment. Ordinary generated pool
+    /// cards leave this empty and continue to use their canonical model ID/slot as their pool identity.
+    /// </summary>
+    [SavedProperty]
+    public string BalancePoolEntryId
+    {
+        get => _balancePoolEntryId;
+        set { AssertMutable(); _balancePoolEntryId = value ?? string.Empty; }
+    }
 
     protected ChaosCardModel() : base(0, CardType.Skill, CardRarity.Common, TargetType.Self) { }
 
@@ -387,9 +398,29 @@ public abstract class ChaosCardModel : CardModel
         _ = EnergyCost;
         _ = Keywords;
         _ = BaseStarCost;
+        // Replacing a generated definition rebuilds the card-owned caches from its new component list. Reapply the
+        // already attached enchantment before the upgrade, matching CardModel.FromSerializable, so a balance rework
+        // preserves both the enchantment object and its actual keyword/value modification.
+        Enchantment?.ModifyCard();
         if (!IsUpgraded) return;
         OnUpgrade();
         FinalizeUpgradeInternal();
+    }
+
+    /// <summary>
+    /// Rebinds an existing deck instance to its shared run-pool slot after that slot was rebalanced. Per-instance
+    /// generated definitions are cleared, while upgrade level, enchantment and other card-instance state remain.
+    /// </summary>
+    internal void RebindToSharedPoolDefinition()
+    {
+        AssertMutable();
+        _tinkeredDefinition = null;
+        _tinkeredDefinitionPayload = string.Empty;
+        _freeformDefinition = null;
+        _freeformDefinitionPayload = string.Empty;
+        _freeformPortraitPath = string.Empty;
+        ClearEditorDefinition();
+        RebuildCachedCardState();
     }
 
     protected override int CanonicalEnergyCost => Math.Max(0, Generated.Cost);
@@ -594,6 +625,19 @@ public abstract class ChaosCardModel : CardModel
                         index, previewKind);
                 if (!ChaosOperationVariables.TryGetInitialValue(operation, out var value)) continue;
                 var name = ChaosOperationVariables.Name(operation, index);
+                if (Generated.Type == GeneratedCardType.Power && CardEffectRules.IsEnemyDamage(operation))
+                {
+                    // Native Power damage such as Inferno is a Power effect, not an Attack: Strength, Vigor,
+                    // Weak and Vulnerable neither change its panel value nor its eventual damage. Keep Osty's
+                    // dealer identity for Osty-specific previews, but retain the same Unpowered contract.
+                    yield return operation.Template is "NCR:OstyDamage" or "NCR:OstyAllDamage"
+                               || operation.Template == "T:ProxyDamage_Atomic_Poke"
+                        ? new ChaosOstyDamageVar(name, value,
+                            ChaosOperationExecutor.DamagePropsForCardEffect(Type))
+                        : new ChaosDamageVar(name, value,
+                            ChaosOperationExecutor.DamagePropsForCardEffect(Type));
+                    continue;
+                }
                 if (operation.Template == "T:ProxyDamage_Atomic_Poke")
                 {
                     // Poke is executed by Osty even though it retains its legacy proxy template. Its preview must
@@ -627,7 +671,8 @@ public abstract class ChaosCardModel : CardModel
                     "NCR:UnpoweredDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered),
                     "CL:RollingAllDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered),
                     "N:RetaliateDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered),
-                    "N:B" or "N_BLOCK" or "I:DrawAndBlockIfSkill" => new ChaosBlockVar(name, value, ValueProp.Move),
+                    "N:B" or "N_BLOCK" or "I:DrawAndBlockIfSkill" => new ChaosBlockVar(name, value,
+                        ChaosOperationExecutor.BlockPropsForCardEffect(Type)),
                     "N:E" or "N:NextTurnEnergy" or "D:GainEnergy" or "D:NextTurnEnergy" or "NCR:GainEnergy" or "NCR:NextTurnEnergy"
                         or "R:GainEnergy" => new EnergyVar(name, value),
                     "N:HP-" => new HpLossVar(name, value),
@@ -657,9 +702,33 @@ public abstract class ChaosCardModel : CardModel
     {
         get
         {
+            var yieldedOstyAttack = false;
             foreach (var tag in Generated.Tags)
-                if (ChaosCardTagAdapter.TrySemanticTag(tag, out var gameTag)) yield return gameTag;
-            foreach (var gameTag in ComponentKeywordRuntimeApi.SemanticTags(this)) yield return gameTag;
+            {
+                if (!ChaosCardTagAdapter.TrySemanticTag(tag, out var gameTag)) continue;
+                // Prior built-in snapshots sampled semantic tags independently from their operations. Trust an
+                // explicit external-profile tag, but clean the obsolete built-in false positive at query time.
+                if (gameTag == MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack
+                    && DefinitionProfileId is not { Length: > 0 }
+                    && !GeneratedCardTagPolicy.IsOstyAttackCard(Generated.Operations))
+                    continue;
+                if (gameTag == MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)
+                    yieldedOstyAttack = true;
+                yield return gameTag;
+            }
+            // Snapshots created before operation-derived semantic tags were normalized may not have serialized
+            // OstyAttack. Derive it at query time as well so continuing such a run immediately uses native count
+            // semantics without regenerating its cards.
+            if (!yieldedOstyAttack && GeneratedCardTagPolicy.IsOstyAttackCard(Generated.Operations))
+            {
+                yieldedOstyAttack = true;
+                yield return MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack;
+            }
+            foreach (var gameTag in ComponentKeywordRuntimeApi.SemanticTags(this))
+            {
+                if (gameTag == MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack && yieldedOstyAttack) continue;
+                yield return gameTag;
+            }
         }
     }
 
@@ -1018,10 +1087,9 @@ public abstract class ChaosCardModel : CardModel
     /// <summary>
     /// Persistent effects execute later through an unenchanted proxy card. Capture the source card's intrinsic
     /// (upgrade + enchantment + card-persistent growth) values now so the proxy represents the card that was
-    /// actually played. Triggered damage and Block deliberately execute as unpowered Power effects, so a Power
-    /// card must instead snapshot their final combat preview here; otherwise Strength/Dexterity changes the card
-    /// panel but is lost as soon as the backing ChaosCompositePower is created. The compact array stores
-    /// index/value pairs and is suitable for Power SavedProperties and multiplayer sync.
+    /// actually played. As with Inferno and Crimson Mantle, damage and Block printed on a Power are unpowered:
+    /// combat Strength/Vigor/Weak/Vulnerable and Dexterity/Frail are deliberately not baked into this snapshot.
+    /// The compact array stores index/value pairs and is suitable for Power SavedProperties and multiplayer sync.
     /// </summary>
     internal int[] CaptureOperationValuesForPower()
     {
@@ -1032,45 +1100,11 @@ public abstract class ChaosCardModel : CardModel
             if (!ChaosOperationVariables.TryGetInitialValue(operation, out _)
                 || !DynamicVars.TryGetValue(ChaosOperationVariables.Name(operation, index), out var variable))
                 continue;
-            var captureFinalPowerValue = Type == CardType.Power
-                && UsesFinalCombatPreviewInPower(operation, variable);
-            var externalDamageDependency = captureFinalPowerValue
-                && variable is DamageVar
-                && HasExternalDamageDependency(index);
-            if (externalDamageDependency)
-            {
-                // Mind Blast/Gold Axe multiply their intrinsic coefficient by a live count, then Strength/Vigor
-                // modifies the resulting attack once. Store the coefficient and the powered flat delta separately;
-                // baking the delta into the coefficient would multiply Strength by the draw-pile/card-play count.
-                variable.UpdateCardPreview(this, CardPreviewMode.None, null, runGlobalHooks: false);
-                var intrinsic = (int)variable.EnchantedValue;
-                variable.UpdateCardPreview(this, CardPreviewMode.None, null, runGlobalHooks: true);
-                captured.Add(index);
-                captured.Add(intrinsic);
-                captured.Add(ExternalDamageBonusKey(index));
-                captured.Add((int)variable.PreviewValue - intrinsic);
-                continue;
-            }
-            variable.UpdateCardPreview(this, CardPreviewMode.None, null,
-                runGlobalHooks: captureFinalPowerValue);
+            variable.UpdateCardPreview(this, CardPreviewMode.None, null, runGlobalHooks: false);
             captured.Add(index);
-            captured.Add((int)(captureFinalPowerValue ? variable.PreviewValue : variable.EnchantedValue));
+            captured.Add((int)variable.EnchantedValue);
         }
         return captured.ToArray();
-    }
-
-    internal static bool UsesFinalCombatPreviewInPower(GeneratorOperation operation, DynamicVar variable)
-    {
-        // Original-card proxy operations run their own powered commands when triggered. Baking their preview into
-        // the proxy as well would apply Strength/Dexterity twice. The native composite damage/Block paths use
-        // ValueProp.Unpowered and therefore need the played card's already-modified value.
-        if (operation.Template.Contains(":Proxy", StringComparison.Ordinal)) return false;
-        return variable switch
-        {
-            DamageVar damage => damage.Props.IsPoweredAttack(),
-            BlockVar block => block.Props.IsPoweredCardOrMonsterMoveBlock(),
-            _ => false
-        };
     }
 
     internal void ApplyCapturedOperationValues(IReadOnlyList<int> captured)
@@ -1094,10 +1128,8 @@ public abstract class ChaosCardModel : CardModel
     internal int CapturedExternalDamageBonus(int operationIndex) =>
         _capturedExternalDamageBonuses.GetValueOrDefault(operationIndex);
 
-    private bool HasExternalDamageDependency(int operationIndex) => operationIndex > 0
-        && ChaosOperationExecutor.IsExternallyScaledDamageDependency(Generated.Operations[operationIndex - 1])
-        && CardEffectRules.IsEnemyDamage(Generated.Operations[operationIndex]);
-
+    // Retained for schema 10 Powers saved by builds which captured a separate powered flat bonus. New Powers do
+    // not emit these keys, and the executor ignores them for Power cards under the native unpowered-effect rule.
     internal static int ExternalDamageBonusKey(int operationIndex) => -operationIndex - 1;
     internal static int ExternalDamageBonusIndex(int key) => -key - 1;
 }
@@ -1476,6 +1508,7 @@ internal sealed class ChaosCalculatedPreviewVar(string name, int operationIndex,
         var enchantment = card.Enchantment;
         if (kind == ChaosStatPreviewKind.Block)
         {
+            var blockProps = ChaosOperationExecutor.BlockPropsForCardEffect(card.Type);
             var enchanted = value;
             if (enchantment is not null)
             {
@@ -1485,21 +1518,22 @@ internal sealed class ChaosCalculatedPreviewVar(string name, int operationIndex,
             EnchantedValue = enchanted;
             PreviewValue = runGlobalHooks && chaos.Generated.Operations[operationIndex].Template != "CL:GainNextTurnBlockEqualCurrent"
                 ? Hook.ModifyBlock(card.CombatState ?? card.Owner.Creature.CombatState!, card.Owner.Creature,
-                    value, ValueProp.Move, card, null, out _)
+                    value, blockProps, card, null, out _)
                 : enchanted;
         }
         else if (kind == ChaosStatPreviewKind.Damage)
         {
+            var damageProps = ChaosOperationExecutor.DamagePropsForCardEffect(card.Type);
             var enchanted = value;
             if (enchantment is not null)
             {
-                enchanted += enchantment.EnchantDamageAdditive(enchanted, ValueProp.Move);
-                enchanted *= enchantment.EnchantDamageMultiplicative(enchanted, ValueProp.Move);
+                enchanted += enchantment.EnchantDamageAdditive(enchanted, damageProps);
+                enchanted *= enchantment.EnchantDamageMultiplicative(enchanted, damageProps);
             }
             EnchantedValue = enchanted;
             PreviewValue = runGlobalHooks
                 ? Hook.ModifyDamage(card.Owner.RunState, card.CombatState ?? card.Owner.Creature.CombatState,
-                    target, card.Owner.Creature, value, ValueProp.Move, card, null, ModifyDamageHookType.All,
+                    target, card.Owner.Creature, value, damageProps, card, null, ModifyDamageHookType.All,
                     previewMode, out _)
                 : enchanted;
         }

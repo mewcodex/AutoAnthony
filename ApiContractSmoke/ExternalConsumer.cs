@@ -65,6 +65,10 @@ public static class ExternalConsumer
         _ = AutoAnthonySettingsApi.Current.AddOriginalCards;
         _ = AutoAnthonySettingsApi.Current.DecomposeOriginalCards;
         _ = AutoAnthonySettingsApi.Current.ActiveSurpriseMode;
+        Action<Action<ChaosCardModel>> registerBalanceDefinitionListener =
+            AutoAnthonyBalanceAdjustmentApi.RegisterDefinitionChangedListener;
+        _ = AutoAnthonyBalanceAdjustmentApi.ApiVersion;
+        _ = registerBalanceDefinitionListener;
         _ = ComponentRunSettingsApi.Local.AddGeneratedCards;
         _ = ComponentRunSettingsApi.Local.AddOriginalCards;
         using var progress = ComponentGenerationProgressApi.Create(1);

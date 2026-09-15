@@ -618,7 +618,7 @@ public static class OperationRuntimeSpecCompiler
             "I:Create" => Spec("create_card", "random_attack_zero_cost_this_turn", "generated_card",
                 sourceZone: "current_character_pool", destinationZone: "hand", cardFilter: "attack",
                 flags: ["set_cost_zero_this_turn"], values:
-                [Count(1, explicitValue: false),
+                [new RuntimeValueSlot("count", 1, Upgradable: false, Explicit: false),
                     new RuntimeValueSlot("cost_marker", 0, Upgradable: false)]),
             "N:Move" => CompileMove(operation),
             "N:MoveDiscardCardToHand" => Spec("move_card", "selected", "selected_card",
@@ -959,9 +959,11 @@ public static class OperationRuntimeSpecCompiler
             || text.StartsWith("给予", StringComparison.Ordinal)
             || text.StartsWith("对", StringComparison.Ordinal) && text.Contains("造成", StringComparison.Ordinal))
             flags.Add("scalable_reward_wording");
+        // Only the structured flat-extra variant is a static hit modifier. Dynamic modifiers such as Tear
+        // Asunder (per HP-loss event) and Rattle (per Osty Attack) use similar display text, but must reach their
+        // dedicated runtime branches instead of being collapsed to one fixed extra hit.
         if (operation.Scope == OperationScope.Modifier
-            && text.Contains("额外造成", StringComparison.Ordinal)
-            && text.Contains("次伤害", StringComparison.Ordinal))
+            && spec is { Opcode: "modify_hits", Variant: "flat_extra" })
             flags.Add("static_extra_damage_hits");
         if (text.Contains("给予", StringComparison.Ordinal)) flags.Add("apply_status_reference");
         if (text.Contains("费用", StringComparison.Ordinal)
