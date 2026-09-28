@@ -488,6 +488,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("本回合不能再抽牌之后不能连接即时或当回合抽牌效果；跨多个回合持续触发的抽牌除外。");
         if (!CardEffectRules.HasValidExhaustAllHandOrdering(card.Operations))
             throw new InvalidOperationException("消耗所有手牌后，同一次结算中不能继续使用手牌，除非先补充手牌。");
+        if (!CardEffectRules.HasValidEmptyPileConditions(card.Operations))
+            throw new InvalidOperationException("Empty-pile conditions cannot require cards from the empty pile.");
         if (!CardEffectRules.HasValidPlayerSelectedExhaustCounts(card.Operations))
             throw new InvalidOperationException("必须选择消耗的效果只能选择1张牌；多张牌必须使用“至多”效果。");
         if (!allowRandomizedNumericValues && !CardEffectRules.HasValidHighCostThresholds(card.Operations))
@@ -3074,8 +3076,48 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("高重复感的整手/保留/移牌/重放组件没有进入统一极稀有效果权重。");
         var loseFocusProbe = new GeneratorOperation("D:LoseFocus", OperationScope.NonTargeted,
             "失去2点集中。", new Dictionary<string, int>());
+        foreach (var (prefix, payoff) in new[]
+        {
+            ("D:ForEachOrb", "D:RepeatPerOrb"),
+            ("NCR:ForEachEtherealPlayedCombat", "NCR:RepeatPerVoidPlayedCombat"),
+            ("NCR:ForEachOstyAttackThisTurn", "NCR:RepeatPerOstyAttackThisTurn"),
+            ("R:ForEachSkillPlayedThisTurn", "R:RepeatPerSkillPlayedThisTurn"),
+            ("R:ForEachStarGainedThisTurn", "R:RepeatPerStarGainedThisTurn")
+        })
+        {
+            var counter = new GeneratorOperation(prefix, OperationScope.Modifier, string.Empty, new Dictionary<string, int>());
+            var repeat = new GeneratorOperation(payoff, OperationScope.Modifier, string.Empty, new Dictionary<string, int>());
+            if (!CardEffectRules.IsMultiplicativeDependencyPrefix(counter)
+                || !CardEffectRules.IsDependencyCountRepeatModifier(repeat))
+                throw new InvalidOperationException($"Live repeat count does not reach {payoff}.");
+            foreach (var count in new[] { 0, 1, 2, 5, 9 })
+                if (CardEffectRules.ResolveDependencyRepeatCount(true, count, count) != count
+                    || CardEffectRules.ResolveDependencyRepeatCount(false, count, 1) != count)
+                    throw new InvalidOperationException($"Repeat count collapsed or squared for {payoff}.");
+        }
+        // Death March uses the same count once, whether the snapshot stores a prefix/payoff pair or a legacy
+        // standalone modifier. Repeated previews must not turn ten draws into one hundred applications.
+        foreach (var count in new[] { 0, 1, 5, 10, 20 })
+        {
+            var expectedDamage = 13 + 4 * count;
+            if (13 + 4 * CardEffectRules.ResolveDependencyRepeatCount(true, count, count) != expectedDamage
+                || 13 + 4 * CardEffectRules.ResolveDependencyRepeatCount(false, count, 1) != expectedDamage)
+                throw new InvalidOperationException("Draw-based bonus damage must scale linearly.");
+        }
         var loseOrbSlotProbe = new GeneratorOperation("D:LoseOrbSlots", OperationScope.NonTargeted,
             "失去1个充能球栏位。", new Dictionary<string, int>());
+        var negativeOnlyOrbEngine = new[]
+        {
+            new GeneratorOperation("A:whenStatusGenerated", OperationScope.AbilityTrigger,
+                "每当你生成一张状态牌时，", new Dictionary<string, int>()),
+            new GeneratorOperation("D:IfHasFrost", OperationScope.Modifier,
+                "如果你有冰霜充能球，则", new Dictionary<string, int> { ["triggerIndex"] = 0 }),
+            loseOrbSlotProbe with { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } }
+        };
+        if (negativeOnlyOrbEngine.Any(CardEffectRules.IsBeneficialEffect)
+            || !CardEffectRules.IsBeneficialEffect(new GeneratorOperation("N:B", OperationScope.NonTargeted,
+                "获得4点格挡。", new Dictionary<string, int> { ["triggerIndex"] = 0 })))
+            throw new InvalidOperationException("A condition/trigger was counted as a positive payoff, or a real linked payoff was rejected.");
         if (!CardEffectRules.IsNegativeEffect(loseFocusProbe)
             || !CardEffectRules.IsPermanentNegativeEffect(loseFocusProbe)
             || !CardEffectRules.IsNegativeEffect(loseOrbSlotProbe)
@@ -4052,6 +4094,36 @@ public static class GeneratorSelfTest
                 [exhaustAllHand, preventTestDraw, playRandomHandAttack])
             || !CardEffectRules.HasValidExhaustAllHandOrdering([playRandomHandAttack, exhaustAllHand]))
             throw new InvalidOperationException("消耗所有手牌后的手牌依赖效果没有按同一结算顺序正确限制。 ");
+
+        var emptyPilePrototypes = CardTinkeringApi.GetComponentPrototypes();
+        GeneratorOperation EmptyPileProbe(string template) => emptyPilePrototypes
+            .First(entry => entry.Operation.Template == template).Operation
+            with { Parameters = new Dictionary<string, int>() };
+        var emptyHandCondition = EmptyPileProbe("CL:IfHandEmpty");
+        var emptyDrawCondition = EmptyPileProbe("C:playableIfDrawPileEmpty");
+        foreach (var template in new[] { "N:Discard", "N:DiscardAll", "I:Transform", "I:Upgrade",
+                     "CL:ExhaustUpToHandCards", "I:ProxyAtomic_Begone", "I:ProxyAtomic_Guards",
+                     "R:PlaySelectedSkillMultipleTimes" })
+        {
+            var payoff = EmptyPileProbe(template) with
+                { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } };
+            if (CardEffectRules.HasValidEmptyPileConditions([emptyHandCondition, payoff])
+                || CardEffectRules.HasValidEmptyPileConditions([emptyHandCondition, preventTestDraw, payoff])
+                || !CardEffectRules.HasValidEmptyPileConditions(
+                    [EmptyPileProbe(template), emptyHandCondition, preventTestDraw]))
+                throw new InvalidOperationException("Empty-hand payoff dependency is invalid.");
+        }
+        foreach (var template in new[] { "CL:ChooseDrawCardToHand", "CL:ChooseFromRandomDrawCards",
+                     "I:ProxyAtomic_Charge", "I:ProxyAtomic_Seance", "NCR:ExhaustSelectedDrawCard",
+                     "D:AutoPlayRandomAttackFromDraw", "I:PlayTopCardAndExhaust" })
+            if (CardEffectRules.HasValidEmptyPileConditions([emptyDrawCondition, EmptyPileProbe(template)])
+                || CardEffectRules.HasValidEmptyPileConditions([EmptyPileProbe(template), emptyDrawCondition]))
+                throw new InvalidOperationException("Empty-draw playability accepted a draw-pile-dependent action.");
+        if (!CardEffectRules.HasValidEmptyPileConditions([emptyDrawCondition, preventTestDraw])
+            || !CardEffectRules.HasValidEmptyPileConditions([emptyHandCondition, preventTestDraw])
+            || !CardEffectRules.HasValidEmptyPileConditions([emptyHandCondition, EmptyPileProbe("N:CreateShiv")])
+            || !CardEffectRules.HasValidEmptyPileConditions([emptyDrawCondition, EmptyPileProbe("NCR:CreateSoulInDraw")]))
+            throw new InvalidOperationException("Empty-pile restrictions rejected draw/creation effects.");
 
         var permanentStrengthPricingAtom = new ComponentAtom("N:Self", OperationScope.NonTargeted,
             "获得2点力量。", false, CardReferenceRequirement.None);

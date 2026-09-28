@@ -2087,7 +2087,11 @@ internal static class ChaosTextFormatter
                 return $"\uE010{(char)(0xE200 + styledTokens.Count - 1)}\uE011";
             });
         var smartTokens = new List<string>();
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\{[^{}\r\n]+\}", match =>
+        // SmartFormat selectors can contain nested placeholders, empty {} values and newlines.
+        // Protect the entire expression, not just its innermost placeholders: otherwise e.g.
+        // GainsBlock becomes Gains[gold]Block[/gold] and invalidates the native description.
+        result = System.Text.RegularExpressions.Regex.Replace(result,
+            @"\{(?>[^{}]+|\{(?<nested>)|\}(?<-nested>))*(?(nested)(?!))\}", match =>
         {
             smartTokens.Add(match.Value);
             return $"\uE000{(char)(0xE100 + smartTokens.Count - 1)}\uE001";

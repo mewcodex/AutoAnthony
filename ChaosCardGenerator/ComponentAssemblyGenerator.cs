@@ -2300,6 +2300,8 @@ public sealed class ComponentAssemblyGenerator
     private int LinkedTriggerIndex(IReadOnlyList<GeneratorOperation> operations, ComponentAtom atom)
     {
         if (operations.Count == 0) return -1;
+        if (atom.Template == "CL:IncreaseRollingDamage")
+            return operations[^1].Parameters.GetValueOrDefault("triggerIndex", -1);
         // Raising this card's own combat cost is paid immediately when the card is played. Attaching it to a
         // delayed/ability trigger would mutate a card that has already left the hand and cease to be a real cost.
         if (atom.Template == "D:IncreaseThisCardCost") return -1;
@@ -2428,6 +2430,7 @@ public sealed class ComponentAssemblyGenerator
             || !CardEffectRules.HasValidShuffleThenDrawAssembly(assembled)
             || !CardEffectRules.HasValidPreventDrawOrdering(assembled)
             || !CardEffectRules.HasValidExhaustAllHandOrdering(assembled)
+            || !CardEffectRules.HasValidEmptyPileConditions(assembled)
             || !CardEffectRules.HasValidPlayerSelectedExhaustCounts(assembled)
             || !CardEffectRules.HasValidAllCardsCostIncreaseAssembly(assembled)
             || !CardEffectRules.HasValidHighCostThresholds(assembled)
@@ -2533,6 +2536,7 @@ public sealed class ComponentAssemblyGenerator
         && CardEffectRules.HasValidShuffleThenDrawAssembly(operations)
         && CardEffectRules.HasValidPreventDrawOrdering(operations)
         && CardEffectRules.HasValidExhaustAllHandOrdering(operations)
+        && CardEffectRules.HasValidEmptyPileConditions(operations)
         && CardEffectRules.HasValidPlayerSelectedExhaustCounts(operations)
         && CardEffectRules.HasValidAllCardsCostIncreaseAssembly(operations)
         && CardEffectRules.HasValidHighCostThresholds(operations)
@@ -2796,6 +2800,13 @@ public sealed class ComponentAssemblyGenerator
         // no-more-draw rule, regardless of printed order: both effects start only after this card is played.
         // Reject the pair before numeric fitting so the unusable trigger cannot consume or grant budget.
         if (CardEffectRules.WouldConflictWithPreventDraw(previous, atom))
+            return false;
+        if ((atom.Template == "C:playableIfDrawPileEmpty"
+                || previous.Any(operation => operation.Template is "CL:IfHandEmpty" or "C:playableIfDrawPileEmpty"))
+            && !CardEffectRules.HasValidEmptyPileConditions([.. previous,
+                new GeneratorOperation(atom.Template, atom.Scope, string.Empty,
+                    new Dictionary<string, int> { ["triggerIndex"] = LinkedTriggerIndex(previous, atom) },
+                    RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom))]))
             return false;
         if (CardEffectRules.FieldOccurrenceCount(previous, atom) >= 2)
             return false;
@@ -4425,6 +4436,15 @@ public static class CardEffectRules
         || atom.Template == "M:repeat"
             && RuntimeSpec(atom).Variant == "hp_loss_scaled";
 
+    // These native two-part counters consume their prefix's live count once, rather than repeating an
+    // additive modifier. Keep this separate from IsRepeatableDependencyModifier (an assembly/valuation rule).
+    public static bool IsDependencyCountRepeatModifier(GeneratorOperation operation) => operation.Template is
+        "D:RepeatPerOrb" or "NCR:RepeatPerVoidPlayedCombat" or "NCR:RepeatPerOstyAttackThisTurn"
+        or "R:RepeatPerSkillPlayedThisTurn" or "R:RepeatPerStarGainedThisTurn";
+
+    internal static int ResolveDependencyRepeatCount(bool hasCountPrefix, int liveCount, int dependencyRepeats) =>
+        hasCountPrefix ? Math.Max(0, dependencyRepeats) : Math.Max(0, liveCount) * Math.Max(0, dependencyRepeats);
+
     public static bool IsDynamicTotalHitModifier(GeneratorOperation operation) =>
         DynamicTotalHitModifiers.Contains(operation.Template)
         || operation.Template == "M:repeat"
@@ -5830,6 +5850,52 @@ public static class CardEffectRules
     private static bool IsCurrentTurnFutureDrawTrigger(string template) =>
         template == "C:untilTurnEndCardDrawn";
 
+    /// <summary>Empty-pile conditions cannot fund payoffs requiring cards from that pile.
+    /// Actual draw commands remain legal because they can reshuffle the discard pile.</summary>
+    public static bool HasValidEmptyPileConditions(IReadOnlyList<GeneratorOperation> operations)
+    {
+        var emptyDraw = operations.Any(operation => operation.Template == "C:playableIfDrawPileEmpty");
+        for (var index = 0; index < operations.Count; index++)
+        {
+            var operation = operations[index];
+            if (emptyDraw && RequiresCardsFromEmptyZone(operation, "draw")) return false;
+            var owner = operation.Parameters.GetValueOrDefault("triggerIndex", -1);
+            if (owner < 0 && index > 0 && operations[index - 1].Template == "CL:IfHandEmpty")
+                owner = index - 1;
+            var child = index;
+            while (owner >= 0 && owner < child)
+            {
+                if (operations[owner].Template == "CL:IfHandEmpty"
+                    && RequiresCardsFromEmptyZone(operation, "hand")) return false;
+                child = owner;
+                owner = operations[owner].Parameters.GetValueOrDefault("triggerIndex", -1);
+            }
+        }
+        return true;
+    }
+
+    private static bool RequiresCardsFromEmptyZone(GeneratorOperation operation, string zone)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        // effect_family_draw also labels searches/exhausting from Draw, so exempt only real draw commands.
+        if (spec.Opcode == "draw_cards" || TriggerNeedsLinkedEffect(operation)) return false;
+        if (spec.SourceZone is "hand" or "draw" or "discard" or "exhaust") return spec.SourceZone == zone;
+        if (zone == "hand")
+            return RequiresExistingHandCards(operation) || IsExhaustAllHand(operation)
+                || operation.Template is "I:DiscardHandDrawSame" or "I:Transform" or "I:Upgrade"
+                    or "D:TransformStatusesToFuel" or "I:ProxyAtomic_Begone" or "I:ProxyAtomic_Guards"
+                    or "I:ProxyAtomic_Transfigure" or "NCR:AddRetainToSelectedHandCard"
+                    or "NCR:AddVoidToSelectedHandCard" or "R:CopySelectedColorlessCard"
+                    or "R:PlaySelectedSkillMultipleTimes" or "CL:PutSelectedHandCardOnDrawTop"
+                    or "M:RepeatPerSkillInHand";
+        return operation.Template is "CL:ChooseDrawCardToHand" or "CL:ChooseFromRandomDrawCards"
+            or "CL:MoveSelectedAttackDrawToHand" or "CL:MoveSelectedSkillDrawToHand"
+            or "CL:ProxyAtomic_Anointed" or "CL:ProxyAtomic_Catastrophe" or "CL:ProxyAtomic_HiddenGem"
+            or "CL:PlayTopDrawCard" or "D:AutoPlayRandomAttackFromDraw" or "I:PlayTopCardAndExhaust"
+            or "I:PlayTopXCards" or "I:ProxyAtomic_Charge" or "I:ProxyAtomic_Seance"
+            or "I:ProxyAtomic_ForegoneConclusion" or "NCR:ExhaustSelectedDrawCard";
+    }
+
     /// <summary>
     /// Exhausting the whole hand empties it for the remainder of that same immediate/triggered resolution group.
     /// A later operation may use hand cards only after an intervening draw/generation line repopulates the hand;
@@ -6276,6 +6342,12 @@ public static class CardEffectRules
     public static bool IsBeneficialEffect(GeneratorOperation operation)
     {
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        // Control flow is not a payoff. In particular an Orb condition has Modifier scope, and several
+        // event prefixes use D:/R: names; neither the scope nor the family implies positive value.
+        if (spec.Opcode == "condition") return false;
+        if (spec.Opcode == "trigger" && spec.Trigger?.Kind is not
+            ("attack_played_cost_reduction" or "skill_played_cost_reduction"
+                or "vulnerable_enemy_damage_reduction")) return false;
         if (IsNegativeEffect(operation) && !IsMixedBenefitAndDownside(operation.Template)) return false;
         if (spec.Flags.Contains(ComponentSemanticFlags.Beneficial)
             || ComponentValuationApi.IsRegisteredBenefit(spec)) return true;

@@ -301,7 +301,7 @@ public sealed class ChaosCompositePower : PowerModel
             operation.Template == "CL:IncreaseRollingDamage");
         var rollingOwner = rollingIncrease < 0
             ? -1
-            : powerOperations[rollingIncrease].Parameters.GetValueOrDefault("triggerIndex", -1);
+            : ChaosOperationExecutor.RollingGrowthOwner(powerOperations, rollingIncrease);
         var rolling = FindOperationIndex(powerOperations, operation =>
             operation.Template is "N:AllD" or "CL:RollingAllDamage"
             && operation.Parameters.GetValueOrDefault("triggerIndex", -1) == rollingOwner);
@@ -1298,22 +1298,25 @@ public sealed class ChaosCompositePower : PowerModel
             }
 
             TriggerChainDepth.Value = previousDepth + 1;
+            var increaseIndex = Enumerable.Range(0, Definition.Card.Operations.Count).FirstOrDefault(
+                candidate => ChaosOperationExecutor.RollingGrowthOwner(Definition.Card.Operations, candidate) == index,
+                -1);
             var rollingIndex = FindOperationIndex(Definition.Card.Operations, candidate =>
                 candidate.Template is "N:AllD" or "CL:RollingAllDamage"
                 && candidate.Parameters.GetValueOrDefault("triggerIndex", -1) == index
-                && Definition.Card.Operations.Any(increase =>
-                    increase.Template == "CL:IncreaseRollingDamage"
-                    && increase.Parameters.GetValueOrDefault("triggerIndex", -1) == index));
-            if (rollingIndex >= 0 && eventAmount == 0) eventAmount = _rollingDamage;
+                && increaseIndex >= 0);
+            if (rollingIndex >= 0 && eventAmount == 0)
+            {
+                // A saved Power created before growth-owner repair may still hold the uninitialized zero.
+                if (_rollingDamage <= 0) _rollingDamage = Math.Max(0, EffectiveOperationAmount(rollingIndex, 0));
+                eventAmount = _rollingDamage;
+            }
             Flash();
             if (ChaosDiagnostics.VerboseRuntime)
                 ChaosRuntimeDiagnostics.TriggerFired("composite", Slot, operation);
             await ChaosOperationExecutor.ExecuteTriggered(this, index, choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
             if (rollingIndex >= 0)
             {
-                var increaseIndex = FindOperationIndex(Definition.Card.Operations, candidate =>
-                    candidate.Template == "CL:IncreaseRollingDamage"
-                    && candidate.Parameters.GetValueOrDefault("triggerIndex", -1) == index);
                 if (increaseIndex >= 0)
                     _rollingDamage = AdvanceRollingDamage(_rollingDamage,
                         EffectiveOperationAmount(increaseIndex, 5));

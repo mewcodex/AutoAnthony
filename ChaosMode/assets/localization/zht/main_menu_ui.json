@@ -1,4 +1,5 @@
 {
+  "AUTO_ANTHONY_WHIRLPOOL_DESCRIPTION": "為一張基本牌[gold]附魔[/gold]上[purple]渦旋[/purple]。",
   "AUTO_ANTHONY_MOD_NAME": "東尼算法",
   "AUTO_ANTHONY_MOD_DESCRIPTION": "每一局隨機生成卡牌效果。開放測試中，目前支援全部五名角色。",
   "AUTO_ANTHONY_SETTINGS_GROUP": "東尼算法",

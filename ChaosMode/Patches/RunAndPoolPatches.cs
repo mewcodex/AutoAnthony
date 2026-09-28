@@ -1228,6 +1228,18 @@ internal static class ChaosModelDbReadyPatch
         var rollingGrowth = new GeneratorOperation("CL:IncreaseRollingDamage", OperationScope.Modifier,
             string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 });
         var rollingOperations = new[] { rollingTrigger, rollingDamage, rollingGrowth };
+        var detachedGrowth = rollingGrowth with { Parameters = new Dictionary<string, int>() };
+        var repeatAttacks = new GeneratorOperation("M:RepeatPerAttackThisTurn", OperationScope.Modifier,
+            string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 });
+        if (ChaosOperationExecutor.RollingGrowthOwner([rollingTrigger, rollingDamage, detachedGrowth], 2) != 0
+            || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
+                [rollingTrigger, rollingDamage, detachedGrowth], 1, 2, 7, true) != 7
+            || !ChaosOperationExecutor.DamageModifierSharesResolution([rollingTrigger, rollingDamage, repeatAttacks], 2, 1)
+            || ChaosOperationExecutor.DamageModifierSharesResolution(
+                [rollingTrigger, rollingDamage with { Parameters = new Dictionary<string, int>() }, repeatAttacks], 2, 1)
+            || ChaosOperationExecutor.SelectionCountForEffect(new GeneratorOperation("I:ProxyAtomic_Begone",
+                OperationScope.Independent, string.Empty, new Dictionary<string, int>()), 3) != 3)
+            throw new InvalidOperationException("Derivative batch selection / scoped damage growth audit failed.");
         if (ChaosOperationExecutor.ResolveTriggeredRollingDamage(
                 rollingOperations, 1, 5, 10, isTriggered: true) != 10
             || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
@@ -2135,10 +2147,16 @@ internal static class ChaosModelDbReadyPatch
             throw new InvalidOperationException("Disabled starting-card replacement did not preserve the original Basic cards and starting deck.");
         if (ChaosBasicCardAncientRelics.IsActive)
             throw new InvalidOperationException("Basic Strike/Defend relic overrides stayed active with the original starting deck.");
+        var spiralBasicProbe = ChaosCardRegistry.Canonical(GeneratedCharacter.Ironclad, 0);
+        if (!SpiralChaosEligibilityPatch.EligibilityTags(spiralBasicProbe).SequenceEqual(spiralBasicProbe.Tags))
+            throw new InvalidOperationException("Spiral eligibility changed with original starting cards enabled.");
 
         ChaosRunDefinitions.SelectActiveCharactersForStartupAudit([GeneratedCharacter.Ironclad],
             replaceStartingCards: true, preserveOriginalCards: true);
         var preservedPool = ModelDb.Character<Ironclad>().CardPool.AllCards.ToArray();
+        foreach (var basic in preservedPool.OfType<ChaosCardModel>().Where(card => card.Rarity == CardRarity.Basic))
+            if (!ModelDb.Enchantment<MegaCrit.Sts2.Core.Models.Enchantments.Spiral>().CanEnchant(basic))
+                throw new InvalidOperationException("Spiral rejected a generated Basic card without an enchantment.");
         var expectedIroncladMultiplayer = ChaosRunDefinitions
             .OriginalCardsForPreservedPool(GeneratedCharacter.Ironclad)
             .Count(card => card.MultiplayerConstraint == CardMultiplayerConstraint.MultiplayerOnly);

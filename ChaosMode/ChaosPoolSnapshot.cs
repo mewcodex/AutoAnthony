@@ -106,7 +106,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.94";
+    public const string ModVersion = "0.3.104";
     private const int SchemaVersion = 10;
     // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
     // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay

@@ -43,6 +43,11 @@ internal static class EffectBalanceModel
     // cycle and combat/deck growth suppress later reshuffles, so one resolution per roughly four active turns is
     // more representative than estimating cadence from starting deck size alone.
     internal const double DrawPileShuffleTriggerFrequency = 0.25d;
+    // Radiate counts individual Stars gained, not gain events. Three Stars is a conservative setup turn
+    // (Venerate/Shining Strike already give two). Its native 3 all-enemy Damage then values at 1,705,
+    // within twice the zero-cost Uncommon center of 1,000. The former 1.5 estimate systematically funded
+    // oversized per-hit payoffs. Share this estimate with both generic count prefixes and legacy hit modifiers.
+    internal const double StarsGainedThisTurnCount = 3d;
     // Royalties (30 Gold on a one-Energy Rare Power) and Hand of Greed (20 Gold behind Fatal beside 20 Damage
     // on a two-Energy Rare) bracket the same result around 0.5 Damage-equivalent per Gold.
     internal const int GoldValuePerPoint = 50;
@@ -814,7 +819,7 @@ internal static class EffectBalanceModel
             "R:ForEachPriorAttackHitOnTarget" => 2d,
             "R:ForEachStarCostCard" => 5d,
             "R:ForEachSkillPlayedThisTurn" => 2d,
-            "R:ForEachStarGainedThisTurn" => 1.5d,
+            "R:ForEachStarGainedThisTurn" => StarsGainedThisTurnCount,
             "R:ForEachGeneratedCardCombat" => 3d,
             "R:WheneverDrawn" => 1d,
             "R:AtTurnEndWhenTopOfDraw" => 0.2d,
@@ -931,7 +936,7 @@ internal static class EffectBalanceModel
             "R:ForEachPriorAttackHitOnTarget" => 2d,
             "R:ForEachStarCostCard" => 5d,
             "R:ForEachSkillPlayedThisTurn" => 2d,
-            "R:ForEachStarGainedThisTurn" => 1.5d,
+            "R:ForEachStarGainedThisTurn" => StarsGainedThisTurnCount,
             "R:ForEachGeneratedCardCombat" => 3d,
             "R:WheneverDrawn" => 1d,
             "R:AtTurnEndWhenTopOfDraw" => 0.2d,
@@ -1885,7 +1890,7 @@ internal static class EffectBalanceModel
             "D:RepeatPerOrb" => LinkedCountOrDefault(operation, operationIndex, operations, 3d),
             "NCR:RepeatPerVoidPlayedCombat" => LinkedCountOrDefault(operation, operationIndex, operations, 2d),
             "R:RepeatPerSkillPlayedThisTurn" => LinkedCountOrDefault(operation, operationIndex, operations, 2d),
-            "R:RepeatPerStarGainedThisTurn" => LinkedCountOrDefault(operation, operationIndex, operations, 1.5d),
+            "R:RepeatPerStarGainedThisTurn" => LinkedCountOrDefault(operation, operationIndex, operations, StarsGainedThisTurnCount),
             _ => 0d
         };
     }
@@ -2914,6 +2919,24 @@ internal static class EffectBalanceModel
         double NativeValue(GeneratedCharacter character, string cardId) =>
             EstimatedPositiveCardValue(NativeOperations(character, cardId));
 
+        // The same three-hit package must have the same price whether generated as a count plus Damage,
+        // restored as a native Damage/count/modifier recipe, or restored as a standalone legacy modifier.
+        var radiate = NativeOperations(GeneratedCharacter.Regent, "Radiate");
+        var starCounter = radiate.Single(operation => operation.Template == "R:ForEachStarGainedThisTurn");
+        var starHits = radiate.Single(operation => operation.Template == "R:RepeatPerStarGainedThisTurn");
+        var seventeenDamage = new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly,
+            "造成17点伤害。", new Dictionary<string, int>(), RequiresSingleTarget: true);
+        foreach (GeneratorOperation[] package in new GeneratorOperation[][]
+                 {
+                     [starCounter, seventeenDamage],
+                     [starCounter, seventeenDamage with
+                     { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } }],
+                     [seventeenDamage, starCounter, starHits],
+                     [seventeenDamage, starHits]
+                 })
+            if (Math.Abs(EstimatedPositiveCardValue(package) - 5_300d) > 0.001d)
+                throw new InvalidOperationException("Star-count damage must charge three hits, including multi-hit adaptation, exactly once.");
+
         // Count-dependent Exhaust payoffs must inherit the preceding payment's live count. A fixed fallback of six
         // made “Exhaust 1; for each card Exhausted, gain 5 Block” look like 30 Block and starved the generated card
         // of compensation. All-hand effects resolve after this card leaves the hand, so their ordinary count is 4;
@@ -3002,7 +3025,7 @@ internal static class EffectBalanceModel
             (GeneratedCharacter.Silent, "MementoMori", 1_340d),
             (GeneratedCharacter.Necrobinder, "PullFromBelow", 1_100d),
             (GeneratedCharacter.Regent, "LunarBlast", 900d),
-            (GeneratedCharacter.Regent, "Radiate", 775d),
+            (GeneratedCharacter.Regent, "Radiate", 1705d),
             (GeneratedCharacter.Necrobinder, "Rattle", 1_660d),
             (GeneratedCharacter.Necrobinder, "DeathMarch", 2_720d),
             (GeneratedCharacter.Ironclad, "ExpectAFight", 2_460d),

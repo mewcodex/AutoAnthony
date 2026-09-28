@@ -56,6 +56,7 @@ internal static class CombatEndTiming
 [HarmonyPatch(typeof(Hook), nameof(Hook.AfterDeath))]
 internal static class AfterDeathTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
 
     private static void Postfix(ref Task __result, Stopwatch __state, Creature creature) =>
@@ -65,6 +66,7 @@ internal static class AfterDeathTimingPatch
 [HarmonyPatch(typeof(Hook), nameof(Hook.AfterCombatEnd))]
 internal static class AfterCombatEndTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
     private static void Postfix(ref Task __result, Stopwatch __state) =>
         __result = CombatEndTiming.Observe(__result, __state, "AfterCombatEnd hooks");
@@ -73,6 +75,7 @@ internal static class AfterCombatEndTimingPatch
 [HarmonyPatch(typeof(Hook), nameof(Hook.AfterCombatVictory))]
 internal static class AfterCombatVictoryTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
     private static void Postfix(ref Task __result, Stopwatch __state) =>
         __result = CombatEndTiming.Observe(__result, __state, "AfterCombatVictory hooks");
@@ -81,6 +84,7 @@ internal static class AfterCombatVictoryTimingPatch
 [HarmonyPatch(typeof(RunManager), nameof(RunManager.WriteReplay))]
 internal static class WriteReplayTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
     private static void Postfix(Stopwatch __state) => CombatEndTiming.Finish(__state, "WriteReplay");
 }
@@ -88,6 +92,7 @@ internal static class WriteReplayTimingPatch
 [HarmonyPatch(typeof(SaveManager), nameof(SaveManager.SaveRun), typeof(AbstractRoom), typeof(bool))]
 internal static class SaveRunTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
     private static void Postfix(ref Task __result, Stopwatch __state) =>
         __result = CombatEndTiming.Observe(__result, __state, "SaveRun");
@@ -96,6 +101,7 @@ internal static class SaveRunTimingPatch
 [HarmonyPatch(typeof(SaveManager), nameof(SaveManager.SaveProgressFile))]
 internal static class SaveProgressTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
     private static void Postfix(Stopwatch __state) => CombatEndTiming.Finish(__state, "SaveProgressFile");
 }
@@ -103,6 +109,7 @@ internal static class SaveProgressTimingPatch
 [HarmonyPatch(typeof(RewardsCmd), nameof(RewardsCmd.GenerateForRoomEnd))]
 internal static class GenerateRoomRewardsTimingPatch
 {
+    private static bool Prepare() => ChaosDiagnostics.PerformanceTracing;
     private static void Prefix(out Stopwatch __state) => __state = CombatEndTiming.Start();
     private static void Postfix(ref Task<RewardsSet> __result, Stopwatch __state, Player player) =>
         __result = CombatEndTiming.Observe(__result, __state, $"GenerateForRoomEnd (player {player.NetId})");

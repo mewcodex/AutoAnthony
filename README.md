@@ -11,6 +11,9 @@ with deterministic names, art, upgrades, targeting, effects, and runtime behavio
 The mod is in open beta and supports Ironclad, Silent, Defect, Necrobinder, Regent, and the two Colorless pools on
 Slay the Spire 2 `0.111.x`.
 
+Current published version: **0.3.104**. See the bilingual
+[API and behavior changelog](https://github.com/mewcodex/AutoAnthony/wiki/API-Changelog) for integration updates.
+
 ## Highlights
 
 - Replaces each supported pool while preserving its rarity counts and broad native distributions.

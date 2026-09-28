@@ -15,6 +15,7 @@ using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
+using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -77,7 +78,11 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
     public override async Task BeforeCombatRewardOffered(RewardsSet rewards, CombatRoom room)
     {
         AssertMutable();
-        if (!AdjustmentPending || AlreadyProcessed(rewards.Player.NetId)) return;
+        if (!AdjustmentPending || AlreadyProcessed(rewards.Player.NetId))
+        {
+            RefreshPreparedRewardCards(rewards);
+            return;
+        }
 
         IReadOnlyList<BalanceAdjustmentPlan> plans;
         try
@@ -121,6 +126,7 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
                 await BalanceAdjustmentOverlay.ShowAsync(plan.BeforePreview, plan.AfterPreview,
                     plan.LocalizationKey, index + 1, plans.Count);
 
+        RefreshPreparedRewardCards(rewards);
         // GenerateForRoomEnd has already populated and sorted this RewardsSet before this hook runs. Exact-amount
         // GoldReward instances are populated by their constructor, but they still need to be inserted as individual
         // rewards and re-sorted so every confirmed adjustment is visible beside the normal Gold reward rather than
@@ -179,6 +185,8 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
     internal Task ApplyDefinitionChange(ChaosCardModel source, GeneratedCard adjusted, string portraitPath)
     {
         AssertMutable();
+        // Capture before changing the shared definition; matching after the mutation compares against a moving target.
+        var matchingCards = MatchingDeckCards(source).ToArray();
         var poolEntryId = source.BalancePoolEntryId;
         if (poolEntryId.Length > 0)
         {
@@ -192,7 +200,7 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
                 PortraitPath = portraitPath
             };
             SaveAddedPoolCards(additions);
-            foreach (var card in MatchingDeckCards(source).ToArray())
+            foreach (var card in matchingCards)
             {
                 card.ApplyFreeformDefinition(adjusted);
                 card.FreeformPortraitPath = portraitPath;
@@ -205,7 +213,7 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
         if (!ChaosCardRegistry.TryGetGeneratedCardSlot(source.Id, out var character, out var slot))
         {
             var replacedExternalPool = ExternalComponentCharacterApi.TryReplaceRunPoolCard(source, adjusted);
-            foreach (var card in MatchingDeckCards(source).ToArray())
+            foreach (var card in matchingCards)
             {
                 if (replacedExternalPool) card.RebindToSharedPoolDefinition();
                 else
@@ -219,7 +227,7 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
         }
 
         ChaosRunDefinitions.ReplaceRunPoolCard(character, slot, adjusted);
-        foreach (var card in MatchingDeckCards(source).ToArray())
+        foreach (var card in matchingCards)
         {
             card.RebindToSharedPoolDefinition();
             AutoAnthonyBalanceAdjustmentApi.NotifyDefinitionChanged(card);
@@ -275,13 +283,8 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
         await CardPileCmd.Add(card, PileType.Deck);
     }
 
-    public override CardCreationOptions ModifyCardRewardCreationOptions(Player player, CardCreationOptions options)
-    {
-        var removed = RemovedPoolIds();
-        if (removed.Count == 0) return options;
-        var previous = options.CardPoolFilter;
-        return options.WithFilter(card => (previous?.Invoke(card) ?? true) && !removed.Contains(card.Id.ToString()));
-    }
+    // Do not persist a WithFilter delegate in CardReward.Options: native ToSerializable explicitly rejects it.
+    // Retired identities are replaced in the late materialized-options hook instead.
 
     public override IEnumerable<CardModel> ModifyMerchantCardPool(Player player, IEnumerable<CardModel> options)
     {
@@ -293,13 +296,13 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
         List<CardCreationResult> cardRewardOptions, CardCreationOptions creationOptions)
     {
         var additions = AddedPoolCards();
-        if (additions.Count == 0) return false;
+        var changed = ReplaceRetiredRewardCards(player, cardRewardOptions, creationOptions);
+        if (additions.Count == 0) return changed;
         var availablePoolIds = creationOptions.CardPools.Select(pool => pool.Id.ToString())
             .ToHashSet(StringComparer.Ordinal);
         var baseCards = creationOptions.GetPossibleCards(player).ToArray();
         var chosenAdditions = new HashSet<string>(StringComparer.Ordinal);
         var rng = creationOptions.RngOverride ?? player.PlayerRng.Rewards;
-        var changed = false;
 
         foreach (var result in cardRewardOptions)
         {
@@ -326,6 +329,68 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
             changed = true;
         }
         return changed;
+    }
+
+    private bool ReplaceRetiredRewardCards(Player player, List<CardCreationResult> results,
+        CardCreationOptions options)
+    {
+        var removed = RemovedPoolIds();
+        if (removed.Count == 0) return false;
+        var changed = false;
+        var used = results.Where(result => !removed.Contains(result.Card.Id.ToString()))
+            .Select(result => result.Card.Id).ToHashSet();
+        var candidates = options.GetPossibleCards(player)
+            .Where(card => !removed.Contains(card.Id.ToString())).ToArray();
+        var rng = options.RngOverride ?? player.PlayerRng.Rewards;
+        foreach (var result in results.ToArray())
+        {
+            if (!removed.Contains(result.Card.Id.ToString())) continue;
+            var available = candidates.Where(card => !used.Contains(card.Id)).ToArray();
+            var sameRarity = available.Where(card => card.Rarity == result.Card.Rarity).ToArray();
+            if (sameRarity.Length > 0) available = sameRarity;
+            if (available.Length == 0) results.Remove(result);
+            else
+            {
+                var replacement = player.RunState.CreateCard(available[rng.NextInt(available.Length)], player);
+                CopyRewardCardState(result.Card, replacement);
+                result.ModifyCard(replacement);
+                used.Add(replacement.Id);
+            }
+            changed = true;
+        }
+        return changed;
+    }
+
+    private void RefreshPreparedRewardCards(RewardsSet rewards)
+    {
+        var additions = AddedPoolCards().ToDictionary(entry => entry.EntryId, StringComparer.Ordinal);
+        foreach (var reward in rewards.Rewards.OfType<CardReward>().ToArray())
+        {
+            // The native reward owns these mutable instances before BeforeCombatRewardOffered is invoked.
+            // Updating canonical models or deck copies cannot invalidate their already-materialized DynamicVars.
+            var results = (List<CardCreationResult>)HarmonyLib.AccessTools.Field(typeof(CardReward), "_cards")
+                .GetValue(reward)!;
+            var options = (CardCreationOptions)HarmonyLib.AccessTools.PropertyGetter(typeof(CardReward), "Options")
+                .Invoke(reward, null)!;
+            results.RemoveAll(result => result.Card is ChaosCardModel { BalancePoolEntryId.Length: > 0 } added
+                && !additions.ContainsKey(added.BalancePoolEntryId));
+            ReplaceRetiredRewardCards(rewards.Player, results, options);
+            if (results.Count == 0)
+            {
+                rewards.Rewards.Remove(reward);
+                continue;
+            }
+            foreach (var card in reward.Cards.OfType<ChaosCardModel>())
+            {
+                if (card.BalancePoolEntryId.Length > 0)
+                {
+                    if (!additions.TryGetValue(card.BalancePoolEntryId, out var entry)) continue;
+                    card.ApplyFreeformDefinition(DeserializeAddedCard(entry));
+                    card.FreeformPortraitPath = entry.PortraitPath;
+                }
+                else if (!card.HasTinkeredDefinition) card.RebindToSharedPoolDefinition();
+            }
+        }
     }
 
     private IEnumerable<ChaosCardModel> MatchingDeckCards(ChaosCardModel source)
@@ -1066,10 +1131,10 @@ internal sealed class BalanceAdjustmentOverlay : Control, IOverlayScreen
     public bool UseSharedBackstop => true;
     public Control? DefaultFocusedControl => _confirm;
 
-    internal static Task ShowAsync(CardModel? before, CardModel after, string localizationKey,
+    internal static async Task ShowAsync(CardModel? before, CardModel after, string localizationKey,
         int current, int total)
     {
-        if (TestMode.IsOn || NOverlayStack.Instance is not { } stack) return Task.CompletedTask;
+        if (TestMode.IsOn || NOverlayStack.Instance is not { } stack) return;
         var overlay = new BalanceAdjustmentOverlay(before, after, localizationKey, current, total);
         try
         {
@@ -1080,8 +1145,16 @@ internal sealed class BalanceAdjustmentOverlay : Control, IOverlayScreen
             overlay.BuildShell();
             stack.Push(overlay);
             overlay.PopulateCardPreviews();
+            // Restoring a finished combat awaits BeforeCombatRewardOffered inside LoadRun.
+            // The caller's FadeIn normally runs only AFTER LoadRun returns, so waiting for
+            // confirmation under that transition deadlocks the UI. Reveal the ready room
+            // through the native transition API before waiting for input. RoomFadeIn clears
+            // both the full-screen shader and room fade layers, including mouse interception;
+            // the caller's later FadeIn is consequently harmless. Never poll InTransition here.
+            if (NGame.Instance?.Transition is { InTransition: true } transition)
+                await transition.RoomFadeIn();
             Log.Info($"[AutoAnthony] Showing balance adjustment {current}/{total}.");
-            return overlay._completion.Task;
+            await overlay._completion.Task;
         }
         catch (Exception exception)
         {
@@ -1091,7 +1164,7 @@ internal sealed class BalanceAdjustmentOverlay : Control, IOverlayScreen
             else if (overlay.GetParent() is { } parent) parent.RemoveChildSafely(overlay);
             overlay.QueueFreeSafely();
             overlay._completion.TrySetResult();
-            return Task.CompletedTask;
+            return;
         }
     }
 
