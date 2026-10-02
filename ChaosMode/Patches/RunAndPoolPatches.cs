@@ -2991,7 +2991,8 @@ internal static class SeedBeforeLoadPatch
         var report = ChaosRunDefinitions.ActivateFromSave(characters,
             seed, snapshot);
         ChaosPoolSnapshot.PrimeRunPayload(ChaosRunDefinitions.ActiveCharacters,
-            ChaosRunDefinitions.ActiveSeed, ChaosRunDefinitions.GetAllCards());
+            ChaosRunDefinitions.ActiveSeed, ChaosRunDefinitions.GetAllCards(),
+            report.RegeneratedCards == 0 && report.Failure is null ? snapshot : null);
         Log.Info($"[AutoAnthony] Restored generated-card pools for [{string.Join(", ", characters)}]: "
             + $"source={source}, "
             + (string.Equals(runtimeSeed, seed, StringComparison.Ordinal)
@@ -3033,8 +3034,13 @@ internal static class MultiplayerLoadLobbySnapshotPatch
     private static IEnumerable<System.Reflection.MethodBase> TargetMethods() =>
         typeof(LoadRunLobby).GetConstructors();
 
-    private static void Postfix(LoadRunLobby __instance) =>
+    private static void Postfix(LoadRunLobby __instance)
+    {
+        // Restore can exceed vanilla's ten-second join budget. Ordinary runs retain the native timeout.
+        if (!string.IsNullOrEmpty(ChaosPoolSnapshot.ReadFrom(__instance.Run)))
+            __instance.ClientResponseTimeout = Math.Max(__instance.ClientResponseTimeout, 60_000);
         SeedBeforeLoadPatch.PrepareSavedRun(__instance.Run, "multiplayer load lobby");
+    }
 }
 
 /// <summary>

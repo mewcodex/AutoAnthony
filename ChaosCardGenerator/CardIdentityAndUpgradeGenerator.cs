@@ -11,12 +11,37 @@ public static class CardUpgradeGenerator
     // rarity budget. The optional second numeric line is a small, stable rider worth about two ordinary Damage.
     internal const double SupplementalNumericUpgradeBudget = 200d;
 
+    // One persisted upgrade choice, expanded through the same path for rendering, pricing and execution.
+    public static IEnumerable<CardUpgradeEffect> ExpandEffects(
+        IReadOnlyList<GeneratorOperation> operations, IEnumerable<CardUpgradeEffect> effects)
+    {
+        foreach (var effect in effects)
+        {
+            if (effect.Kind != CardUpgradeKind.IncreaseAllX)
+            {
+                yield return effect;
+                continue;
+            }
+            for (var index = 0; index < operations.Count; index++)
+            {
+                var operation = operations[index];
+                if (CardEffectRules.IsNegativeEffect(operation)
+                    || CardEffectRules.IsReducibleNegativeNumber(operation)
+                    || CardEffectRules.IsNonUpgradeableNumericMarker(operation)) continue;
+                foreach (var slot in OperationRuntimeSpecCompiler.GetOrCompile(operation).Values)
+                    if (slot.Upgradable && slot.Source is "energy_x" or "star_x" or "special_x")
+                        yield return new(CardUpgradeKind.IncreaseNumber, index, effect.Delta,
+                            ValueSlotId: slot.Id);
+            }
+        }
+    }
+
     public static GeneratorOperation[] ApplyEffectsToOperations(
         IReadOnlyList<GeneratorOperation> source,
         IReadOnlyList<CardUpgradeEffect> effects)
     {
         var operations = source.ToArray();
-        foreach (var effect in effects.Where(effect => effect.OperationIndex is not null))
+        foreach (var effect in ExpandEffects(source, effects).Where(effect => effect.OperationIndex is not null))
         {
             var index = effect.OperationIndex!.Value;
             if ((uint)index >= (uint)operations.Length) continue;
@@ -199,9 +224,11 @@ public static class CardUpgradeGenerator
         }
 
         var updatedSpec = OperationRuntimeSpecCompiler.ApplyUpgradeDelta(spec, slotId, delta);
-        var projectedText = operation.LocalizedText?.RenderChinese(updatedSpec)
-            ?? OperationRuntimeSpecCompiler.IncreaseLegacyXValue(operation.ChineseText);
-        return operation with { ChineseText = projectedText, RuntimeSpec = updatedSpec };
+        var localized = operation.LocalizedText is { EnglishTemplate: not null } bilingual ? bilingual : CompileLocalizedProjection(operation.ChineseText,
+            EnglishCardDescriptionRenderer.OperationText(operation), spec);
+        var projectedText = localized?.RenderChinese(updatedSpec)
+            ?? throw new InvalidOperationException($"Cannot project X upgrade for {operation.Template}.");
+        return operation with { ChineseText = projectedText, RuntimeSpec = updatedSpec, LocalizedText = localized };
     }
 
     public static CardUpgradePlan Generate(GeneratedCard card, Random random, bool unifiedChaos = false,
@@ -268,6 +295,9 @@ public static class CardUpgradeGenerator
                 continue;
             }
 
+            if (operation.Template == "I:Upgrade")
+                candidates.Add(new(new(CardUpgradeKind.SelectAllCards, index)));
+
             var replayCount = operation.Template == "R:PlaySelectedSkillMultipleTimes"
                 ? OperationRuntimeSpecCompiler.StaticLiteralValue(operation, "amount", 1)
                 : 0;
@@ -281,8 +311,6 @@ public static class CardUpgradeGenerator
                     || operation.Parameters.ContainsKey("triggerIndex"));
             if (!skipNumericUpgrade && OperationRuntimeSpecCompiler.ValueUsesX(operation))
             {
-                candidates.Add(new(new(CardUpgradeKind.IncreaseNumber, index, 1,
-                    ValueSlotId: OperationRuntimeSpecCompiler.UpgradeValueSlot(operation))));
                 continue;
             }
 
@@ -435,6 +463,10 @@ public static class CardUpgradeGenerator
             }
         }
 
+        var allXCandidate = new Candidate(new(CardUpgradeKind.IncreaseAllX, Delta: 1));
+        if (ExpandEffects(card.Operations, [allXCandidate.Effect]).Any())
+            candidates.Add(allXCandidate);
+
         if (keywordPolicy.UseArchetypeUpgradeDefaults
             && keywordPolicy.AllowsAddition(CardTag.Innate)
             && (unifiedChaos || card.Character is GeneratedCharacter.Ironclad or GeneratedCharacter.Silent)
@@ -448,7 +480,6 @@ public static class CardUpgradeGenerator
             candidates.Add(new(new(CardUpgradeKind.GrantRetain)));
         if (keywordPolicy.UseArchetypeUpgradeDefaults
             && keywordPolicy.AllowsRemoval(CardTag.Exhaust)
-            && (unifiedChaos || card.Character == GeneratedCharacter.Silent)
             && card.Tags.Contains(CardTag.Exhaust)
             && !card.Operations.Any(CardEffectRules.IsRestrictedEffect))
             candidates.Add(new(new(CardUpgradeKind.RemoveExhaust)));
@@ -509,11 +540,21 @@ public static class CardUpgradeGenerator
         var targetUpgradeValue = NativeUpgradeStrengthModel.SampleTargetValue(card.Rarity, random);
         var maximumUpgradeGain = NativeUpgradeStrengthModel.MaximumPlanGain(card, targetUpgradeValue);
         var selected = new List<Candidate>(count);
+        // Prefer the coherent whole-card X upgrade without bypassing the whole-upgrade ceiling.
+        if (candidates.Contains(allXCandidate) && random.Next(100) < 80)
+        {
+            var fittedX = FitNumericCandidateToBudget(card, selected, allXCandidate, targetUpgradeValue);
+            if (FitsUpgradeCeiling(card, selected, fittedX, maximumUpgradeGain))
+            {
+                selected.Add(fittedX);
+                candidates.Remove(allXCandidate);
+            }
+        }
         // Cost reduction does not compete at equal weight with numeric upgrades; cheaper cards receive it less often.
         var chooseCost = costCandidate is not null
             && (card.Cost != 1 && candidates.Count == 0 && starCostCandidate is null
                 || random.Next(100) < CostReductionChance(card.Character, card.Cost, unifiedChaos));
-        if (chooseCost && FitsUpgradeCeiling(card, selected, costCandidate!, maximumUpgradeGain))
+        if (chooseCost && selected.Count < count && FitsUpgradeCeiling(card, selected, costCandidate!, maximumUpgradeGain))
             selected.Add(costCandidate!);
         // Fixed-Star Regent cards have a separate upgrade axis. Higher Star costs are more likely to spend an
         // upgrade slot on reducing that cost; a 1-Star card can legitimately upgrade to 0 Stars.
@@ -744,6 +785,13 @@ public static class CardUpgradeGenerator
         Candidate candidate, double desiredGain)
     {
         var effect = candidate.Effect;
+        if (effect.Kind == CardUpgradeKind.IncreaseAllX)
+            return Enumerable.Range(1, 4)
+                .Select(delta => new Candidate(effect with { Delta = delta }))
+                .Where(trial => FitsUpgradeCeiling(card, selected, trial,
+                    NativeUpgradeStrengthModel.MaximumPlanGain(card, desiredGain)))
+                .OrderBy(trial => Math.Abs(EstimatedMarginalGain(card, selected, trial) - desiredGain))
+                .FirstOrDefault() ?? candidate;
         if (!IsNumericUpgrade(effect.Kind) || effect.Delta is null || effect.OperationIndex is not { } operationIndex
             || (uint)operationIndex >= (uint)card.Operations.Count)
             return candidate;
@@ -913,8 +961,15 @@ public static class CardUpgradeGenerator
             && card.Operations[downsideIndex].Template == "N:Discard")
             // Silent's optional +1 mandatory-discard rider is a drawback, not 200 points of positive upgrade.
             return 0d;
-        if (IsXValueUpgrade(card, candidate.Effect))
-            return 500d;
+        if (candidate.Effect.Kind == CardUpgradeKind.IncreaseAllX || IsXValueUpgrade(card, candidate.Effect))
+        {
+            var before = ApplyEffectsToOperations(card.Operations, selected.Select(item => item.Effect).ToArray());
+            var after = ApplyEffectsToOperations(card.Operations,
+                selected.Select(item => item.Effect).Append(candidate.Effect).ToArray());
+            return VariableXCardBalance.GenerationCheckpoints.Max(x =>
+                EffectBalanceModel.EstimatedPositiveCardValue(VariableXCardBalance.MaterializeOperations(after, x))
+                - EffectBalanceModel.EstimatedPositiveCardValue(VariableXCardBalance.MaterializeOperations(before, x)));
+        }
 
         var beforeEffects = selected.Select(item => item.Effect).ToArray();
         var afterEffects = beforeEffects.Append(candidate.Effect).ToArray();

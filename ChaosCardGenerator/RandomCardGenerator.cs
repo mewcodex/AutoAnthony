@@ -168,7 +168,8 @@ public enum CardUpgradeKind
     UpgradeDerivative, ReduceStarCost, ReduceThreshold, ReduceNegativeNumber, UpgradeGeneratedCards, ChooseExhaust,
     AddCustomKeyword, RemoveCustomKeyword,
     // Native-card reconstruction upgrades. Keep these appended: saved upgrade plans serialize this enum by number.
-    RepeatOperation, ExecuteOperationOnPlay, UpgradeReferencedCards, SelectAllCards
+    RepeatOperation, ExecuteOperationOnPlay, UpgradeReferencedCards, SelectAllCards,
+    IncreaseAllX
 }
 
 public sealed record GeneratorOperation(
@@ -531,6 +532,8 @@ public static class CardTemplateValidator
             && card.Operations.Any(CardEffectRules.IsRestrictedEffect)
             && !card.Tags.Contains(CardTag.Exhaust))
             throw new InvalidOperationException("限制效果只能用于能力牌，或用于具有消耗的非能力牌。");
+        if (!LongDurationStatusVariant.HasValidOwners(card.Operations))
+            throw new InvalidOperationException("99-stack enemy statuses cannot follow repeated triggers.");
         if (!CardEffectRules.HasNoRepeatedTriggeredRestrictedEffects(card.Operations))
             throw new InvalidOperationException("会影响战斗外状态的限制效果不能由可重复触发条件反复结算。");
         if (!CardEffectRules.HasNoRepeatedTriggeredCombatDamageGrowth(card.Operations))
@@ -813,9 +816,8 @@ public static class CardTemplateValidator
                 && CardKeywordTuning.RetainWeightPercent(card.Cost, card.StarCost, card.HasStarCostX) == 0)
                 throw new InvalidOperationException("折合0费的卡不能通过升级获得保留。 ");
             if (removedKeywords.Contains(CardTag.Exhaust)
-                && !card.UnifiedChaos
-                && (card.Character == GeneratedCharacter.Ironclad || !card.Tags.Contains(CardTag.Exhaust)))
-                throw new InvalidOperationException("去除消耗升级只能用于拥有相应原版升级路径的消耗牌。");
+                && !card.Tags.Contains(CardTag.Exhaust))
+                throw new InvalidOperationException("去除消耗升级只能用于原本带消耗的牌。");
             if (removedKeywords.Contains(CardTag.Exhaust)
                 && card.Operations.Any(CardEffectRules.IsRestrictedEffect))
                 throw new InvalidOperationException("限制效果不能通过升级去除消耗。");
@@ -832,6 +834,10 @@ public static class CardTemplateValidator
                 throw new InvalidOperationException("同一次升级不能同时添加和移除同一个自定义关键词。 ");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceSelfDamage && effect.Delta is not (>= -4 and <= -1)))
                 throw new InvalidOperationException("自伤升级只能减少1至4点生命。");
+            if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.IncreaseAllX
+                    && (effect.Delta is not (>= 1 and <= 4) || effect.OperationIndex is not null
+                        || !CardUpgradeGenerator.ExpandEffects(card.Operations, [effect]).Any())))
+                throw new InvalidOperationException("Invalid whole-card X upgrade.");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.IncreaseNumber
                     && !IsValidIncreaseNumberUpgrade(card, effect, allowRandomizedNumericValues)))
                 throw new InvalidOperationException("普通数值升级只能增加1至4点；金币升级可按原版比例增加，但不得超过原数值。");
@@ -1163,6 +1169,7 @@ public static class GeneratorSelfTest
         SlyKeywordTuning.Validate();
         SlyPoolConstraintResolver.Validate();
         CardKeywordTuning.Validate();
+        LongDurationStatusVariant.Validate();
         var regentStarAtom = CharacterComponentCatalogs.Get(GeneratedCharacter.Regent).Atoms
             .First(atom => atom.Template == "R:GainStars");
         var twoStarSpec = OperationRuntimeSpecCompiler.GetOrCompile(regentStarAtom) with
@@ -3416,7 +3423,7 @@ public static class GeneratorSelfTest
                     string.Empty, false, CardReferenceRequirement.None)]) != 195
             || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
                 [new ComponentAtom("M:value", OperationScope.Modifier,
-                    string.Empty, false, CardReferenceRequirement.None)]) != 150
+                    string.Empty, false, CardReferenceRequirement.None)]) != 225
             || EffectSelectionTuning.PowerAuxiliaryWeight([damageAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([temporaryStrengthAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([energyGainAtom], GeneratedCardType.Power, []) != 100
@@ -4298,7 +4305,7 @@ public static class GeneratorSelfTest
         if (!CardEffectRules.IsNegativeEffect(temporaryFocusLoss)
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, temporaryFocusLoss]) != 100
             || CardEffectRules.NegativeEffectLinearCompensationValue(
-                [ordinaryBlock, temporaryFocusLoss]) != 220d
+                [ordinaryBlock, temporaryFocusLoss]) != 200d
             || temporaryFocusUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
                 effect.OperationIndex == 1 && effect.Kind == CardUpgradeKind.IncreaseNumber))
             || !temporaryFocusUpgrades.Any(upgrade => upgrade.Effects.Any(effect =>
@@ -4325,13 +4332,13 @@ public static class GeneratorSelfTest
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, dexterityLoss]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, strengthLoss]) != 100
             || CardEffectRules.NegativeEffectCompensationPercent([ordinaryBlock, orbSlotLoss]) != 100
-            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, loseFocus]) != 950d
+            || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, loseFocus]) != 850d
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, dexterityLoss]) != 575d
             || CardEffectRules.NegativeEffectLinearCompensationValue([ordinaryBlock, strengthLoss]) != 1_260d
             || Math.Abs(CardEffectRules.NegativeEffectLinearCompensationValue(
                 [ordinaryBlock, orbSlotLoss]) - 10_800d / 7d) > 0.001d
             || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
-                [loseFocus], GeneratedRarity.Ancient) - 1_900d) > 0.001d
+                [loseFocus], GeneratedRarity.Ancient) - 1_700d) > 0.001d
             || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(
                 [dexterityLoss], GeneratedRarity.Ancient) - 1_150d) > 0.001d
             || Math.Abs(NegativeEffectTuning.TotalLinearCompensationValue(

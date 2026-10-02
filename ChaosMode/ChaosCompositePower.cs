@@ -520,20 +520,16 @@ public sealed class ChaosCompositePower : PowerModel
             "first_card_played_each_turn", "D:ReplayEventCard");
         _zeroCostAttackReturnAvailable = effectiveOperations.Any(operation =>
             TriggerKind(operation) == "first_zero_cost_attack_played_each_turn");
-        if (!Permanent && _remainingTurnTriggers > 0)
+        if (_remainingTurnTriggers > 0 && !StartTriggerNeedsPlayerChoice("next_turns_start"))
         {
             // Player-choice hooks run earlier than AfterSideTurnStart in v111. Leave choice-capable delayed
             // triggers to AfterPlayerTurnStart; resolving one here with ThrowingPlayerChoiceContext can leave the
             // turn setup task incomplete and the player's phase permanently stuck at Start.
-            if (StartTriggerNeedsPlayerChoice("next_turns_start")) return;
             await ResolveRemainingTurnStart(new ThrowingPlayerChoiceContext());
-            return;
         }
-        if (_waitForNextTurn)
+        if (_waitForNextTurn && !StartTriggerNeedsPlayerChoice("next_turn_start"))
         {
-            if (StartTriggerNeedsPlayerChoice("next_turn_start")) return;
             await ResolveNextTurnStart(new ThrowingPlayerChoiceContext());
-            return;
         }
         if (Permanent && !StartTriggerNeedsPlayerChoice("turn_start", "turn_start_if_self_in_exhaust"))
             await FireTriggersAny(["turn_start", "turn_start_if_self_in_exhaust"],
@@ -543,63 +539,49 @@ public sealed class ChaosCompositePower : PowerModel
     public override async Task AfterPlayerTurnStart(PlayerChoiceContext choiceContext, Player player)
     {
         if (player.Creature != Owner) return;
-        if (!Permanent && _remainingTurnTriggers > 0 && StartTriggerNeedsPlayerChoice("next_turns_start"))
+        if (_remainingTurnTriggers > 0 && StartTriggerNeedsPlayerChoice("next_turns_start"))
         {
             await ResolveRemainingTurnStart(choiceContext);
-            return;
         }
         if (_waitForNextTurn && StartTriggerNeedsPlayerChoice("next_turn_start"))
         {
             await ResolveNextTurnStart(choiceContext);
-            return;
         }
         if (Permanent && StartTriggerNeedsPlayerChoice("turn_start", "turn_start_if_self_in_exhaust"))
             await FireTriggersAny(["turn_start", "turn_start_if_self_in_exhaust"], choiceContext);
+    }
+
+    public override async Task AfterAutoPrePlayPhaseEntered(PlayerChoiceContext choiceContext, Player player)
+    {
+        if (player.Creature != Owner || !Permanent) return;
+        await FireTriggersAny(["turn_start", "turn_start_if_self_in_exhaust"], choiceContext,
+            autoPrePlay: true);
     }
 
     private async Task ResolveRemainingTurnStart(PlayerChoiceContext choiceContext)
     {
         await FireTriggers("next_turns_start", choiceContext);
         _remainingTurnTriggers--;
-        if (_remainingTurnTriggers <= 0) await PowerCmd.Remove(this);
+        await RemoveIfNoLiveEffects();
     }
 
     private async Task ResolveNextTurnStart(PlayerChoiceContext choiceContext)
     {
         _waitForNextTurn = false;
         await FireTriggers("next_turn_start", choiceContext);
-        await PowerCmd.Remove(this);
+        await RemoveIfNoLiveEffects();
     }
 
     public override async Task AfterSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side, IEnumerable<Creature> participants)
     {
-        if (Permanent)
+        // Expire each temporary trigger even while another trigger keeps this container alive.
+        if (Owner.Side == side)
         {
-            // A composite Power may contain both a combat-long engine and a rider that explicitly lasts only for
-            // the turn in which the card was played. Expiration belongs to each trigger, not to the Power as a
-            // whole; otherwise the permanent engine accidentally keeps the temporary rider alive every turn.
-            if (Owner.Side == side && participants.Contains(Owner)) ExpireOwnerTurnEffects();
-            else if (Owner.Side != side) DefensiveTurnEffectsExpired = true;
-            return;
+            if (!participants.Contains(Owner)) return;
+            ExpireOwnerTurnEffects();
         }
-        if (_waitForNextTurn) return;
-        // Lightning Rod-style effects have a fixed number of future turn-start triggers. They must survive
-        // the turn in which the card was played; AfterSideTurnStart removes them after the final trigger.
-        if (_remainingTurnTriggers > 0) return;
-        // Unrelenting waits across turns for the next Attack, while One-Two Punch explicitly expires at the
-        // end of this turn. They share the same event hook but remain distinct operation templates.
-        if (NextAttackTriggerAvailable && HasCrossTurnNextAttackTrigger()) return;
-        var defensiveUntilOpponentTurnEnds = HasTrigger("attack_received")
-            || HasTrigger("vulnerable_enemy_damage_reduction");
-        if (defensiveUntilOpponentTurnEnds)
-        {
-            // Flame Barrier-style effects must survive the player's turn end so they can react to enemy attacks.
-            if (Owner.Side == side) return;
-            await PowerCmd.Remove(this);
-            return;
-        }
-        if (Owner.Side == side && participants.Contains(Owner))
-            await PowerCmd.Remove(this);
+        else DefensiveTurnEffectsExpired = true;
+        await RemoveIfNoLiveEffects();
     }
 
     public override async Task BeforeSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side, IEnumerable<Creature> participants)
@@ -608,7 +590,31 @@ public sealed class ChaosCompositePower : PowerModel
         _delayedTurns--;
         if (_delayedTurns > 0) return;
         await FireTriggers("turns_elapsed", choiceContext);
-        await PowerCmd.Remove(this);
+        await RemoveIfNoLiveEffects();
+    }
+
+    private Task RemoveIfNoLiveEffects() => HasLiveEffects() ? Task.CompletedTask : PowerCmd.Remove(this);
+
+    private bool HasLiveEffects()
+    {
+        foreach (var operation in EffectivePowerOperations())
+        {
+            if (!ChaosOperationExecutor.RequiresCompositePower(operation)) continue;
+            if (TurnLimitedTriggerExpired(operation, OwnerTurnEffectsExpired, DefensiveTurnEffectsExpired)) continue;
+            var trigger = OperationRuntimeSpecCompiler.RequireStructured(operation).Trigger;
+            // Rules have combat-long lifetimes. Do not use Permanent alone: older Bomb containers set it too.
+            if (trigger is null) return true;
+            var live = trigger.Kind switch
+            {
+                "next_turn_start" => _waitForNextTurn,
+                "next_turns_start" => _remainingTurnTriggers > 0,
+                "turns_elapsed" => _delayedTurns > 0,
+                "next_attack" or "next_attacks_this_turn" => NextAttackTriggerAvailable,
+                _ => true
+            };
+            if (live) return true;
+        }
+        return false;
     }
 
     public override async Task AfterCardExhausted(PlayerChoiceContext choiceContext, CardModel card, bool causedByEthereal)
@@ -721,6 +727,7 @@ public sealed class ChaosCompositePower : PowerModel
                 {
                     NextAttackReplayAvailable = false;
                     NextAttackFreeAvailable = false;
+                    await RemoveIfNoLiveEffects();
                 }
             }
         }
@@ -1125,10 +1132,6 @@ public sealed class ChaosCompositePower : PowerModel
         .Any(operation => operation.Scope == OperationScope.AbilityRule
             && OperationRuntimeSpecCompiler.RequireStructured(operation).Variant == variant);
 
-    private bool HasCrossTurnNextAttackTrigger() => EffectiveDescriptionOperations()
-        .Any(operation => operation.Template is "C:grantNextAttack" or "C:for"
-            && CardEffectRules.IsNextAttackGrantTrigger(operation));
-
     internal static bool IsNthAttackPlayedThisTurnTrigger(GeneratorOperation operation) =>
         TriggerKind(operation) == "nth_attack_played_this_turn";
 
@@ -1266,7 +1269,8 @@ public sealed class ChaosCompositePower : PowerModel
 
     private async Task FireTriggersAny(IReadOnlyCollection<string> kinds,
         PlayerChoiceContext choiceContext, CardPlay? sourcePlay = null,
-        CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0)
+        CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0,
+        bool autoPrePlay = false)
     {
         var operations = Definition.Card.Operations;
         for (var index = 0; index < operations.Count; index++)
@@ -1275,6 +1279,12 @@ public sealed class ChaosCompositePower : PowerModel
             if (operation.Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger)) continue;
             var triggerKind = TriggerKind(operation);
             if (triggerKind is null || !kinds.Contains(triggerKind)) continue;
+            // Native Mayhem runs after turn setup, in AutoPrePlay, not in AfterPlayerTurnStart.
+            // Keep the entire linked clause together without delaying independent start-of-turn clauses.
+            var isMayhemStart = triggerKind is "turn_start" or "turn_start_if_self_in_exhaust"
+                && operations.Any(effect => effect.Template == "CL:PlayTopDrawCard"
+                    && effect.Parameters.TryGetValue("triggerIndex", out var linked) && linked == index);
+            if (isMayhemStart != autoPrePlay) continue;
             await FireTriggerAt(index, choiceContext, sourcePlay, eventCard, eventCreature, eventAmount);
         }
     }
@@ -1282,6 +1292,8 @@ public sealed class ChaosCompositePower : PowerModel
     private async Task FireTriggerAt(int index, PlayerChoiceContext choiceContext, CardPlay? sourcePlay = null,
         CardModel? eventCard = null, Creature? eventCreature = null, decimal eventAmount = 0)
     {
+        choiceContext = ChaosChoiceContext.Resolve(choiceContext, Owner.Player!.NetId);
+        using var choiceScope = ChaosChoiceContext.Enter(choiceContext);
         var operation = Definition.Card.Operations[index];
         if (TurnLimitedTriggerExpired(operation, OwnerTurnEffectsExpired, DefensiveTurnEffectsExpired)) return;
         var previousDepth = TriggerChainDepth.Value;

@@ -106,7 +106,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.104";
+    public const string ModVersion = "0.3.119";
     private const int SchemaVersion = 10;
     // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
     // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay
@@ -134,7 +134,8 @@ public static class ChaosPoolSnapshot
         bool NumericBalanceOptimization,
         bool NumericRandomMode,
         bool PreserveOriginalCards,
-        IReadOnlyList<IReadOnlyList<ChaosCardDefinition>> PoolReferences, string Payload);
+        IReadOnlyList<IReadOnlyList<ChaosCardDefinition>> PoolReferences, string Payload,
+        string? RestoredPayload = null);
 
     private static readonly object PayloadCacheGate = new();
     private static readonly Lazy<IReadOnlySet<string>> SupportedTemplates = new(BuildSupportedTemplates,
@@ -403,10 +404,19 @@ public static class ChaosPoolSnapshot
     }
 
     public static void PrimeRunPayload(IReadOnlyCollection<GeneratedCharacter> activeCharacters, string seed,
-        IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> pools)
+        IReadOnlyDictionary<GeneratedCharacter, IReadOnlyList<ChaosCardDefinition>> pools,
+        string? restoredPayload = null)
     {
         var stopwatch = Stopwatch.StartNew();
-        _ = GetOrCreateRunPayload(activeCharacters, seed, pools, out var rebuilt);
+        bool rebuilt;
+        lock (PayloadCacheGate)
+        {
+            _ = GetOrCreateRunPayload(activeCharacters, seed, pools, out rebuilt);
+            // Recognize a successfully restored older encoding only while its exact pool references stay active.
+            // Saves continue to use the current encoding; pool replacement invalidates both identities together.
+            if (!string.IsNullOrEmpty(restoredPayload) && _cachedRunPayload is { } cached)
+                _cachedRunPayload = cached with { RestoredPayload = restoredPayload };
+        }
         stopwatch.Stop();
         if (rebuilt)
             Log.Info($"[AutoAnthony] Prepared immutable run-pool snapshot cache in {stopwatch.ElapsedMilliseconds} ms.");
@@ -448,7 +458,8 @@ public static class ChaosPoolSnapshot
                 && cached.ActiveCharacters.SequenceEqual(normalizedCharacters)
                 && cached.PoolReferences.Count == poolReferences.Length
                 && cached.PoolReferences.Zip(poolReferences).All(pair => ReferenceEquals(pair.First, pair.Second))
-                && string.Equals(cached.Payload, payload, StringComparison.Ordinal);
+                && (string.Equals(cached.Payload, payload, StringComparison.Ordinal)
+                    || string.Equals(cached.RestoredPayload, payload, StringComparison.Ordinal));
         }
     }
 

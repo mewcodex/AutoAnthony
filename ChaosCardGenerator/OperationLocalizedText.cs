@@ -146,7 +146,8 @@ public sealed record OperationLocalizedText(string ChineseTemplate, string? Engl
             return false;
         }
         string? englishTemplate = null;
-        if (!string.IsNullOrWhiteSpace(english) && !HasAmbiguousRepeatedValues(spec))
+        if (!string.IsNullOrWhiteSpace(english)
+            && (!HasAmbiguousRepeatedValues(spec) || HasOrderedXDamageValues(english, spec)))
         {
             if (!TryCompileLanguage(english!, spec, english: true, out var compiledEnglish))
                 compiledEnglish = null;
@@ -161,6 +162,21 @@ public sealed record OperationLocalizedText(string ChineseTemplate, string? Engl
         .Where(IsPrintedSlot)
         .GroupBy(Literal, StringComparer.Ordinal)
         .Any(group => group.Key.Length > 0 && group.Count() > 1);
+
+    // Equal X literals are not ambiguous in the canonical damage/hit-count sentence: both languages put
+    // damage before hits. Do not relax the generic guard for clauses whose English order can be reversed.
+    private static bool HasOrderedXDamageValues(string english, OperationRuntimeSpec spec)
+    {
+        var slots = spec.Values.Where(IsPrintedSlot).ToArray();
+        if (spec.Opcode != "deal_damage" || slots.Length != 2
+            || slots[0].Id != "damage" || slots[1].Id != "hits"
+            || !slots.Any(slot => slot.Source is "energy_x" or "star_x" or "special_x")) return false;
+        var match = Regex.Match(english,
+            @"^Deal (?<damage>X(?:\+\d+)?|\d+) damage(?: to (?:ALL enemies|a random enemy))? (?<hits>X(?:\+\d+)?|\d+) times\.$",
+            RegexOptions.CultureInvariant);
+        return match.Success && match.Groups["damage"].Value == Literal(slots[0])
+            && match.Groups["hits"].Value == Literal(slots[1]);
+    }
 
     private static bool TryCompileLanguage(string text, OperationRuntimeSpec spec, bool english, out string template)
     {

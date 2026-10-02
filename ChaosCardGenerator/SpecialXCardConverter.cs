@@ -174,9 +174,7 @@ public static class SpecialXCardConverter
             || CardEffectRules.IsNonUpgradeableNumericMarker(operation)
             || CardEffectRules.IsSelfCostChange(operation)
             || operation.Template.Contains(":Proxy", StringComparison.Ordinal)
-            || CardEffectRules.IsEnergyGainOperation(operation)
             || operation.Template == "R:GainStars"
-            || spec.Opcode == "modify_cost"
             || spec.Flags.Any(flag => flag is "set_cost_zero" or "set_cost_zero_this_turn"))
             return false;
         if (operation.Scope is not (OperationScope.SingleEnemyOnly or OperationScope.NonTargeted
@@ -269,6 +267,9 @@ public static class SpecialXCardConverter
         var failures = new List<string>();
         foreach (var operation in operations)
         {
+            // These are deliberately supported since 0.3.114, unlike the frozen eligibility baseline.
+            if (CardEffectRules.IsEnergyGainOperation(operation)
+                || OperationRuntimeSpecCompiler.GetOrCompile(operation).Opcode == "modify_cost") continue;
             var legacySlots = LegacyConvertibleMatchesForAudit(operation)
                 .Select(item => int.Parse(item.Match.Value, System.Globalization.CultureInfo.InvariantCulture))
                 .ToArray();

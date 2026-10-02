@@ -9,7 +9,7 @@ namespace ChaosCardGenerator;
 public static class CardTextStyle
 {
     private const string EnergyIcon = "{energyPrefix:energyIcons(1)}";
-    private const string PrintedValuePattern = @"(?:\d+|X|\{[A-Za-z0-9_]+:(?:diff|inverseDiff)\(\)\})";
+    private const string PrintedValuePattern = @"(?:X(?:\+\d+)?|\d+|\{[A-Za-z0-9_]+:(?:diff|inverseDiff)\(\)\})";
     private static readonly Regex LegacyEnergyIcon = new(
         @"\[img\]res://images/packed/sprite_fonts/[a-z0-9_]*energy_icon\.png\[/img\]",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -347,7 +347,7 @@ public static class CardTextStyle
     {
         var dynamic = DynamicPrintedValue.Match(amount);
         if (dynamic.Success) return $"{{{dynamic.Groups["name"].Value}:energyIcons()}}";
-        return amount == "X" ? "X" + EnergyIcon : $"{{energyPrefix:energyIcons({amount})}}";
+        return amount.StartsWith('X') ? amount + EnergyIcon : $"{{energyPrefix:energyIcons({amount})}}";
     }
 
     private static string NormalizeCommon(string text)

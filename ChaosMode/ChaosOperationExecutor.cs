@@ -50,7 +50,7 @@ internal sealed class ChaosExecutionState
     public decimal EventAmount { get; init; }
     public bool IsTriggered { get; init; }
     public int CurrentCardEnergySpent { get; init; }
-    public int PriorAttackHitsOnTargetAtPlayStart { get; init; }
+    public int? PriorAttackHitsOnTargetAtPlayStart { get; init; }
     public bool EndTurnRequested { get; set; }
     /// <summary>
     /// A lifecycle trigger fired by an Attack/Skill still in Hand/Draw/Discard/Exhaust represents that card's
@@ -466,6 +466,8 @@ internal static class ChaosOperationExecutor
     private static async Task ExecuteWithResolvedTarget(ChaosCardModel card, int index,
         PlayerChoiceContext choiceContext, CardPlay cardPlay, ChaosExecutionState state)
     {
+        choiceContext = ChaosChoiceContext.Resolve(choiceContext, card.Owner.NetId);
+        using var choiceScope = ChaosChoiceContext.Enter(choiceContext);
         var operation = card.Generated.Operations[index];
         await ResolveCardSelectionForOperation(card, index, choiceContext, state);
         var originalTarget = state.Target;
@@ -1325,8 +1327,8 @@ internal static class ChaosOperationExecutor
                 return;
             case "CL:PlayTopDrawCard":
             {
-                var top = PileType.Draw.GetPile(card.Owner).Cards.FirstOrDefault();
-                if (top is not null) await CardCmd.AutoPlay(choiceContext, top, null);
+                await CardPileCmd.AutoPlayFromDrawPile(choiceContext, card.Owner, 1,
+                    CardPilePosition.Top, forceExhaust: false);
                 return;
             }
             case "CL:PutEventCardOnDrawTop":
@@ -1542,9 +1544,7 @@ internal static class ChaosOperationExecutor
             case "R:PutSelectedHandCardsOnDraw":
             case "R:PutSelectedHandCardOnDraw":
             {
-                var count = operation.Template.EndsWith("CardsOnDraw", StringComparison.Ordinal)
-                    ? ExecutableOperationCount(operation, amount)
-                    : 1;
+                var count = SelectionCountForEffect(operation, amount);
                 if (count == 0) return;
                 var selected = SelectedCards(operation, state);
                 if (selected.Count == 0 && string.IsNullOrWhiteSpace(operation.CardTargetSlot))
@@ -2498,7 +2498,16 @@ internal static class ChaosOperationExecutor
             if (!HasGeneratedCardChoiceCandidates(candidateCount, generated.Count)) return;
             UpgradeGeneratedCards(card, operationIndex, generated);
             CardModel? selected;
-            if (generated.Count <= 3)
+            if (choiceContext is ThrowingPlayerChoiceContext)
+            {
+                // There is no suspended interactive action at some native timing points (e.g. resource spending).
+                // Follow the same deterministic policy as the hand/pile selectors without reserving a network choice.
+                selected = CardSelectCmd.Selector is { } selector
+                    ? (await selector.GetSelectedCards(generated, 0, 1)).FirstOrDefault()
+                    : SelectAutomatically(card.Owner, generated, new CardSelectorPrefs(
+                        SelectionPrompt("SELECT_HAND_CARD"), 1)).FirstOrDefault();
+            }
+            else if (generated.Count <= 3)
                 selected = await CardSelectCmd.FromChooseACardScreen(choiceContext, generated, card.Owner,
                     canSkip: true);
             else
@@ -3088,7 +3097,8 @@ internal static class ChaosOperationExecutor
         {
             var selected = (await SelectFromHandIfAny(choiceContext, card.Owner,
                 new CardSelectorPrefs(SelectionPrompt("SELECT_HAND_SKILL"), 1),
-                candidate => candidate.Type == CardType.Skill && !candidate.IsSlyThisTurn, card)).FirstOrDefault();
+                candidate => candidate.Type == CardType.Skill && !candidate.IsSlyThisTurn, card,
+                restoreAfterSelection: true)).FirstOrDefault();
             if (selected is not null) CardCmd.ApplySingleTurnSly(selected);
         }
         else if (operation.Template == "I:PlayExhaustedShivsAtTarget")
@@ -3830,7 +3840,8 @@ internal static class ChaosOperationExecutor
     /// so every interpreter-owned selection must preflight the live source and avoid creating an empty choice.
     /// </summary>
     private static async Task<IEnumerable<CardModel>> SelectFromHandIfAny(PlayerChoiceContext context, Player player,
-        CardSelectorPrefs prefs, Func<CardModel, bool>? filter, AbstractModel source)
+        CardSelectorPrefs prefs, Func<CardModel, bool>? filter, AbstractModel source,
+        bool restoreAfterSelection = false)
     {
         var candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         if (candidates.Count == 0)
@@ -3841,12 +3852,15 @@ internal static class ChaosOperationExecutor
         // Follow the native hand-selection ownership contract. NPlayerHand keeps the selected holders in its centre
         // container until this exact source emits ExecutionFinished; direct card plays are completed by CardModel,
         // while reconstructed trigger sources are completed in ExecuteTriggered's finally block. Bypassing that
-        // contract with a null source lets selection visuals finish before the subsequent Exhaust/Discard/Transform
-        // command owns the selected holder, which can strand either that holder or the played card in the centre.
+        // contract for a moving effect lets selection visuals finish before the subsequent Exhaust/Discard/Transform
+        // command owns the selected holder. In-place edits such as granting Sly must instead restore immediately:
+        // the same composite card may open a second selector, and the first source-owned callback would then also
+        // act on that selector's shared container during nested discard/autoplay hooks.
         CardModel[] selected;
         try
         {
-            selected = (await CardSelectCmd.FromHand(context, player, prefs, filter, source)).ToArray();
+            selected = (await CardSelectCmd.FromHand(context, player, prefs, filter,
+                restoreAfterSelection ? null! : source)).ToArray();
         }
         catch
         {
@@ -4127,7 +4141,8 @@ internal static class ChaosOperationExecutor
         if (card.Generated.Upgrade.Effects.Any(effect => effect.OperationIndex == operationIndex
                 && effect.Kind == CardUpgradeKind.ChooseExhaust))
             spec = OperationRuntimeSpecCompiler.AsSelectedExhaust(spec);
-        foreach (var effect in card.Generated.Upgrade.Effects.Where(effect =>
+        foreach (var effect in CardUpgradeGenerator.ExpandEffects(card.Generated.Operations,
+                     card.Generated.Upgrade.Effects).Where(effect =>
                      effect.OperationIndex == operationIndex
                      && effect.Delta is not null
                      && effect.Kind is CardUpgradeKind.IncreaseNumber or CardUpgradeKind.ReduceSelfDamage
@@ -4175,7 +4190,10 @@ internal static class ChaosOperationExecutor
     {
         // Most card-reference operations select one card and use their number for a different purpose (notably
         // "play the selected Skill N times"). Only batch operations interpret their amount as selection count.
-        if (operation.Template is "CL:TransformSelectedHandCards" or "R:PutSelectedHandCardsOnDraw")
+        if (operation.Template == "R:PutSelectedHandCardsOnDraw")
+            // Glimmer's native PutBack=1 is implicit in this component. Missing numeric slots are not X=0.
+            return SkipsCardSelectionAtZero(operation, amount) ? 0 : Math.Max(1, amount);
+        if (operation.Template == "CL:TransformSelectedHandCards")
             return Math.Max(1, amount);
         if (operation.Template == "I:ProxyAtomic_Begone") return TransformProxySelectionCount(amount);
         if (operation.Template == "I:ProxyAtomic_Guards") return int.MaxValue;

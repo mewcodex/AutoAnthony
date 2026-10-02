@@ -1037,7 +1037,7 @@ public abstract class ChaosCardModel : CardModel
             ComponentKeywordRuntimeApi.ApplyUpgrade(this, keywordId, added: true);
         foreach (var keywordId in GeneratedCardTagPolicy.RemovedCustomKeywords(upgrade))
             ComponentKeywordRuntimeApi.ApplyUpgrade(this, keywordId, added: false);
-        foreach (var effect in upgrade.Effects)
+        foreach (var effect in CardUpgradeGenerator.ExpandEffects(Generated.Operations, upgrade.Effects))
         {
             if (effect.OperationIndex is not { } index || effect.Delta is not { } delta) continue;
             if (effect.Kind == CardUpgradeKind.IncreaseNumber
@@ -1060,6 +1060,9 @@ public abstract class ChaosCardModel : CardModel
         var slotId = OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
         var slot = slotId is null ? spec.Values.FirstOrDefault(value => value.Upgradable)
             : spec.Values.FirstOrDefault(value => value.Id == slotId);
+        // Upgrade eligibility is not execution eligibility. Fixed-99 status variants deliberately disable
+        // upgrades (and have no live DynamicVar), but their explicit amount must still execute on old saves.
+        slot ??= spec.Values.FirstOrDefault(value => value.Explicit);
         if (slot is null) return 0;
         return slot.Source switch
         {

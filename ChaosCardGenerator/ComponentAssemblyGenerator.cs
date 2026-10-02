@@ -3554,6 +3554,19 @@ public sealed class ComponentAssemblyGenerator
                 NumericGenerationTuning.SampleMandatoryDiscardCount(_random));
         }
         var atomSpec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        if (LongDurationStatusVariant.IsEligible(atomSpec)
+            && !previous.Any(CardEffectRules.IsRepeatedTriggerOrCondition)
+            && _random.NextDouble() < LongDurationStatusVariant.CandidateChance)
+        {
+            var slot = atomSpec.Values.First(value => value.Explicit && value.Source == "fixed");
+            var variant = ReplaceAtomFixedValue(atom, slot.Id, 99);
+            var variantSpec = OperationRuntimeSpecCompiler.GetOrCompile(variant);
+            return variant with { RuntimeSpec = variantSpec with
+            {
+                Flags = variantSpec.Flags.Append(LongDurationStatusVariant.Flag).ToArray(),
+                Values = variantSpec.Values.Select(value => value with { Upgradable = false }).ToArray()
+            } };
+        }
         if (atomSpec is { Opcode: "exhaust_card", Variant: "selected" }
             && !atomSpec.Flags.Contains("up_to"))
         {

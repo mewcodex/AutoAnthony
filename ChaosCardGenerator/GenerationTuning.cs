@@ -2,6 +2,67 @@ using System.Text.RegularExpressions;
 
 namespace ChaosCardGenerator;
 
+internal static class LongDurationStatusVariant
+{
+    internal const string Flag = "fixed_99_enemy_status";
+    // Conditional roll on a scarce, non-repeating status candidate, not a per-card probability.
+    // Halved from 0.30; final pool incidence also depends on eligibility and budget acceptance.
+    internal const double CandidateChance = 0.15d;
+    // STS1 Terror: one-Energy Uncommon with Exhaust. Use the same full-shell valuation as other scarce effects.
+    internal const int VulnerableValue = 2_030; // 1,400 * 1.45
+    internal const int WeakValue = 2_250;
+
+    internal static bool IsEligible(OperationRuntimeSpec spec) =>
+        spec.Variant is "vulnerable" or "weak"
+        && spec.Target is "selected_enemy" or "all_enemies" or "random_enemy"
+        && spec.Values.Any(value => value.Explicit && value.Source == "fixed")
+        && spec.Values.All(value => value.Source == "fixed")
+        && spec.Trigger is null && spec.Condition is null;
+
+    internal static bool HasValidOwners(IReadOnlyList<GeneratorOperation> operations)
+    {
+        for (var index = 0; index < operations.Count; index++)
+        {
+            if (!OperationRuntimeSpecCompiler.GetOrCompile(operations[index]).Flags.Contains(Flag)) continue;
+            var seen = new HashSet<int>();
+            var cursor = index;
+            while (operations[cursor].Parameters.TryGetValue("triggerIndex", out var parent))
+            {
+                if (parent < 0 || parent >= cursor || !seen.Add(parent)
+                    || CardEffectRules.IsRepeatedTriggerOrCondition(operations[parent])) return false;
+                cursor = parent;
+            }
+        }
+        return true;
+    }
+
+    internal static void Validate()
+    {
+        var spec = new OperationRuntimeSpec(1, "apply_power", "vulnerable", "selected_enemy", "none", "none",
+            "any", [Flag, "vulnerable_reference", "apply_status_reference"],
+            [new RuntimeValueSlot("amount", 99, Upgradable: false)]);
+        var op = new GeneratorOperation("T:Apply", OperationScope.SingleEnemyOnly, string.Empty,
+            new Dictionary<string, int>(), RequiresSingleTarget: true, RuntimeSpec: spec);
+        var atom = new ComponentAtom(op.Template, op.Scope, string.Empty, true, CardReferenceRequirement.None)
+            { RuntimeSpec = spec };
+        if (EffectBalanceModel.EstimatedEffectValue(atom) != VulnerableValue
+            || OperationRuntimeSpecCompiler.TryReplaceFixedValue(op, "amount", 4, out _)
+            || !IsEligible(spec) || !HasValidOwners([op]))
+            throw new InvalidOperationException("Fixed-99 status valuation/value domain regression.");
+        var repeated = CardTinkeringApi.GetComponentPrototypes().Select(p => p.Operation)
+            .First(candidate => candidate.RuntimeSpec?.Trigger?.Kind == "card_played");
+        var linked = op with { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } };
+        if (HasValidOwners([repeated, linked]))
+            throw new InvalidOperationException("Repeated 99-stack payoff was accepted.");
+        var weak = atom with { RuntimeSpec = spec with
+        {
+            Variant = "weak", Flags = [Flag, "weak_reference", "apply_status_reference"]
+        } };
+        if (EffectBalanceModel.EstimatedEffectValue(weak) != WeakValue)
+            throw new InvalidOperationException("Fixed-99 Weak valuation regression.");
+    }
+}
+
 /// <summary>
 /// Central policy layer for percentage adjustments used while selecting effect atoms. The assembler supplies
 /// native-frequency and value-fit weights; this type supplies the reusable gameplay biases. Keeping the two
@@ -46,7 +107,7 @@ internal static class EffectSelectionTuning
             "D:AutoPlayRandomAttackFromDraw" => 195,
             // Body Slam's current-Block modifier needs a preceding single-target Damage anchor. Compensate for
             // those assembly rejections so the reviewed component remains visible in Ironclad/Ultimate pools.
-            "M:value" => 150,
+            "M:value" => 225,
             "M:repeat" or "R:WheneverDrawn" => 180,
             "CL:ReturnThisToHand" => 130,
             _ => 100
@@ -462,6 +523,8 @@ internal static class NumericGenerationTuning
             value = SampleShivProducerCount(random, atom.Template, value);
         if (slot == 0 && CardEffectRules.IsEnemyStrengthGain(atom))
             value = ThinEnemyStrengthGainTail(value, random.Next(100));
+        if (slot == 0 && value >= 3 && atom.Template is "D:LoseFocus" or "D:LoseTemporaryFocus")
+            value = ThinFocusLossTail(value, atom.Template == "D:LoseFocus", random.Next(100));
         if (slot == 0 && CardEffectRules.IsStarGainOperation(atom) && value > 1 && random.Next(100) < 28)
             value--;
         if (slot == 0
@@ -471,6 +534,14 @@ internal static class NumericGenerationTuning
             // but ordinary multi-effect cards should overwhelmingly stop at three.
             value = random.Next(100) < 82 ? 3 : 4;
         return value;
+    }
+
+    internal static int ThinFocusLossTail(int sampledValue, bool permanent, int percentileRoll)
+    {
+        // Focus loss is avoidable in orb-free decks. Thin the upper tail without removing native high rolls
+        // or changing one-/two-stack payments; permanent losses warrant the stronger correction.
+        return sampledValue >= 3 && percentileRoll < (permanent ? 30 : 20)
+            ? sampledValue - 1 : sampledValue;
     }
 
     internal static int ThinEnemyStrengthGainTail(int sampledValue, int percentileRoll)
@@ -662,6 +733,7 @@ internal static class NumericGenerationTuning
         GeneratedCharacter? character,
         bool ultimateChaos)
     {
+        if (spec.Flags.Contains(LongDurationStatusVariant.Flag)) return 99;
         if (spec.Flags.Any(flag => flag is "uses_energy_x" or "uses_star_x")
             || spec.Values.Any(value => value.Source is "energy_x" or "star_x" or "special_x")) return null;
         if (spec.Flags.Contains("vulnerable_reference")
@@ -869,8 +941,8 @@ internal static class NegativeEffectTuning
             // Bloodletting anchors three HP at 300 Uncommon value.
             "N:HP-" => 600d / 7d,
             // Temporary Focus can usually be sequenced after Orb use; permanent losses are substantially larger.
-            "D:LoseTemporaryFocus" => 55d,
-            "D:LoseFocus" => 950d,
+            "D:LoseTemporaryFocus" => 50d,
+            "D:LoseFocus" => 850d,
             // Jointly reverse-fit with Intangible from Wraith Form. Repeated turn-start loss is multiplied by its
             // expected 2.4 resolutions, so one printed Dexterity loss contributes 2,760 compensation there.
             "N:LoseDex" => 575d,

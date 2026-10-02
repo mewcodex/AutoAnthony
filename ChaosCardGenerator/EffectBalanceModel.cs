@@ -147,6 +147,10 @@ internal static class EffectBalanceModel
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
         if (ComponentValuationApi.TryEstimate(atom.Template, atom.Scope, spec, out var customValue))
             return customValue;
+        if (spec.Flags.Contains(LongDurationStatusVariant.Flag))
+            return (int)Math.Round((spec.Flags.Contains("weak_reference")
+                    ? LongDurationStatusVariant.WeakValue : LongDurationStatusVariant.VulnerableValue)
+                * (spec.Flags.Contains("all_enemies_reference") ? 1.33d : 1d));
         var explicitValues = spec.Values.Where(value => value.Explicit && value.Source == "fixed").ToArray();
         var first = explicitValues.FirstOrDefault()?.BaseValue ?? 1;
         var hits = Math.Clamp(spec.Values.FirstOrDefault(value => value.Id is "hits" or "repeat_count")

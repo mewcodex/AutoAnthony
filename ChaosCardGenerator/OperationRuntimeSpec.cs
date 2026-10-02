@@ -1066,8 +1066,12 @@ public static class OperationRuntimeSpecCompiler
     public static string IncreaseLegacyXValue(string text) =>
         text.Replace("X", "X+1", StringComparison.Ordinal);
 
-    public static int LegacyXOffset(string text) =>
-        text.Contains("X+1", StringComparison.Ordinal) ? 1 : 0;
+    public static int LegacyXOffset(string text)
+    {
+        var match = Regex.Match(text, @"X\+(\d+)", RegexOptions.CultureInvariant);
+        return match.Success && int.TryParse(match.Groups[1].Value, NumberStyles.None,
+            CultureInfo.InvariantCulture, out var offset) ? offset : 0;
+    }
 
     /// <summary>
     /// Returns a named fixed numeric value from the structured operation contract. Generator, balance and
@@ -1141,6 +1145,11 @@ public static class OperationRuntimeSpecCompiler
         var spec = GetOrCompile(operation);
         var slotIndex = spec.Values.ToList().FindIndex(value => value.Id == slotId);
         if (slotIndex < 0 || spec.Values[slotIndex] is not { Source: "fixed", Explicit: true } slot)
+        {
+            updated = operation;
+            return false;
+        }
+        if (spec.Flags.Contains(LongDurationStatusVariant.Flag) && newValue != 99)
         {
             updated = operation;
             return false;
@@ -2274,22 +2283,22 @@ public static class OperationRuntimeSpecCompiler
     private static OperationRuntimeSpec CompileMultiDamage(GeneratorOperation operation)
     {
         var matches = Number.Matches(operation.ChineseText).Cast<Match>().ToArray();
+        var damageX = Regex.Match(operation.ChineseText, @"造成X(?:\+\d+)?点伤害", RegexOptions.CultureInvariant);
+        var hitsX = Regex.Match(operation.ChineseText, @"伤害X(?:\+\d+)?次", RegexOptions.CultureInvariant);
         var damageUsesX = SpecialXCardConverter.ValueUsesSpecialX(operation, 0)
-            || Regex.IsMatch(operation.ChineseText, @"造成X点伤害", RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            || damageX.Success;
         var hitsUsesX = SpecialXCardConverter.ValueUsesSpecialX(operation, 1)
-            || Regex.IsMatch(operation.ChineseText, @"伤害X(?:\+1)?次", RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            || hitsX.Success;
         var damage = damageUsesX
             ? new RuntimeValueSlot("damage", 0, SpecialXCardConverter.ValueUsesSpecialX(operation, 0)
-                ? "special_x" : "energy_x")
+                ? "special_x" : "energy_x", LegacyXOffset(damageX.Value))
             : new RuntimeValueSlot("damage", matches.FirstOrDefault()?.Value is { } first
                 ? int.Parse(first, System.Globalization.CultureInfo.InvariantCulture) : 0);
         var fixedHits = Regex.Match(operation.ChineseText, @"伤害(\d+)次", RegexOptions.CultureInvariant,
             TimeSpan.FromMilliseconds(100));
         var hits = hitsUsesX
             ? new RuntimeValueSlot("hits", 0, SpecialXCardConverter.ValueUsesSpecialX(operation, 1)
-                ? "special_x" : "energy_x", operation.ChineseText.Contains("X+1", StringComparison.Ordinal) ? 1 : 0)
+                ? "special_x" : "energy_x", LegacyXOffset(hitsX.Value))
             : new RuntimeValueSlot("hits", fixedHits.Success
                     ? int.Parse(fixedHits.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 1,
                 Explicit: fixedHits.Success);
@@ -2299,19 +2308,22 @@ public static class OperationRuntimeSpecCompiler
 
     private static OperationRuntimeSpec CompileTargetDamage(GeneratorOperation operation)
     {
+        var damageX = Regex.Match(operation.ChineseText, @"造成X(?:\+\d+)?点伤害", RegexOptions.CultureInvariant);
+        var hitsX = Regex.Match(operation.ChineseText, @"伤害X(?:\+\d+)?次", RegexOptions.CultureInvariant);
         var damageUsesX = SpecialXCardConverter.ValueUsesSpecialX(operation, 0)
-            || Regex.IsMatch(operation.ChineseText, @"造成X点伤害", RegexOptions.CultureInvariant,
-                TimeSpan.FromMilliseconds(100));
+            || damageX.Success;
         var damage = damageUsesX
             ? new RuntimeValueSlot("damage", 0, SpecialXCardConverter.ValueUsesSpecialX(operation, 0)
-                ? "special_x" : "energy_x", LegacyXOffset(operation.ChineseText))
+                ? "special_x" : "energy_x", LegacyXOffset(damageX.Value))
             : new RuntimeValueSlot("damage", FirstNumber(operation.ChineseText, 0));
-        var usesXHits = operation.Template is "T:DX" or "T:D_EnergyX";
+        var usesXHits = operation.Template is "T:DX" or "T:D_EnergyX"
+            || SpecialXCardConverter.ValueUsesSpecialX(operation, 1) || hitsX.Success;
         var fixedHits = Regex.Match(operation.ChineseText, @"伤害(\d+)次",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
         var values = new List<RuntimeValueSlot> { damage };
         if (usesXHits)
-            values.Add(new RuntimeValueSlot("hits", 0, "energy_x", LegacyXOffset(operation.ChineseText)));
+            values.Add(new RuntimeValueSlot("hits", 0,
+                SpecialXCardConverter.ValueUsesSpecialX(operation, 1) ? "special_x" : "energy_x", LegacyXOffset(hitsX.Value)));
         else if (fixedHits.Success)
             values.Add(new RuntimeValueSlot("hits",
                 int.Parse(fixedHits.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)));
