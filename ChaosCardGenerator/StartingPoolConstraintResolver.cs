@@ -84,12 +84,20 @@ public static class StartingPoolConstraintResolver
                     || !highResourceValid && !IsHighResourceCard(cards[index])
                         && (needsDamageHeadroom && !CountsAsDamage(cards[index])
                             || needsDefenseHeadroom && !CountsAsDefense(cards[index]))
-                    || !starBalanceValid && ConsumesStars(cards[index]) && !ProducesStars(cards[index])
+                    // Supply can be repaired by adding a producer to a neutral slot, not only by deleting a
+                    // consumer. A consumer may be the sole card providing both required Attack and Block.
+                    || !starBalanceValid && !ProducesStars(cards[index])
                     || DerivativePoolConstraintResolver.HasProducedDerivativeReference(cards[index]))
                 .OrderByDescending(index => currentOstyGap > 0
                     && OstyPoolConstraintResolver.HasOstyEffect(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => currentSlyGap > 0
                     && SlyPoolConstraintResolver.HasSly(cards[index]) ? 1 : 0)
+                // Remove the actual resource offender before trying to create coverage headroom in neutral
+                // slots. Otherwise simultaneous high-cost and Star deficits demand a rare multi-role producer
+                // from every neutral slot, even when replacing one Star-paying card solves both immediately.
+                .ThenByDescending(index => !highResourceValid && IsHighResourceCard(cards[index]) ? 1 : 0)
+                .ThenByDescending(index => !starBalanceValid
+                    && ConsumesStars(cards[index]) && !ProducesStars(cards[index]) ? 1 : 0)
                 // Prefer slots whose removal preserves both current coverage counts. When defense is exactly at
                 // its minimum, replacing a defensive card while repairing damage would require the rare combined
                 // damage+Block template; trying those slots first caused seconds of guaranteed low-yield search.
@@ -98,9 +106,6 @@ public static class StartingPoolConstraintResolver
                     + (currentDefense - (CountsAsDefense(cards[index]) ? 1 : 0) >= minimumDefense ? 1 : 0))
                 .ThenByDescending(index => !damageValid && !CountsAsDamage(cards[index]) ? 1 : 0)
                 .ThenByDescending(index => !defenseValid && !CountsAsDefense(cards[index]) ? 1 : 0)
-                .ThenByDescending(index => !highResourceValid && IsHighResourceCard(cards[index]) ? 1 : 0)
-                .ThenByDescending(index => !starBalanceValid
-                    && ConsumesStars(cards[index]) && !ProducesStars(cards[index]) ? 1 : 0)
                 .ThenBy(_ => random.Next())
                 .ToArray();
             if (candidates.Length == 0)
@@ -114,9 +119,9 @@ public static class StartingPoolConstraintResolver
             {
                 var replacementStarted = traceRepairs ? Stopwatch.GetTimestamp() : 0;
                 var oldOrdinaryX = SpecialXCardConverter.IsOrdinaryX(cards[index]);
-                    var oldCard = cards[index];
-                    var repairingHighResource = !highResourceValid && IsHighResourceCard(cards[index]);
-                    var stagingCoverageForHighResource = !highResourceValid && !repairingHighResource;
+                var oldCard = cards[index];
+                var repairingHighResource = !highResourceValid && IsHighResourceCard(cards[index]);
+                var stagingCoverageForHighResource = !highResourceValid && !repairingHighResource;
                 try
                 {
                     var replacement = generator.GenerateReferenceFreeWithoutSpecialXMatching(
@@ -126,7 +131,6 @@ public static class StartingPoolConstraintResolver
                         // starting resource cap, that explicit rule takes precedence and permits a low-cost card.
                         if (!repairingHighResource
                             && SpecialXCardConverter.IsOrdinaryX(candidate) != oldOrdinaryX) return false;
-                        if (!highResourceValid && IsHighResourceCard(candidate)) return false;
                         if (currentOstyGap > 0 && OstyPoolConstraintResolver.HasOstyEffect(candidate)) return false;
                         if (currentSlyGap > 0 && SlyPoolConstraintResolver.HasSly(candidate)) return false;
                         var prospectiveDamage = currentDamage - (CountsAsDamage(oldCard) ? 1 : 0)
@@ -147,20 +151,16 @@ public static class StartingPoolConstraintResolver
                                 || needsDefenseHeadroom && prospectiveDefense > currentDefense);
                         if (highResourceValid
                                 ? prospectiveHighResource > MaximumHighResourceCards
-                                : prospectiveHighResource > currentHighResource
-                                  || prospectiveHighResource == currentHighResource && !createsCoverageHeadroom)
+                                : prospectiveHighResource > currentHighResource)
                             return false;
                         if (enforceRegentStarBalance && (starBalanceValid
                                 ? prospectiveStarGap > 0
-                                : prospectiveStarGap >= currentStarGap))
+                                : prospectiveStarGap > currentStarGap))
                             return false;
                         var coverageImproved = !damageValid && prospectiveDamage > currentDamage
                             || !defenseValid && prospectiveDefense > currentDefense
                             || !highResourceValid && prospectiveHighResource < currentHighResource
                             || !starBalanceValid && prospectiveStarGap < currentStarGap;
-                        if (ostyValid && slyValid && derivativeValid && highResourceValid && starBalanceValid
-                            && !coverageImproved && !createsCoverageHeadroom)
-                            return false;
                         var prospectiveOstyGap = currentOstyGap
                             - (OstyPoolConstraintResolver.HasOstyEffect(oldCard) ? 1 : 0)
                             + (OstyPoolConstraintResolver.HasSummonEffect(oldCard) ? 1 : 0)
@@ -171,13 +171,17 @@ public static class StartingPoolConstraintResolver
                             + (SlyPoolConstraintResolver.HasDiscardEffect(oldCard) ? 1 : 0)
                             + (SlyPoolConstraintResolver.HasSly(candidate) ? 1 : 0)
                             - (SlyPoolConstraintResolver.HasDiscardEffect(candidate) ? 1 : 0);
-                        // Invalid ratios must strictly improve; already-valid ratios may not worsen.
-                        if (currentOstyGap > 0 ? prospectiveOstyGap >= currentOstyGap
-                                : prospectiveOstyGap > currentOstyGap)
+                        // Repair one deficit at a time without worsening another. Requiring every invalid
+                        // ratio to improve in the same replacement made Star/resource/coverage conflicts
+                        // search for effectively impossible cards, multiplying expensive bounded retries.
+                        if (prospectiveOstyGap > currentOstyGap || prospectiveSlyGap > currentSlyGap)
                             return false;
-                        return currentSlyGap > 0 ? prospectiveSlyGap < currentSlyGap
-                            : prospectiveSlyGap <= currentSlyGap;
-                    });
+                        return coverageImproved || createsCoverageHeadroom
+                            || currentOstyGap > 0 && prospectiveOstyGap < currentOstyGap
+                            || currentSlyGap > 0 && prospectiveSlyGap < currentSlyGap
+                            || !derivativeValid && DerivativePoolConstraintResolver.HasProducedDerivativeReference(oldCard)
+                                && !DerivativePoolConstraintResolver.HasProducedDerivativeReference(candidate);
+                    }, shortRepairSearch: true);
                     cards[index] = replacement;
                     replaced = true;
                     if (traceRepairs)

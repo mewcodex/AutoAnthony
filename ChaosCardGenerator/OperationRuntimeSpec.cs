@@ -539,7 +539,7 @@ public static class OperationRuntimeSpecCompiler
     {
         var slot = spec.Values.FirstOrDefault(value => value.Id == slotId)
             ?? throw new InvalidOperationException($"RuntimeSpec has no value slot {slotId}.");
-        if (!slot.Upgradable)
+        if (!slot.Upgradable && !(spec.Variant == "ncr_summonx" && slot.Id == "hits"))
             throw new InvalidOperationException($"RuntimeSpec slot {slotId} is not upgradable.");
         if (slot.Source == "fixed")
             return ReplaceFixedValueInSpec(spec, slotId, slot.BaseValue + slot.Offset + delta);
@@ -744,6 +744,13 @@ public static class OperationRuntimeSpecCompiler
         throw new InvalidOperationException($"Cannot compile {operation.Template} / {operation.ChineseText}: {failure}");
     }
 
+    // These actions produce/select their own card before referring to it. A local pronoun must not turn
+    // an internally complete action into an external card-slot consumer.
+    private static bool OwnsInternalCardReference(string template, OperationRuntimeSpec spec) =>
+        spec.Opcode == "choose_generated_card"
+        || template is "I:ProxyAtomic_WhiteNoise" or "I:CopySelectedCardNextTurn"
+            or "I:ProxyAtomic_Transfigure";
+
     private static OperationRuntimeSpec ApplyLegacySemanticFlags(GeneratorOperation operation,
         OperationRuntimeSpec spec)
     {
@@ -924,7 +931,8 @@ public static class OperationRuntimeSpecCompiler
         if (text.Contains("充能球", StringComparison.Ordinal) && text.Contains("生成", StringComparison.Ordinal))
             flags.Add("orb_channel_reference");
         if (text.IndexOfAny(['张', '次', '颗', '个']) >= 0) flags.Add("count_unit_reference");
-        var needsExternalCardSlot = operation.Template != "A:rulePlayedSkillsGainSly"
+        var needsExternalCardSlot = !OwnsInternalCardReference(operation.Template, spec)
+            && operation.Template != "A:rulePlayedSkillsGainSly"
             && operation.Template != "M:TriggeredAttackDamagePercent"
             && !operation.Template.StartsWith("I:Create", StringComparison.Ordinal)
             && operation.Template != "I:UpgradeThatCard"
@@ -1358,6 +1366,20 @@ public static class OperationRuntimeSpecCompiler
         if (Value(discovery, "choices") != 3 || Value(discovery, "picks") != 1
             || discovery.Values.Any(value => value.BaseValue == 0))
             throw new InvalidOperationException("Card-choice marker zero leaked into a RuntimeSpec value slot.");
+        foreach (var (template, text) in new[]
+                 {
+                     ("CL:ProxyAtomic_Discovery", "选择一张随机牌加入手牌。该牌免费打出。"),
+                     ("CL:ProxyAtomic_Splash", "选择一张随机攻击牌。该牌免费打出。"),
+                     ("I:ProxyAtomic_WhiteNoise", "将一张随机能力牌加入手牌。该牌免费打出。"),
+                     ("I:CopySelectedCardNextTurn", "选择一张手牌。下回合获得该牌的3张复制品。"),
+                     ("I:ProxyAtomic_Transfigure", "选择一张手牌。该牌获得1次重放。")
+                 })
+        {
+            var localReference = CompileRequired(new GeneratorOperation(template, OperationScope.Independent,
+                text, new Dictionary<string, int>()));
+            if (localReference.Flags.Contains("needs_external_card_slot"))
+                throw new InvalidOperationException($"Internal card reference requires external slot: {template}.");
+        }
         var drawAndBlock = CompileRequired(new GeneratorOperation("I:DrawAndBlockIfSkill",
             OperationScope.Independent, "抽2张牌。如果抽到的是技能牌，获得7点格挡。",
             new Dictionary<string, int>()));
@@ -1993,7 +2015,8 @@ public static class OperationRuntimeSpecCompiler
                 failures.Add($"upgrade_family:{operation.Template}:{operation.ChineseText}:"
                     + $"legacy={NativeUpgradeValueModel.LegacyClassifyForAudit(operation)}:"
                     + $"spec={NativeUpgradeValueModel.Classify(operation)}");
-            var legacyNeedsExternalCardSlot = operation.Template != "A:rulePlayedSkillsGainSly"
+            var legacyNeedsExternalCardSlot = !OwnsInternalCardReference(operation.Template, spec)
+                && operation.Template != "A:rulePlayedSkillsGainSly"
                 && operation.Template != "M:TriggeredAttackDamagePercent"
                 && !operation.Template.StartsWith("I:Create", StringComparison.Ordinal)
                 && operation.Template != "I:UpgradeThatCard"

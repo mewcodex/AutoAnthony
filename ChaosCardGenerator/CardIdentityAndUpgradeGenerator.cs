@@ -29,7 +29,8 @@ public static class CardUpgradeGenerator
                     || CardEffectRules.IsReducibleNegativeNumber(operation)
                     || CardEffectRules.IsNonUpgradeableNumericMarker(operation)) continue;
                 foreach (var slot in OperationRuntimeSpecCompiler.GetOrCompile(operation).Values)
-                    if (slot.Upgradable && slot.Source is "energy_x" or "star_x" or "special_x")
+                    if ((slot.Upgradable || operation.Template == "NCR:SummonX" && slot.Id == "hits")
+                        && slot.Source is "energy_x" or "star_x" or "special_x")
                         yield return new(CardUpgradeKind.IncreaseNumber, index, effect.Delta,
                             ValueSlotId: slot.Id);
             }
@@ -46,6 +47,8 @@ public static class CardUpgradeGenerator
             var index = effect.OperationIndex!.Value;
             if ((uint)index >= (uint)operations.Length) continue;
             var operation = operations[index];
+            if (operation.Template == "NCR:SummonX")
+                operation = operation with { LocalizedText = OperationLocalizedText.ScaledSummonX };
             var text = operation.ChineseText;
             var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
             var localizedText = operation.LocalizedText;
@@ -552,7 +555,7 @@ public static class CardUpgradeGenerator
         }
         // Cost reduction does not compete at equal weight with numeric upgrades; cheaper cards receive it less often.
         var chooseCost = costCandidate is not null
-            && (card.Cost != 1 && candidates.Count == 0 && starCostCandidate is null
+            && (candidates.Count == 0 && starCostCandidate is null
                 || random.Next(100) < CostReductionChance(card.Character, card.Cost, unifiedChaos));
         if (chooseCost && selected.Count < count && FitsUpgradeCeiling(card, selected, costCandidate!, maximumUpgradeGain))
             selected.Add(costCandidate!);
@@ -565,12 +568,9 @@ public static class CardUpgradeGenerator
             selected.Add(starCostCandidate!);
         if (selected.Count == 0 && candidates.Count == 0)
         {
-            // A 1-cost card with no other legal upgrade remains generatable, but only on its native-rate cost roll.
-            // Rejecting this speculative upgrade plan lets the assembly generator reroll instead of inflating the
-            // final 1->0 rate by forcing every such card to become free.
-            if (card.Cost == 1 && starCostCandidate is null)
-                return new CardUpgradePlan(card.Cost, Array.Empty<CardUpgradeEffect>(), card.ChineseDescription,
-                    Array.Empty<CardTag>(), card.EnglishDescription);
+            // Selection odds choose among alternative upgrades; they must not reject a whole component family
+            // whose only legal upgrade is a resource reduction (for example Body Slam). The value ceiling still
+            // applies, and cards with numeric alternatives retain the ordinary low cost-reduction probability.
             var resourceCandidates = new[] { costCandidate, starCostCandidate }
                 .Where(candidate => candidate is not null).Cast<Candidate>()
                 .Where(candidate => FitsUpgradeCeiling(card, selected, candidate, maximumUpgradeGain))
@@ -582,7 +582,7 @@ public static class CardUpgradeGenerator
         }
 
         // Keyword changes do not compete at equal weight with numeric/derivative upgrades. Each remaining slot makes
-        // an independent rarity roll; failure never forces a keyword even when it is the only candidate. Basic and
+        // an independent rarity roll; the narrowly scoped fixed-rule recovery below handles a sole viable axis. Basic and
         // Common cards therefore favor numeric upgrades while every legal keyword upgrade remains reachable.
         var ordinaryCandidates = candidates
             .Where(candidate => !IsKeywordChange(candidate.Effect.Kind))
@@ -616,6 +616,30 @@ public static class CardUpgradeGenerator
             selected.Add(ordinary);
             ordinaryCandidates.RemoveAll(candidate => candidate.Effect.Kind == ordinary.Effect.Kind
                 && SameUpgradeAxis(candidate.Effect, ordinary.Effect));
+        }
+        // An integer-valued reward can have candidates but no affordable numeric step (notably replay).
+        // Retry the existing legal resource axes only after ordinary selection has exhausted its options;
+        // never relax the marginal ceiling or force a keyword upgrade to rescue the card.
+        if (selected.Count == 0)
+        {
+            var remainingResources = new[] { costCandidate, starCostCandidate }
+                .Where(candidate => candidate is not null).Cast<Candidate>()
+                .Where(candidate => FitsUpgradeCeiling(card, selected, candidate, maximumUpgradeGain))
+                .ToArray();
+            if (remainingResources.Length > 0)
+                selected.Add(remainingResources[random.Next(remainingResources.Length)]);
+        }
+        // Fixed rules can have no affordable numeric/resource upgrade. Their surviving cards already depend
+        // entirely on a legal keyword upgrade; re-rolling the keyword chance only discards otherwise identical
+        // candidates. Keep ordinary keyword odds when alternatives exist, but complete this sole viable axis.
+        if (selected.Count == 0 && keywordCandidates.Count > 0
+            && card.Operations.Any(operation => operation.Template == "A:rule"
+                && OperationRuntimeSpecCompiler.GetOrCompile(operation).Variant
+                    is "skills_cost_zero" or "retain_block_between_turns"))
+        {
+            var onlyViableKeyword = PickCandidateByMarginalValue(card, keywordCandidates, selected,
+                1, targetUpgradeValue, maximumUpgradeGain, random);
+            if (onlyViableKeyword is not null) selected.Add(onlyViableKeyword);
         }
         // A one-line non-resource upgrade has a 50% chance to gain a deliberately small second numeric axis.
         // This is evaluated after the ordinary native-rate two-effect selection: it never turns a cost reduction
@@ -779,7 +803,8 @@ public static class CardUpgradeGenerator
 
     private static bool FitsUpgradeCeiling(GeneratedCard card, IReadOnlyList<Candidate> selected,
         Candidate candidate, double maximumPlanGain) =>
-        EstimatedPlanGain(card, selected.Append(candidate).ToArray()) <= maximumPlanGain + 0.001d;
+        card.Type == GeneratedCardType.Power && card.Cost >= 2 && candidate.Effect.Kind == CardUpgradeKind.ReduceCost
+        || EstimatedPlanGain(card, selected.Append(candidate).ToArray()) <= maximumPlanGain + 0.001d;
 
     private static Candidate FitNumericCandidateToBudget(GeneratedCard card, IReadOnlyList<Candidate> selected,
         Candidate candidate, double desiredGain)

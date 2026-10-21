@@ -90,7 +90,11 @@ public static class OrbSlotCatalog
     public static bool CanUseOutput(string template, OrbSlotDefinition definition) =>
         Sources.TryGetValue(template, out var source) && source.OutputId is not null;
 
-    public static (OrbSlotDefinition? Source, OrbSlotDefinition? Output) Roll(Random random, string template)
+    public static (OrbSlotDefinition? Source, OrbSlotDefinition? Output) Roll(Random random, string template) =>
+        Roll(random, template, 100);
+
+    internal static (OrbSlotDefinition? Source, OrbSlotDefinition? Output) Roll(Random random, string template,
+        int frostOutputWeightPercent)
     {
         if (!Sources.TryGetValue(template, out var slot)) return (null, null);
         var sourceCandidates = slot.SourceId is null ? [] : Definitions.Values
@@ -107,30 +111,36 @@ public static class OrbSlotCatalog
         else if (template == "I:ProxyAtomic_Voltaic" && source is not null)
         {
             var different = outputCandidates.Where(candidate => candidate.Id != source.Id).ToArray();
-            output = PickNativeWeighted(random, different, boostDamageOutput: true);
+            output = PickNativeWeighted(random, different, boostDamageOutput: true,
+                frostOutputWeightPercent: frostOutputWeightPercent);
         }
         else
-            output = PickNativeWeighted(random, outputCandidates, boostDamageOutput: true);
+            output = PickNativeWeighted(random, outputCandidates, boostDamageOutput: true,
+                frostOutputWeightPercent: frostOutputWeightPercent);
         return (source, output);
     }
 
     private static OrbSlotDefinition PickNativeWeighted(Random random,
-        IReadOnlyList<OrbSlotDefinition> candidates, bool boostDamageOutput = false)
+        IReadOnlyList<OrbSlotDefinition> candidates, bool boostDamageOutput = false,
+        int frostOutputWeightPercent = 100)
     {
-        var total = candidates.Sum(candidate => WeightedGenerationCount(candidate, boostDamageOutput));
+        var total = candidates.Sum(candidate => WeightedGenerationCount(candidate, boostDamageOutput,
+            frostOutputWeightPercent));
         var roll = random.Next(total);
         foreach (var candidate in candidates)
         {
-            roll -= WeightedGenerationCount(candidate, boostDamageOutput);
+            roll -= WeightedGenerationCount(candidate, boostDamageOutput, frostOutputWeightPercent);
             if (roll < 0) return candidate;
         }
         return candidates[^1];
     }
 
-    private static int WeightedGenerationCount(OrbSlotDefinition candidate, bool boostDamageOutput) =>
+    private static int WeightedGenerationCount(OrbSlotDefinition candidate, bool boostDamageOutput,
+        int frostOutputWeightPercent = 100) =>
         !boostDamageOutput
             ? candidate.NativeGenerationWeight
-            : candidate.NativeGenerationWeight * (candidate.DealsDamage ? DamageOutputWeightPercent : 100);
+            : candidate.NativeGenerationWeight * (candidate.DealsDamage ? DamageOutputWeightPercent
+                : candidate.Id == "frost" ? frostOutputWeightPercent : 100);
 
     /// <summary>
     /// Converts a fixed Channel count from the source Orb's original card budget to the rolled output Orb.

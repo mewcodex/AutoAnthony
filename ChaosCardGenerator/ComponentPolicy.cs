@@ -42,7 +42,10 @@ public static class ComponentPolicy
         "target:copy_debuffs_to_others",
         "action:draw_discard_nonzero",
         "action:shuffle_unexhausted",
-        "reward:gain_gold"
+        "reward:gain_gold",
+        "ancient:intangible",
+        "ancient:remove_card_after_combat",
+        "ancient:osty_max_hp_bonus_damage"
     };
 
     /// <summary>

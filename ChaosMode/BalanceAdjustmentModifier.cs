@@ -97,18 +97,18 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
             FinishPendingIfAllPlayersProcessed();
             return;
         }
-        // Every peer derives one plan from the same host-authored pool and the same ordered multiplayer deck
-        // multiset. Apply it once to the shared run state, but show the same previews on each local player's reward
-        // pass and grant each player the corresponding rewards.
+        // Reward hooks visit every player, in roster order, on every peer. Present the shared batch on the
+        // FIRST pass on each device, before mutating any cards or starting remote reward synchronization.
+        // Waiting for the local player's pass makes presentation depend on earlier remote reward processing.
+        // The once-per-batch application flag also prevents duplicate previews on later players' passes.
         if (!_pendingPlansApplied)
         {
             foreach (var (plan, index) in plans.Select((plan, index) => (plan, index)))
             {
                 try
                 {
-                    if (LocalContext.IsMe(rewards.Player))
-                        await BalanceAdjustmentOverlay.ShowAsync(plan.BeforePreview, plan.AfterPreview,
-                            plan.LocalizationKey, index + 1, plans.Count);
+                    await BalanceAdjustmentOverlay.ShowAsync(plan.BeforePreview, plan.AfterPreview,
+                        plan.LocalizationKey, index + 1, plans.Count);
                     await plan.Apply();
                     _pendingAppliedAdjustments++;
                 }
@@ -121,10 +121,6 @@ public sealed class BalanceAdjustmentModifier : ModifierModel
             }
             _pendingPlansApplied = true;
         }
-        else if (LocalContext.IsMe(rewards.Player))
-            foreach (var (plan, index) in plans.Select((plan, index) => (plan, index)))
-                await BalanceAdjustmentOverlay.ShowAsync(plan.BeforePreview, plan.AfterPreview,
-                    plan.LocalizationKey, index + 1, plans.Count);
 
         RefreshPreparedRewardCards(rewards);
         // GenerateForRoomEnd has already populated and sorted this RewardsSet before this hook runs. Exact-amount

@@ -376,7 +376,7 @@ public static class EnglishCardDescriptionRenderer
             (text == "你的下一回合开始时格挡不会消失" ? "Block is not removed at the start of your next turn" : null) ??
             (text == "获得等同于所有敌人中毒层数总和的格挡" ? "Gain Block equal to the total Poison on ALL enemies" : null) ??
             (text == "你手牌中的所有牌在本回合免费打出" ? "Cards in your hand cost 0 this turn" : null) ??
-            Match(@"^在本回合，你打出的下(\d+)张技能牌会被额外打出一次$", "The next {0} Skills you play this turn are played twice") ??
+            Match(@"^在本回合，你打出的下(X(?:\+\d+)?|\d+)张技能牌会被额外打出一次$", "The next {0} Skills you play this turn are played twice") ??
             Match(@"^抽(\d+)张牌。如果抽到的是技能牌，则获得(\d+)点格挡$", "Draw {0} card. If it is a Skill, gain {1} Block") ??
             Match(@"^抽(\d+)张牌。这些牌在本回合获得保留$", "Draw {0} cards. Retain them this turn") ??
             (text == "在本回合给手牌中的一张技能牌添加奇巧" ? "Give a Skill in your hand Sly this turn" : null) ??

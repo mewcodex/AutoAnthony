@@ -387,13 +387,18 @@ public abstract class ChaosCardModel : CardModel
 
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
+    internal static void ResetInitialStarCostCache(CardModel card)
+    {
+        CardBaseStarCostField.SetValue(card, 0);
+        CardStarCostSetField.SetValue(card, false);
+    }
+
     private void RebuildCachedCardState()
     {
         CardDynamicVarsField.SetValue(this, null);
         CardEnergyCostField.SetValue(this, null);
         CardKeywordsField.SetValue(this, null);
-        CardBaseStarCostField.SetValue(this, 0);
-        CardStarCostSetField.SetValue(this, false);
+        ResetInitialStarCostCache(this);
         _ = DynamicVars;
         _ = EnergyCost;
         _ = Keywords;

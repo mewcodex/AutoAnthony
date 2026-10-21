@@ -30,6 +30,7 @@
     <Compile Include="..\ChaosCardGenerator\SlyPoolConstraintResolver.cs" Link="Generator\SlyPoolConstraintResolver.cs" />
     <Compile Include="..\ChaosCardGenerator\StartingPoolConstraintResolver.cs" Link="Generator\StartingPoolConstraintResolver.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentAssemblyGenerator.cs" Link="Generator\ComponentAssemblyGenerator.cs" />
+    <Compile Include="..\ChaosCardGenerator\AssemblySurvivalAudit.cs" Link="Generator\AssemblySurvivalAudit.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentApi.cs" Link="Generator\ComponentApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentPackageApi.cs" Link="Generator\ComponentPackageApi.cs" />
     <Compile Include="..\ChaosCardGenerator\ComponentValuationApi.cs" Link="Generator\ComponentValuationApi.cs" />

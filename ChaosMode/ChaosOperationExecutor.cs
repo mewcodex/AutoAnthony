@@ -1917,7 +1917,9 @@ internal static class ChaosOperationExecutor
                     operation.Template);
                 return;
             case "NCR:NextVoidCostsZero":
-                await PowerCmd.Apply<VeilpiercerPower>(choiceContext, card.Owner.Creature, 1, card.Owner.Creature, card);
+                await PowerCmd.Apply<VeilpiercerPower>(choiceContext, card.Owner.Creature,
+                    DependencyMultiplier(card, operationIndex, state.Target, state.PriorAttackHitsOnTargetAtPlayStart),
+                    card.Owner.Creature, card);
                 return;
             // Evaluated as modifiers, triggers, or card hooks.
             case "NCR:CostDownPerVoidPlayed": case "NCR:DamagePerCardDrawnThisTurn":
@@ -2261,8 +2263,8 @@ internal static class ChaosOperationExecutor
             case "D:LoseTemporaryFocus":
                 await ApplyBoundPower<ChaosTemporaryFocusDownPower>(card, choiceContext, amount);
                 return;
-            case "D:IncreaseThisCardCost": card.EnergyCost.AddThisCombat(Math.Max(1, amount)); return;
-            case "D:SetThisCardCostZero": card.EnergyCost.SetThisCombat(0); return;
+            case "D:IncreaseThisCardCost": LiveCombatSourceCard(card).EnergyCost.AddThisCombat(Math.Max(1, amount)); return;
+            case "D:SetThisCardCostZero": LiveCombatSourceCard(card).EnergyCost.SetThisCombat(0); return;
             case "D:ShuffleAllUnexhaustedIntoDraw":
                 foreach (var handCard in PileType.Hand.GetPile(card.Owner).Cards.ToList())
                     await CardPileCmd.Add(handCard, PileType.Draw);
@@ -2325,7 +2327,9 @@ internal static class ChaosOperationExecutor
                 return;
             }
             case "D:NextPowerCostsZero":
-                await PowerCmd.Apply<FreePowerPower>(choiceContext, card.Owner.Creature, 1, card.Owner.Creature, card);
+                await PowerCmd.Apply<FreePowerPower>(choiceContext, card.Owner.Creature,
+                    DependencyMultiplier(card, operationIndex, state.Target, state.PriorAttackHitsOnTargetAtPlayStart),
+                    card.Owner.Creature, card);
                 return;
             case "D:TriggerLightningPassivesAtTarget":
                 if (state.Target is not null)
@@ -3129,7 +3133,9 @@ internal static class ChaosOperationExecutor
                 if (enemy.GetPower<PoisonPower>() is { } poison) await poison.Trigger();
         }
         else if (operation.Template == "I:NextSkillCostsZero")
-            await PowerCmd.Apply<FreeSkillPower>(choiceContext, card.Owner.Creature, 1m, card.Owner.Creature, card);
+            await PowerCmd.Apply<FreeSkillPower>(choiceContext, card.Owner.Creature,
+                DependencyMultiplier(card, operationIndex, state.Target, state.PriorAttackHitsOnTargetAtPlayStart),
+                card.Owner.Creature, card);
         else if (operation.Template == "I:DoubleAttackDamageNextTurn")
             await PowerCmd.Apply<ShadowStepPower>(choiceContext, card.Owner.Creature, 1m, card.Owner.Creature, card);
         else if (operation.Template == "I:DoubleBlockThisTurn")
@@ -3148,7 +3154,9 @@ internal static class ChaosOperationExecutor
             }
         }
         else if (operation.Template == "I:ReduceThisCardCostCombat")
-            card.EnergyCost.AddThisCombat(-amount);
+            // Delayed triggers run through a detached calculation proxy. Mutate the actual combat card,
+            // just like return-to-hand / auto-play effects, without changing its permanent deck version.
+            LiveCombatSourceCard(card).EnergyCost.AddThisCombat(-amount);
         else if (operation.Template == "I:PlayThisCard")
         {
             await CardCmd.AutoPlay(choiceContext, LiveCombatSourceCard(card), null);
@@ -3464,8 +3472,9 @@ internal static class ChaosOperationExecutor
                     dependencyRepeats);
             }
             else if (modifier.Template == "R:BonusPerGeneratedCardThisCombat")
-                damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardGeneratedEntry>()
-                    .Count(entry => entry.Creator == card.Owner) * dependencyRepeats;
+                damage += modifierAmount * DynamicRepeatCount(card, index,
+                    CombatManager.Instance.History.Entries.OfType<CardGeneratedEntry>()
+                        .Count(entry => entry.Creator == card.Owner), dependencyRepeats);
             else if (modifier.Template == "CL:BonusPerUniqueDebuff")
                 damage += modifierAmount * (state.Target?.Powers.Count(power =>
                     power.Type == PowerType.Debuff && power is not ITemporaryPower) ?? 0) * dependencyRepeats;
@@ -3560,9 +3569,9 @@ internal static class ChaosOperationExecutor
     private static int DynamicRepeatCount(ChaosCardModel card, int modifierIndex, int liveCount,
         int dependencyRepeats)
     {
-        // A count prefix and its dependency-only repeat modifier describe the same live count. Multiplying the
-        // two counts squares it (for example, four played Ethereal cards became sixteen hits). Standalone repeat
-        // modifiers still multiply their own live count by any independent dependency context.
+        // A count prefix and its dependency-only modifier describe the same live count. Consume it once for
+        // both extra hits and additive damage; multiplying both counts produces unintended quadratic scaling.
+        // Standalone modifiers retain their live count multiplied by any independent dependency context.
         var prefix = DependencyPrefix(card, modifierIndex);
         return CardEffectRules.ResolveDependencyRepeatCount(
             prefix is not null && CardEffectRules.IsMultiplicativeDependencyPrefix(prefix), liveCount, dependencyRepeats);
@@ -3867,6 +3876,10 @@ internal static class ChaosOperationExecutor
             CloseFailedHandSelection(player, source);
             throw;
         }
+        // Hook choices can pause until the play phase, while turn-start draws change the hand. The native
+        // selector reads candidates AFTER that pause. Validate against the same live pile, not our preflight
+        // snapshot, or newly drawn player selections are discarded and replaced by the leftmost old cards.
+        candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         var completed = CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
         if (completed.Count > selected.Distinct().Count())
             Log.Warn($"[AutoAnthony] Hand selector returned {selected.Length} card(s) for mandatory "
@@ -3894,6 +3907,7 @@ internal static class ChaosOperationExecutor
             CloseFailedHandSelection(player, source);
             throw;
         }
+        candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         return CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
     }
 
@@ -3935,6 +3949,7 @@ internal static class ChaosOperationExecutor
         if (context is ThrowingPlayerChoiceContext)
             return SelectAutomatically(player, candidates, prefs);
         var selected = (await CardSelectCmd.FromCombatPile(context, pile, player, prefs, filter)).ToArray();
+        candidates = pile.Cards.Where(filter ?? (_ => true)).ToList();
         var completed = CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
         if (completed.Count > selected.Distinct().Count())
             Log.Warn($"[AutoAnthony] {pile.Type} selector returned {selected.Length} card(s) for mandatory "

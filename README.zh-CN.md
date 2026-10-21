@@ -10,7 +10,7 @@
 模组目前处于开放测试阶段，适配《杀戮尖塔 2》`0.111.x`，支持战士、猎手、故障机器人、亡灵契约师、
 储君以及两种无色卡池。
 
-当前发布版本：**0.3.104**。接口与组件行为变化请参阅双语 [API 更新记录](https://github.com/mewcodex/AutoAnthony/wiki/API-更新记录)。
+当前发布版本：**0.3.147**。接口与组件行为变化请参阅双语 [API 更新记录](https://github.com/mewcodex/AutoAnthony/wiki/API-更新记录)。
 
 ## 主要功能
 
@@ -28,8 +28,8 @@
 ## 安装
 
 可直接订阅 [Steam 创意工坊](https://steamcommunity.com/sharedfiles/filedetails/?id=3786611028)，或将构建后的
-`AutoAnthony` 文件夹复制到游戏的 `mods` 目录。多人游戏的所有参与者应使用相同的模组版本，并保持所有
-“在下一局生效”的设置一致。
+`AutoAnthony` 文件夹复制到游戏的 `mods` 目录。多人游戏的所有参与者应使用兼容版本的东尼算法及角色模组。
+房主提供生成设置和完整随机卡池，客户端安装这份定义，不再各自重新生成一套卡池。
 
 ## 构建
 
@@ -66,6 +66,7 @@ API 只依赖稳定的 ASCII 标识符和结构化运行数据，不要求 BaseL
 - `ChaosCardGenerator/`：独立生成器、平衡模型、组件目录、升级逻辑和审计逻辑。
 - `CardTinkering/`：可选卡牌编辑衍生模组源码及其东尼算法接口适配。
 - `ApiContractSmoke/`：以外部模组身份编译的 API 契约测试。
+- `tests/`：生成器及运行时专项回归，包括多人开局准备和星费缓存。
 - `scripts/`：目录、执行、本地化边界和数值估值审计脚本。
 - `*_unit_operations.md`：经人工审核并嵌入生成器的双语组件拆解数据。
 - `audits/structured_operation_refactor/`：构建所需的结构化兼容审计基线。

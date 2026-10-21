@@ -11,7 +11,7 @@ with deterministic names, art, upgrades, targeting, effects, and runtime behavio
 The mod is in open beta and supports Ironclad, Silent, Defect, Necrobinder, Regent, and the two Colorless pools on
 Slay the Spire 2 `0.111.x`.
 
-Current published version: **0.3.104**. See the bilingual
+Current published version: **0.3.147**. See the bilingual
 [API and behavior changelog](https://github.com/mewcodex/AutoAnthony/wiki/API-Changelog) for integration updates.
 
 ## Highlights
@@ -31,8 +31,9 @@ Current published version: **0.3.104**. See the bilingual
 ## Installation
 
 Subscribe on [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3786611028), or copy a built
-`AutoAnthony` folder into the game's `mods` directory. Every multiplayer participant should use the same mod version
-and settings that affect the next run.
+`AutoAnthony` folder into the game's `mods` directory. Every multiplayer participant should use compatible versions
+of AutoAnthony and any character mods. The host supplies the generation settings and complete generated pools;
+clients install those definitions rather than generating a second pool independently.
 
 ## Build
 
@@ -81,6 +82,7 @@ particular custom-character framework.
 - `ChaosCardGenerator/`: standalone generation, balance, component catalogs, upgrades, and audits.
 - `CardTinkering/`: optional card-editor companion source and its Auto-Anthonyology integration.
 - `ApiContractSmoke/`: an external-consumer compile test for the public API surface.
+- `tests/`: focused generator and runtime regressions, including multiplayer preparation and Star-cost caching.
 - `scripts/`: catalog, execution, localization-boundary, and valuation audit entry points.
 - `*_unit_operations.md`: reviewed bilingual authoring inputs embedded into the generator.
 - `audits/structured_operation_refactor/`: reviewed compatibility fixtures required by the build.

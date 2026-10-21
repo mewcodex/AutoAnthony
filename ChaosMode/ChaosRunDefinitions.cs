@@ -645,9 +645,14 @@ public static class ChaosRunDefinitions
     {
         var latest = 1;
         progress(latest);
+        // ActivateFromSave holds Gate on this thread. Capture shared placeholders before starting the
+        // worker: acquiring Gate from that worker while this thread waits for it is a real deadlock.
+        // Quick reload mods can enter this compatibility-recovery path without returning to the menu.
+        var ancientPlaceholders = CaptureAncientPlaceholders(character, enforcePoolConstraints: true);
         var task = Task.Run(() => GenerateCardCandidates(character, seed, ultimateChaos, balancedValues,
             randomizeNumericValues,
-            enforcePoolConstraints: true, current => Interlocked.Exchange(ref latest, current)));
+            enforcePoolConstraints: true, current => Interlocked.Exchange(ref latest, current),
+            ancientPlaceholders: ancientPlaceholders));
         while (!task.Wait(8))
         {
             progress(Math.Clamp(Volatile.Read(ref latest), 1, GenerationCountFor(character)));
@@ -676,7 +681,8 @@ public static class ChaosRunDefinitions
 
     private static GeneratedPoolCandidate GenerateCardCandidates(GeneratedCharacter character, string seed,
         bool ultimateChaos, bool balancedValues, bool randomizeNumericValues, bool enforcePoolConstraints,
-        Action<int>? progress, bool suppressDerivativeReferences = false)
+        Action<int>? progress, bool suppressDerivativeReferences = false,
+        GeneratedCard[]? ancientPlaceholders = null)
     {
         var stopwatch = Stopwatch.StartNew();
         var random = new Random(StableSeed(character, seed));
@@ -780,21 +786,26 @@ public static class ChaosRunDefinitions
 
         if (omitGeneratedAncients)
         {
-            GeneratedCard[] placeholders;
-            lock (Gate)
-            {
-                if (!Definitions.TryGetValue(character, out var existing)
-                    || existing.Count != CountFor(character))
-                    throw new InvalidOperationException(
-                        $"The {character} library preview did not provide fixed Ancient slot placeholders.");
-                placeholders = existing.TakeLast(AncientCount).Select(definition => definition.Card).ToArray();
-            }
+            var placeholders = ancientPlaceholders ?? CaptureAncientPlaceholders(character, enforcePoolConstraints);
             generatedCards = generatedCards.Concat(placeholders).ToArray();
         }
 
         stopwatch.Stop();
         return new GeneratedPoolCandidate(generatedCards, random, rarities, attemptsUsed,
             stopwatch.ElapsedMilliseconds, cardAssemblyMilliseconds, poolRepairMilliseconds);
+    }
+
+    private static GeneratedCard[] CaptureAncientPlaceholders(GeneratedCharacter character, bool enforcePoolConstraints)
+    {
+        if (!enforcePoolConstraints || !_activePreserveOriginalCards || character == GeneratedCharacter.Colorless)
+            return [];
+        lock (Gate)
+        {
+            if (!Definitions.TryGetValue(character, out var existing) || existing.Count != CountFor(character))
+                throw new InvalidOperationException(
+                    $"The {character} library preview did not provide fixed Ancient slot placeholders.");
+            return existing.TakeLast(AncientCount).Select(definition => definition.Card).ToArray();
+        }
     }
 
     private static bool TryResolvePoolSupportConstraints(GeneratedCard[] cards,
@@ -1738,6 +1749,7 @@ public static class ChaosRunDefinitions
             dynamicVars.SetValue(canonical, null);
             keywords.SetValue(canonical, null);
             tags.SetValue(canonical, null);
+            ChaosCardModel.ResetInitialStarCostCache(canonical);
         }
     }
 

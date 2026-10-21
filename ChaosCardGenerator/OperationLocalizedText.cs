@@ -20,6 +20,7 @@ public sealed record OperationTextSlot(string Id, string ChineseValue, string En
 public sealed record OperationLocalizedText(string ChineseTemplate, string? EnglishTemplate = null,
     IReadOnlyList<OperationTextSlot>? TextSlots = null)
 {
+    public static OperationLocalizedText ScaledSummonX { get; } = new("召唤[[amount:scaled_x]]。", "Summon [[amount:scaled_x]].");
     private static readonly Regex Placeholder = new(@"\[\[(?<id>[a-z0-9_]+)(?::(?<format>[a-z_]+))?\]\]",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
@@ -122,7 +123,9 @@ public sealed record OperationLocalizedText(string ChineseTemplate, string? Engl
             result = rendered;
             return false;
         }
-        var literal = Literal(slot, placeholder.Groups["format"].Value, chinese);
+        var scaledX = placeholder.Groups["format"].Value == "scaled_x";
+        var literal = scaledX ? ScaledXLiteral(spec, slotId) : Literal(slot, placeholder.Groups["format"].Value, chinese);
+        if (scaledX) replacement = ScaledXLiteral(spec, slotId, replacement);
         var first = rendered.IndexOf(literal, StringComparison.Ordinal);
         if (first < 0 || rendered.IndexOf(literal, first + literal.Length, StringComparison.Ordinal) >= 0)
         {
@@ -219,6 +222,10 @@ public sealed record OperationLocalizedText(string ChineseTemplate, string? Engl
         IReadOnlyDictionary<string, string>? replacements, bool chinese) => Placeholder.Replace(template, match =>
     {
         var id = match.Groups["id"].Value;
+        if (match.Groups["format"].Value == "scaled_x")
+        {
+            return ScaledXLiteral(spec, id, replacements?.GetValueOrDefault(id));
+        }
         if (replacements?.TryGetValue(id, out var replacement) == true) return replacement;
         var valueSlot = spec.Values.FirstOrDefault(candidate => candidate.Id == id);
         if (valueSlot is not null) return Literal(valueSlot, match.Groups["format"].Value, chinese);
@@ -226,6 +233,17 @@ public sealed record OperationLocalizedText(string ChineseTemplate, string? Engl
             ?? throw new InvalidOperationException($"Localized template references missing slot {id}.");
         return chinese ? textSlot.ChineseValue : textSlot.EnglishValue;
     });
+
+    private static string ScaledXLiteral(OperationRuntimeSpec spec, string id, string? replacement = null)
+    {
+        var factor = spec.Values.First(value => value.Id == id);
+        var hits = spec.Values.First(value => value.Id == "hits");
+        var coefficient = Math.Max(0, factor.BaseValue + factor.Offset);
+        if (hits.Source == "fixed") return (coefficient * Math.Max(0, hits.BaseValue + hits.Offset)).ToString(CultureInfo.InvariantCulture);
+        var offset = coefficient * hits.Offset;
+        var prefix = replacement ?? (coefficient == 1 ? "" : coefficient.ToString(CultureInfo.InvariantCulture));
+        return prefix + "X" + (offset > 0 ? "+" + offset.ToString(CultureInfo.InvariantCulture) : "");
+    }
 
     private void ValidateTemplate(string template, OperationRuntimeSpec spec, string language)
     {

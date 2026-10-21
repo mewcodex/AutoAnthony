@@ -44,6 +44,10 @@ internal static class MultiplayerGenerationModePatch
     private const int SnapshotChunkCharacters = 24_000;
     private const int MaximumSnapshotChunks = 64;
     private const int MaximumSnapshotCharacters = SnapshotChunkCharacters * MaximumSnapshotChunks;
+    private const int PreparationRetrySeconds = 10;
+    private const int PreparationTimeoutSeconds = 90;
+    private const int MaximumSnapshotTransfers = 3;
+    private const string PreparationProtocolPrefix = "AA2:";
 
     private sealed class HostPreparation(
         string preparationId,
@@ -58,6 +62,8 @@ internal static class MultiplayerGenerationModePatch
         internal ChaosPoolSnapshotModifier Marker { get; } = marker;
         internal HashSet<ulong> ExpectedPeers { get; } = expectedPeers.ToHashSet();
         internal Dictionary<ulong, string> PeerFingerprints { get; } = new();
+        internal HashSet<ulong> ReceivedPreparationPeers { get; } = new();
+        internal ChaosPoolPreparationMessage Request { get; set; }
         internal string HostFingerprint { get; set; } = string.Empty;
         internal string AuthoritativePayload { get; set; } = string.Empty;
         internal ChaosGenerationProgressOverlay? Progress { get; set; }
@@ -173,7 +179,7 @@ internal static class MultiplayerGenerationModePatch
         }
         if (provisionalCharacters.Length == 0) provisionalCharacters = [GeneratedCharacter.Ironclad];
 
-        var preparationId = Guid.NewGuid().ToString("N");
+        var preparationId = PreparationProtocolPrefix + Guid.NewGuid().ToString("N");
         AddGenerationMarker(modifiers, poolSnapshot: null, generationFingerprint: null, enabled: true,
             addGeneratedCards: true,
             ultimateChaos: ChaosModSettings.UltimateChaos,
@@ -208,7 +214,9 @@ internal static class MultiplayerGenerationModePatch
             PreserveOriginalCards = ChaosModSettings.PreserveOriginalCards,
             RandomCardArt = ChaosModSettings.RandomCardArt
         };
-        __instance.NetService.SendMessage(request);
+        state.Request = request;
+        foreach (var peerId in state.ExpectedPeers)
+            __instance.NetService.SendMessage(request, peerId);
         Log.Info($"[AutoAnthony] Started host-authoritative multiplayer pool preparation {preparationId}: "
                  + $"peers={state.ExpectedPeers.Count}, seed={seed}, "
                  + $"localLobby={localLobbyId}, localTransport={localTransportId}.");
@@ -258,6 +266,7 @@ internal static class MultiplayerGenerationModePatch
                      + $"snapshot={payload.Length} characters.");
             SendAuthoritativeSnapshot(lobby, state, payload, generationFingerprint);
             TryReleasePreparedRun(lobby, state.PreparationId);
+            _ = TaskHelper.RunSafely(MonitorCompletedPreparationAsync(lobby, state));
         }
         catch (Exception exception)
         {
@@ -289,9 +298,9 @@ internal static class MultiplayerGenerationModePatch
             {
                 if (existing.PreparationId == message.PreparationId)
                 {
-                    if (existing.Complete)
+                    if (existing.Complete || SupportsBootstrapAcknowledgement(existing.PreparationId))
                         SendAcknowledgement(lobby, existing.PreparationId, success: true,
-                            existing.Fingerprint, string.Empty);
+                            existing.Complete ? existing.Fingerprint : string.Empty, string.Empty);
                     return;
                 }
                 existing.Cancelled = true;
@@ -307,7 +316,10 @@ internal static class MultiplayerGenerationModePatch
 
         Log.Info($"[AutoAnthony] Client received host-authoritative multiplayer pool preparation "
                  + $"{message.PreparationId} from host {senderId}; localPeer={lobby.NetService.NetId}.");
-        state.Progress?.ShowWaitingForPlayers();
+        state.Progress?.ShowReceivingSnapshot(0, 1);
+        // Empty fingerprint acknowledges the bootstrap only, not installation of the authoritative pool.
+        if (SupportsBootstrapAcknowledgement(state.PreparationId))
+            SendAcknowledgement(lobby, state.PreparationId, success: true, string.Empty, string.Empty);
     }
 
     private static void ReceiveSnapshotChunk(StartRunLobby lobby, ChaosPoolSnapshotChunkMessage message,
@@ -370,6 +382,8 @@ internal static class MultiplayerGenerationModePatch
             FailClientPreparation(lobby, message.PreparationId, failure);
             return;
         }
+        if (state?.Chunks is { } chunks)
+            state.Progress?.ShowReceivingSnapshot(state.ReceivedChunks, chunks.Length);
         if (payload is not null && state is not null)
             TaskHelper.RunSafely(RestoreClientSnapshotAsync(lobby, state, payload));
     }
@@ -436,6 +450,10 @@ internal static class MultiplayerGenerationModePatch
         var chunkCount = Math.Max(1, (payload.Length + SnapshotChunkCharacters - 1) / SnapshotChunkCharacters);
         foreach (var peerId in state.ExpectedPeers.ToArray())
         {
+            if (state.PeerFingerprints.ContainsKey(peerId)) continue;
+            // The lobby bootstrap can be missed if a client listener was registered late. Resend it directly
+            // immediately before its ordered reliable chunks, rather than relying on an earlier broadcast.
+            lobby.NetService.SendMessage(state.Request, peerId);
             for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
                 var offset = chunkIndex * SnapshotChunkCharacters;
@@ -455,6 +473,56 @@ internal static class MultiplayerGenerationModePatch
         Log.Info($"[AutoAnthony] Sent host-authored multiplayer pool snapshot {state.PreparationId} "
                  + $"in {chunkCount} reliable chunk(s) to {state.ExpectedPeers.Count} peer(s).");
     }
+
+    private static async Task MonitorCompletedPreparationAsync(StartRunLobby lobby, HostPreparation state)
+    {
+        // Run only during this lobby transaction; no per-frame/combat watchdog or independent peer generation.
+        var elapsed = Stopwatch.StartNew();
+        var transfers = 1;
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(PreparationRetrySeconds));
+                ulong[] missing;
+                lock (PreparationGate)
+                {
+                    if (!HostPreparations.TryGetValue(lobby, out var current) || !ReferenceEquals(current, state)
+                        || state.Cancelled || state.Starting) return;
+                    missing = state.ExpectedPeers.Where(peer => !state.PeerFingerprints.ContainsKey(peer)).ToArray();
+                }
+                if (missing.Length == 0)
+                {
+                    TryReleasePreparedRun(lobby, state.PreparationId);
+                    return;
+                }
+                if (PreparationTimedOut(lobby.NetService.IsConnected, elapsed.Elapsed.TotalSeconds))
+                {
+                    var stages = missing.Select(peer => $"{peer}:"
+                        + (state.ReceivedPreparationPeers.Contains(peer) ? "snapshot not acknowledged" : "bootstrap not acknowledged"));
+                    CancelHostPreparation(lobby, state.PreparationId,
+                        $"pool synchronization timed out ({string.Join(", ", stages)})", broadcast: true);
+                    return;
+                }
+                if (transfers >= MaximumSnapshotTransfers) continue;
+                transfers++;
+                Log.Warn($"[AutoAnthony] Retrying pool synchronization {state.PreparationId} "
+                    + $"for {missing.Length} unacknowledged peer(s), transfer {transfers}/{MaximumSnapshotTransfers}.");
+                SendAuthoritativeSnapshot(lobby, state, state.AuthoritativePayload, state.HostFingerprint);
+            }
+        }
+        catch (Exception exception)
+        {
+            Log.Error($"[AutoAnthony] Multiplayer pool synchronization failed: {exception}");
+            CancelHostPreparation(lobby, state.PreparationId, "pool synchronization failed", broadcast: true);
+        }
+    }
+
+    private static bool SupportsBootstrapAcknowledgement(string preparationId) =>
+        preparationId.StartsWith(PreparationProtocolPrefix, StringComparison.Ordinal);
+
+    private static bool PreparationTimedOut(bool connected, double elapsedSeconds) =>
+        !connected || elapsedSeconds >= PreparationTimeoutSeconds;
 
     private static void SendAcknowledgement(StartRunLobby lobby, string preparationId, bool success,
         string fingerprint, string failure)
@@ -483,6 +551,13 @@ internal static class MultiplayerGenerationModePatch
                 Log.Error($"[AutoAnthony] Peer {senderId} failed multiplayer pool preparation "
                           + $"{message.PreparationId}: {message.Failure}");
                 cancel = true;
+            }
+            else if (string.IsNullOrEmpty(message.GameplayFingerprint))
+            {
+                // Receiving a request cannot release the lobby or trigger a false fingerprint mismatch.
+                state.ReceivedPreparationPeers.Add(senderId);
+                Log.Info($"[AutoAnthony] Peer {senderId} received pool preparation {message.PreparationId}; "
+                    + "waiting for snapshot installation.");
             }
             else
             {
@@ -567,11 +642,19 @@ internal static class MultiplayerGenerationModePatch
         }
         state.Progress?.Dispose();
         if (state.HostComplete) ChaosRunDefinitions.DeactivateRun();
-        if (broadcast && lobby.NetService.IsConnected)
-            lobby.NetService.SendMessage(new ChaosPoolPreparationCancelMessage
-                { PreparationId = preparationId });
-        Log.Warn($"[AutoAnthony] Cancelled multiplayer pool preparation {preparationId}: {reason}.");
-        RestoreCancelledLobby(lobby);
+        try
+        {
+            if (broadcast && lobby.NetService.IsConnected)
+                foreach (var peerId in state.ExpectedPeers)
+                    lobby.NetService.SendMessage(new ChaosPoolPreparationCancelMessage
+                        { PreparationId = preparationId }, peerId);
+        }
+        finally
+        {
+            // A failed transport send must never prevent local input/UI from returning to the lobby.
+            Log.Warn($"[AutoAnthony] Cancelled multiplayer pool preparation {preparationId}: {reason}.");
+            RestoreCancelledLobby(lobby);
+        }
     }
 
     private static void CancelClientPreparation(StartRunLobby lobby, string preparationId, bool restoreLobby)
@@ -683,6 +766,7 @@ internal static class MultiplayerGenerationModePatch
             if (!HostPreparations.TryGetValue(lobby, out var state) || state.Starting) return;
             state.ExpectedPeers.Remove(playerId);
             state.PeerFingerprints.Remove(playerId);
+            state.ReceivedPreparationPeers.Remove(playerId);
         }
     }
 
@@ -838,6 +922,16 @@ internal static class MultiplayerGenerationModePatch
         modifiers.Add(marker);
         Log.Info($"[AutoAnthony] Host selected multiplayer generation mode: Enabled={marker.MultiplayerModEnabled}, AddGeneratedCards={marker.MultiplayerAddGeneratedCards}, UltimateChaos={marker.MultiplayerUltimateChaos}, ReplaceStartingCards={marker.MultiplayerReplaceStartingCards}, NumericBalanceOptimization={marker.MultiplayerNumericBalanceOptimization}, NumericRandom={marker.MultiplayerNumericRandomMode}, PreserveOriginal={marker.MultiplayerPreserveOriginalCards}, RandomCardArt={marker.MultiplayerRandomCardArt}, BiweeklyBalanceAdjustments={marker.MultiplayerBiweeklyBalanceAdjustments}, DeterministicFingerprint={!string.IsNullOrEmpty(marker.MultiplayerGenerationFingerprint)}, LegacyAuthoritativeSnapshot={!string.IsNullOrEmpty(marker.PoolSnapshot)}.");
     }
+}
+
+[HarmonyPatch(typeof(StartRunLobby), MethodType.Constructor,
+    [typeof(GameMode), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)])]
+internal static class MultiplayerPreparationLobbyConstructionPatch
+{
+    // Install at the native lobby lifecycle boundary, before any join/readiness callback can send preparation.
+    // Existing initialization hooks remain idempotent for alternate entry paths and other lobby patches.
+    private static void Postfix(StartRunLobby __instance) =>
+        MultiplayerGenerationModePatch.RegisterLobbyHandlers(__instance);
 }
 
 [HarmonyPatch(typeof(StartRunLobby), nameof(StartRunLobby.AddLocalHostPlayer))]
@@ -3296,6 +3390,20 @@ internal static class CharacterPoolPatchRouting
         }
     }
 
+    internal static CardPoolModel ActivePoolFor(CardPoolModel pool)
+    {
+        if (!ChaosRunDefinitions.IsRunActive) return pool;
+        return pool switch
+        {
+            IroncladCardPool => ModelDb.CardPool<ChaosIroncladCardPool>(),
+            SilentCardPool => ModelDb.CardPool<ChaosSilentCardPool>(),
+            DefectCardPool => ModelDb.CardPool<ChaosDefectCardPool>(),
+            NecrobinderCardPool => ModelDb.CardPool<ChaosNecrobinderCardPool>(),
+            RegentCardPool => ModelDb.CardPool<ChaosRegentCardPool>(),
+            _ => pool
+        };
+    }
+
     /// <summary>
     /// Multiplayer rewards may deserialize CardCreationOptions that captured a vanilla character-pool model
     /// before the authoritative chaos snapshot was activated. Character.CardPool is patched correctly afterward,
@@ -3309,15 +3417,7 @@ internal static class CharacterPoolPatchRouting
         var changed = false;
         var normalized = options.CardPools.Select(pool =>
         {
-            CardPoolModel replacement = pool switch
-            {
-                IroncladCardPool => ModelDb.CardPool<ChaosIroncladCardPool>(),
-                SilentCardPool => ModelDb.CardPool<ChaosSilentCardPool>(),
-                DefectCardPool => ModelDb.CardPool<ChaosDefectCardPool>(),
-                NecrobinderCardPool => ModelDb.CardPool<ChaosNecrobinderCardPool>(),
-                RegentCardPool => ModelDb.CardPool<ChaosRegentCardPool>(),
-                _ => pool
-            };
+            var replacement = ActivePoolFor(pool);
             changed |= !ReferenceEquals(pool, replacement);
             return replacement;
         }).ToArray();

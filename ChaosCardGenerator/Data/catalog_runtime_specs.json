@@ -314,7 +314,6 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
-        "needs_external_card_slot",
         "replenishes_hand",
         "requires_player_choice",
         "set_cost_zero_this_turn",
@@ -1974,7 +1973,6 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
-        "needs_external_card_slot",
         "replenishes_hand",
         "requires_player_choice",
         "set_cost_zero_this_turn",
@@ -7171,7 +7169,6 @@
       "Flags": [
         "cost_wording",
         "count_unit_reference",
-        "needs_external_card_slot",
         "replenishes_hand",
         "this_turn_reference"
       ],
@@ -16716,7 +16713,6 @@
         "cost_wording",
         "count_unit_reference",
         "has_numeric_literal",
-        "needs_external_card_slot",
         "replay_reference",
         "requires_player_choice"
       ],
@@ -24408,7 +24404,6 @@
         "count_unit_reference",
         "delayed_effect",
         "has_numeric_literal",
-        "needs_external_card_slot",
         "replenishes_hand",
         "requires_player_choice"
       ],

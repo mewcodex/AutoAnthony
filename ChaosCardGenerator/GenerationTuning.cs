@@ -2,12 +2,50 @@ using System.Text.RegularExpressions;
 
 namespace ChaosCardGenerator;
 
+/// <summary>
+/// Common defensive cards should supply a usable current-turn foundation. Occurrence corrections follow the
+/// native component prior; allocation preferences only redistribute the existing whole-card budget. Summon
+/// retains its native per-point valuation and does not receive the immediate Block allocation premium.
+/// </summary>
+internal static class DefenseGenerationTuning
+{
+    internal static double OccurrenceMultiplier(IEnumerable<ComponentAtom> family, GeneratedRarity rarity,
+        GeneratedCharacter character, bool ultimateChaos)
+    {
+        if (rarity != GeneratedRarity.Common) return 1d;
+        var atoms = family as ComponentAtom[] ?? family.ToArray();
+        if (atoms.Any(atom => OperationRuntimeSpecCompiler.GetOrCompile(atom) is
+                { Opcode: "gain_block", Variant: "immediate" }))
+            // These three pools have a larger observed coverage deficit after native-prior acceptance.
+            // Recover it through direct Block rather than cheaper or larger Summon/Orb numbers.
+            return ultimateChaos ? 1.60d : character switch
+            {
+                GeneratedCharacter.Defect => 3.60d,
+                GeneratedCharacter.Ironclad or GeneratedCharacter.Necrobinder => 2.40d,
+                _ => 1.60d
+            };
+        return atoms.Any(atom => atom.Template is "NCR:Summon" or "NCR:SummonX") ? 1.45d : 1d;
+    }
+
+    internal static double AllocationMultiplier(ComponentAtom atom, GeneratedRarity rarity,
+        GeneratedCardType type, IReadOnlyList<GeneratorOperation> previous) =>
+        rarity == GeneratedRarity.Common && type != GeneratedCardType.Power
+        && OperationRuntimeSpecCompiler.GetOrCompile(atom) is { Opcode: "gain_block", Variant: "immediate" }
+        && EffectBalanceModel.LinkedTrigger(previous) is null
+            ? 1.50d : 1d;
+
+    // Random Orb substitution dilutes native Frost generators with four other output types. Recover part of
+    // that lost defensive coverage without changing Orb values or granting additional Channel counts.
+    internal static int FrostOutputWeightPercent(GeneratedRarity rarity) =>
+        rarity == GeneratedRarity.Common ? 240 : 100;
+}
+
 internal static class LongDurationStatusVariant
 {
     internal const string Flag = "fixed_99_enemy_status";
     // Conditional roll on a scarce, non-repeating status candidate, not a per-card probability.
-    // Halved from 0.30; final pool incidence also depends on eligibility and budget acceptance.
-    internal const double CandidateChance = 0.15d;
+    // Reduced by 80% from 0.15; final pool incidence also depends on eligibility and budget acceptance.
+    internal const double CandidateChance = 0.03d;
     // STS1 Terror: one-Energy Uncommon with Exhaust. Use the same full-shell valuation as other scarce effects.
     internal const int VulnerableValue = 2_030; // 1,400 * 1.45
     internal const int WeakValue = 2_250;
@@ -60,6 +98,17 @@ internal static class LongDurationStatusVariant
         } };
         if (EffectBalanceModel.EstimatedEffectValue(weak) != WeakValue)
             throw new InvalidOperationException("Fixed-99 Weak valuation regression.");
+        var weakOperation = op with { RuntimeSpec = weak.RuntimeSpec };
+        var ordinary = atom with { RuntimeSpec = spec with
+        {
+            Flags = ["vulnerable_reference", "apply_status_reference"],
+            Values = [new RuntimeValueSlot("amount", 2)]
+        } };
+        if (!CardEffectRules.IsRestrictedEffect(atom) || !CardEffectRules.IsRestrictedEffect(op)
+            || !CardEffectRules.IsRestrictedEffect(weak) || !CardEffectRules.IsRestrictedEffect(weakOperation)
+            || !CardEffectRules.IsPersistentPowerFoundation(op)
+            || CardEffectRules.IsRestrictedEffect(ordinary))
+            throw new InvalidOperationException("Fixed-99 statuses must require Power/Exhaust, including older snapshots; ordinary statuses must not.");
     }
 }
 
@@ -71,7 +120,7 @@ internal static class LongDurationStatusVariant
 internal static class EffectSelectionTuning
 {
     private const int UltimateOstyFamilyWeightPercent = 60;
-    private const int BasicDownsideWeightPercent = 30;
+    private const int BasicDownsideWeightPercent = 2;
     // In the native Necrobinder pool, direct Block plus Summon occupies substantially more family mass than direct
     // Block alone. The native-frequency policy applies one shared target-rate factor, preserving their internal
     // ratio while bringing their combined mass close to the former Block mass and making room for damage payoffs.
@@ -105,13 +154,51 @@ internal static class EffectSelectionTuning
             // execution/choice-context constraints. Accepted-card audits remained below its native occurrence
             // after the first correction, so compensate here at the existing post-assembly calibration boundary.
             "D:AutoPlayRandomAttackFromDraw" => 195,
-            // Body Slam's current-Block modifier needs a preceding single-target Damage anchor. Compensate for
-            // those assembly rejections so the reviewed component remains visible in Ironclad/Ultimate pools.
-            "M:value" => 225,
+            // Body Slam now uses prerequisite-aware selection and sole-upgrade planning; retire its earlier
+            // workaround multiplier rather than stacking it on top of those repaired paths.
+            "M:value" => 100,
+            // Restore the explicitly requested roughly double-native permanent Focus incidence. This changes
+            // only sampling; permanent Focus valuation and numeric budgets remain untouched.
+            "D:GainFocus" => 200,
             "M:repeat" or "R:WheneverDrawn" => 180,
-            "CL:ReturnThisToHand" => 130,
+            "CL:ReturnThisToHand" => 150,
+            // Residual accepted-card corrections after prerequisite/upgrade fixes. These are sampling factors,
+            // never discounts to the effect price; explicit rare mechanics retain their separate scarcity rules.
+            "C:grantNextAttack" => 400,
+            "I:AddExhaustedAttackDamage" or "I:IncreaseDamageThisCombat"
+                or "C:ifLastDrawnSkill" or "D:IfEnemyIntendsAttack" => 150,
+            // Previously rejected local-card references now assemble normally. Normalize their restored
+            // accepted-card incidence instead of retaining the accidental ~2x native rate.
+            "I:ProxyAtomic_WhiteNoise" or "CL:ProxyAtomic_Discovery" or "CL:ProxyAtomic_Splash" => 25,
+            "I:DrawWithRetain" => 15,
+            "CL:ProxyAtomic_HiddenGem" => 55,
+            _ when OperationRuntimeSpecCompiler.GetOrCompile(atom).Flags.Contains("plating_reference") => 65,
             _ => 100
         });
+    }
+
+    // Accepted-incidence recovery for the explicitly reviewed <0.3x tail (0.3.129).
+    // Scarce effects aim at ~0.5x native; ordinary effects at ~0.8x. These are sampling corrections,
+    // not price discounts. Shared families must also apply the correction at variant selection.
+    internal static int LowOccurrenceRecoveryWeight(ComponentAtom atom, GeneratedCharacter character,
+        bool unifiedChaos)
+    {
+        if (atom.Template == "A:rule")
+            return OperationRuntimeSpecCompiler.GetOrCompile(atom).Variant switch
+            {
+                "skills_cost_zero" => 8_000,
+                "retain_block_between_turns" => 400,
+                _ => 100
+            };
+        return atom.Template switch
+        {
+            "I:FreeHandThisTurn" => 500,
+            "C:ifTargetPoisoned" => 210,
+            "NCR:IncreaseThisCardDamageRun" => 400,
+            "D:LoseOrbSlots" => 1_000,
+            "C:ifFatal" when !unifiedChaos && character == GeneratedCharacter.Regent => 2_400,
+            _ => 100
+        };
     }
 
     /// <summary>
@@ -246,16 +333,62 @@ internal static class EffectSelectionTuning
         return 100;
     }
 
+    /// <summary>
+    /// Growth cannot be selected until its Block host already exists. Correct that conditional assembly loss
+    /// at the companion choice, leaving the native rarity prior and finalized-pool feedback in control.
+    /// </summary>
+    internal static int RunBlockGrowthCompanionWeight(IEnumerable<ComponentAtom> family,
+        IReadOnlyList<GeneratorOperation> previous) =>
+        previous.Any(operation => operation.Template == "N:B")
+        && !previous.Any(operation => operation.Template == "D:IncreaseThisCardBlockRun")
+        && family.Any(atom => atom.Template == "D:IncreaseThisCardBlockRun")
+            ? 150_000 : 100;
+
     internal static long ApplyAtomAdjustments(long weight, ComponentAtom atom, GeneratedRarity rarity,
-        bool forcedSpecialX, GeneratedCardType type)
+        bool forcedSpecialX, GeneratedCardType type, GeneratedCharacter? character = null)
     {
         var specialXDraw = forcedSpecialX && type != GeneratedCardType.Power
             && CardEffectRules.IsCardDrawEffect(atom)
                 ? SpecialXCardConverter.NonPowerDrawWeightPercent
                 : 100;
         weight = PercentWeight.Apply(weight, specialXDraw);
+        weight = PercentWeight.Apply(weight, BasicRareEffectWeight(atom, rarity));
+        weight = PercentWeight.Apply(weight, ExhaustSelectionWeight(atom, rarity, character));
         return PercentWeight.Apply(weight, DownsideRarityWeight(atom, rarity));
     }
+
+    internal static int ExhaustSelectionWeight(ComponentAtom atom, GeneratedRarity rarity,
+        GeneratedCharacter? character = null)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        var lifecycle = spec.Trigger?.Kind?.Contains("self_in_exhaust", StringComparison.Ordinal) == true
+            || spec.Condition?.Kind == "exhaust_pile_minimum";
+        var related = lifecycle || spec.Opcode == "exhaust_card" || spec.SourceZone == "exhaust"
+            || spec.Trigger?.Kind?.Contains("exhaust", StringComparison.Ordinal) == true
+            || spec.Variant.Contains("exhaust", StringComparison.Ordinal);
+        var weight = (rarity == GeneratedRarity.Basic && related ? 10 : 100) * (lifecycle ? 20 : 100) / 100;
+        // Reduce active Exhaust actions, not their reward triggers or required Exhaust keywords.
+        return character == GeneratedCharacter.Ironclad && CardEffectRules.IsExhaustAction(spec)
+            ? Math.Max(1, weight * 30 / 100) : weight;
+    }
+
+    internal static int SmallExhaustCounterWeight(ComponentAtom atom, IReadOnlyList<GeneratorOperation> previous)
+    {
+        if (!CardEffectRules.IsForEachExhaustTrigger(atom)) return 100;
+        var payment = previous.LastOrDefault(op => CardEffectRules.IsCompatiblePriorExhaust(op, atom));
+        if (payment is null) return 100;
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(payment);
+        if (spec.Variant == "all" || payment.Template == "D:ExhaustAllStatuses") return 100;
+        var count = OperationRuntimeSpecCompiler.StaticLiteralValue(payment, "count", 1);
+        return count <= 1 ? 1 : count <= 2 ? 5 : 25;
+    }
+
+    // Apply the reviewed scarcity tiers to starters only. Other rarities retain the native-frequency policy.
+    // Also use this in mixed-family variant selection, where an ordinary sibling must not bypass scarcity.
+    internal static int BasicRareEffectWeight(ComponentAtom atom, GeneratedRarity rarity) =>
+        rarity == GeneratedRarity.Basic
+            ? ComponentAssemblyGenerator.ExplicitRareOperationRarityWeight(atom, rarity)
+            : 100;
 
     internal static int RepeatedFamilyWeightBasisPoints(IEnumerable<ComponentAtom> family,
         IReadOnlyList<GeneratorOperation> previous)
@@ -612,7 +745,8 @@ internal static class NumericGenerationTuning
                 OperationRuntimeSpecCompiler.GetOrCompile(atom), character, ultimateChaos) is { } cap)
             return Math.Clamp(value, 1, cap);
         if (slot == 0 && atom.Template is "N:Draw" or "I:DrawAndBlockIfSkill" or "I:DrawWithRetain")
-            return Math.Clamp(value, 1, 4);
+            return Math.Clamp(value, 1, EffectBalanceModel.IsRebootDraw(atom, previous)
+                ? MaximumCardActionCount : 4);
         // The native compact generated-card picker supports at most three candidates. Four candidates remain a
         // useful upper roll, but the runtime deliberately presents that case through the multiplayer-safe grid.
         // Keep the authored value at four or below so generated snapshots cannot request an unbounded choice list.
@@ -974,15 +1108,8 @@ internal static class NegativeEffectTuning
         };
         if (unitValue <= 0d) return 0d;
 
-        var frequency = 1d;
-        if (operations is not null && operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
-            && triggerIndex >= 0 && triggerIndex < operations.Count
-            && (operationIndex < 0 || triggerIndex < operationIndex))
-        {
-            var trigger = operations[triggerIndex];
-            if (EffectBalanceModel.HasRepeatedOrMultiplicativePayoff(trigger))
-                frequency = Math.Max(1d, EffectBalanceModel.ExpectedTriggerResolutions(trigger, 2.4d));
-        }
+        var frequency = operations is null ? 1d
+            : EffectBalanceModel.NegativeResolutionMultiplier(operation, operations, operationIndex);
         return unitValue * amount * frequency;
     }
 
@@ -1101,7 +1228,7 @@ internal static class NegativeEffectTuning
             "N:Exhaust" when spec is { Opcode: "exhaust_card", Variant: "all", CardFilter: "any" } => 1.36d,
             "N:Exhaust" when spec is { Opcode: "exhaust_card", Variant: "all", CardFilter: "non_attack" } => 1.36d,
             "I:PreventDrawThisTurn" => 1.36d,
-            "D:DrawAndDiscardNonZero" => amount >= 4 ? 1.24d : 1.14d,
+            "D:DrawAndDiscardNonZero" => 1d, // Filtering is already included in its per-card value.
             "NCR:KillOsty" => 1.84d,
             "R:EndTurn" => 2.00d,
             // This modifier owns a contextual multiplier in EffectiveMultiplier: its cost depends on both the
@@ -1126,23 +1253,16 @@ internal static class NegativeEffectTuning
                 * EffectBalanceModel.DamageModifierHostValueMultiplier(operation, operationIndex, operations);
             multiplier = 1d + lostValue / 1_500d;
         }
-        if (multiplier <= 1d
-            || !operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex)
-            || triggerIndex < 0 || triggerIndex >= operations.Count
-            || operationIndex >= 0 && triggerIndex >= operationIndex)
-            return multiplier;
-        var trigger = operations[triggerIndex];
+        if (multiplier <= 1d) return multiplier;
+        var frequency = EffectBalanceModel.NegativeResolutionMultiplier(operation, operations, operationIndex);
         // Ending the turn is a single, strong lifecycle payment. When it is gated or repeated, price the complete
         // 2.00x payment by the trigger's expected resolution count instead of compounding it exponentially. This
         // also lets one-shot conditions below 100% frequency reduce the payment naturally. Turn-boundary owners
         // are rejected by CardEffectRules because ending a turn from its own start/end hook is not a usable card.
         if (operation.Template == "R:EndTurn")
         {
-            var endTurnFrequency = EffectBalanceModel.ExpectedTriggerResolutions(trigger, 2.4d);
-            return Math.Max(1d, multiplier * endTurnFrequency);
+            return Math.Max(1d, multiplier * frequency);
         }
-        if (!EffectBalanceModel.HasRepeatedOrMultiplicativePayoff(trigger)) return multiplier;
-        var frequency = Math.Max(1d, EffectBalanceModel.ExpectedTriggerResolutions(trigger, 2.4d));
         return Math.Pow(multiplier, frequency);
     }
 
@@ -1399,6 +1519,10 @@ internal static class CardAcceptanceTuning
             || CardEffectRules.IsEnemyDamage(operation)
             || operation.Template is "N:Vigor" or "R:GainVigor" or "CL:GainVigor" or "NCR:Summon";
         if (!familyMatches) return false;
+        // Genetic Algorithm's small starting Block is the host for its run-persistent growth, not a filler line.
+        if (spec.Opcode == "gain_block" && spec.Variant == "immediate"
+            && operations.Any(candidate => candidate.Template == "D:IncreaseThisCardBlockRun"))
+            return false;
 
         // A low per-hit number on a genuine multi-hit attack is intentional. Static/dynamic hit modifiers also
         // make every Damage line multi-hit, so do not prune its anchor as if it were a one-shot two-Damage rider.
@@ -1442,7 +1566,10 @@ internal static class CardAcceptanceTuning
     internal static int TinyImmediateRewardAcceptancePercent(IReadOnlyList<GeneratorOperation> operations,
         GeneratedRarity rarity)
     {
-        var count = operations.Count(IsTinyImmediateReward);
+        var count = operations.Count(operation => IsTinyImmediateReward(operation)
+            && !(OperationRuntimeSpecCompiler.GetOrCompile(operation) is
+                    { Opcode: "gain_block", Variant: "immediate" }
+                && operations.Any(candidate => candidate.Template == "D:IncreaseThisCardBlockRun")));
         if (count == 0) return 100;
         var oneLine = rarity switch
         {

@@ -881,7 +881,8 @@ public static class CardTinkeringApi
         if (externalSlots.Length > 1) errors.Add("the card uses more than one explicit card slot");
         foreach (var operation in operations)
         {
-            if (CardEffectRules.NeedsExternalCardSlot(operation))
+            if (CardEffectRules.NeedsExternalCardSlot(operation)
+                || !string.IsNullOrWhiteSpace(operation.CardTargetSlot) && operation.CardTargetSlot != "thisCard")
             {
                 var matches = string.IsNullOrWhiteSpace(operation.CardTargetSlot)
                               || operation.CardTargetSlot == "thisCard"
@@ -898,8 +899,9 @@ public static class CardTinkeringApi
         }
         if (!options.AllowOrphanSelectors)
             foreach (var selector in selectors.Where(selector => selector.Slot is not null))
-                if (!operations.Any(operation => CardEffectRules.NeedsExternalCardSlot(operation)
-                                                 && operation.CardTargetSlot == selector.Slot))
+                // An explicit catalog-authored slot is authoritative even when the localized legacy sentence
+                // contains no pronoun from which needs_external_card_slot could have been inferred.
+                if (!operations.Any(operation => operation.CardTargetSlot == selector.Slot))
                     errors.Add($"card selector {selector.Slot} has no component to receive its selection");
         return errors;
     }

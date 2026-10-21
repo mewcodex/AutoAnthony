@@ -124,8 +124,9 @@ public sealed class RandomCardGenerator
         OperationRuntimeSpecCompiler.Attach(_nonSpecialXAssembler.GenerateMatching(rarity, accept));
 
     internal GeneratedCard GenerateReferenceFreeWithoutSpecialXMatching(GeneratedRarity rarity,
-        Func<GeneratedCard, bool> accept) =>
-        OperationRuntimeSpecCompiler.Attach(_referenceFreeNonSpecialXAssembler.GenerateMatching(rarity, accept));
+        Func<GeneratedCard, bool> accept, bool shortRepairSearch = false) =>
+        OperationRuntimeSpecCompiler.Attach(_referenceFreeNonSpecialXAssembler.GenerateMatching(rarity, accept,
+            shortRepairSearch));
 
     internal GeneratedCard CreateRegentStartingCoverageFallback(bool damage) =>
         OperationRuntimeSpecCompiler.Attach(_normalAssembler.CreateRegentStartingCoverageFallback(damage));
@@ -550,6 +551,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("回合结束触发器不能连接选牌或可能再次打开选择的自动打出效果。");
         if (!CardEffectRules.HasNoNegativeSelfExhaustPayoffs(card.Operations))
             throw new InvalidOperationException("“这张牌被消耗时”后面不能接负面效果。");
+        if (!CardEffectRules.HasValidTriggerPayoffs(card.Operations))
+            throw new InvalidOperationException("Trigger and payload require incompatible lifecycle or target contexts.");
         if (!CardEffectRules.HasNoInvalidTriggeredStateEffects(card.Operations))
             throw new InvalidOperationException("由卡牌状态钩子执行的效果不能嵌套在其他条件或重复触发条件之后。");
         if (!CardEffectRules.HasNoStateConditionModifiers(card.Operations))
@@ -840,7 +843,7 @@ public static class CardTemplateValidator
                 throw new InvalidOperationException("Invalid whole-card X upgrade.");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.IncreaseNumber
                     && !IsValidIncreaseNumberUpgrade(card, effect, allowRandomizedNumericValues)))
-                throw new InvalidOperationException("普通数值升级只能增加1至4点；金币升级可按原版比例增加，但不得超过原数值。");
+                throw new InvalidOperationException("Numeric upgrade exceeds its value-slot or percentage domain.");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.IncreaseNumber
                     && effect.OperationIndex is { } index
                     && index >= 0 && index < card.Operations.Count
@@ -867,7 +870,7 @@ public static class CardTemplateValidator
         }
     }
 
-    private static bool IsValidIncreaseNumberUpgrade(GeneratedCard card, CardUpgradeEffect effect,
+    internal static bool IsValidIncreaseNumberUpgrade(GeneratedCard card, CardUpgradeEffect effect,
         bool allowRandomizedNumericValues)
     {
         if (effect.OperationIndex is not { } operationIndex
@@ -876,10 +879,15 @@ public static class CardTemplateValidator
             return false;
         var operation = card.Operations[operationIndex];
         if (allowRandomizedNumericValues) return true;
-        var maximum = CardEffectRules.IsGoldGainOperation(operation)
-            ? OperationRuntimeSpecCompiler.StaticLiteralValue(operation, "amount")
-            : 4;
-        return delta <= maximum;
+        // The planner now fits native/percentage/cadence-aware deltas, which may legitimately exceed four.
+        // Validate the same explicit slot and <=100% numeric domain instead of discarding those fitted cards.
+        var slotId = effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
+        var slot = OperationRuntimeSpecCompiler.GetOrCompile(operation).Values
+            .FirstOrDefault(value => value.Id == slotId && value.Source == "fixed" && value.Upgradable);
+        if (slot is null) return false;
+        var current = Math.Max(1, slot.BaseValue + slot.Offset);
+        var maximum = PercentageValueTuning.ClampUpgradeMagnitude(operation, slot.Id, current, current);
+        return delta <= maximum && delta % PercentageValueTuning.UpgradeStep(operation) == 0;
     }
 
     private static bool IsAllowedCost(GeneratedCharacter character, GeneratedCardType type, int cost,
@@ -2453,8 +2461,11 @@ public static class GeneratorSelfTest
             {
                 var generated = ultimateGenerator.Generate();
                 CardTemplateValidator.Validate(generated);
-                if (generated.Name?.SourceCardIds.Any(source => !nativeNameIds.Contains(source)) != false)
-                    throw new InvalidOperationException($"终极混沌的 {character} 卡名引用了异色名称词块。");
+                // Hang has a mandatory gameplay-family name even in an Ultimate pool of another color.
+                if (generated.Name?.SourceCardIds.Any(source => !nativeNameIds.Contains(source)
+                        && !(source == "Hang" && CardEffectRules.IsHangDamageFamily(generated.Operations))) != false)
+                    throw new InvalidOperationException($"Ultimate name source mismatch: {character}; "
+                        + string.Join(",", generated.Name?.SourceCardIds ?? []));
             }
         }
 
@@ -2733,7 +2744,8 @@ public static class GeneratorSelfTest
             "action:draw_discard_nonzero", "action:shuffle_unexhausted", "rule:skills_cost_zero",
             "rule:skills_exhaust", "rule:buffer", "rule:no_block_from_cards",
             "rule:die_on_unblocked_attack", "reward:gain_gold", "turn:free_hand",
-            "damage:cards_played_combat", "condition:exhaust_pile_minimum"
+            "damage:cards_played_combat", "condition:exhaust_pile_minimum",
+            "ancient:intangible", "ancient:remove_card_after_combat", "ancient:osty_max_hp_bonus_damage"
         };
         if (requiredPoolUniqueKeys.Any(key => !declaredPoolUniqueKeys.Contains(key)))
             throw new InvalidOperationException("请求的卡池唯一组件缺少稳定语义键："
@@ -3058,6 +3070,11 @@ public static class GeneratorSelfTest
             || ComponentAssemblyGenerator.ExplicitRareOperationRarityWeight(retaliateDamage,
                 GeneratedRarity.Rare) != 70)
             throw new InvalidOperationException("变化衍生物、所有技能牌0费、君王之剑群攻、获得金币、复制目标负面状态或受击反伤没有使用稀有效果管线。");
+        if (EffectSelectionTuning.BasicRareEffectWeight(retaliateDamage, GeneratedRarity.Basic) != 10
+            || EffectSelectionTuning.BasicRareEffectWeight(kingsSwordHitsAll, GeneratedRarity.Basic) != 5
+            || Enum.GetValues<GeneratedRarity>().Where(r => r != GeneratedRarity.Basic).Any(r =>
+                EffectSelectionTuning.BasicRareEffectWeight(retaliateDamage, r) != 100))
+            throw new InvalidOperationException("Starter scarcity must preserve non-Basic selection weights.");
         var overrepresentedUtilities = new ComponentAtom[]
         {
             new("A:when", OperationScope.AbilityTrigger, "每当你在回合内失去生命时。", false,
@@ -3121,6 +3138,45 @@ public static class GeneratorSelfTest
                 "如果你有冰霜充能球，则", new Dictionary<string, int> { ["triggerIndex"] = 0 }),
             loseOrbSlotProbe with { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } }
         };
+        var orbCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Defect);
+        GeneratorOperation OrbDownsideProbe(string template)
+        {
+            var atom = orbCatalog.Atoms.First(atom => atom.Template == template);
+            return new GeneratorOperation(atom.Template, atom.Scope, string.Empty,
+                new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom),
+                LocalizedText: atom.LocalizedText);
+        }
+        var orbCounter = OrbDownsideProbe("D:ForEachUniqueOrb");
+        var countedTemporaryFocusLoss = OrbDownsideProbe("D:LoseTemporaryFocus");
+        var countedFocusLoss = new[] { orbCounter, countedTemporaryFocusLoss };
+        if (countedFocusLoss.Any(CardEffectRules.IsBeneficialEffect)
+            || !CardEffectRules.IsNegativeEffect(countedTemporaryFocusLoss)
+            || Math.Abs(NegativeEffectTuning.LinearCompensationValue(countedTemporaryFocusLoss, countedFocusLoss, 1)
+                / NegativeEffectTuning.LinearCompensationValue(countedTemporaryFocusLoss) - 2.5d) > 0.00001d)
+            throw new InvalidOperationException("Count prefixes must not legitimize pure downsides or lose their downside frequency.");
+        var countedDownsideStart = new GeneratorOperation("A:turnStart", OperationScope.AbilityTrigger,
+            string.Empty, new Dictionary<string, int>());
+        var ownedOrbCounter = orbCounter with { Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } };
+        foreach (var parent in new[] { 0, 1 })
+        {
+            var nestedLoss = countedTemporaryFocusLoss with
+            {
+                Parameters = new Dictionary<string, int> { ["triggerIndex"] = parent }
+            };
+            var nestedOperations = new[] { countedDownsideStart, ownedOrbCounter, nestedLoss };
+            if (Math.Abs(EffectBalanceModel.NegativeResolutionMultiplier(nestedLoss, nestedOperations, 2)
+                - 2.4d * 2.5d) > 0.00001d)
+                throw new InvalidOperationException("Nested downside counts must include each owner exactly once.");
+        }
+        foreach (var character in Enum.GetValues<GeneratedCharacter>())
+            foreach (var atom in CharacterComponentCatalogs.Get(character).Atoms)
+            {
+                var operation = new GeneratorOperation(atom.Template, atom.Scope, string.Empty,
+                    new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom),
+                    LocalizedText: atom.LocalizedText);
+                if (CardEffectRules.IsDependencyPrefix(operation) && CardEffectRules.IsBeneficialEffect(operation))
+                    throw new InvalidOperationException($"Control-flow prefix counted as a payoff: {operation.Template}.");
+            }
         if (negativeOnlyOrbEngine.Any(CardEffectRules.IsBeneficialEffect)
             || !CardEffectRules.IsBeneficialEffect(new GeneratorOperation("N:B", OperationScope.NonTargeted,
                 "获得4点格挡。", new Dictionary<string, int> { ["triggerIndex"] = 0 })))
@@ -3423,7 +3479,7 @@ public static class GeneratorSelfTest
                     string.Empty, false, CardReferenceRequirement.None)]) != 195
             || EffectSelectionTuning.NativeFinalOccurrenceCalibrationWeight(
                 [new ComponentAtom("M:value", OperationScope.Modifier,
-                    string.Empty, false, CardReferenceRequirement.None)]) != 225
+                    string.Empty, false, CardReferenceRequirement.None)]) != 100
             || EffectSelectionTuning.PowerAuxiliaryWeight([damageAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([temporaryStrengthAtom], GeneratedCardType.Power, []) != 10
             || EffectSelectionTuning.PowerAuxiliaryWeight([energyGainAtom], GeneratedCardType.Power, []) != 100
@@ -3436,6 +3492,18 @@ public static class GeneratorSelfTest
             || EffectSelectionTuning.RestrictedRunGrowthAnchorWeight([damageAtom], GeneratedCardType.Power, [],
                 GeneratedCharacter.Necrobinder, true) != 100)
             throw new InvalidOperationException("同一张牌已经拥有的效果没有按家族与精确模板递减抽取权重。 ");
+        var growthCompanion = new ComponentAtom("D:IncreaseThisCardBlockRun", OperationScope.Independent,
+            string.Empty, false, CardReferenceRequirement.None);
+        var growthHost = new GeneratorOperation("N:B", OperationScope.NonTargeted,
+            string.Empty, new Dictionary<string, int>());
+        var existingGrowth = new GeneratorOperation("D:IncreaseThisCardBlockRun", OperationScope.Independent,
+            string.Empty, new Dictionary<string, int>());
+        if (EffectSelectionTuning.RunBlockGrowthCompanionWeight([growthCompanion], []) != 100
+            || EffectSelectionTuning.RunBlockGrowthCompanionWeight([growthCompanion], [growthHost]) != 150_000
+            || EffectSelectionTuning.RunBlockGrowthCompanionWeight([growthCompanion],
+                [growthHost, existingGrowth]) != 100
+            || EffectSelectionTuning.RunBlockGrowthCompanionWeight([damageAtom], [growthHost]) != 100)
+            throw new InvalidOperationException("Run Block growth companion weighting escaped its eligible host context.");
         if (EffectBalanceModel.EstimatedEffectValue(healAtom) != 4_000
             || !ComponentAssemblyGenerator.IsExplicitRareOperation(healAtom)
             || EffectBalanceModel.TriggerOccurrenceWeight([nativeFourEnergyAtom]) != 100
@@ -3968,6 +4036,72 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("洗回未消耗牌的组件必须紧接一项即时抽牌效果。 ");
         var ironcladUnifiedFrequency = new NativeComponentFrequencyTracker(
             CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad, true), true);
+        var reviewedRules = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Atoms
+            .Where(atom => atom.Template == "A:rule").ToArray();
+        foreach (var rule in reviewedRules)
+        {
+            var variant = OperationRuntimeSpecCompiler.GetOrCompile(rule).Variant;
+            var recovery = EffectSelectionTuning.LowOccurrenceRecoveryWeight(rule, GeneratedCharacter.Ironclad, false);
+            if ((variant is "skills_cost_zero" or "retain_block_between_turns") != (recovery > 100))
+                throw new InvalidOperationException("Low-incidence recovery leaked between shared combat-rule variants.");
+        }
+        var fatalRecoveryProbe = new ComponentAtom("C:ifFatal", OperationScope.ConditionalTrigger,
+            string.Empty, false, CardReferenceRequirement.None);
+        if (EffectSelectionTuning.LowOccurrenceRecoveryWeight(fatalRecoveryProbe, GeneratedCharacter.Regent, false) <= 100
+            || EffectSelectionTuning.LowOccurrenceRecoveryWeight(fatalRecoveryProbe, GeneratedCharacter.Ironclad, false) != 100)
+            throw new InvalidOperationException("Regent Fatal recovery changed another character's occurrence target.");
+        var barrageRecipe = CharacterComponentCatalogs.Get(GeneratedCharacter.Defect).Recipes
+            .Single(recipe => recipe.Id == "Barrage");
+        var barragePrefix = barrageRecipe.Atoms[1];
+        var barrageParent = new GeneratorOperation(barragePrefix.Template, barragePrefix.Scope,
+            string.Empty, new Dictionary<string, int>(), RuntimeSpec: barragePrefix.RuntimeSpec);
+        var barrageTracker = new NativeComponentFrequencyTracker(CharacterComponentCatalogs.Get(GeneratedCharacter.Defect));
+        var barrageDamageAtom = barrageRecipe.Atoms[0];
+        var barrageDamage = new GeneratorOperation(barrageDamageAtom.Template, barrageDamageAtom.Scope,
+            string.Empty, new Dictionary<string, int>(), RuntimeSpec: barrageDamageAtom.RuntimeSpec);
+        var largeDamageUpgradeProbe = new GeneratedCard(2, GeneratedCardType.Attack, TargetMode.SingleEnemy,
+            GeneratedRarity.Rare, string.Empty, [], [barrageDamage with
+            {
+                RuntimeSpec = barrageDamage.RuntimeSpec! with { Values = [new RuntimeValueSlot("damage", 21)] }
+            }]);
+        if (!CardTemplateValidator.IsValidIncreaseNumberUpgrade(largeDamageUpgradeProbe,
+                new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 5, ValueSlotId: "damage"), false)
+            || CardTemplateValidator.IsValidIncreaseNumberUpgrade(largeDamageUpgradeProbe,
+                new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, 0, 22, ValueSlotId: "damage"), false))
+            throw new InvalidOperationException("Numeric upgrade validation retained the obsolete +4 ceiling.");
+        if (barrageTracker.SourcePriorWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barragePrefix.FamilyKey, [barrageDamage])
+            <= barrageTracker.SourcePriorWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barragePrefix.FamilyKey, [])
+            || barrageTracker.SourcePriorWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barrageRecipe.Atoms[2].FamilyKey, [barrageParent])
+            <= barrageTracker.SourcePriorWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barrageRecipe.Atoms[2].FamilyKey, []))
+            throw new InvalidOperationException("Native dependency sampling ignored its prerequisite context.");
+        if (ComponentAssemblyGenerator.SelectionRole([barrageParent], GeneratedCardType.Attack,
+                [barrageRecipe.Atoms[2]]) != NativeComponentRole.ConditionalPayoff
+            || barrageTracker.SourcePriorWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barrageRecipe.Atoms[2].FamilyKey, [barrageParent]) < 100)
+            throw new InvalidOperationException("Modifier-prefix payoff lost its native conditional frequency role.");
+        var barrageChildAtom = barrageRecipe.Atoms[2];
+        var barrageChild = new GeneratorOperation(barrageChildAtom.Template, barrageChildAtom.Scope,
+            string.Empty, new Dictionary<string, int>(), RuntimeSpec: barrageChildAtom.RuntimeSpec);
+        barrageTracker.Observe(new GeneratedCard(1, GeneratedCardType.Attack, TargetMode.SingleEnemy,
+            GeneratedRarity.Common, string.Empty, [], [barrageParent, barrageChild], Character: GeneratedCharacter.Defect));
+        if (barrageTracker.SelectionWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barrageChildAtom.FamilyKey, [barrageParent]) > 100)
+            throw new InvalidOperationException("Finalized modifier-prefix payoffs were observed in a different role.");
+        if (barrageTracker.SelectionWeight(GeneratedRarity.Common, GeneratedCardType.Attack,
+                barrageChildAtom.FamilyKey, [barrageParent])
+            != barrageTracker.SelectionWeight(GeneratedRarity.Rare, GeneratedCardType.Skill,
+                barrageChildAtom.FamilyKey, [barrageParent]))
+            throw new InvalidOperationException("Dependency feedback applied native shell scarcity twice.");
+        var replayPrior = new NativeComponentFrequencyTracker(CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad));
+        if (replayPrior.SourcePriorWeight(GeneratedRarity.Rare, GeneratedCardType.Attack,
+                "C:AtTurnEndIfInExhaust", [barrageDamage])
+            <= replayPrior.SourcePriorWeight(GeneratedRarity.Rare, GeneratedCardType.Attack,
+                "C:AtTurnEndIfInExhaust", []))
+            throw new InvalidOperationException("Self replay's lifecycle prefix ignored its required OnPlay payload.");
         var silentUnifiedFrequency = new NativeComponentFrequencyTracker(
             CharacterComponentCatalogs.Get(GeneratedCharacter.Silent, true), true);
         var ironcladUnifiedBlockPrior = ironcladUnifiedFrequency.SourcePriorWeight(
@@ -4415,7 +4549,7 @@ public static class GeneratorSelfTest
             "手牌中每有一张其他牌，这张牌的伤害降低2点。", new Dictionary<string, int>());
         if (catalogNegativeOperations.Length == 0
             || catalogNegativeOperations.Any(operation => operation.Template is not
-                    ("N:Discard" or "M:DamageMinusPerCardInHand")
+                    ("N:Discard" or "M:DamageMinusPerCardInHand" or "D:DrawAndDiscardNonZero")
                 && NegativeEffectTuning.BaseMultiplier(operation) <= 1d
                 && NegativeEffectTuning.LinearCompensationValue(operation) <= 0d)
             || NegativeEffectTuning.BaseMultiplier(handPenaltyModifier) != 1d
@@ -5719,12 +5853,12 @@ public static class GeneratorSelfTest
         var ancientDownsideProbe = new ComponentAtom("N:HP-", OperationScope.NonTargeted,
             "失去3点生命。", false, CardReferenceRequirement.None);
         if (EffectSelectionTuning.DownsideRarityWeight(ancientDownsideProbe, GeneratedRarity.Ancient) != 16
-            || EffectSelectionTuning.DownsideRarityWeight(ancientDownsideProbe, GeneratedRarity.Basic) != 30
+            || EffectSelectionTuning.DownsideRarityWeight(ancientDownsideProbe, GeneratedRarity.Basic) != 2
             || EffectSelectionTuning.DownsideRarityWeight(ancientDownsideProbe, GeneratedRarity.Rare) != 100
             || EffectSelectionTuning.BasicDownsideVariantWeight(ancientDownsideProbe,
-                GeneratedRarity.Basic) != 30
+                GeneratedRarity.Basic) != 2
             || EffectSelectionTuning.NegativeKeywordRarityWeight(CardTag.Exhaust,
-                GeneratedRarity.Basic) != 30
+                GeneratedRarity.Basic) != 2
             || EffectSelectionTuning.NegativeKeywordRarityWeight(CardTag.Ethereal,
                 GeneratedRarity.Ancient) != 16
             || EffectSelectionTuning.NegativeKeywordRarityWeight(CardTag.Retain,

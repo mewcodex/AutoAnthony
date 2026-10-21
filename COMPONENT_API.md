@@ -5,6 +5,19 @@ and external-character definition hosting are public, localization-independent i
 covered by an external-consumer compile test; built-in generation remains covered by the full generator self-test
 and a historical full-pool drift corpus.
 
+Verified against AutoAnthony **0.3.147** / STS2 **0.111.x**. API versions remain independent from the mod version;
+see the bilingual [API changelog](https://github.com/mewcodex/AutoAnthony/wiki/API-Changelog) for the current matrix.
+Recent runtime fixes do not require re-registering component packages. In particular:
+
+- Named `CardTargetSlot` bindings are validated even when legacy reference metadata is absent. Use `thisCard` for
+  the source card and a matching selector slot for another card; internally owned selections do not need a second selector.
+- `OperationLocalizedText.ScaledSummonX` / `[[amount:scaled_x]]` render the fixed `amount` coefficient times the
+  X-backed `hits` slot, including its offset: coefficient 3 and X+2 render as 3X+6.
+- Unified X upgrades affect eligible X payoff slots together, not X costs or downside values. Custom templates must
+  bind to the upgraded RuntimeSpec slots rather than embedding an independent printed X expression.
+- Built-in multiplayer startup transfers the host's exact pools before starting the run. External profile owners
+  still provide their own definition persistence and synchronization as described below.
+
 ## Native-card decomposition catalog
 
 `NativeCardDecompositionApi` is a separate, read-only API for Card Tinkering-style tools. It exposes all 567 v111

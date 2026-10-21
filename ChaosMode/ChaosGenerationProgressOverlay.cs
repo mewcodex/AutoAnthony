@@ -131,8 +131,21 @@ internal sealed class ChaosGenerationProgressOverlay : IDisposable
     {
         if (_disposed || _label is null) return;
         var chinese = LocManager.Instance?.Language is "zhs" or "zht";
-        _label.Text = chinese ? "等待其他玩家生成卡池……" : "Waiting for other players to generate card pools...";
+        _label.Text = chinese ? "等待其他玩家同步卡池……" : "Waiting for other players to synchronize card pools...";
         _lastDrawTimestamp = Stopwatch.GetTimestamp();
+        ForceDrawSafely();
+    }
+
+    internal void ShowReceivingSnapshot(int received, int total)
+    {
+        if (_disposed || _label is null) return;
+        var chinese = LocManager.Instance?.Language is "zhs" or "zht";
+        _label.Text = chinese
+            ? $"正在同步卡池……（{received}/{total}）"
+            : $"Synchronizing card pools... ({received}/{total})";
+        var now = Stopwatch.GetTimestamp();
+        if (received < total && (now - _lastDrawTimestamp) / (double)Stopwatch.Frequency < 1d / 30d) return;
+        _lastDrawTimestamp = now;
         ForceDrawSafely();
     }
 

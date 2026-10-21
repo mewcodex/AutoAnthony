@@ -31,6 +31,9 @@ public static class ComponentOccurrenceAudit
         output.AppendLine($"character={character}; poolSamples={poolSamples}; sourceCards={catalog.Recipes.Count}; "
                           + $"generatedCards={generated.Count}; ultimateChaos={ultimateChaos}; "
                           + $"balancedValues={balancedValues}");
+        // Acceptance target for ordinary families, not a blanket sampling multiplier. Explicit scarcity and
+        // X-pool caps remain separate exceptions when reviewing the raw incidence rows below.
+        output.AppendLine($"ordinaryOccurrenceMinimumRatio={(character == GeneratedCharacter.Colorless ? 0.6d : 0.8d):0.0}");
         var finalizedStatusProducers = generatedOperations
             .Where(operation => DerivativeSlotCatalog.IsStatusProducer(operation.Template)).ToArray();
         var finalizedCurseProducers = finalizedStatusProducers.Count(operation =>
@@ -41,10 +44,33 @@ public static class ComponentOccurrenceAudit
             : 100d * finalizedCurseProducers / finalizedStatusProducers.Length;
         output.AppendLine($"statusCurseEasterEgg: producers={finalizedStatusProducers.Length}; "
                           + $"curses={finalizedCurseProducers}; rate={finalizedCurseRate:0.000}%");
+        var runBlockGrowthCards = generated.Count(card => card.Operations.Any(operation =>
+            operation.Template == "D:IncreaseThisCardBlockRun"));
+        output.AppendLine($"runBlockGrowth: cards={runBlockGrowthCards}; "
+                          + $"cardsPerPool={runBlockGrowthCards / (double)poolSamples:0.000}");
 
         WriteRows(output, "family", sourceOperations.Select(atom => atom.FamilyKey),
             generatedOperations.Select(operation => NumericTextSchema.Family(operation.Template)),
             catalog.Recipes.Count, generated.Count);
+
+        // Inspect parents separately above and their actual linked children here. A healthy parent count does
+        // not prove that its native dependent payoff is reachable at a reasonable rate.
+        var sourceLinks = catalog.Recipes.SelectMany(recipe => recipe.Atoms.Select((atom, index) =>
+        {
+            var owner = index < recipe.TriggerOwners.Count ? recipe.TriggerOwners[index] : -1;
+            if (index > 0 && CardEffectRules.IsDependencyPrefix(recipe.Atoms[index - 1])) owner = index - 1;
+            return owner >= 0 && owner < index
+                ? recipe.Atoms[owner].FamilyKey + " -> " + atom.FamilyKey : null;
+        })).OfType<string>();
+        var generatedLinks = generated.SelectMany(card => card.Operations.Select((operation, index) =>
+        {
+            var owner = operation.Parameters.GetValueOrDefault("triggerIndex", -1);
+            if (index > 0 && CardEffectRules.IsDependencyPrefix(card.Operations[index - 1])) owner = index - 1;
+            return owner >= 0 && owner < index
+                ? NumericTextSchema.Family(card.Operations[owner].Template) + " -> "
+                    + NumericTextSchema.Family(operation.Template) : null;
+        })).OfType<string>();
+        WriteRows(output, "parent_payoff", sourceLinks, generatedLinks, catalog.Recipes.Count, generated.Count);
 
         var sourceSchemas = sourceOperations.GroupBy(atom => atom.SchemaKey, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
