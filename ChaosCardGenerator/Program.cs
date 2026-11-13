@@ -336,8 +336,9 @@ if (nativeDecompositionAudit)
         (card.CatalogId, Success: NativeCardDecompositionApi.TryCreateDefinition(
             card.CatalogId, out _, out var actions), Actions: actions))
         .Where(item => !item.Success).ToArray();
-    Console.WriteLine($"Native-card decomposition audit passed: 567 records; 481 executable bases; "
-                      + $"{exactUpgrades} exact generated upgrades; 86 structured references.");
+    Console.WriteLine($"Native-card decomposition audit passed: {NativeCardDecompositionApi.Cards.Count} records; "
+                      + $"{executable.Length} executable bases; {exactUpgrades} exact generated upgrades; "
+                      + $"{NativeCardDecompositionApi.Cards.Count - executable.Length} structured references.");
     foreach (var item in unsupported)
         Console.WriteLine($"upgrade-adapter-pending={item.CatalogId}:{string.Join(',', item.Actions)}");
     return;

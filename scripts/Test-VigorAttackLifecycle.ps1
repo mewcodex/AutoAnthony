@@ -1,6 +1,7 @@
+param([string]$GameSourceDir = (Join-Path $PSScriptRoot '../../proj/113'))
 $ErrorActionPreference = 'Stop'
-# Execute the actual v111 Vigor implementation and production patch, with lightweight engine stubs.
-$native = Get-Content (Join-Path $PSScriptRoot '../../proj/111/MegaCrit.Sts2.Core.Models.Powers/VigorPower.cs') -Raw
+# Execute the installed-version Vigor implementation and production patch, with lightweight engine stubs.
+$native = Get-Content (Join-Path $GameSourceDir 'MegaCrit.Sts2.Core.Models.Powers/VigorPower.cs') -Raw
 $patch = Get-Content (Join-Path $PSScriptRoot '../ChaosMode/Patches/VigorAttackLifecyclePatch.cs') -Raw
 $native = $native -replace '(?m)^using [^;]+;\r?\n', '' -replace 'namespace MegaCrit.Sts2.Core.Models.Powers;', ''
 $patch = $patch -replace '(?m)^using [^;]+;\r?\n', '' -replace 'namespace AutoAnthony.Patches;', ''

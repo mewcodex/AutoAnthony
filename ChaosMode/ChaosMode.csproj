@@ -25,6 +25,9 @@
   <ItemGroup>
     <Compile Include="..\ChaosCardGenerator\RandomCardGenerator.cs" Link="Generator\RandomCardGenerator.cs" />
     <Compile Include="..\ChaosCardGenerator\GeneratedCardTagPolicy.cs" Link="Generator\GeneratedCardTagPolicy.cs" />
+    <Compile Include="..\ChaosCardGenerator\FoolComponentDefinitions.cs" Link="Generator\FoolComponentDefinitions.cs" />
+    <Compile Include="..\ChaosCardGenerator\FoolComponentRules.cs" Link="Generator\FoolComponentRules.cs" />
+    <Compile Include="..\ChaosCardGenerator\FoolMelodyNames.cs" Link="Generator\FoolMelodyNames.cs" />
     <Compile Include="..\ChaosCardGenerator\SpecialXCardConverter.cs" Link="Generator\SpecialXCardConverter.cs" />
     <Compile Include="..\ChaosCardGenerator\SlyKeywordTuning.cs" Link="Generator\SlyKeywordTuning.cs" />
     <Compile Include="..\ChaosCardGenerator\SlyPoolConstraintResolver.cs" Link="Generator\SlyPoolConstraintResolver.cs" />
@@ -41,6 +44,7 @@
     <Compile Include="..\ChaosCardGenerator\NativeComponentFrequencyTracker.cs" Link="Generator\NativeComponentFrequencyTracker.cs" />
     <Compile Include="..\ChaosCardGenerator\GenerationTuning.cs" Link="Generator\GenerationTuning.cs" />
     <Compile Include="..\ChaosCardGenerator\EffectBalanceModel.cs" Link="Generator\EffectBalanceModel.cs" />
+    <Compile Include="..\ChaosCardGenerator\SelfCostReductionValuation.cs" Link="Generator\SelfCostReductionValuation.cs" />
     <Compile Include="..\ChaosCardGenerator\ResourceEconomyModel.cs" Link="Generator\ResourceEconomyModel.cs" />
     <Compile Include="..\ChaosCardGenerator\VariableXCardBalance.cs" Link="Generator\VariableXCardBalance.cs" />
     <Compile Include="..\ChaosCardGenerator\CardIdentityAndUpgradeGenerator.cs" Link="Generator\CardIdentityAndUpgradeGenerator.cs" />
@@ -48,6 +52,7 @@
     <Compile Include="..\ChaosCardGenerator\PercentageValueTuning.cs" Link="Generator\PercentageValueTuning.cs" />
     <Compile Include="..\ChaosCardGenerator\NativeUpgradeStrengthModel.cs" Link="Generator\NativeUpgradeStrengthModel.cs" />
     <Compile Include="..\ChaosCardGenerator\ManualExternalNameParts.cs" Link="Generator\ManualExternalNameParts.cs" />
+    <Compile Include="..\ChaosCardGenerator\ManualFoolNameParts.cs" Link="Generator\ManualFoolNameParts.cs" />
     <Compile Include="..\ChaosCardGenerator\EnglishCardDescriptionRenderer.cs" Link="Generator\EnglishCardDescriptionRenderer.cs" />
     <Compile Include="..\ChaosCardGenerator\CardTextStyle.cs" Link="Generator\CardTextStyle.cs" />
     <Compile Include="..\ChaosCardGenerator\NumericTextSchema.cs" Link="Generator\NumericTextSchema.cs" />
@@ -61,6 +66,7 @@
     <Compile Include="..\ChaosCardGenerator\OrbSlotCatalog.cs" Link="Generator\OrbSlotCatalog.cs" />
     <Compile Include="..\ChaosCardGenerator\CharacterComponentCatalogs.cs" Link="Generator\CharacterComponentCatalogs.cs" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_runtime_specs.json" Link="Data\catalog_runtime_specs.json" />
+    <EmbeddedResource Include="..\ChaosCardGenerator\Data\fool_components.json" Link="Data\fool_components.json" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\catalog_recipes.json" Link="Data\catalog_recipes.json" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\native_reference_cards.json" Link="Data\native_reference_cards.json" />
     <EmbeddedResource Include="..\ChaosCardGenerator\Data\native_reference_components.json" Link="Data\native_reference_components.json" />

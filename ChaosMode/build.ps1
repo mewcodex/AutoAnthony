@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($GameDir)) {
 }
 $gameDll = Join-Path $GameDir "data_sts2_windows_x86_64\sts2.dll"
 if (-not (Test-Path -LiteralPath $gameDll)) {
-  throw "STS2 v111 DLL not found: $gameDll"
+  throw "STS2 game DLL not found: $gameDll"
 }
 
 $outputDir = Join-Path $projectDir "build\AutoAnthony"
@@ -78,4 +78,4 @@ if (-not $resolvedPckRoot.StartsWith($resolvedOutput + [IO.Path]::DirectorySepar
 }
 Remove-Item -LiteralPath $resolvedPckRoot -Recurse -Force
 
-Write-Host "Built AutoAnthony for STS2 v111: $outputDir"
+Write-Host "Built AutoAnthony against the installed STS2 game: $outputDir"

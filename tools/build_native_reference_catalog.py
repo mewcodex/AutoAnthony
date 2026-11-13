@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build the read-only v111 native card/component reference catalogs.
+"""Build the read-only native card/component reference catalogs.
 
 This authoring tool deliberately reads the reviewed generator catalog plus the
-decompiled v111 card sources.  Its output is documentation/audit data only and
+decompiled card sources.  Its output is documentation/audit data only and
 must never be used as a generator component source.
 """
 
@@ -18,8 +18,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_GAME_SOURCE = ROOT.parent / "proj" / "111" / "MegaCrit.Sts2.Core.Models.Cards"
-DEFAULT_LOCALIZATION = ROOT.parent / "export" / "111" / "localization"
+DEFAULT_GAME_SOURCE = ROOT.parent / "proj" / "113" / "MegaCrit.Sts2.Core.Models.Cards"
+DEFAULT_LOCALIZATION = ROOT.parent / "export" / "113" / "localization"
 DATA = ROOT / "ChaosCardGenerator" / "Data"
 
 
@@ -139,6 +139,7 @@ VAR_DEFAULT_NAMES = {
     "MaxHpVar": "MaxHp",
     "OstyDamageVar": "OstyDamage",
     "RepeatVar": "Repeat",
+    "HitCountVar": "HitCount",
     "StarsVar": "Stars",
     "SummonVar": "Summon",
 }
@@ -149,7 +150,7 @@ PROPERTY_VAR_NAMES = {
     "Damage": "Damage", "Dexterity": "DexterityPower", "Doom": "DoomPower", "Energy": "Energy",
     "ExtraDamage": "ExtraDamage", "Forge": "Forge", "Gold": "Gold", "Heal": "Heal",
     "HpLoss": "HpLoss", "MaxHp": "MaxHp", "OstyDamage": "OstyDamage", "Poison": "PoisonPower",
-    "Repeat": "Repeat", "Stars": "Stars", "Strength": "StrengthPower", "Summon": "Summon",
+    "Repeat": "Repeat", "HitCount": "HitCount", "Stars": "Stars", "Strength": "StrengthPower", "Summon": "Summon",
     "Vulnerable": "VulnerablePower", "Weak": "WeakPower",
 }
 
@@ -206,6 +207,9 @@ def method_body(text: str, name: str) -> str | None:
 
 
 IMPLICIT_UPGRADE_RULES: dict[str, list[dict[str, Any]]] = {
+    "Florescence": [{"Kind": "UpgradeProducedCard", "Card": "TheShot"}],
+    "MythicForm": [{"Kind": "UpgradeProducedCard", "Pool": "Tarot"}],
+    "ShowOff": [], # Current Aim is BaseAim plus the saved IncreasedAim, in both upgrade states.
     "Armaments": [{"Kind": "ReplaceSelection", "From": {"Zone": "Hand", "Count": 1},
                     "To": {"Zone": "Hand", "Count": "All"}, "Action": "Upgrade"}],
     "Begone": [{"Kind": "UpgradeProducedCard", "Card": "MinionStrike"}],
@@ -252,6 +256,10 @@ def parse_upgrade(class_name: str, text: str, variables: list[dict[str, Any]], b
         for match in re.finditer(r"DynamicVars\.(\w+)\.UpgradeValueBy\((-?[\d.]+)m?\)", body):
             actions.append({"Kind": "ChangeVariable", "Variable": PROPERTY_VAR_NAMES.get(match.group(1), match.group(1)),
                             "Delta": number(match.group(2))})
+        for match in re.finditer(r"DynamicVars\.(\w+)\.UpgradeValueBy\((\d+) \+ base\.CurrentUpgradeLevel\)", body):
+            actions.append({"Kind": "ChangeVariablePerUpgradeLevel",
+                            "Variable": PROPERTY_VAR_NAMES.get(match.group(1), match.group(1)),
+                            "Delta": int(match.group(2)), "PerUpgradeLevel": 1})
         for match in re.finditer(r"EnergyCost\.UpgradeBy\((-?[\d.]+)\)", body):
             actions.append({"Kind": "ChangeEnergyCost", "Delta": number(match.group(1))})
         for match in re.finditer(r"UpgradeStarCostBy\((-?[\d.]+)\)", body):
@@ -266,6 +274,7 @@ def parse_upgrade(class_name: str, text: str, variables: list[dict[str, Any]], b
         scrub_patterns = [
             r"(?:base\.)?DynamicVars\s*\[\s*\"[^\"]+\"\s*\]\.UpgradeValueBy\(-?[\d.]+m?\)\s*;",
             r"(?:base\.)?DynamicVars\.\w+\.UpgradeValueBy\(-?[\d.]+m?\)\s*;",
+            r"(?:base\.)?DynamicVars\.\w+\.UpgradeValueBy\(\d+ \+ base\.CurrentUpgradeLevel\)\s*;",
             r"(?:base\.)?EnergyCost\.UpgradeBy\(-?[\d.]+\)\s*;",
             r"UpgradeStarCostBy\(-?[\d.]+\)\s*;",
             r"AddKeyword\(CardKeyword\.\w+\)\s*;",
@@ -273,6 +282,9 @@ def parse_upgrade(class_name: str, text: str, variables: list[dict[str, Any]], b
         ]
         for pattern in scrub_patterns:
             scrubbed = re.sub(pattern, "", scrubbed)
+        if class_name == "ShowOff":
+            # Refreshes Aim from BaseAim + saved growth; it introduces no additional upgrade effect.
+            scrubbed = scrubbed.replace("UpdateAim();", "")
         scrubbed = re.sub(r"\s+", " ", scrubbed).strip()
         if scrubbed:
             actions.append({"Kind": "NativeUpgradeRule", "Rule": scrubbed})
@@ -289,6 +301,8 @@ def parse_upgrade(class_name: str, text: str, variables: list[dict[str, Any]], b
             upgraded_variables[action["Variable"]] += action["Delta"]
         elif action["Kind"] == "ChangeEnergyCost":
             upgraded_cost += action["Delta"]
+        elif action["Kind"] == "ChangeVariablePerUpgradeLevel":
+            upgraded_variables[action["Variable"]] += action["Delta"] + action["PerUpgradeLevel"]
         elif action["Kind"] == "ChangeStarCost":
             upgraded_star += action["Delta"]
         elif action["Kind"] == "AddKeyword":
@@ -322,7 +336,7 @@ def parse_constructor(text: str, class_name: str) -> tuple[int, str, str, str, b
             not any("shouldShowInCardLibrary: false" in arg for arg in args[4:]))
 
 
-def parse_card_sources(source: Path) -> dict[str, dict[str, Any]]:
+def parse_card_sources(source: Path, included: set[str] | None = None) -> dict[str, dict[str, Any]]:
     pool_root = source.parent / "MegaCrit.Sts2.Core.Models.CardPools"
     pool_for: dict[str, str] = {}
     for pool_file in pool_root.glob("*CardPool.cs"):
@@ -337,7 +351,7 @@ def parse_card_sources(source: Path) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for path in sorted(source.glob("*.cs")):
         class_name = path.stem
-        if class_name.startswith("Mock"):
+        if class_name.startswith("Mock") or (included is not None and class_name not in included):
             continue
         text = path.read_text(encoding="utf-8-sig")
         if re.search(r"MultiplayerConstraint\s*=>\s*CardMultiplayerConstraint\.MultiplayerOnly", text):
@@ -350,12 +364,18 @@ def parse_card_sources(source: Path) -> dict[str, dict[str, Any]]:
         if "IsUpgraded" in text and class_name not in IMPLICIT_UPGRADE_RULES:
             raise ValueError(f"unstructured IsUpgraded behavior in {class_name}")
         variables = parse_dynamic_vars(text)
+        if class_name == "ShowOff":
+            # The native property is BaseAim + saved IncreasedAim, whose canonical instance has zero growth.
+            base_aim = next(item["BaseValue"] for item in variables if item["Id"] == "BaseAim")
+            next(item for item in variables if item["Id"] == "AimPower")["BaseValue"] = base_aim
         keywords = parse_enum_property(text, "CanonicalKeywords", "CardKeyword.")
         tags = parse_enum_property(text, "CanonicalTags", "CardTag.")
+        if re.search(r"override\s+IEnumerable<CardTag>\s+Tags\s*=>", text):
+            tags = parse_enum_property(text, "Tags", "CardTag.")
         result[class_name] = {
             "ClassName": class_name,
             "NativeId": screaming_snake(class_name),
-            "Pool": pool_for.get(class_name, "Unpooled"),
+            "Pool": pool_for.get(class_name, "Token" if class_name in {"Joy", "TheShot"} else "Unpooled"),
             "EnergyCost": cost,
             "EnergyCostX": has_energy_x,
             "StarCost": star_cost,
@@ -404,11 +424,15 @@ def special_components(card: str) -> list[dict[str, Any]]:
     v = arg_var
     empty: set[str] = {
         "AscendersBane", "Clumsy", "CurseOfTheBell", "Dazed", "Debris", "Folly", "Greed", "Injury",
-        "PoorSleep", "Soot", "SporeMind", "Wound", "Writhe",
+        "PoorSleep", "Soot", "SporeMind", "Wound", "Writhe", "Sadness",
     }
     if card in empty:
         return []
     mapping: dict[str, list[dict[str, Any]]] = {
+        "Joy": [ref("gain.energy", amount=v("Energy")), ref("draw.cards", amount=v("Cards"))],
+        "TheShot": [ref("shoot.arrow"), ref("deal.damage_per_florescence_exhausted_card",
+                      damagePerCard=v("ExtraDamage"), countSource="FlorescenceExhaustedCount",
+                      target="SelectedEnemy", hits=1)],
         "Abundance": [ref("choice.generated_cards", candidates=3, choose=1, cardType="Power", upgraded=True,
                           destination="Hand", freeDuration="Turn")],
         "Apotheosis": [ref("upgrade.all_cards", zone="AllCombatPiles")],
@@ -418,7 +442,7 @@ def special_components(card: str) -> list[dict[str, Any]]:
         "BrightestFlame": [ref("gain.energy", amount=v("Energy")), ref("draw.cards", amount=v("Cards")),
                            ref("lose.max_hp", amount=v("MaxHp"))],
         "Burn": [ref("trigger.turn_end_if_in_hand"), ref("take.unpowered_damage", trigger=0, amount=v("Damage"))],
-        "ByrdonisEgg": [ref("quest.add_rest_site_option", option="Hatch")],
+        "ByrdonisEgg": [ref("quest.add_rest_site_option", option="Hatch", uniqueOption=True)],
         "ByrdSwoop": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=1,
                           text=("造成{Damage:diff()}点伤害。", "Deal {Damage:diff()} damage."))],
         "Caltrops": [ref("trigger.when_attacked",
@@ -442,7 +466,8 @@ def special_components(card: str) -> list[dict[str, Any]]:
         "Doubt": [ref("trigger.turn_end_if_in_hand"), ref("gain.power", trigger=0, power="Weak",
                                                             amount=v("WeakPower"))],
         "Dowsing": [ref("quest.count_rooms", roomType="Unknown", amount=v("Rooms")),
-                    ref("quest.transform_on_complete", trigger=0, card="Abundance")],
+                    ref("quest.transform_on_complete", trigger=0, card="Abundance"),
+                    ref("quest.prevent_unknown_combats", maximumRoomsRemaining=1)],
         "DualWield": [ref("select.hand_card", cardTypes=["Attack", "Power"], count=1,
                           text=("选择一张攻击牌或能力牌。", "Choose an Attack or Power card. ")),
                       ref("create.copy_of_selected", trigger=0, destination="Hand", count=v("Cards"),
@@ -454,9 +479,9 @@ def special_components(card: str) -> list[dict[str, Any]]:
         "Enthralled": [ref("play_restriction.must_play_first")],
         "Entrench": [ref("multiply.current_block", multiplier=2,
                          text=("将你当前的[gold]格挡[/gold]翻倍。", "Double your [gold]Block[/gold]."))],
-        "Exterminate": [ref("deal.damage", amount=v("Damage"), target="AllEnemies", hits=v("Repeat"),
-                            text=("对所有敌人造成{Damage:diff()}点伤害{Repeat:diff()}次。",
-                                  "Deal {Damage:diff()} damage to ALL enemies {Repeat:diff()} times."))],
+        "Exterminate": [ref("deal.damage", amount=v("Damage"), target="AllEnemies", hits=v("HitCount"),
+                            text=("对所有敌人造成{Damage:diff()}点伤害{HitCount:diff()}次。",
+                                  "Deal {Damage:diff()} damage to ALL enemies {HitCount:diff()} times."))],
         "Fasten": [ref("gain.power", power="Fasten", amount=v("ExtraBlock"))],
         "FeedingFrenzy": [ref("gain.power", power="Strength", amount=v("StrengthPower"), duration="Turn",
                               text=("在本回合内获得{StrengthPower:diff()}点[gold]力量[/gold]。",
@@ -464,6 +489,22 @@ def special_components(card: str) -> list[dict[str, Any]]:
         "FranticEscape": [ref("sandpit.move_farther"), ref("sandpit.increase_counter", amount=1),
                           ref("change.this_card_cost", amount=1, duration="Combat")],
         "Fuel": [ref("gain.energy", amount=v("Energy"))],
+        "DingyDagger": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=1,
+                            text=("造成{Damage:diff()}点伤害。", "Deal {Damage:diff()} damage.")),
+                        ref("upgrade.unlimited", text=("可以被无限升级。", "Can be upgraded any number of times."))],
+        "MightyWeapon": [ref("deal.damage", amount=v("Damage"), target="AllEnemies", hits=1,
+                             text=("对所有敌人造成{Damage:diff()}点伤害。", "Deal {Damage:diff()} damage to ALL enemies.")),
+                         ref("create.card", card="Dazed", destination="Draw", count=v("Cards"), position="Random",
+                             text=("将{Cards:diff()}张[gold]晕眩[/gold]加入你的[gold]抽牌堆[/gold]。",
+                                   "Add {Cards:diff()} [gold]Dazed[/gold] into your [gold]Draw Pile[/gold]."))],
+        "MightyShield": [ref("gain.block", amount=v("Block"),
+                             text=("获得{Block:diff()}点[gold]格挡[/gold]。", "Gain {Block:diff()} [gold]Block[/gold].")),
+                         ref("create.card", card="Dazed", destination="Draw", count=v("Cards"), position="Random",
+                             text=("将{Cards:diff()}张[gold]晕眩[/gold]加入你的[gold]抽牌堆[/gold]。",
+                                   "Add {Cards:diff()} [gold]Dazed[/gold] into your [gold]Draw Pile[/gold]."))],
+        "GodByrd": [ref("trigger.next_turn_start", text=("在你的下个回合开始时，", "At the start of your next turn, ")),
+                    ref("deal.unpowered_damage", trigger=0, amount=v("Damage"), target="AllEnemies",
+                        text=("对所有敌人造成{Damage:diff()}点伤害。", "deal {Damage:diff()} damage to ALL enemies."))],
         "GiantRock": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=1)],
         "Guilty": [ref("trigger.after_combat"), ref("count.down", trigger=0, amount=v("Combats")),
                    ref("remove.from_deck_when_zero", trigger=1)],
@@ -475,7 +516,7 @@ def special_components(card: str) -> list[dict[str, Any]]:
                                                                 amount=v("Damage"))],
         "LanternKey": [ref("quest.force_event_next_act", act=3, event="WarHistorianRepy")],
         "Luminesce": [ref("gain.energy", amount=v("Energy"))],
-        "Maul": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=2),
+        "Maul": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=v("HitCount")),
                  ref("increase.named_card_damage", card="Maul", amount=v("Increase"), duration="Combat")],
         "Metamorphosis": [ref("create.random_card", cardType="Attack", destination="Draw", count=v("Cards"),
                               freeDuration="Combat",
@@ -492,9 +533,9 @@ def special_components(card: str) -> list[dict[str, Any]]:
         "Outmaneuver": [ref("gain.energy", amount=v("Energy"), timing="NextTurn",
                             text=("在下个回合获得{Energy:energyIcons()}。",
                                   "Next turn, gain {Energy:energyIcons()}."))],
-        "Peck": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=v("Repeat"),
-                     text=("造成{Damage:diff()}点伤害{Repeat:diff()}次。",
-                           "Deal {Damage:diff()} damage {Repeat:diff()} times."))],
+        "Peck": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=v("HitCount"),
+                     text=("造成{Damage:diff()}点伤害{HitCount:diff()}次。",
+                           "Deal {Damage:diff()} damage {HitCount:diff()} times."))],
         "Rebound": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=1,
                         text=("造成{Damage:diff()}点伤害。", "Deal {Damage:diff()} damage.")),
                     ref("next_played_card.move", destination="DrawTop", duration="Turn",
@@ -513,7 +554,7 @@ def special_components(card: str) -> list[dict[str, Any]]:
         "Sloth": [ref("choice_only.apply_power", power="Sloth", amount=v("SlothPower"))],
         "Soul": [ref("draw.cards", amount=v("Cards"))],
         "SovereignBlade": [ref("deal.damage", amount=v("Damage"), target="DynamicSelectedOrAllEnemies",
-                                 hits=v("Repeat")), ref("gain.block_if_enabled", amount=v("CalculatedBlock"))],
+                                 hits=v("HitCount")), ref("gain.block_if_enabled", amount=v("CalculatedBlock"))],
         "SpoilsMap": [ref("quest.replace_next_act_map", map="SpoilsActMap"),
                       ref("quest.mark_treasure", gold=v("Gold")), ref("quest.gain_gold_and_remove", gold=v("Gold"))],
         "Squash": [ref("deal.damage", amount=v("Damage"), target="SelectedEnemy", hits=1,
@@ -637,6 +678,7 @@ def native_component_id(atom: dict[str, Any], spec: dict[str, Any]) -> str:
 # ambiguous occurrences.  Unambiguous bindings continue to be derived from the native source below.
 # Each tuple is (native variable, scale, offset), where componentValue = nativeValue * scale + offset.
 NATIVE_BINDING_OVERRIDES: dict[tuple[str, int, str], tuple[tuple[str, float, float], ...]] = {
+    ("Speedster", 1, "damage"): (("SpeedsterPower", 1, 0),),
     ("HandOfGreed", 0, "damage"): (("Damage", 1, 0),),
     ("HandOfGreed", 2, "amount"): (("Gold", 1, 0),),
     ("Prowess", 0, "amount"): (("StrengthPower", 1, 0),),
@@ -659,10 +701,10 @@ NATIVE_BINDING_OVERRIDES: dict[tuple[str, int, str], tuple[tuple[str, float, flo
     ("EvilEye", 2, "block"): (("Block", 1, 0),),
     ("IronWave", 0, "block"): (("Block", 1, 0),),
     ("IronWave", 1, "damage"): (("Damage", 1, 0),),
-    ("SwordBoomerang", 0, "hits"): (("Repeat", 1, 0),),
+    ("SwordBoomerang", 0, "hits"): (("HitCount", 1, 0),),
     ("Uppercut", 1, "amount"): (("Power", 1, 0),),
     ("Uppercut", 2, "amount"): (("Power", 1, 0),),
-    ("Spite", 2, "extra_hits"): (("Repeat", 1, -1),),
+    ("Spite", 2, "extra_hits"): (("HitCount", 1, -1),),
     ("BoneShards", 1, "damage"): (("OstyDamage", 1, 0),),
     ("BoneShards", 2, "block"): (("Block", 1, 0),),
     ("CaptureSpirit", 0, "amount"): (("Damage", 1, 0),),
@@ -687,7 +729,7 @@ NATIVE_BINDING_OVERRIDES: dict[tuple[str, int, str], tuple[tuple[str, float, flo
     ("Resonance", 1, "amount"): (("StrengthPower", 1, 0),),
     ("WroughtInWar", 0, "damage"): (("Damage", 1, 0),),
     ("WroughtInWar", 1, "amount"): (("Forge", 1, 0),),
-    ("CelestialMight", 1, "extra_hits"): (("Repeat", 1, -1),),
+    ("CelestialMight", 1, "extra_hits"): (("HitCount", 1, -1),),
     ("BouncingFlask", 0, "hits"): (("Repeat", 1, 0),),
     ("Dash", 0, "block"): (("Block", 1, 0),),
     ("Dash", 1, "damage"): (("Damage", 1, 0),),
@@ -695,6 +737,23 @@ NATIVE_BINDING_OVERRIDES: dict[tuple[str, int, str], tuple[tuple[str, float, flo
     ("DodgeAndRoll", 2, "block"): (("Block", 1, 0),),
     ("Prepared", 0, "draw"): (("Cards", 1, 0),),
     ("Prepared", 1, "count"): (("Cards", 1, 0),),
+    ("Anguish", 0, "damage"): (("CalculationBase", 1, 0),),
+    ("Anguish", 1, "amount"): (("ExtraDamage", 1, 0),),
+    ("BrightenUp", 1, "amount"): (("Joy", 1, 0),),
+    ("ChoFirm", 0, "block"): (("Block", 1, 0),),
+    ("ChoFirm", 2, "block"): (("Block", 1, 0),),
+    ("ChoLimbs", 0, "block"): (("Block", 1, 0),),
+    ("ChoLimbs", 1, "block"): (("Block", 1, 0),),
+    ("HobblingShot", 3, "amount"): (("Power", 1, 0),),
+    ("HobblingShot", 4, "amount"): (("Power", 1, 0),),
+    ("Nail", 2, "amount"): (("Power", 1, 0),),
+    ("Nail", 3, "amount"): (("Power", 1, 0),),
+    ("RapidShot", 1, "hits"): (("HitCount", 1, 0),),
+    ("WahCho", 0, "block"): (("Block", 1, 0),),
+    ("WahCho", 1, "damage"): (("Damage", 1, 0),),
+    ("WahChoKi", 0, "block"): (("Block", 1, 0),),
+    ("WahChoKi", 1, "damage"): (("Damage", 1, 0),),
+    ("WahKi", 0, "damage"): (("Damage", 1, 0),),
 }
 
 
@@ -732,7 +791,8 @@ def bind_native_upgrade_variables(class_name: str, source: dict[str, Any],
 
             bindings = []
             for variable, scale, offset in override:
-                if variable not in variables or variable not in deltas:
+                # An explicitly reviewed binding also audits fixed native values on keyword-only upgrades.
+                if variable not in variables:
                     raise ValueError(f"invalid native binding {class_name}/{component_index}/"
                                      f"{argument_name} -> {variable}")
                 native_base = variables[variable]["BaseValue"]
@@ -744,7 +804,7 @@ def bind_native_upgrade_variables(class_name: str, source: dict[str, Any],
                 bindings.append({
                     "Variable": variable,
                     "BaseValue": native_base,
-                    "UpgradeDelta": deltas[variable],
+                    "UpgradeDelta": deltas.get(variable, 0),
                     "ValueTransform": {"Scale": scale, "Offset": offset},
                 })
             argument["NativeBindings"] = bindings
@@ -788,9 +848,100 @@ def component_display_name(component_id: str) -> tuple[str, str]:
     return common_zh.get(component_id, en), en
 
 
+
+# Reviewed special-card adapters define the supported reference scope. New character cards need their own
+# reviewed adapters and must not accidentally enter the executable catalog when the game assembly grows.
+REVIEWED_REFERENCE_CLASSES = {
+    'Joy',
+    'TheShot',
+    'Abundance',
+    'Apotheosis',
+    'Apparition',
+    'AscendersBane',
+    'BadLuck',
+    'Beckon',
+    'BrightestFlame',
+    'Burn',
+    'ByrdSwoop',
+    'ByrdonisEgg',
+    'Caltrops',
+    'Clash',
+    'Clumsy',
+    'CurseOfTheBell',
+    'Dazed',
+    'Debris',
+    'Debt',
+    'Decay',
+    'DeprecatedCard',
+    'Disintegration',
+    'Distraction',
+    'Doubt',
+    'Dowsing',
+    'DualWield',
+    'Enlightenment',
+    'Enthralled',
+    'Entrench',
+    'Exterminate',
+    'Fasten',
+    'FeedingFrenzy',
+    'Folly',
+    'FranticEscape',
+    'Fuel',
+    'GiantRock',
+    'Greed',
+    'Guilty',
+    'HelloWorld',
+    'Infection',
+    'Injury',
+    'LanternKey',
+    'Luminesce',
+    'MadScience',
+    'Maul',
+    'Metamorphosis',
+    'MindRot',
+    'MinionDiveBomb',
+    'MinionSacrifice',
+    'MinionStrike',
+    'NeowsFury',
+    'Normality',
+    'Outmaneuver',
+    'Peck',
+    'PoorSleep',
+    'Rebound',
+    'Regret',
+    'Relax',
+    'RipAndTear',
+    'Shame',
+    'Shiv',
+    'Slimed',
+    'Sloth',
+    'Soot',
+    'Soul',
+    'SovereignBlade',
+    'GodByrd',
+    'DingyDagger',
+    'MightyWeapon',
+    'MightyShield',
+    'Sadness',
+    'SpoilsMap',
+    'SporeMind',
+    'Squash',
+    'Stack',
+    'SweepingGaze',
+    'ToricToughness',
+    'Toxic',
+    'Void',
+    'WasteAway',
+    'Whistle',
+    'Wish',
+    'Wither',
+    'Wound',
+    'Writhe',
+}
+
 def build(args: argparse.Namespace) -> None:
-    sources = parse_card_sources(args.game_source)
     recipes = json.loads((DATA / "catalog_recipes.json").read_text(encoding="utf-8"))
+    sources = parse_card_sources(args.game_source, {recipe["Id"] for recipe in recipes} | REVIEWED_REFERENCE_CLASSES)
     runtime_entries = json.loads((DATA / "catalog_runtime_specs.json").read_text(encoding="utf-8"))
     runtime_specs = {entry["Id"]: entry["Spec"] for entry in runtime_entries}
     zhs = json.loads((args.localization / "zhs" / "cards.json").read_text(encoding="utf-8-sig"))
@@ -831,7 +982,8 @@ def build(args: argparse.Namespace) -> None:
             "ReferenceOnly": True,
             "GenerationEligible": False,
             "ShouldShowInLibrary": source["ShouldShowInLibrary"],
-            "Title": {"zhHans": loc_entry(zhs, native_id, "title"), "en": loc_entry(eng, native_id, "title")},
+            "Title": {"zhHans": loc_entry(zhs, native_id, "title") or loc_entry(zhs, native_id, "title.dingy"),
+                      "en": loc_entry(eng, native_id, "title") or loc_entry(eng, native_id, "title.dingy")},
             "DescriptionTemplate": {"zhHans": loc_entry(zhs, native_id, "description"),
                                     "en": loc_entry(eng, native_id, "description")},
             "Base": base,
@@ -914,7 +1066,7 @@ def build(args: argparse.Namespace) -> None:
 
     payload = {
         "SchemaVersion": 2,
-        "GameVersion": "v111",
+        "GameVersion": args.game_version,
         "Purpose": "Complete non-multiplayer native-card reconstruction reference",
         "ReferenceOnly": True,
         "GenerationEligible": False,
@@ -923,7 +1075,7 @@ def build(args: argparse.Namespace) -> None:
         "Cards": sorted(cards, key=lambda item: item["CatalogId"]),
     }
     component_payload = {
-        "SchemaVersion": 2, "GameVersion": "v111", "ReferenceOnly": True,
+        "SchemaVersion": 2, "GameVersion": args.game_version, "ReferenceOnly": True,
         "GenerationEligible": False, "Components": component_output, "Keywords": keywords,
     }
     args.cards_output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -934,6 +1086,7 @@ def build(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--game-version", default="v0.113.0")
     parser.add_argument("--game-source", type=Path, default=DEFAULT_GAME_SOURCE)
     parser.add_argument("--localization", type=Path, default=DEFAULT_LOCALIZATION)
     parser.add_argument("--cards-output", type=Path, default=DATA / "native_reference_cards.json")

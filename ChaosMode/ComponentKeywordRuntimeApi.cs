@@ -31,7 +31,9 @@ public static class ComponentKeywordRuntimeApi
         new(StringComparer.Ordinal);
     private static readonly HashSet<string> Packages = new(StringComparer.Ordinal);
     private static readonly (string Id, IComponentKeywordRuntimeAdapter Adapter)[] NoActiveAdapters = [];
-    private static bool _frozen;
+    private static volatile bool _frozen;
+
+    internal static bool HasActiveAdapters(ChaosCardModel card) => ActiveAdapters(card).Count > 0;
 
     public static bool RegistrationsFrozen
     {
@@ -117,7 +119,7 @@ public static class ComponentKeywordRuntimeApi
                 || upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.AddCustomKeyword));
         if (!hasBaseKeywords && !hasAddedUpgradeKeyword)
         {
-            lock (Sync) _frozen = true;
+            if (!_frozen) { lock (Sync) _frozen = true; }
             return NoActiveAdapters;
         }
 

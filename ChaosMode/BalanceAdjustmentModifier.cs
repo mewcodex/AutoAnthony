@@ -719,8 +719,8 @@ internal static class BalanceAdjustmentPlanner
                 .Except(upgrade.RemovedCustomKeywords ?? [], StringComparer.Ordinal).Distinct().ToArray();
             var promoted = card with
             {
-                Cost = upgrade.UpgradedCost,
-                StarCost = upgrade.UpgradedStarCost ?? card.StarCost,
+                Cost = CardUpgradeGenerator.UpgradedEnergyCost(card),
+                StarCost = CardUpgradeGenerator.UpgradedStarCost(card),
                 Tags = tags,
                 CustomKeywords = custom,
                 Operations = operations,

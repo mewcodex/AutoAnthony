@@ -37,6 +37,10 @@ internal sealed class ChaosExecutionState
     public Dictionary<string, IReadOnlyList<CardModel>> CardSelections { get; } = new(StringComparer.Ordinal);
     public Dictionary<int, bool> ConditionResults { get; } = [];
     public List<CardModel> ExhaustedByCard { get; } = [];
+    public Dictionary<int, IReadOnlyList<CardModel>> ExhaustedByOperation { get; } = [];
+    public int StretchAtPlayStart { get; init; }
+    public bool ShotArrow { get; set; }
+    public bool TargetWasImpaled { get; init; }
     public List<CardModel> DiscardedByCard { get; } = [];
     public Creature? Target { get; set; }
     public CardModel? EventCard { get; init; }
@@ -60,8 +64,12 @@ internal sealed class ChaosExecutionState
     public bool UsePoweredCardDamage { get; init; }
 }
 
-internal static class ChaosOperationExecutor
+internal static partial class ChaosOperationExecutor
 {
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ChaosCardModel, ChaosCardModel>
+        TriggerSources = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ChaosCardModel, ChaosCompositePower>
+        TriggerPowers = new();
     private static readonly System.Reflection.MethodInfo? CancelHandSelectionVisuals =
         HarmonyLib.AccessTools.Method(typeof(NPlayerHand), "CancelHandSelectionIfNecessary");
 
@@ -94,6 +102,7 @@ internal static class ChaosOperationExecutor
 
     private static readonly HashSet<string> RuntimeDerivativeProducerTemplates = new(StringComparer.Ordinal)
     {
+        "F:CreateJoy", "F:CreateSadness", "F:TransformSadnessToJoy",
         "I:Transform",
         "N:CreateShiv",
         "N:CreateInkShiv",
@@ -151,6 +160,8 @@ internal static class ChaosOperationExecutor
         var state = new ChaosExecutionState
         {
             Target = cardPlay.Target,
+            StretchAtPlayStart = card.Owner.Creature.GetPower<StretchPower>()?.Amount ?? 0,
+            TargetWasImpaled = cardPlay.Target is not null && ArrowCmd.CreatureIsImpaledByArrow(cardPlay.Target),
             CurrentCardEnergySpent = Math.Max(0, cardPlay.Resources.EnergySpent),
             PriorAttackHitsOnTargetAtPlayStart = CountPriorAttackHits(card, cardPlay.Target)
         };
@@ -165,6 +176,8 @@ internal static class ChaosOperationExecutor
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
+            if (HasDeferredTriggerAncestor(operations, index)) continue;
+            if (!ImmediateTriggerAncestorsMatch(card, index, state)) continue;
             if (operation.Template is "N_SELECT_HAND_CARD" or "N_SELECT_HAND_ATTACK")
             {
                 // Selectors are metadata for the operation that owns their card slot. Resolve them immediately
@@ -173,11 +186,14 @@ internal static class ChaosOperationExecutor
                 continue;
             }
 
-            if (operation.Scope is OperationScope.Modifier or OperationScope.AbilityTrigger)
+            if (operation.Scope == OperationScope.AbilityTrigger
+                || operation.Scope == OperationScope.Modifier && operation.Template is not ("CL:IncreaseRollingDamage" or "F:RefundStretch"))
                 continue;
             if (operation.Scope == OperationScope.ConditionalTrigger)
             {
-                if (operation.Template is "C:forEach" or "C:forEachExhaustedCard"
+                if (IsFoolImmediateRepeat(operation))
+                    await ExecuteFoolRepeat(card, index, choiceContext, cardPlay, state);
+                else if (operation.Template is "C:forEach" or "C:forEachExhaustedCard"
                     or "C:forEachExhaustedNonAttack" or "D:ForEachExhaustedStatus")
                     await ExecuteForEach(card, index, choiceContext, cardPlay, state);
                 else if (operation.Template == "C:forEachDiscarded")
@@ -192,6 +208,7 @@ internal static class ChaosOperationExecutor
             if (operation.Parameters.TryGetValue("triggerIndex", out var triggerIndex))
             {
                 var trigger = operations[triggerIndex];
+                if (IsFoolImmediateRepeat(trigger)) continue;
                 if (trigger.Template is "C:forEach" or "C:forEachExhaustedCard"
                     or "C:forEachExhaustedNonAttack" or "C:forEachDiscarded" or "D:ForEachExhaustedStatus"
                     or "D:ForEachEnergySpentThisTurn") continue;
@@ -215,17 +232,7 @@ internal static class ChaosOperationExecutor
 
         if (operations.Any(RequiresCompositePower))
         {
-            var power = (ChaosCompositePower)ModelDb.Power<ChaosCompositePower>().ToMutable();
-            var permanent = card.Type == CardType.Power
-                || operations.Any(operation => operation.Template is "CL:AfterTurns" or "CL:DieOnUnblockedAttack");
-            var sourceDeckIndex = card.DeckVersion is { } deckVersion
-                ? card.Owner.Deck.Cards.ToList().FindIndex(candidate => ReferenceEquals(candidate, deckVersion))
-                : -1;
-            power.ConfigureTinkered(card.Generated.Character, card.Definition.Slot, card.IsUpgraded, permanent,
-                card.ResolvedSpecialXValue, card.ResolvedEnergyXValue, card.ResolvedStarXValue,
-                card.CaptureOperationValuesForPower(), cardPlay.Target?.CombatId, card.RuntimeProfileId,
-                card.EffectiveDefinitionPayload, sourceDeckIndex);
-            await PowerCmd.Apply(choiceContext, power, card.Owner.Creature, 1m, card.Owner.Creature, card);
+            await ArmCompositePower(card, choiceContext, cardPlay.Target);
             if (ChaosDiagnostics.VerboseRuntime)
                 Log.Info($"[AutoAnthony] Armed trigger effect for slot {card.Definition.Slot}: {card.DynamicTitle}");
         }
@@ -235,6 +242,32 @@ internal static class ChaosOperationExecutor
         // unfulfilled linked EndTurn merely because its operation exists on the card.
         if (state.EndTurnRequested)
             RequestEndTurnDuringPlayPhase(card.Owner);
+    }
+
+    private static async Task ArmCompositePower(ChaosCardModel card, PlayerChoiceContext choiceContext,
+        Creature? target, int activationRootIndex = -1, ChaosCompositePower? parent = null)
+    {
+        var operations = card.Generated.Operations;
+        var power = (ChaosCompositePower)ModelDb.Power<ChaosCompositePower>().ToMutable();
+        power.ActivationRootIndex = activationRootIndex;
+        var permanent = activationRootIndex >= 0
+            ? operations[activationRootIndex].Scope == OperationScope.AbilityRule
+                || OperationRuntimeSpecCompiler.RequireStructured(operations[activationRootIndex]).Trigger?.Lifetime == "combat"
+            : card.Type == CardType.Power
+                || operations.Any(operation => operation.Template is "CL:AfterTurns" or "CL:DieOnUnblockedAttack");
+        var sourceDeckIndex = parent?.SourceDeckIndex ?? (card.DeckVersion is { } deckVersion
+            ? card.Owner.Deck.Cards.ToList().FindIndex(candidate => ReferenceEquals(candidate, deckVersion)) : -1);
+        power.ConfigureTinkered(card.Generated.Character, card.Definition.Slot, card.IsUpgraded, permanent,
+            card.ResolvedSpecialXValue, card.ResolvedEnergyXValue, card.ResolvedStarXValue,
+            parent?.CapturedOperationValues ?? card.CaptureOperationValuesForPower(),
+            target?.CombatId ?? (parent?.SourceTargetCombatId >= 0 ? (uint)parent.SourceTargetCombatId : null),
+            card.RuntimeProfileId, card.EffectiveDefinitionPayload, sourceDeckIndex);
+        if (parent is not null) power.RollingDamageGrowth = parent.RollingDamageGrowth;
+        // A listener installed by a delayed/event trigger is already past the originating card's OnPlay.
+        // Its first real card-play event must not be discarded as the arming card's completion callback.
+        if (activationRootIndex >= 0) power.IgnoreArmingCardPlay = false;
+        await PowerCmd.Apply(choiceContext, power, card.Owner.Creature, 1m, card.Owner.Creature,
+            parent?.SourceCombatCard ?? card);
     }
 
     internal static async Task ExecuteTriggered(ChaosCompositePower power, int triggerIndex, PlayerChoiceContext choiceContext,
@@ -257,6 +290,11 @@ internal static class ChaosOperationExecutor
             return;
         }
         if (source is null) return;
+        TriggerPowers.AddOrUpdate(source, power);
+        if (power.SourceCombatCard is { } liveSource)
+            // Keep an authoritative binding even after removal/transfer. It must never fall through to a
+            // different same-name copy when the original is no longer a valid mutation target.
+            TriggerSources.AddOrUpdate(source, liveSource);
         if (!string.IsNullOrEmpty(power.SourceTinkeredDefinitionPayload))
             // This proxy has already been created from the shared slot, so assigning the SavedProperty alone would
             // replace Generated without rebuilding cached DynamicVars/cost/keywords. Apply through the public
@@ -264,20 +302,23 @@ internal static class ChaosOperationExecutor
             source.ApplyCapturedDefinition(CardTinkeringApi.DeserializeCard(
                 power.SourceTinkeredDefinitionPayload));
         static bool MatchesSource(ChaosCardModel candidate, ChaosCompositePower sourcePower) =>
-            candidate.Definition.Slot == sourcePower.Slot
+            candidate.Generated.Character == sourcePower.Character
+            && candidate.Definition.Slot == sourcePower.Slot
             && candidate.RuntimeProfileId == sourcePower.ProfileId
             && candidate.EffectiveDefinitionPayload == sourcePower.SourceTinkeredDefinitionPayload;
-        var deckVersion = (uint)power.SourceDeckIndex < (uint)owner.Deck.Cards.Count
+        var deckVersion = power.SourceCombatCard?.DeckVersion as ChaosCardModel;
+        deckVersion ??= (uint)power.SourceDeckIndex < (uint)owner.Deck.Cards.Count
                           && owner.Deck.Cards[power.SourceDeckIndex] is ChaosCardModel indexed
                           && MatchesSource(indexed, power)
             ? indexed
-            : owner.Deck.Cards.OfType<ChaosCardModel>().FirstOrDefault(candidate => MatchesSource(candidate, power));
+            : null;
         if (deckVersion is not null)
             source.DeckVersion = deckVersion;
         source.ResolvedSpecialXValue = power.SpecialXValue;
         source.SetResolvedXValues(power.ResolvedEnergyXValue, power.ResolvedStarXValue);
         if (power.SourceUpgraded && source.IsUpgradable) CardCmd.Upgrade(source);
         source.ApplyCapturedOperationValues(power.CapturedOperationValues);
+        source.OperationDamageGrowth = power.RollingDamageGrowth;
         try
         {
             var sourceTarget = power.SourceTargetCombatId < 0
@@ -294,7 +335,12 @@ internal static class ChaosOperationExecutor
             // Without completing this detached source, transform/upgrade effects can leave the selected card in the
             // centre and a later hand interaction can never finish. Mirror CardModel/Hook execution ownership here,
             // including the exceptional path, so every triggered hand-selection transaction is closed exactly once.
-            source.InvokeExecutionFinished();
+            try { source.InvokeExecutionFinished(); }
+            finally
+            {
+                TriggerSources.Remove(source);
+                TriggerPowers.Remove(source);
+            }
         }
     }
 
@@ -308,6 +354,7 @@ internal static class ChaosOperationExecutor
             .Where(index => operations[index].Parameters.TryGetValue("triggerIndex", out var linked) && linked == triggerIndex)
             .ToArray();
         var unresolvedEventTargetOperations = linkedOperations
+            .Where(index => !RequiresCompositePower(operations[index]))
             .Where(index => CardEffectRules.RequiresSingleEnemyTarget(operations[index]))
             .Where(index => !CardEffectRules.UsesExplicitRandomEnemyTarget(operations[index]))
             .ToArray();
@@ -363,7 +410,20 @@ internal static class ChaosOperationExecutor
         foreach (var index in linkedOperations)
         {
             var operation = operations[index];
-            if (operation.Scope == OperationScope.Modifier) continue;
+            if (RequiresCompositePower(operation))
+            {
+                TriggerPowers.TryGetValue(source, out var parentPower);
+                await ArmCompositePower(source, choiceContext, state.Target, index, parentPower);
+                executed++;
+                continue;
+            }
+            if (operation.Scope == OperationScope.ConditionalTrigger)
+            {
+                await ExecuteImmediateConditionChildren(source, index, choiceContext, play, state);
+                executed++;
+                continue;
+            }
+            if (operation.Scope == OperationScope.Modifier && operation.Template is not ("CL:IncreaseRollingDamage" or "F:RefundStretch")) continue;
             // Corruption-style exhaustion is implemented by ModifyCardPlayResultLocation so it happens once,
             // after all OnPlay effects have finished.
             if (operation.Template == "N:Exhaust"
@@ -481,7 +541,10 @@ internal static class ChaosOperationExecutor
         }
         try
         {
+            var exhaustedBefore = state.ExhaustedByCard.Count;
             await Execute(card, index, choiceContext, cardPlay, state);
+            if (state.ExhaustedByCard.Count > exhaustedBefore)
+                state.ExhaustedByOperation[index] = state.ExhaustedByCard.Skip(exhaustedBefore).ToArray();
         }
         catch (Exception exception)
         {
@@ -630,6 +693,8 @@ internal static class ChaosOperationExecutor
             return;
         }
 
+        if (operation.Template.StartsWith("F:", StringComparison.Ordinal)
+            && await ExecuteFoolOperation(card, index, choiceContext, cardPlay, state, runtimeSpec, amount)) return;
         if (await TryExecuteStructuredCommon(card, index, choiceContext, cardPlay, state, runtimeSpec, amount))
             return;
         if (await TryExecuteStructuredDamage(card, index, choiceContext, cardPlay, state,
@@ -810,6 +875,11 @@ internal static class ChaosOperationExecutor
 
         switch (spec.Opcode, spec.Variant)
         {
+            case ("modify_cost", "reduce_until_played") when spec.Target == "hand_cards":
+                foreach (var candidate in PileType.Hand.GetPile(card.Owner).Cards
+                             .Where(candidate => spec.CardFilter != "attack" || candidate.Type == CardType.Attack))
+                    if (!candidate.EnergyCost.CostsX) candidate.EnergyCost.AddUntilPlayed(-Math.Max(0, amount));
+                return true;
             case ("exhaust_card", "selected") when spec.SourceZone is "draw" or "discard":
             {
                 var pileType = spec.SourceZone == "draw" ? PileType.Draw : PileType.Discard;
@@ -1112,21 +1182,30 @@ internal static class ChaosOperationExecutor
                 baseHits *= 2;
         }
 
-        var baseDamage = ResolveTriggeredRollingDamage(card.Generated.Operations, operationIndex,
-            amount, state.EventAmount, state.IsTriggered);
-        var (damage, hits) = DamageAndHits(card, baseDamage, state, baseHits, operationIndex);
-        if (hits == 0) return true;
+        var (damage, hits) = DamageAndHits(card, amount, state, baseHits, operationIndex);
+        if (hits == 0 && !card.Generated.Operations.Any(FoolComponentRules.IsShootModifier)) return true;
         var unpowered = card.Type == CardType.Power
                         || state.IsTriggered && !state.UsePoweredCardDamage;
         var unpoweredProps = DamagePropsForCardEffect(
             card.Type, state.IsTriggered, state.UsePoweredCardDamage);
         switch (spec.Target)
         {
+            case "lowest_hp_enemy":
             case "selected_enemy":
             case "event_enemy":
             {
-                var target = state.Target ?? cardPlay.Target;
+                var target = spec.Target == "lowest_hp_enemy"
+                    ? combatState.HittableEnemies.MinBy(enemy => enemy.CurrentHp)
+                    : state.Target ?? cardPlay.Target;
                 if (target is null) return true;
+                if (card.Generated.Operations.Any(FoolComponentRules.IsShootModifier))
+                {
+                    var arrowAttack = DamageCmd.Attack(damage).WithHitCount(hits).FromArrow().FromCard(card, cardPlay)
+                        .Targeting(target).WithHitFx(card.Definition.HitFx);
+                    state.ShotArrow = await ArrowCmd.ShootArrowAtTarget(target, card.Owner, arrowAttack, choiceContext);
+                    CaptureDamageResults(state, arrowAttack.Results.SelectMany(result => result));
+                    return true;
+                }
                 if (unpowered)
                 {
                     var results = new List<DamageResult>();
@@ -1341,7 +1420,7 @@ internal static class ChaosOperationExecutor
                 var others = combatState.HittableEnemies.Where(enemy => enemy != state.Target).ToArray();
                 if (others.Length > 0 && state.LastDamageDealt > 0)
                     await CreatureCmd.Damage(choiceContext, others, state.LastDamageDealt,
-                        ValueProp.Unpowered | ValueProp.Move, card.Owner.Creature, card, cardPlay);
+                        ValueProp.Move, card.Owner.Creature, card, cardPlay, ModifyDamageHookType.Cap);
                 return;
             }
             case "CL:NoBlockFromCards":
@@ -1372,9 +1451,7 @@ internal static class ChaosOperationExecutor
             }
             case "CL:RollingAllDamage":
             {
-                var baseDamage = ResolveTriggeredRollingDamage(card.Generated.Operations, operationIndex,
-                    amount, state.EventAmount, state.IsTriggered);
-                var (damage, hits) = DamageAndHits(card, baseDamage, state,
+                var (damage, hits) = DamageAndHits(card, amount, state,
                     damageOperationIndex: operationIndex);
                 for (var hit = 0; hit < hits; hit++)
                     await CreatureCmd.Damage(choiceContext, combatState.HittableEnemies, damage,
@@ -1436,9 +1513,19 @@ internal static class ChaosOperationExecutor
                 // hook remains as a compatibility fallback for already-saved cards authored before the split.
                 // Persistent triggers execute through a detached reconstruction. Moving that model creates a
                 // second copy while the real combat card remains in its pile and later returns through the fallback.
-                await TryAddToHand(LiveCombatSourceCard(card));
+                if (LiveCombatSourceCard(card) is { } returning) await TryAddToHand(returning);
                 return;
             case "CL:IncreaseRollingDamage":
+                // Change the adjacent damage field only, after its action. EventAmount belongs to the event
+                // (e.g. HP lost), never to the current accumulated Rolling Boulder damage.
+                var damageIndex = RollingGrowthDamageIndex(card.Generated.Operations, operationIndex);
+                if (damageIndex >= 0)
+                {
+                    if (TriggerPowers.TryGetValue(card, out var rollingPower))
+                        rollingPower.IncreaseRollingDamage(damageIndex, amount);
+                    else LiveCombatSourceCard(card)?.IncreaseOperationDamage(damageIndex, amount);
+                }
+                return;
             case "CL:AtNextTurnStart":
             case "CL:IfFatal":
             case "CL:IfNoAttacksInHand":
@@ -1638,13 +1725,27 @@ internal static class ChaosOperationExecutor
             case "R:BonusPerGeneratedCardThisCombat": case "R:NextTurn": case "R:IfFatal":
             case "R:AtTurnStartIfInExhaust":
             case "R:CostDownWhenDrawn": case "R:DamageUpWhenDrawn":
-            case "R:ReturnAfterSkillsPlayed": case "R:ReturnThisToHand": case "R:PutThisOnDraw":
+            case "R:ReturnAfterSkillsPlayed":
             case "R:PlayAtTurnEndIfTopOfDraw":
             case "R:DoubleEnergyX": case "R:DoubleEitherXAtThreshold":
                 return;
+            case "R:ReturnThisToHand": case "R:PutThisOnDraw":
+            {
+                var destination = operation.Template == "R:ReturnThisToHand" ? PileType.Hand : PileType.Draw;
+                if (!state.IsTriggered) card.RequestPostPlayMove(destination);
+                else if (LiveCombatSourceCard(card) is { } source)
+                {
+                    if (source.Pile?.Type == PileType.Play) source.RequestPostPlayMove(destination);
+                    else if (source.Pile?.IsCombatPile == true)
+                        await CardPileCmd.Add(source, destination, CardPilePosition.Top);
+                }
+                return;
+            }
             // The trigger above is deliberately inert here. Only its explicitly linked replay operation may
             // autoplay the source card; arbitrary linked effects must never inherit native Bombardment behaviour.
-            case "R:PlayThisCard": await CardCmd.AutoPlay(choiceContext, LiveCombatSourceCard(card), null); return;
+            case "R:PlayThisCard":
+                if (LiveCombatSourceCard(card) is { } replay) await CardCmd.AutoPlay(choiceContext, replay, null);
+                return;
             default: throw new InvalidOperationException($"Unimplemented Regent operation: {operation.Template}");
         }
     }
@@ -1811,7 +1912,7 @@ internal static class ChaosOperationExecutor
             case "NCR:KillEnemiesAtDoomThreshold":
                 foreach (var enemy in combatState.HittableEnemies.ToList())
                     if ((enemy.GetPower<DoomPower>()?.Amount ?? 0) >= enemy.CurrentHp)
-                        await CreatureCmd.Kill(enemy);
+                        await CreatureCmd.Kill(enemy, card);
                 return;
             // This is a live card rule, not an OnPlay effect. ChaosCardModel mirrors Flatten's
             // AfterCardEnteredCombat/AfterAttack hooks and applies SetThisTurn(0) as soon as it becomes true.
@@ -1863,7 +1964,7 @@ internal static class ChaosOperationExecutor
                         await CreatureCmd.Damage(choiceContext, enemy, state.EventAmount,
                             ValueProp.Unblockable | ValueProp.Unpowered, card.Owner.Creature, card, cardPlay);
                 return;
-            case "NCR:KillOsty": if (card.Owner.Osty is { } killedOsty) await CreatureCmd.Kill(killedOsty); return;
+            case "NCR:KillOsty": if (card.Owner.Osty is { } killedOsty) await CreatureCmd.Kill(killedOsty, card); return;
             case "NCR:BlockTripleOstyMaxHp":
                 if (card.Owner.Osty is { } blockingOsty)
                 {
@@ -2263,8 +2364,8 @@ internal static class ChaosOperationExecutor
             case "D:LoseTemporaryFocus":
                 await ApplyBoundPower<ChaosTemporaryFocusDownPower>(card, choiceContext, amount);
                 return;
-            case "D:IncreaseThisCardCost": LiveCombatSourceCard(card).EnergyCost.AddThisCombat(Math.Max(1, amount)); return;
-            case "D:SetThisCardCostZero": LiveCombatSourceCard(card).EnergyCost.SetThisCombat(0); return;
+            case "D:IncreaseThisCardCost": LiveCombatSourceCard(card)?.EnergyCost.AddThisCombat(Math.Max(1, amount)); return;
+            case "D:SetThisCardCostZero": LiveCombatSourceCard(card)?.EnergyCost.SetThisCombat(0); return;
             case "D:ShuffleAllUnexhaustedIntoDraw":
                 foreach (var handCard in PileType.Hand.GetPile(card.Owner).Cards.ToList())
                     await CardPileCmd.Add(handCard, PileType.Draw);
@@ -2475,6 +2576,8 @@ internal static class ChaosOperationExecutor
         if (operation.Template is "CL:ProxyAtomic_Discovery" or "I:ProxyAtomic_Quasar"
             or "CL:ProxyAtomic_Splash")
         {
+            var selectionCombat = CaptureCombatSelection(card.Owner);
+            if (!CanContinueCombatSelection(card.Owner, selectionCombat)) return;
             IEnumerable<CardModel> pool;
             if (operation.Template == "I:ProxyAtomic_Quasar")
                 pool = RandomCombatGenerationCandidates(ModelDb.CardPool<ColorlessCardPool>().GetUnlockedCards(
@@ -2506,7 +2609,7 @@ internal static class ChaosOperationExecutor
             {
                 // There is no suspended interactive action at some native timing points (e.g. resource spending).
                 // Follow the same deterministic policy as the hand/pile selectors without reserving a network choice.
-                selected = CardSelectCmd.Selector is { } selector
+                selected = RunManager.Instance.CardSelectorStack.GetSelector(card.Owner) is { } selector
                     ? (await selector.GetSelectedCards(generated, 0, 1)).FirstOrDefault()
                     : SelectAutomatically(card.Owner, generated, new CardSelectorPrefs(
                         SelectionPrompt("SELECT_HAND_CARD"), 1)).FirstOrDefault();
@@ -2520,7 +2623,7 @@ internal static class ChaosOperationExecutor
                     {
                         Cancelable = true
                     })).FirstOrDefault();
-            if (selected is not null)
+            if (selected is not null && CanContinueCombatSelection(card.Owner, selectionCombat))
             {
                 if (operation.Template is "CL:ProxyAtomic_Discovery" or "CL:ProxyAtomic_Splash")
                     selected.SetToFreeThisTurn();
@@ -2540,7 +2643,7 @@ internal static class ChaosOperationExecutor
                 var playable = drawPile.Where(candidate => !candidate.Keywords.Contains(CardKeyword.Unplayable))
                     .ToList();
                 var selected = (playable.Count > 0 ? playable : drawPile)
-                    .StableShuffle(card.Owner.RunState.Rng.Shuffle).FirstOrDefault();
+                    .StableShuffle(card.Owner.RunState.Rng.CombatCardSelection).FirstOrDefault();
                 if (selected is null) break;
                 Creature? target = null;
                 if (selected.TargetType == TargetType.AnyEnemy)
@@ -2581,7 +2684,7 @@ internal static class ChaosOperationExecutor
                 .Where(candidate => candidate.Type == CardType.Attack
                     && !candidate.Keywords.Contains(CardKeyword.Unplayable))
                 .ToList()
-                .StableShuffle(card.Owner.RunState.Rng.Shuffle)
+                .StableShuffle(card.Owner.RunState.Rng.CombatCardSelection)
                 .Take(count)
                 .ToList();
             var played = 0;
@@ -3007,24 +3110,24 @@ internal static class ChaosOperationExecutor
     /// <summary>
     /// Composite Powers reconstruct their source from saved values after the original play has completed. That
     /// detached model is valid for calculations, but moving or auto-playing it creates an extra combat card. Resolve
-    /// the exact live clone through DeckVersion; combat-only generated cards fall back to their full definition.
+    /// the exact live clone through the applying instance or a recorded DeckVersion. Full definition equality
+    /// alone is not an identity: another copy must never inherit a removed/unknown source's mutations.
     /// </summary>
-    private static ChaosCardModel LiveCombatSourceCard(ChaosCardModel source)
+    private static ChaosCardModel? LiveCombatSourceCard(ChaosCardModel source)
     {
+        if (TriggerSources.TryGetValue(source, out var exactSource))
+            return ReferenceEquals(exactSource.Owner, source.Owner) && !exactSource.HasBeenRemovedFromState
+                ? exactSource : null;
         if (source.Pile?.IsCombatPile == true) return source;
         var candidates = source.Owner.PlayerCombatState?.AllCards.OfType<ChaosCardModel>()
             .Where(candidate => candidate.Pile?.IsCombatPile == true)
             .ToArray() ?? [];
         if (source.DeckVersion is { } deckVersion)
         {
-            var exact = candidates.FirstOrDefault(candidate => ReferenceEquals(candidate.DeckVersion, deckVersion));
-            if (exact is not null) return exact;
+            var exact = candidates.Where(candidate => ReferenceEquals(candidate.DeckVersion, deckVersion)).Take(2).ToArray();
+            return exact.Length == 1 ? exact[0] : null;
         }
-        return candidates.FirstOrDefault(candidate =>
-                   candidate.Definition.Slot == source.Definition.Slot
-                   && candidate.RuntimeProfileId == source.RuntimeProfileId
-                   && candidate.EffectiveDefinitionPayload == source.EffectiveDefinitionPayload)
-               ?? source;
+        return null;
     }
 
     private static async Task<IReadOnlyList<CardModel>> MoveSelectedDiscardCardsToHand(
@@ -3156,10 +3259,10 @@ internal static class ChaosOperationExecutor
         else if (operation.Template == "I:ReduceThisCardCostCombat")
             // Delayed triggers run through a detached calculation proxy. Mutate the actual combat card,
             // just like return-to-hand / auto-play effects, without changing its permanent deck version.
-            LiveCombatSourceCard(card).EnergyCost.AddThisCombat(-amount);
+            LiveCombatSourceCard(card)?.EnergyCost.AddThisCombat(-amount);
         else if (operation.Template == "I:PlayThisCard")
         {
-            await CardCmd.AutoPlay(choiceContext, LiveCombatSourceCard(card), null);
+            if (LiveCombatSourceCard(card) is { } replay) await CardCmd.AutoPlay(choiceContext, replay, null);
         }
         else if (operation.Template == "I:Upgrade")
         {
@@ -3249,8 +3352,13 @@ internal static class ChaosOperationExecutor
             }
         }
         else if (operation.Template == "I:AddExhaustedAttackDamage")
-            card.ExtraDamage += state.LastExhaustedAttackDamage;
-        else if (operation.Template == "I:IncreaseDamageThisCombat") card.ExtraDamage += amount;
+        {
+            if (LiveCombatSourceCard(card) is { } live) live.ExtraDamage += state.LastExhaustedAttackDamage;
+        }
+        else if (operation.Template == "I:IncreaseDamageThisCombat")
+        {
+            if (LiveCombatSourceCard(card) is { } live) live.ExtraDamage += amount;
+        }
         else if (operation.Template == "I:Transform")
         {
             var attacks = PileType.Hand.GetPile(card.Owner).Cards
@@ -3318,7 +3426,7 @@ internal static class ChaosOperationExecutor
     internal static (decimal Damage, int Hits) DamageAndHits(ChaosCardModel card, decimal baseDamage,
         ChaosExecutionState state, int baseHits = 1, int damageOperationIndex = -1)
     {
-        decimal damage = baseDamage + card.ExtraDamage;
+        decimal damage = baseDamage + card.ExtraDamage + card.OperationDamageBonus(damageOperationIndex);
         var combatState = card.CombatState ?? card.Owner.Creature.CombatState;
         var playerCombatState = card.Owner.PlayerCombatState;
         var hasDynamicHitTotal = false;
@@ -3339,7 +3447,20 @@ internal static class ChaosOperationExecutor
             // rather than by the character-specific template name so conditional D:/R:/M: variants all produce
             // independent attack hits through the same execution path.
             var modifierSpec = EffectiveRuntimeSpec(card, index);
-            if (CardEffectRules.IsCurrentBlockDamageModifier(modifier))
+            if (modifier.Template == "F:ExtraHitsPerMelody")
+                additionalHits += modifierAmount * MelodyCmd.MelodiesThisTurn(card.Owner) * dependencyRepeats;
+            else if (modifier.Template == "F:DoubleAgainstImpaled")
+            {
+                if (state.Target is not null && ArrowCmd.CreatureIsImpaledByArrow(state.Target)) damage *= 2;
+            }
+            else if (modifier.Template == "F:DamagePerMelodyCard")
+                damage += modifierAmount * (playerCombatState?.AllCards.Count(candidate => candidate.Tags.Any(tag =>
+                    tag is MegaCrit.Sts2.Core.Entities.Cards.CardTag.Wah or MegaCrit.Sts2.Core.Entities.Cards.CardTag.Cho
+                        or MegaCrit.Sts2.Core.Entities.Cards.CardTag.Ki)) ?? 0) * dependencyRepeats;
+            else if (modifier.Template == "F:DamagePerSadnessCreated")
+                damage += modifierAmount * CombatManager.Instance.History.Entries.OfType<CardGeneratedEntry>()
+                    .Count(entry => entry.Actor == card.Owner.Creature && entry.Card is Sadness) * dependencyRepeats;
+            else if (CardEffectRules.IsCurrentBlockDamageModifier(modifier))
             {
                 // M:value replaces only its own hidden T:D anchor. Older builds applied it to every damage line,
                 // making unrelated printed damage disappear whenever the same card also dealt current-Block damage.
@@ -3509,34 +3630,23 @@ internal static class ChaosOperationExecutor
     }
 
     /// <summary>
-    /// Rolling Boulder now reuses the ordinary area-damage component. Its composite Power supplies the current
-    /// accumulated damage through EventAmount, so route that value only to the damage payoff owned by the same
-    /// trigger as the growth modifier. Other triggered damage must keep its own printed amount.
+    /// A growth modifier changes only its immediately preceding area-Damage component. Trigger ownership alone
+    /// is insufficient: one trigger can legitimately own several separate Damage fields.
     /// </summary>
-    internal static decimal ResolveTriggeredRollingDamage(IReadOnlyList<GeneratorOperation> operations,
-        int damageOperationIndex, decimal printedDamage, decimal eventAmount, bool isTriggered)
-    {
-        if (!isTriggered || eventAmount <= 0
-            || (uint)damageOperationIndex >= (uint)operations.Count
-            || !operations[damageOperationIndex].Parameters.TryGetValue("triggerIndex", out var triggerIndex))
-            return printedDamage;
-        return operations.Select((operation, index) => (operation, index)).Any(item =>
-            item.operation.Template == "CL:IncreaseRollingDamage"
-            && RollingGrowthOwner(operations, item.index) == triggerIndex)
-                ? eventAmount
-                : printedDamage;
-    }
+    internal static int RollingGrowthDamageIndex(IReadOnlyList<GeneratorOperation> operations, int index) =>
+        index > 0 && index < operations.Count && operations[index].Template == "CL:IncreaseRollingDamage"
+        && operations[index - 1].Template is "N:AllD" or "CL:RollingAllDamage" ? index - 1 : -1;
 
     internal static int RollingGrowthOwner(IReadOnlyList<GeneratorOperation> operations, int index)
     {
-        if ((uint)index >= (uint)operations.Count || operations[index].Template != "CL:IncreaseRollingDamage")
-            return -1;
+        var damageIndex = RollingGrowthDamageIndex(operations, index);
+        if (damageIndex < 0) return -1;
+        var damageOwner = operations[damageIndex].Parameters.GetValueOrDefault("triggerIndex", -1);
         if (operations[index].Parameters.TryGetValue("triggerIndex", out var owner) && owner >= 0)
-            return owner;
+            return owner == damageOwner ? owner : -1;
         // Older generated cards could detach the growth rider during the random second-payoff decision.
         // It still refers to the immediately preceding rolling damage, never to an unrelated trigger.
-        return index > 0 && operations[index - 1].Template is "N:AllD" or "CL:RollingAllDamage"
-            ? operations[index - 1].Parameters.GetValueOrDefault("triggerIndex", -1) : -1;
+        return damageOwner;
     }
 
     private static bool IsRepeatedDependencyDamagePayoff(ChaosCardModel card, int operationIndex)
@@ -3550,6 +3660,9 @@ internal static class ChaosOperationExecutor
         ChaosExecutionState state)
     {
         var modifier = card.Generated.Operations[modifierIndex];
+        if (modifier.Parameters.TryGetValue("triggerIndex", out var foolOwner)
+            && foolOwner >= 0 && foolOwner < modifierIndex && IsFoolImmediateRepeat(card.Generated.Operations[foolOwner]))
+            return FoolImmediateRepeatCount(card, foolOwner, state);
         var prefix = DependencyPrefix(card, modifierIndex);
         if (prefix is null || !CardEffectRules.IsMultiplicativeDependencyPrefix(prefix)
             || !(CardEffectRules.IsRepeatableDependencyModifier(modifier)
@@ -3665,6 +3778,14 @@ internal static class ChaosOperationExecutor
         var threshold = spec.Values.FirstOrDefault(value => value.Id == "threshold")?.BaseValue ?? 1;
         return kind switch
         {
+            "arrow_available" => ArrowCmd.PlayerHasAnyArrows(card.Owner),
+            "target_impaled" => state.TargetWasImpaled || state.Target is not null && ArrowCmd.CreatureIsImpaledByArrow(state.Target),
+            "target_own_arrow" => state.Target is not null && ArrowCmd.CreatureIsImpaledByPlayersArrow(state.Target, card.Owner),
+            "this_card_shot_arrow" => state.ShotArrow,
+            "melody_wah_or_ki" => MelodyCmd.PlayedWahThisTurn(card.Owner) || MelodyCmd.PlayedKiThisTurn(card.Owner),
+            "melody_wah_or_cho" => MelodyCmd.PlayedWahThisTurn(card.Owner) || MelodyCmd.PlayedChoThisTurn(card.Owner),
+            "melody_cho_or_ki" => MelodyCmd.PlayedChoThisTurn(card.Owner) || MelodyCmd.PlayedKiThisTurn(card.Owner),
+            "melody_ki" => MelodyCmd.PlayedKiThisTurn(card.Owner),
             "fatal" => state.LastAttackKilled,
             "exhaust_pile_minimum" => PileType.Exhaust.GetPile(card.Owner).Cards.Count >= threshold,
             "card_exhausted_this_turn" => combatState is not null
@@ -3758,6 +3879,8 @@ internal static class ChaosOperationExecutor
         var prefixIndex = card.Generated.Operations.ToList().IndexOf(prefix);
         return prefix.Template switch
         {
+            "CL:ForEachGoldThreshold" => Math.Max(0, card.Owner.Gold)
+                / Math.Max(1, RuntimeSpecValue(card, prefixIndex, "threshold", 20)),
             "D:ForEachOrb" => playerCombatState?.OrbQueue.Orbs.Count ?? 0,
             "D:ForEachEnemy" => combatState?.HittableEnemies.Count ?? 0,
             "D:ForEachUniqueOrb" => playerCombatState?.OrbQueue.Orbs
@@ -3852,6 +3975,8 @@ internal static class ChaosOperationExecutor
         CardSelectorPrefs prefs, Func<CardModel, bool>? filter, AbstractModel source,
         bool restoreAfterSelection = false)
     {
+        var combat = CaptureCombatSelection(player);
+        if (!CanContinueCombatSelection(player, combat)) return [];
         var candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         if (candidates.Count == 0)
             return Enumerable.Empty<CardModel>();
@@ -3879,6 +4004,7 @@ internal static class ChaosOperationExecutor
         // Hook choices can pause until the play phase, while turn-start draws change the hand. The native
         // selector reads candidates AFTER that pause. Validate against the same live pile, not our preflight
         // snapshot, or newly drawn player selections are discarded and replaced by the leftmost old cards.
+        if (!CanContinueCombatSelection(player, combat)) return [];
         candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         var completed = CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
         if (completed.Count > selected.Distinct().Count())
@@ -3890,6 +4016,8 @@ internal static class ChaosOperationExecutor
     private static async Task<IEnumerable<CardModel>> SelectFromHandForDiscardIfAny(PlayerChoiceContext context,
         Player player, CardSelectorPrefs prefs, Func<CardModel, bool>? filter, AbstractModel source)
     {
+        var combat = CaptureCombatSelection(player);
+        if (!CanContinueCombatSelection(player, combat)) return [];
         var candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         if (candidates.Count == 0)
             return Enumerable.Empty<CardModel>();
@@ -3907,6 +4035,7 @@ internal static class ChaosOperationExecutor
             CloseFailedHandSelection(player, source);
             throw;
         }
+        if (!CanContinueCombatSelection(player, combat)) return [];
         candidates = PileType.Hand.GetPile(player).Cards.Where(filter ?? (_ => true)).ToList();
         return CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
     }
@@ -3930,25 +4059,30 @@ internal static class ChaosOperationExecutor
     private static async Task<IEnumerable<CardModel>> SelectFromCombatPileIfAny(PlayerChoiceContext context,
         CardPile pile, Player player, CardSelectorPrefs prefs, Func<CardModel, bool>? filter = null)
     {
+        var combat = CaptureCombatSelection(player);
+        if (!CanContinueCombatSelection(player, combat)) return [];
         var candidates = pile.Cards.Where(filter ?? (_ => true)).ToList();
         if (candidates.Count == 0)
             return Enumerable.Empty<CardModel>();
         prefs = ClampSelectionPrefs(prefs, candidates.Count);
-        // Vakuu and other engine-driven auto-play flows install a global selector. Bypass FromCombatPile entirely
+        // Vakuu and other engine-driven auto-play flows install a player-specific selector. Bypass FromCombatPile
         // in that case: opening/reserving a networked selection transaction from inside the auto-play loop can
         // leave the takeover waiting on a UI which the selector was meant to replace.
-        if (CardSelectCmd.Selector is { } automatedSelector)
+        if (RunManager.Instance.CardSelectorStack.GetSelector(player) is { } automatedSelector)
         {
             IEnumerable<CardModel> options = candidates;
             if (pile.Type == PileType.Draw)
-                options = options.OrderBy(candidate => candidate.Rarity).ThenBy(candidate => candidate.Id);
+                options = options.OrderBy(candidate => candidate.Rarity).ThenBy(candidate => candidate);
             var automatedSelection = await automatedSelector.GetSelectedCards(
                 options, prefs.MinSelect, prefs.MaxSelect);
+            if (!CanContinueCombatSelection(player, combat)) return [];
+            candidates = pile.Cards.Where(filter ?? (_ => true)).ToList();
             return CompleteMandatorySelection(candidates, automatedSelection, prefs.MinSelect, prefs.MaxSelect);
         }
         if (context is ThrowingPlayerChoiceContext)
             return SelectAutomatically(player, candidates, prefs);
         var selected = (await CardSelectCmd.FromCombatPile(context, pile, player, prefs, filter)).ToArray();
+        if (!CanContinueCombatSelection(player, combat)) return [];
         candidates = pile.Cards.Where(filter ?? (_ => true)).ToList();
         var completed = CompleteMandatorySelection(candidates, selected, prefs.MinSelect, prefs.MaxSelect);
         if (completed.Count > selected.Distinct().Count())
@@ -3956,6 +4090,16 @@ internal static class ChaosOperationExecutor
                      + $"{prefs.MinSelect}-{prefs.MaxSelect}; completed deterministically to {completed.Count}.");
         return completed;
     }
+
+    // v113 cancels native combat choices when the owner dies or combat ends. An empty cancelled choice must
+    // never be treated as a partial mandatory answer and filled with cards from a stale hand/pile.
+    private static (ICombatState? State, CombatId? Id) CaptureCombatSelection(Player player) =>
+        (player.Creature.CombatState, CombatManager.Instance.CurrentCombatId);
+
+    internal static bool CanContinueCombatSelection(Player player, (ICombatState? State, CombatId? Id) combat) =>
+        combat.State is not null && ReferenceEquals(player.Creature.CombatState, combat.State)
+        && CombatManager.Instance.CurrentCombatId == combat.Id
+        && player.Creature.IsAlive && !CombatManager.Instance.IsOverOrEnding;
 
     private static async Task<IReadOnlyList<CardModel>> ExhaustSelectedCombatPileCards(
         PlayerChoiceContext context, Player player, PileType sourcePileType, int requestedCount)
@@ -4048,6 +4192,8 @@ internal static class ChaosOperationExecutor
     private static async Task<CardModel?> SelectFromHandForUpgradeIfAny(PlayerChoiceContext context, Player player,
         AbstractModel source)
     {
+        var combat = CaptureCombatSelection(player);
+        if (!CanContinueCombatSelection(player, combat)) return null;
         var candidates = PileType.Hand.GetPile(player).Cards.Where(candidate => candidate.IsUpgradable).ToList();
         if (candidates.Count == 0)
             return null;
@@ -4075,7 +4221,7 @@ internal static class ChaosOperationExecutor
             CloseFailedHandSelection(player, source);
             throw;
         }
-        return result;
+        return CanContinueCombatSelection(player, combat) ? result : null;
     }
 
     private static void UpgradeExistingCombatCard(CardModel card, string operationTemplate)
@@ -4122,7 +4268,8 @@ internal static class ChaosOperationExecutor
     private static LocString SelectionPrompt(string key) => new("cards", $"AUTO_ANTHONY.{key}");
 
     private static bool IsLingeringTrigger(GeneratorOperation operation) => operation.Scope == OperationScope.ConditionalTrigger
-        && (operation.Template is "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:after" or "C:for"
+        && (operation.Template is "F:UntilNonMinionDies" or "F:WhenThisDislodgesArrow" or "F:WhileDiscardArrowShot"
+            or "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:after" or "C:for"
             or "C:grantNextAttacksThisTurn" or "C:grantNextAttack" or "C:untilTurnEndCardPlayed"
             or "C:untilTurnEndAttackPlayed" or "C:untilTurnEndAttackReceived"
             or "C:VulnerableEnemyDamageReductionThisTurn"
@@ -4132,7 +4279,7 @@ internal static class ChaosOperationExecutor
             or "CL:AtNextTurnStart");
 
     private static bool IsCompositePowerTrigger(GeneratorOperation operation) => operation.Scope == OperationScope.ConditionalTrigger
-        && (operation.Template is "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:for"
+        && (operation.Template is "F:UntilNonMinionDies" or "C:untilTurnEnd" or "C:untilTurnEndCardDrawn" or "C:for"
             or "C:grantNextAttacksThisTurn" or "C:grantNextAttack" or "C:untilTurnEndCardPlayed"
             or "C:untilTurnEndAttackPlayed" or "C:untilTurnEndAttackReceived"
             or "C:VulnerableEnemyDamageReductionThisTurn"
@@ -4150,30 +4297,10 @@ internal static class ChaosOperationExecutor
 
     internal static OperationRuntimeSpec EffectiveRuntimeSpec(ChaosCardModel card, int operationIndex)
     {
-        var operation = card.Generated.Operations[operationIndex];
-        var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
-        if (!card.IsUpgraded || card.Generated.Upgrade is null) return spec;
-        if (card.Generated.Upgrade.Effects.Any(effect => effect.OperationIndex == operationIndex
-                && effect.Kind == CardUpgradeKind.ChooseExhaust))
-            spec = OperationRuntimeSpecCompiler.AsSelectedExhaust(spec);
-        foreach (var effect in CardUpgradeGenerator.ExpandEffects(card.Generated.Operations,
-                     card.Generated.Upgrade.Effects).Where(effect =>
-                     effect.OperationIndex == operationIndex
-                     && effect.Delta is not null
-                     && effect.Kind is CardUpgradeKind.IncreaseNumber or CardUpgradeKind.ReduceSelfDamage
-                         or CardUpgradeKind.ReduceThreshold or CardUpgradeKind.ReduceNegativeNumber))
-        {
-            var slotId = effect.ValueSlotId;
-            // Schema 1-7 did not persist the slot. Preserve their first-number execution projection rather than
-            // guessing from current localized wording outside the single legacy compiler.
-            if (slotId is null
-                && OperationRuntimeSpecCompiler.TryProjectLegacyExecutionUpgradeValue(operation,
-                    operation.ChineseText, out var legacyProjection))
-                slotId = legacyProjection?.SlotId;
-            if (slotId is not null)
-                spec = OperationRuntimeSpecCompiler.ApplyUpgradeDelta(spec, slotId, effect.Delta!.Value);
-        }
-        return spec;
+        var operations = card.IsUpgraded
+            ? CardUpgradeGenerator.GetUpgradedOperations(card.Generated)
+            : card.Generated.Operations;
+        return OperationRuntimeSpecCompiler.RequireStructured(operations[operationIndex]);
     }
 
     internal static int FillHandTargetCount(bool returnsThisToHand) =>

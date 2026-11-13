@@ -15,7 +15,6 @@ internal static class CardInternalIdHoverTipPatch
             new LocString("main_menu_ui", "AUTO_ANTHONY_CARD_INTERNAL_ID_HOVER_TITLE"),
             __instance.Id.Entry)
         {
-            Id = $"{SurpriseModeUi.InternalIdHoverTipPrefix}{__instance.Id.Entry}",
             ShouldOverrideTextOverflow = true
         };
         __result = __result.Append(tip);

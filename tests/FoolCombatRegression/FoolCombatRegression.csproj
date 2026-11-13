@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <GameLib>$(Sts2GameDir)/data_sts2_windows_x86_64</GameLib>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="sts2"><HintPath>$(GameLib)/sts2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(GameLib)/GodotSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(GameLib)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AutoAnthony"><HintPath>../../ChaosMode/bin/Release/net9.0/AutoAnthony.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

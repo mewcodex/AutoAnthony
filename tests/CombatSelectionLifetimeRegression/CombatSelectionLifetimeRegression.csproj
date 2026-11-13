@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2LibDir>$(Sts2GameDir)/data_sts2_windows_x86_64</Sts2LibDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="AutoAnthony"><HintPath>../../ChaosMode/bin/Release/net9.0/AutoAnthony.dll</HintPath></Reference>
+    <Reference Include="sts2"><HintPath>$(Sts2LibDir)/sts2.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Sts2LibDir)/0Harmony.dll</HintPath></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(Sts2LibDir)/GodotSharp.dll</HintPath></Reference>
+    <Reference Include="SmartFormat"><HintPath>$(Sts2LibDir)/SmartFormat.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

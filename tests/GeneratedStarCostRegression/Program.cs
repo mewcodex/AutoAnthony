@@ -15,6 +15,8 @@ Field(source,typeof(ChaosCardModel),"_freeformDefinition",definition);
 Field(source,typeof(CardModel),"_canonicalInstance",source);
 Field(source,typeof(CardModel),"_dynamicVars",new DynamicVarSet([]));
 Field(source,typeof(CardModel),"_keywords",new HashSet<CardKeyword>());
+Field(source,typeof(CardModel),"_keywordsAddedFromOutside",new HashSet<CardKeyword>());
+Field(source,typeof(CardModel),"_keywordsRemovedFromOutside",new HashSet<CardKeyword>());
 Field(source,typeof(CardModel),"_temporaryStarCosts",new List<TemporaryCardCost>());
 Field(source,typeof(CardModel),"_baseStarCost",-1);
 Field(source,typeof(CardModel),"_starCostSet",true);
@@ -62,6 +64,8 @@ var native=(CardModel)RuntimeHelpers.GetUninitializedObject(typeof(CardModel).As
 Field(native,typeof(CardModel),"_canonicalInstance",native);
 Field(native,typeof(CardModel),"_dynamicVars",new DynamicVarSet([]));
 Field(native,typeof(CardModel),"_keywords",new HashSet<CardKeyword>());
+Field(native,typeof(CardModel),"_keywordsAddedFromOutside",new HashSet<CardKeyword>());
+Field(native,typeof(CardModel),"_keywordsRemovedFromOutside",new HashSet<CardKeyword>());
 Field(native,typeof(CardModel),"_temporaryStarCosts",new List<TemporaryCardCost>());
 Field(native,typeof(CardModel),"_baseStarCost",7);
 Field(native,typeof(CardModel),"_starCostSet",true);

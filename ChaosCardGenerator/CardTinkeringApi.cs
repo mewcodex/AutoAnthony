@@ -307,16 +307,7 @@ public static class CardTinkeringApi
             || card.StarCost > 0 || card.HasStarCostX;
 
         var positive = EffectBalanceModel.EstimatedPositiveCardValue(
-            operations, hasPrintedResourceCost, card.Type, card.Tags);
-        // This operation's atomic value represents one Energy. The complete card analysis owns the shell cost and
-        // therefore expands the later-play saving to the actual fixed printed Energy cost.
-        if (energyCost != 1)
-        {
-            foreach (var (operation, index) in operations.Select((operation, index) => (operation, index))
-                         .Where(item => item.operation.Template == "D:SetThisCardCostZero"))
-                positive += EffectBalanceModel.EstimatedContextualOperationValueForAudit(operation, index,
-                    operations, hasPrintedResourceCost, card.Type, card.Tags) * (Math.Max(0, energyCost) - 1d);
-        }
+            operations, hasPrintedResourceCost, card.Type, card.Tags, card.Cost);
 
         var linear = NegativeEffectTuning.TotalLinearCompensationValue(operations, card.Rarity);
         var multiplier = Math.Max(1d, CardEffectRules.NegativeEffectCompensationPercent(
@@ -525,8 +516,9 @@ public static class CardTinkeringApi
         GeneratedRarity? standaloneRarity = null)
     {
         var operation = operations[index];
-        var isTrigger = operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
-            || CardEffectRules.IsDependencyPrefix(operation);
+        var isTrigger = !CardEffectRules.IsSelfCostReduction(operation)
+            && (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                || CardEffectRules.IsDependencyPrefix(operation));
         var triggerMultiplier = isTrigger ? ResolveTriggerMultiplier(operation, index, operations) : 1d;
         var beneficial = CardEffectRules.IsBeneficialEffect(operation);
         var atomic = beneficial ? Math.Max(0d, EffectBalanceModel.EstimatedEffectValue(operation)) : 0d;
@@ -536,11 +528,9 @@ public static class CardTinkeringApi
             contextual = shell is null
                 ? EffectBalanceModel.EstimatedCardLevelRewardValueForAudit(operation, index, operations)
                 : EffectBalanceModel.EstimatedContextualOperationValueForAudit(operation, index, operations,
-                    hasPrintedResourceCost, shell.Type, shell.Tags);
-            if (Math.Abs(contextual) < 0.0001d && CardEffectRules.IsSelfManagedStateEffect(operation))
+                    hasPrintedResourceCost, shell.Type, shell.Tags, shell.Cost);
+            if (shell is null && Math.Abs(contextual) < 0.0001d && CardEffectRules.IsSelfManagedStateEffect(operation))
                 contextual = EffectBalanceModel.EstimatedCardLevelRewardValueForAudit(operation, index, operations);
-            if (operation.Template == "D:SetThisCardCostZero" && shell is not null)
-                contextual *= Math.Max(0, shell.Cost);
         }
 
         var isNegative = CardEffectRules.IsNegativeEffect(operation);
@@ -716,7 +706,7 @@ public static class CardTinkeringApi
             && operations.Any(CardEffectRules.IsSelfCostReduction))
             errors.Add("zero-cost shells cannot contain self-cost-reduction components");
         if ((shell.Type == GeneratedCardType.Power || shell.Tags.Contains(CardTag.Exhaust))
-            && operations.Any(IsOnPlaySelfCostChange))
+            && operations.Any(operation => CardEffectRules.IsPlayedSelfCostChange(operation.Template)))
             errors.Add("on-play self-cost-change components require a reusable non-Power shell");
         if (shell.Cost == 0 && shell.StarCost <= 0 && !shell.HasStarCostX
             && operations.Any(CardEffectRules.IsZeroCostCopyThisCardToDiscard))
@@ -852,9 +842,6 @@ public static class CardTinkeringApi
 
         return errors;
     }
-
-    private static bool IsOnPlaySelfCostChange(GeneratorOperation operation) => operation.Template is
-        "D:IncreaseThisCardCost" or "D:SetThisCardCostZero" or "I:ReduceThisCardCostCombat";
 
     private static IReadOnlyList<string> SelectorErrors(IReadOnlyList<GeneratorOperation> operations,
         CardTinkeringValidationOptions options)

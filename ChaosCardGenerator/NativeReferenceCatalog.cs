@@ -12,18 +12,19 @@ internal static class NativeReferenceCatalog
     private static readonly IReadOnlyDictionary<string, int> ExpectedPoolCounts =
         new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            ["Colorless"] = 53,
+            ["Colorless"] = 54,
             ["Curse"] = 18,
             ["Defect"] = 86,
+            ["Fool"] = 84,
             ["Deprecated"] = 1,
-            ["Event"] = 36,
+            ["Event"] = 40,
             ["Ironclad"] = 85,
             ["Necrobinder"] = 86,
             ["Quest"] = 4,
             ["Regent"] = 86,
             ["Silent"] = 86,
-            ["Status"] = 12,
-            ["Token"] = 14,
+            ["Status"] = 13,
+            ["Token"] = 16,
         };
 
     private static readonly string[] ExpectedTokens =
@@ -31,6 +32,7 @@ internal static class NativeReferenceCatalog
         "Disintegration", "Fuel", "GiantRock", "Luminesce", "MindRot", "MinionDiveBomb",
         "MinionSacrifice", "MinionStrike", "Shiv", "Sloth", "Soul", "SovereignBlade",
         "SweepingGaze", "WasteAway",
+        "Joy", "TheShot",
     ];
 
     internal static void Validate()
@@ -64,7 +66,7 @@ internal static class NativeReferenceCatalog
             "Unplayable is missing its official Chinese label");
 
         var cards = cardsRoot.GetProperty("Cards").EnumerateArray().ToArray();
-        Require(cards.Length == 567, $"expected 567 card records, found {cards.Length}");
+        Require(cards.Length == 659, $"expected 659 card records, found {cards.Length}");
         _ = UniqueIds(cards, "card", "CatalogId");
         var poolCounts = cards.GroupBy(item => item.GetProperty("Pool").GetString()!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
@@ -98,14 +100,14 @@ internal static class NativeReferenceCatalog
     private static void ValidateRuntimeApi(JsonElement[] sourceCards)
     {
         var exposed = NativeCardDecompositionApi.Cards;
-        Require(NativeCardDecompositionApi.Components.Count == 451,
+        Require(NativeCardDecompositionApi.Components.Count == 517,
             "runtime API component-definition count differs from the source catalog");
         Require(NativeCardDecompositionApi.Keywords.Count == 7,
             "runtime API keyword-definition count differs from the source catalog");
         Require(exposed.Count == sourceCards.Length, "runtime API card count differs from the source catalog");
-        Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.ExecutableRecipe) == 481,
+        Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.ExecutableRecipe) == 566,
             "runtime API executable recipe count differs from the reviewed catalog");
-        Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.StructuredReference) == 86,
+        Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.StructuredReference) == 93,
             "runtime API reference-extension count differs from the reviewed catalog");
         Require(exposed.Count(card => card.NativeId == "MAD_SCIENCE") == 9,
             "runtime API does not expose all Mad Science variants");
@@ -129,9 +131,24 @@ internal static class NativeReferenceCatalog
                 $"runtime API could not materialize {card.CatalogId}");
             Require(rebuilt.Operations.Count == card.Components.Count,
                 $"runtime API changed the component count for {card.CatalogId}");
-            Require(NativeCardDecompositionApi.TryCreateDefinition(card.CatalogId, out _, out var unsupported),
+            Require(NativeCardDecompositionApi.TryCreateDefinition(card.CatalogId, out var exact, out var unsupported),
                 $"runtime API could not materialize the exact upgrade for {card.CatalogId}: "
                 + string.Join(',', unsupported));
+            var upgradedOperations = exact.Upgrade is null ? exact.Operations
+                : CardUpgradeGenerator.ApplyEffectsToOperations(exact.Operations, exact.Upgrade.Effects);
+            for (var index = 0; index < card.Components.Count; index++)
+            foreach (var (slotId, argument) in card.Components[index].Arguments)
+            foreach (var binding in argument.NativeBindings ?? [])
+            {
+                var slot = OperationRuntimeSpecCompiler.GetOrCompile(upgradedOperations[index])
+                    .Values.Single(value => value.Id == slotId);
+                if (slot.Source != "fixed") continue;
+                var expected = (binding.BaseValue + binding.UpgradeDelta) * binding.ValueTransform.Scale
+                    + binding.ValueTransform.Offset;
+                Require(slot.BaseValue + slot.Offset == expected,
+                    $"native upgrade projection differs for {card.CatalogId}/{index}/{slotId}: "
+                    + $"{slot.BaseValue + slot.Offset} instead of {expected}");
+            }
             foreach (var upgraded in new[] { false, true })
             foreach (var chinese in new[] { false, true })
                 Require(NativeCardDecompositionApi.TryCreateComponentDescriptionTemplate(
@@ -142,7 +159,8 @@ internal static class NativeReferenceCatalog
                     + $"(upgraded={upgraded}, chinese={chinese})");
             exactDefinitions++;
         }
-        Require(exactDefinitions == 481, "runtime API exact-upgrade coverage is incomplete");
+        Require(exactDefinitions == exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.ExecutableRecipe),
+            "runtime API exact-upgrade coverage is incomplete");
         RequireStructuralUpgrade("native/defect/darkness", CardUpgradeKind.RepeatOperation);
         RequireStructuralUpgrade("native/defect/spinner", CardUpgradeKind.ExecuteOperationOnPlay);
         RequireStructuralUpgrade("native/defect/tesla_coil", CardUpgradeKind.RepeatOperation);
@@ -157,7 +175,7 @@ internal static class NativeReferenceCatalog
         RequireComponentDescriptionTemplate("native/ironclad/barricade",
             "格挡", "Block");
         var eventRarityCards = exposed.Where(card => card.Base.Rarity == "Event").ToArray();
-        Require(eventRarityCards.Length == 27,
+        Require(eventRarityCards.Length == 31,
             "native Event-rarity card count differs from the reviewed catalog");
         foreach (var card in eventRarityCards)
         {
@@ -263,8 +281,8 @@ internal static class NativeReferenceCatalog
                         $"{id}/{componentId}/{argument.Name} binds unknown/non-numeric variable {variable}");
                     Require(binding.GetProperty("BaseValue").GetDecimal() == nativeBase,
                         $"{id}/{componentId}/{argument.Name} records the wrong base for {variable}");
-                    Require(upgradeDeltas.TryGetValue(variable, out var nativeDelta)
-                            && binding.GetProperty("UpgradeDelta").GetDecimal() == nativeDelta,
+                    Require(binding.GetProperty("UpgradeDelta").GetDecimal()
+                            == upgradeDeltas.GetValueOrDefault(variable),
                         $"{id}/{componentId}/{argument.Name} records the wrong upgrade for {variable}");
                     var transform = binding.GetProperty("ValueTransform");
                     var scale = transform.GetProperty("Scale").GetDecimal();

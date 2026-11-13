@@ -316,8 +316,8 @@ public static class ComponentKeywordApi
 
 /// <summary>
 /// Complete read-only input package for card assembly. Catalogs own component implementation data; the two policy
-/// interfaces own occurrence and numeric control. Naming is deliberately scoped separately so Ultimate Chaos can
-/// share mechanics while retaining the current character's name corpus.
+/// interfaces own occurrence and numeric control. Naming has its own catalog: built-in Ultimate Chaos uses all
+/// native character and Colorless pools, while external profiles retain authority over their registered naming corpus.
 /// </summary>
 public sealed class ComponentGenerationProfile
 {
@@ -736,8 +736,8 @@ internal sealed class BuiltInComponentProfileProvider : IComponentProfileProvide
             profile = null!;
             return false;
         }
-        var nameCatalog = CharacterComponentCatalogs.Get(request.Character);
         var componentCatalog = CharacterComponentCatalogs.Get(request.Character, request.UnlockComponentRoles);
+        var nameCatalog = componentCatalog;
         profile = new ComponentGenerationProfile(
             $"autoanthony:{request.Character}:{(request.UnlockComponentRoles ? "ultimate" : "native")}",
             request.Character,

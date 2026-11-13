@@ -805,6 +805,7 @@ internal static class NumericGenerationTuning
     internal static int ClampUniversalFixedValue(string template, OperationRuntimeSpec spec, string slotId,
         int value)
     {
+        if (IsCompactHandTokenCount(template, spec, slotId)) return Math.Min(3, value);
         if (slotId == "percentage"
             && spec.Trigger?.Kind == "vulnerable_enemy_damage_reduction")
             return Math.Min(MaximumPercentageDamageReduction, value);
@@ -820,6 +821,7 @@ internal static class NumericGenerationTuning
     internal static int? UniversalFixedValueCap(GeneratorOperation operation, string slotId)
     {
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+        if (IsCompactHandTokenCount(operation.Template, spec, slotId)) return 3;
         if (slotId == "percentage"
             && spec.Trigger?.Kind == "vulnerable_enemy_damage_reduction")
             return MaximumPercentageDamageReduction;
@@ -901,6 +903,17 @@ internal static class NumericGenerationTuning
             2 => roll < 280 ? 1 : roll < 970 ? 2 : roll < 997 ? 3 : 4,
             _ => roll < 150 ? 1 : roll < 970 ? 2 : roll < 998 ? 3 : 4
         };
+    }
+
+    internal static bool IsCompactHandTokenCount(string template, OperationRuntimeSpec spec, string slotId) =>
+        slotId is "amount" or "count" && spec.Flags.Contains("compact_hand_token_reference")
+        && DerivativeSlotCatalog.IsProducer(template)
+        && (spec.DestinationZone == "hand" || template is "F:CreateJoy" or "F:CreateSadness");
+
+    internal static int SampleCompactHandTokenCount(Random random)
+    {
+        var roll = random.Next(100);
+        return roll < 80 ? 1 : roll < 98 ? 2 : 3;
     }
 
     internal static int SampleRandomGeneratedCardCount(Random random)
@@ -1070,6 +1083,7 @@ internal static class NegativeEffectTuning
         ComponentValuationApi.TryGetNegativePricing(spec, out var customLinearValue, out _);
         var unitValue = customLinearValue > 0d ? customLinearValue : operation.Template switch
         {
+            "F:CreateSadness" or "F:TransformThisToSadness" => 150d,
             // Native 1-3 HP anchors imply a modest, nearly additive premium. Repeated HP loss is multiplied by
             // its expected resolutions below rather than sent through the old nonlinear severity curve.
             // Bloodletting anchors three HP at 300 Uncommon value.
@@ -1157,6 +1171,7 @@ internal static class NegativeEffectTuning
             "slimed" => 200d,
             "void" => 550d,
             "debris" => 250d,
+            "sadness" => 150d,
             _ => operation.Template switch
             {
                 "D:CreateDazedInDiscard" => 50d,
@@ -1213,6 +1228,8 @@ internal static class NegativeEffectTuning
             return customMultiplier;
         return operation.Template switch
         {
+            "F:OnlyCardsThisTurn" => 1d + 0.72d / amount,
+            "F:ExhaustShoot" => 1.36d,
             // Extreme lifecycle restrictions retain their native whole-card anchors instead of receiving a
             // separate hard-coded payoff amount outside the shared budget model.
             "CL:DieOnUnblockedAttack" => 4.00d,
@@ -1274,6 +1291,13 @@ internal static class NegativeEffectTuning
         var multiplier = 1d;
         for (var index = 0; index < operations.Count; index++)
             multiplier *= EffectiveMultiplier(operations[index], operations, index);
+
+        // Transforming this card into Sadness consumes its original effect for the rest of the battle, just like
+        // Exhaust. Sadness itself has an additional linear hand-clogging cost above. Do not pay the same one-use
+        // lifecycle twice when the shell already has Exhaust or is a Power.
+        if (cardType != GeneratedCardType.Power && tags?.Contains(CardTag.Exhaust) != true
+            && operations.Any(operation => OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags
+                .Contains("single_use_transformation"))) multiplier *= 1.45d;
 
         if (tags is not null)
         {
@@ -1389,7 +1413,7 @@ internal static class EnergyCostTuning
     private static readonly GeneratedCharacter[] PlayableCharacters =
     [
         GeneratedCharacter.Ironclad, GeneratedCharacter.Silent, GeneratedCharacter.Defect,
-        GeneratedCharacter.Necrobinder, GeneratedCharacter.Regent
+        GeneratedCharacter.Necrobinder, GeneratedCharacter.Regent, GeneratedCharacter.Fool
     ];
     private static readonly IReadOnlyDictionary<(GeneratedCharacter, GeneratedRarity), int[]> Rows =
         new Dictionary<(GeneratedCharacter, GeneratedRarity), int[]>
@@ -1418,6 +1442,12 @@ internal static class EnergyCostTuning
             [(GeneratedCharacter.Regent, GeneratedRarity.Uncommon)] = [9, 19, 5, 1, 1],
             [(GeneratedCharacter.Regent, GeneratedRarity.Rare)] = [6, 13, 6, 2, 0],
             [(GeneratedCharacter.Regent, GeneratedRarity.Ancient)] = [6, 13, 6, 2, 0],
+
+            [(GeneratedCharacter.Fool, GeneratedRarity.Common)] = [3, 15, 2, 0, 0],
+            [(GeneratedCharacter.Fool, GeneratedRarity.Uncommon)] = [6, 20, 8, 1, 0],
+            // Native Rare + Ancient; Coda's fixed 6-Energy tail folds into the generated 4-Energy cap.
+            [(GeneratedCharacter.Fool, GeneratedRarity.Rare)] = [5, 12, 4, 4, 1],
+            [(GeneratedCharacter.Fool, GeneratedRarity.Ancient)] = [5, 12, 4, 4, 1],
 
             [(GeneratedCharacter.Colorless, GeneratedRarity.Uncommon)] = [14, 12, 4, 0, 0],
             [(GeneratedCharacter.Colorless, GeneratedRarity.Rare)] = [5, 9, 2, 5, 0]

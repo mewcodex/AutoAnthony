@@ -7,10 +7,10 @@
 东尼算法是一个《杀戮尖塔 2》卡池随机模组，灵感来自《以撒的结合》的 DELETE THIS 挑战。每局开始时，
 模组会把原版卡牌拆成可复用的 unit operation，再重新组装出包含名称、卡图、升级、目标和实际效果的新卡池。
 
-模组目前处于开放测试阶段，适配《杀戮尖塔 2》`0.111.x`，支持战士、猎手、故障机器人、亡灵契约师、
-储君以及两种无色卡池。
+模组目前处于开放测试阶段，适配《杀戮尖塔 2》`0.113.x`，支持战士、猎手、故障机器人、亡灵契约师、
+储君、愚者以及两种无色卡池。
 
-当前发布版本：**0.3.147**。接口与组件行为变化请参阅双语 [API 更新记录](https://github.com/mewcodex/AutoAnthony/wiki/API-更新记录)。
+当前开发版本：**0.3.165**。接口与组件行为变化请参阅双语 [API 更新记录](https://github.com/mewcodex/AutoAnthony/wiki/API-更新记录)。
 
 ## 主要功能
 
@@ -22,7 +22,7 @@
 - 使用带版本的 `OperationRuntimeSpec` 执行卡牌，不依赖中文或英文描述判断游戏逻辑。
 - 提供组件 API v3，允许其他角色模组注册组件池、出率、数值与关键词策略、语义标记、稳定本地化 ID、
   运行时处理器、提示和随机卡槽位。
-- 提供覆盖 v111 全部非多人卡牌的只读拆解目录；Card Tinkering 可选地编辑全部 481 张常规原版牌，且不会
+- 提供 v113 非多人原版卡的 659 条只读拆解记录；配套编辑器可选地编辑全部 566 张角色/无色原版牌，且不会
   替换原版卡池或转换未修改的牌。
 
 ## 安装
@@ -33,7 +33,7 @@
 
 ## 构建
 
-需要安装 .NET 10 SDK、Python 3、PowerShell，并准备《杀戮尖塔 2》`0.111.x`：
+需要安装 .NET 10 SDK、Python 3、PowerShell，并准备《杀戮尖塔 2》`0.113.x`：
 
 ```powershell
 $env:STS2_GAME_DIR = "C:\path\to\Slay the Spire 2"
@@ -50,6 +50,9 @@ dotnet run --project .\ChaosCardGenerator\ChaosCardGenerator.csproj -c Release -
 ```
 
 ## 组件 API
+
+升级到当前游戏版本时，可先阅读 [113版与愚者](https://github.com/mewcodex/AutoAnthony/wiki/113版与愚者)，
+了解重新编译要求、旋律元数据、原生变量绑定、本卡减费估值与存档兼容规则。
 
 请从 [组件 API Wiki 中文首页](https://github.com/mewcodex/AutoAnthony/wiki/组件-API-概览) 开始阅读。
 仓库内还提供简明契约 [COMPONENT_API.md](COMPONENT_API.md) 和不依赖角色框架的

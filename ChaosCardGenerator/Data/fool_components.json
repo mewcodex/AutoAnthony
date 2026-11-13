@@ -1,0 +1,1496 @@
+[
+  {
+    "template": "F:Aim",
+    "chineseTemplate": "获得[[amount]]点瞄准。",
+    "englishTemplate": "Gain [[amount]] Aim.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "aim",
+    "target": "self",
+    "flags": [],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 5,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:Stretch",
+    "chineseTemplate": "获得[[amount]]点拉伸。",
+    "englishTemplate": "Gain [[amount]] Stretch.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "stretch",
+    "target": "self",
+    "flags": [],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 7,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:TemporaryThorns",
+    "chineseTemplate": "在本回合获得[[amount]]点荆棘。",
+    "englishTemplate": "Gain [[amount]] Thorns this turn.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "thorns_this_turn",
+    "target": "self",
+    "flags": [],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 3,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ShootArrow",
+    "chineseTemplate": "发射一支箭矢，",
+    "englishTemplate": "Shoot an Arrow to",
+    "scope": "Modifier",
+    "opcode": "modify_damage",
+    "variant": "shoot_arrow",
+    "target": "self",
+    "flags": [
+      "requires_damage_anchor",
+      "grants_shoot_tag",
+      "sole_damage_sentence"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:StretchFromDamage",
+    "chineseTemplate": "获得等同于所造成伤害量的拉伸。",
+    "englishTemplate": "Gain Stretch equal to the damage dealt.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "stretchfromdamage",
+    "target": "self",
+    "flags": [
+      "requires_last_damage"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfArrow",
+    "chineseTemplate": "如果你拥有箭矢，",
+    "englishTemplate": "If you have an Arrow,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "arrow_available",
+    "target": "self",
+    "flags": [],
+    "values": [],
+    "condition": {
+      "kind": "arrow_available",
+      "subject": "self"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfImpaled",
+    "chineseTemplate": "如果目标敌人处于扎穿状态，",
+    "englishTemplate": "If the target enemy is Impaled,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "target_impaled",
+    "target": "selected_enemy",
+    "flags": [
+      "requires_selected_enemy"
+    ],
+    "values": [],
+    "condition": {
+      "kind": "target_impaled",
+      "subject": "target"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfOwnImpaled",
+    "chineseTemplate": "如果目标敌人被你的箭矢扎穿，",
+    "englishTemplate": "If the target enemy is Impaled by your Arrow,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "target_own_arrow",
+    "target": "selected_enemy",
+    "flags": [
+      "requires_selected_enemy"
+    ],
+    "values": [],
+    "condition": {
+      "kind": "target_own_arrow",
+      "subject": "target"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfShotSucceeded",
+    "chineseTemplate": "如果这张牌发射了箭矢，",
+    "englishTemplate": "If this card shot an Arrow,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "this_card_shot_arrow",
+    "target": "self",
+    "flags": [],
+    "values": [],
+    "condition": {
+      "kind": "this_card_shot_arrow",
+      "subject": "self"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfWahKi",
+    "chineseTemplate": "如果你拥有哇旋律或叽旋律，",
+    "englishTemplate": "If you have the Wah or Ki Melody,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "melody_wah_or_ki",
+    "target": "self",
+    "flags": [],
+    "values": [],
+    "condition": {
+      "kind": "melody_wah_or_ki",
+      "subject": "self"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfWahCho",
+    "chineseTemplate": "如果你拥有哇旋律或啾旋律，",
+    "englishTemplate": "If you have the Wah or Cho Melody,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "melody_wah_or_cho",
+    "target": "self",
+    "flags": [],
+    "values": [],
+    "condition": {
+      "kind": "melody_wah_or_cho",
+      "subject": "self"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfChoKi",
+    "chineseTemplate": "如果你拥有啾旋律或叽旋律，",
+    "englishTemplate": "If you have the Cho or Ki Melody,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "melody_cho_or_ki",
+    "target": "self",
+    "flags": [],
+    "values": [],
+    "condition": {
+      "kind": "melody_cho_or_ki",
+      "subject": "self"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IfKi",
+    "chineseTemplate": "如果你拥有叽旋律，",
+    "englishTemplate": "If you have the Ki Melody,",
+    "scope": "ConditionalTrigger",
+    "opcode": "condition",
+    "variant": "melody_ki",
+    "target": "self",
+    "flags": [],
+    "values": [],
+    "condition": {
+      "kind": "melody_ki",
+      "subject": "self"
+    },
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ForEachMelody",
+    "chineseTemplate": "你每拥有一种旋律，",
+    "englishTemplate": "For each Melody you have,",
+    "scope": "ConditionalTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "melody_types",
+      "lifetime": "immediate"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ForEachEnergyX",
+    "chineseTemplate": "重复[[count]]次，",
+    "englishTemplate": "Repeat [[count]] times,",
+    "scope": "ConditionalTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [
+      {
+        "id": "count",
+        "baseValue": 0,
+        "source": "energy_x",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": {
+      "kind": "energy_x_count",
+      "lifetime": "immediate"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ForEachSadnessExhausted",
+    "chineseTemplate": "每消耗一张悲伤，",
+    "englishTemplate": "For each Sadness Exhausted,",
+    "scope": "ConditionalTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "sadness_exhausted_by_this_card",
+      "lifetime": "immediate"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnSadnessGenerated",
+    "chineseTemplate": "每当你生成一张悲伤时，",
+    "englishTemplate": "Whenever you create a Sadness,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "sadness_generated",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnMelodyGained",
+    "chineseTemplate": "每当你获得一种旋律时，",
+    "englishTemplate": "Whenever you gain a Melody,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "melody_gained",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnWahGained",
+    "chineseTemplate": "每当你获得哇旋律时，",
+    "englishTemplate": "Whenever you gain the Wah Melody,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "wah_melody_gained",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnChoGained",
+    "chineseTemplate": "每当你获得啾旋律时，",
+    "englishTemplate": "Whenever you gain the Cho Melody,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "cho_melody_gained",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnAllMelodies",
+    "chineseTemplate": "每当你集齐三种旋律时，",
+    "englishTemplate": "Whenever you gain all three Melodies,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "all_melodies_gained",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnArrowImpaled",
+    "chineseTemplate": "每当你的箭矢扎穿一名敌人时，",
+    "englishTemplate": "Whenever your Arrow Impales an enemy,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "arrow_impaled",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnFirstArrowDislodged",
+    "chineseTemplate": "每回合第一次让你的箭矢松脱时，",
+    "englishTemplate": "The first time your Arrow is Dislodged each turn,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "first_arrow_dislodged_each_turn",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:WhenThisDislodgesArrow",
+    "chineseTemplate": "如果这张牌让你的箭矢松脱，",
+    "englishTemplate": "If this card Dislodges your Arrow,",
+    "scope": "ConditionalTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "this_card_dislodges_arrow",
+      "lifetime": "immediate"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:WhileDiscardArrowShot",
+    "chineseTemplate": "每当你发射一支箭矢时，如果这张牌在你的弃牌堆中，",
+    "englishTemplate": "Whenever you Shoot an Arrow, if this card is in your discard pile,",
+    "scope": "ConditionalTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "arrow_shot_if_self_in_discard",
+      "lifetime": "immediate"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:CreateSadness",
+    "chineseTemplate": "将[[amount]]张悲伤加入你的手牌。",
+    "englishTemplate": "Add [[amount]] Sadness to your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "createsadness",
+    "target": "self",
+    "flags": [
+      "api_negative",
+      "status_reference",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:CreateJoy",
+    "chineseTemplate": "将[[amount]]张喜悦加入你的手牌。",
+    "englishTemplate": "Add [[amount]] Joy to your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "createjoy",
+    "target": "self",
+    "flags": [
+      "api_beneficial",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:TransformSadnessToJoy",
+    "chineseTemplate": "将你手牌中的随机[[amount]]张悲伤变化为喜悦。",
+    "englishTemplate": "Transform [[amount]] random Sadness in your Hand into Joy.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "transformsadnesstojoy",
+    "target": "self",
+    "flags": [
+      "requires_hand_cards",
+      "api_beneficial",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ExhaustSadness",
+    "chineseTemplate": "消耗你手牌中的所有悲伤。",
+    "englishTemplate": "Exhaust all Sadness in your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "exhaustsadness",
+    "target": "self",
+    "flags": [
+      "api_beneficial",
+      "requires_hand_cards"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:RefundStretch",
+    "chineseTemplate": "重新获得被这张牌的格挡效果消耗的拉伸。",
+    "englishTemplate": "Regain the Stretch consumed by this card's Block effects.",
+    "scope": "Modifier",
+    "opcode": "fool_action",
+    "variant": "refundstretch",
+    "target": "self",
+    "flags": [
+      "requires_block_anchor"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:AimMultiplier",
+    "chineseTemplate": "瞄准对这张牌有[[amount]]倍效果。",
+    "englishTemplate": "Aim has [[amount]] times its effect on this card.",
+    "scope": "Modifier",
+    "opcode": "fool_action",
+    "variant": "aimmultiplier",
+    "target": "self",
+    "flags": [
+      "requires_arrow_damage"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 2,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DoubleAgainstImpaled",
+    "chineseTemplate": "对处于扎穿状态的敌人造成双倍伤害。",
+    "englishTemplate": "Deal double damage to Impaled enemies.",
+    "scope": "Modifier",
+    "opcode": "fool_action",
+    "variant": "doubleagainstimpaled",
+    "target": "self",
+    "flags": [
+      "requires_damage_anchor"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ExtraHitsPerMelody",
+    "chineseTemplate": "你每拥有一种旋律，这张牌就额外造成[[hits]]次伤害。",
+    "englishTemplate": "Deal damage [[hits]] additional times for each Melody you have.",
+    "scope": "Modifier",
+    "opcode": "fool_action",
+    "variant": "extrahitspermelody",
+    "target": "self",
+    "flags": [
+      "requires_damage_anchor"
+    ],
+    "values": [
+      {
+        "id": "hits",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DamagePerSadnessCreated",
+    "chineseTemplate": "本场战斗中，你每生成过一张悲伤，这张牌就额外造成[[amount]]点伤害。",
+    "englishTemplate": "Deals [[amount]] additional damage for each Sadness you have created this combat.",
+    "scope": "Modifier",
+    "opcode": "fool_action",
+    "variant": "damagepersadnesscreated",
+    "target": "self",
+    "flags": [
+      "requires_damage_anchor"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 6,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DamagePerMelodyCard",
+    "chineseTemplate": "你每有一张名字中含有“哇”、“啾”或“叽”的牌，这张牌就额外造成[[amount]]点伤害。",
+    "englishTemplate": "Deals [[amount]] additional damage for ALL your cards containing Wah, Cho, or Ki.",
+    "scope": "Modifier",
+    "opcode": "fool_action",
+    "variant": "damagepermelodycard",
+    "target": "self",
+    "flags": [
+      "requires_damage_anchor"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 4,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:CostPerMelody",
+    "chineseTemplate": "你每拥有一种旋律，这张牌的耗能减少[[amount]][E]。",
+    "englishTemplate": "Costs [[amount]][E] less for each Melody you have.",
+    "scope": "Independent",
+    "opcode": "fool_action",
+    "variant": "costpermelody",
+    "target": "self",
+    "flags": [
+      "self_cost_reduction"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 2,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:CostIfWahKi",
+    "chineseTemplate": "如果你拥有哇旋律或叽旋律，这张牌的耗能减少[[amount]][E]。",
+    "englishTemplate": "Costs [[amount]][E] less if you have the Wah or Ki Melody.",
+    "scope": "Independent",
+    "opcode": "fool_action",
+    "variant": "costifwahki",
+    "target": "self",
+    "flags": [
+      "self_cost_reduction"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 2,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:TransformThisToSadness",
+    "chineseTemplate": "将这张牌变化为悲伤并返回你的手牌。",
+    "englishTemplate": "Transform this card into Sadness and return it to your Hand.",
+    "scope": "Independent",
+    "opcode": "fool_action",
+    "variant": "transformthistosadness",
+    "target": "self",
+    "flags": [
+      "api_negative",
+      "api_self_card_movement",
+      "single_use_transformation"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:LookChooseDiscard",
+    "chineseTemplate": "查看你抽牌堆顶的[[amount]]张牌，选择1张放入你的手牌，丢弃其余牌。",
+    "englishTemplate": "Look at the top [[amount]] cards of your Draw Pile. Choose 1 to add to your Hand and discard the rest.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "lookchoosediscard",
+    "target": "self",
+    "flags": [
+      "requires_player_choice",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 3,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:RandomShootFree",
+    "chineseTemplate": "将[[amount]]张随机发射牌加入你的手牌。该牌在本回合内可以免费打出。",
+    "englishTemplate": "Add [[amount]] random Shoot cards to your Hand. They are free to play this turn.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "randomshootfree",
+    "target": "self",
+    "flags": [
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DiscardShootToHand",
+    "chineseTemplate": "将你弃牌堆中的[[amount]]张发射牌放入你的手牌。",
+    "englishTemplate": "Put [[amount]] Shoot cards from your discard pile into your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "discardshoottohand",
+    "target": "self",
+    "flags": [
+      "requires_player_choice",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DrawShootToHand",
+    "chineseTemplate": "将你抽牌堆中的[[amount]]张发射牌放入你的手牌。",
+    "englishTemplate": "Put [[amount]] Shoot cards from your Draw Pile into your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "drawshoottohand",
+    "target": "self",
+    "flags": [
+      "requires_player_choice",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DiscardToDrawTop",
+    "chineseTemplate": "选择你弃牌堆中的[[amount]]张牌，放到你的抽牌堆顶。",
+    "englishTemplate": "Put [[amount]] cards from your discard pile on top of your Draw Pile.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "discardtodrawtop",
+    "target": "self",
+    "flags": [
+      "requires_player_choice",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:Dislodge",
+    "chineseTemplate": "使你扎穿目标敌人的所有箭矢松脱。",
+    "englishTemplate": "Dislodge all your Arrows from the target enemy.",
+    "scope": "SingleEnemyOnly",
+    "opcode": "fool_action",
+    "variant": "dislodge",
+    "target": "selected_enemy",
+    "flags": [
+      "requires_single_target"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:OnlyCardsThisTurn",
+    "chineseTemplate": "你在本回合只能再打出[[amount]]张牌。",
+    "englishTemplate": "You can only play [[amount]] more cards this turn.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "encore",
+    "target": "self",
+    "flags": [
+      "api_negative"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ArrowSlots",
+    "chineseTemplate": "额外获得[[amount]]支箭矢。",
+    "englishTemplate": "Gain [[amount]] additional Arrows.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "arrowslots",
+    "target": "self",
+    "flags": [
+      "api_power_foundation"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:MelodyReplay",
+    "chineseTemplate": "本回合你打出的下[[amount]]张“哇”、“啾”或“叽”牌会被额外打出一次。",
+    "englishTemplate": "The next [[amount]] Wah, Cho, or Ki cards you play this turn are played an additional time.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "ki_verse",
+    "target": "self",
+    "flags": [],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:Quietus",
+    "chineseTemplate": "本回合，你的下一次射击造成[[amount]]倍伤害，但箭矢会被摧毁。",
+    "englishTemplate": "Your next Shot this turn deals [[amount]] times its damage, but the Arrow is destroyed.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "quietus",
+    "target": "self",
+    "flags": [],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 2,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:Honing",
+    "chineseTemplate": "箭矢造成[[amount]]%额外伤害。",
+    "englishTemplate": "Arrows deal [[amount]]% more damage.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "honing",
+    "target": "self",
+    "flags": [
+      "api_power_foundation",
+      "percentage_value"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 50,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:Serrated",
+    "chineseTemplate": "扎穿的敌人从你的攻击中受到的伤害增加[[amount]]%。",
+    "englishTemplate": "Impaled enemies take [[amount]]% more damage from your Attacks.",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "serrated_arrows",
+    "target": "self",
+    "flags": [
+      "api_power_foundation",
+      "percentage_value"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 25,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ShotVulnerable",
+    "chineseTemplate": "这名敌人在本回合从射击中额外受到[[amount]]%伤害。",
+    "englishTemplate": "The target enemy takes [[amount]]% more damage from Shots this turn.",
+    "scope": "SingleEnemyOnly",
+    "opcode": "apply_power",
+    "variant": "dislike_you",
+    "target": "selected_enemy",
+    "flags": [
+      "requires_single_target",
+      "percentage_value"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 50,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:PlayMelodyCards",
+    "chineseTemplate": "打出你手牌中的所有[[melodies]]牌。",
+    "englishTemplate": "Play all [[melodies]] cards in your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "playmelodycards",
+    "target": "self",
+    "flags": [
+      "requires_hand_cards",
+      "melody_subset_slot"
+    ],
+    "values": [
+      {
+        "id": "melody_mask",
+        "baseValue": 5,
+        "source": "fixed",
+        "upgradable": false,
+        "explicit": false,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [
+      {
+        "id": "melodies",
+        "chineseValue": "“哇”和“叽”",
+        "englishValue": "Wah and Ki"
+      }
+    ],
+    "sourceZone": "hand",
+    "destinationZone": "none",
+    "cardFilter": "melody_5"
+  },
+  {
+    "template": "F:RandomTarot",
+    "chineseTemplate": "将[[amount]]张随机塔罗牌加入你的手牌。",
+    "englishTemplate": "Add [[amount]] random Tarot cards to your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "randomtarot",
+    "target": "self",
+    "flags": [
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:PlayCheapest",
+    "chineseTemplate": "打出你手牌中耗能最低的[[amount]]张牌。",
+    "englishTemplate": "Play the [[amount]] lowest-cost cards in your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "playcheapest",
+    "target": "self",
+    "flags": [
+      "requires_hand_cards",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:NextCardFree",
+    "chineseTemplate": "你接下来打出的[[amount]]张牌耗能为0[E]。",
+    "englishTemplate": "The next [[amount]] cards you play cost 0[E].",
+    "scope": "NonTargeted",
+    "opcode": "apply_power",
+    "variant": "free_card",
+    "target": "self",
+    "flags": [],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:SplashDamage",
+    "chineseTemplate": "对所有其他敌人造成等量于上次造成伤害的伤害。",
+    "englishTemplate": "Deal damage equal to the last damage dealt to all other enemies.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "splashdamage",
+    "target": "self",
+    "flags": [
+      "requires_last_damage",
+      "api_enemy_damage"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:ExhaustShoot",
+    "chineseTemplate": "消耗本场战斗中所有尚未消耗的发射牌。",
+    "englishTemplate": "Exhaust all of your non-Exhausted Shoot cards this combat.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "exhaustshoot",
+    "target": "self",
+    "flags": [
+      "api_negative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:CreateTheShot",
+    "chineseTemplate": "将一张[[shot]]加入手牌。其基础伤害为刚才消耗的牌数量的[[amount]]倍。",
+    "englishTemplate": "Add [[shot]] to your Hand. Its base damage is [[amount]] times the number of cards just Exhausted.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "createtheshot",
+    "target": "self",
+    "flags": [
+      "requires_exhaust_result"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 10,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [
+      {
+        "id": "shot",
+        "chineseValue": "全力射击",
+        "englishValue": "The Shot"
+      }
+    ],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:UntilNonMinionDies",
+    "chineseTemplate": "在本回合中，下次有非爪牙敌人死亡时，",
+    "englishTemplate": "The next time a non-Minion enemy dies this turn,",
+    "scope": "ConditionalTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "this_turn_reference",
+      "one_shot",
+      "enemy_death_reference"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "next_non_minion_enemy_death_this_turn",
+      "lifetime": "this_turn_once"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:IncreaseAimRun",
+    "chineseTemplate": "这张牌的瞄准永久增加[[amount]]点。",
+    "englishTemplate": "Permanently increase this card's Aim by [[amount]].",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "increaseaimrun",
+    "target": "self",
+    "flags": [
+      "requires_aim_anchor",
+      "permanent_growth",
+      "api_restricted"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 2,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  }
+]

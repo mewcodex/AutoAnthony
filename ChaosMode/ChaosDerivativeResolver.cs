@@ -21,6 +21,13 @@ internal static class ChaosDerivativeResolver
 
     internal static bool IsDetachedPreview(CardModel card) => DetachedPreviews.TryGetValue(card, out _);
 
+    internal static CardModel CloneDetachedPreview(CardModel prototype)
+    {
+        var copy = (CardModel)prototype.MutableClone();
+        if (IsDetachedPreview(prototype)) DetachedPreviews.Add(copy, new DetachedPreviewMarker());
+        return copy;
+    }
+
     internal static void AuditEnchantmentCompatibility()
     {
         foreach (var curse in DerivativeSlotCatalog.All.Where(DerivativeSlotCatalog.IsCurse))
@@ -177,6 +184,8 @@ internal static class ChaosDerivativeResolver
         "rock" => ModelDb.Card<GiantRock>().ToMutable(),
         "shiv" => ModelDb.Card<Shiv>().ToMutable(),
         "fuel" => ModelDb.Card<Fuel>().ToMutable(),
+        "joy" => ModelDb.Card<Joy>().ToMutable(),
+        "sadness" => ModelDb.Card<Sadness>().ToMutable(),
         "dazed" => ModelDb.Card<Dazed>().ToMutable(),
         "wound" => ModelDb.Card<Wound>().ToMutable(),
         "slimed" => ModelDb.Card<Slimed>().ToMutable(),
@@ -244,6 +253,8 @@ internal static class ChaosDerivativeResolver
         {
             "rock" => cardScope.CreateCard<GiantRock>(owner),
             "shiv" => cardScope.CreateCard<Shiv>(owner),
+            "joy" => cardScope.CreateCard<Joy>(owner),
+            "sadness" => cardScope.CreateCard<Sadness>(owner),
             "fuel" => ChaosRunDefinitions.AncientFuelActive
                 ? cardScope.CreateCard<AncientFuel>(owner)
                 : cardScope.CreateCard<Fuel>(owner),
@@ -325,6 +336,8 @@ internal static class ChaosDerivativeResolver
             // that category semantics so upgraded, enchanted, and compatible mod-provided Shivs all replay.
             "shiv" => card.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shiv),
             "fuel" => card is Fuel or AncientFuel,
+            "joy" => card is Joy,
+            "sadness" => card is Sadness,
             "dazed" => card is Dazed,
             "wound" => card is Wound,
             "slimed" => card is Slimed,

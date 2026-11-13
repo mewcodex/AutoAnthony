@@ -18,7 +18,8 @@ namespace AutoAnthony.Patches;
 
 internal static class SurpriseModeUi
 {
-    internal const string InternalIdHoverTipPrefix = "AutoAnthony.CardInternalId.";
+    internal const string InternalIdHoverTipPrefix =
+        "LocString with Title=main_menu_ui.AUTO_ANTHONY_CARD_INTERNAL_ID_HOVER_TITLE";
 
     private static readonly System.Reflection.FieldInfo SimpleRewardResultsField =
         AccessTools.Field(typeof(NSimpleCardSelectScreen), "_cardResults");
@@ -143,6 +144,7 @@ internal static class SurpriseModeUi
 
     internal static void ConcealParts(NCard card)
     {
+        if (!ChaosModSettings.AnySurpriseMode) return;
         var model = card.Model;
         if (!card.IsNodeReady()) return;
         var concealDescription = ShouldConcealDescription(model, card);

@@ -94,7 +94,13 @@ internal static class NativeCardPrivateDescriptionPatch
                           && method.IsPrivate
                           && method.GetParameters().Length == 3);
 
-    private static void Prefix(CardModel __instance) => NativeCardComponentDescription.Prepare(__instance);
+    private static void Prefix(CardModel __instance)
+    {
+        // Native formatting attaches DynamicVars before AddExtraArgsToDescription. Refresh generated hosts here,
+        // before the old variable set can be captured by a template belonging to a newly restored definition.
+        if (__instance is ChaosCardModel generated) generated.RefreshDefinitionCacheIfChanged();
+        else NativeCardComponentDescription.Prepare(__instance);
+    }
 }
 
 [HarmonyPatch(typeof(CardModel), nameof(CardModel.GetDescriptionForUpgradePreview))]

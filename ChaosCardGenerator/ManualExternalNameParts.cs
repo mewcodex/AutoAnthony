@@ -319,6 +319,7 @@ internal static class ManualExternalNameParts
         P("Restlessness", "心神/不宁", "Rest", "less", "ness"),
         P("RollingBoulder", "滚/石", "Rolling ", "Boulder", ""),
         P("Salvo", "箭/雨", "", "Salvo", ""),
+        P("MyShinies", "我的/小/钱钱", "My ", "Shinies", ""),
         P("Scrawl", "潦草/急就", "", "Scrawl", ""),
         P("SecretTechnique", "秘密/技法", "Secret ", "Technique", ""),
         P("SecretWeapon", "秘密/武器", "Secret ", "Weapon", ""),

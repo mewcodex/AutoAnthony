@@ -1,7 +1,7 @@
 {
   "AUTO_ANTHONY_WHIRLPOOL_DESCRIPTION": "为一张基础牌[gold]附魔[/gold]上[purple]涡旋[/purple]。",
   "AUTO_ANTHONY_MOD_NAME": "东尼算法",
-  "AUTO_ANTHONY_MOD_DESCRIPTION": "每一局随机生成卡牌效果。开放测试中，目前支持全部五名角色。",
+  "AUTO_ANTHONY_MOD_DESCRIPTION": "每一局随机生成卡牌效果。开放测试中，目前支持全部六名角色。",
   "AUTO_ANTHONY_SETTINGS_GROUP": "东尼算法",
   "AUTO_ANTHONY_SETTINGS_GROUP_EXPAND": "▶ 展开设置",
   "AUTO_ANTHONY_SETTINGS_GROUP_COLLAPSE": "▼ 收起设置",

@@ -65,7 +65,7 @@ internal static class SlyKeywordTuning
         var center = ComponentAssemblyGenerator.CalibratedWholeCardCenter(rarity, effectiveCost);
         var hasPrintedResourceCost = templateEnergyCost > 0 || starCost > 0 || hasStarCostX;
         var actual = EffectBalanceModel.EstimatedPositiveCardValue(operations, hasPrintedResourceCost,
-            cardType, tags);
+            cardType, tags, templateEnergyCost);
         if (actual <= 0d || center <= 0d) return Math.Abs(actual - center);
         // Relative (logarithmic) distance treats equally large high/low ratios symmetrically.
         return Math.Abs(Math.Log(actual / center));

@@ -175,7 +175,9 @@ internal static class HistorySnapshotOptimizer
                         ? GeneratedCharacter.Necrobinder
                         : player.Character == ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Regent>().Id
                             ? GeneratedCharacter.Regent
-                            : (GeneratedCharacter?)null)
+                            : player.Character == ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Fool>().Id
+                                ? GeneratedCharacter.Fool
+                                : (GeneratedCharacter?)null)
         .Where(character => character.HasValue)
         .Select(character => character!.Value)
         .Distinct()

@@ -74,6 +74,19 @@ public static class EnglishCardDescriptionRenderer
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
+            if (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                && CardDescriptionRenderer.HasTriggerOwner(operations, index)) continue;
+            if (CardDescriptionRenderer.TryRenderNestedClause(operations, index, chinese: false, out var nested))
+            {
+                lines.Add(new RenderedLine(nested, MustRenderLast(operation)));
+                continue;
+            }
+            if (FoolComponentRules.IsShootModifier(operation)) continue;
+            if (CardEffectRules.IsEnemyDamage(operation) && operations.Any(FoolComponentRules.IsShootModifier))
+            {
+                lines.Add(new RenderedLine("Shoot an Arrow to " + LowerFirst(OperationText(operation)), false));
+                continue;
+            }
             if (CardEffectRules.IsCurrentBlockDamageAnchor(operations, index))
                 continue;
             // Slot selectors are interpreter metadata. Every operation that owns the slot already says
@@ -219,6 +232,8 @@ public static class EnglishCardDescriptionRenderer
                     : $"Play {attackCount} random Attacks from your Hand against random enemies.",
             "D:CreateZeroCostCopyInDiscard" =>
                 "Add a 0{energyPrefix:energyIcons(1)} copy of this card into your Discard Pile.",
+            "N:ReduceHandAttackCostUntilPlayed" => text.Replace("less Energy",
+                "less {energyPrefix:energyIcons(1)}", StringComparison.Ordinal),
             "I:IncreaseDamageThisCombat" when TrySpecValue(runtimeSpec, "amount", out var increase)
                 => $"Increase this card's damage by {increase} this combat.",
             "CL:ChooseFromRandomDrawCards" when TrySpecValue(runtimeSpec, "amount", out var options)
@@ -277,7 +292,7 @@ public static class EnglishCardDescriptionRenderer
 
     internal static string TranslateLegacyLiteral(string chineseText) => ToEnglish(chineseText);
 
-    private static string LowerFirst(string text)
+    internal static string LowerFirst(string text)
     {
         if (text.Length == 0 || text.StartsWith("Osty", StringComparison.Ordinal)
             || text.StartsWith("ALL", StringComparison.Ordinal)

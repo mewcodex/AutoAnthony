@@ -30,6 +30,10 @@ internal static class ChaosCardTagAdapter
             GeneratorTag.Strike => GameCardTag.Strike,
             GeneratorTag.Defend => GameCardTag.Defend,
             GeneratorTag.OstyAttack => GameCardTag.OstyAttack,
+            GeneratorTag.Wah => GameCardTag.Wah,
+            GeneratorTag.Cho => GameCardTag.Cho,
+            GeneratorTag.Ki => GameCardTag.Ki,
+            GeneratorTag.Shoot => GameCardTag.Shoot,
             _ => default
         };
         return ChaosCardGenerator.GeneratedCardTagPolicy.IsSemanticTag(tag);

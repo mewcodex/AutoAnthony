@@ -12,7 +12,6 @@ namespace AutoAnthony.Patches;
 [HarmonyPatch(typeof(CardModel), nameof(CardModel.HoverTips), MethodType.Getter)]
 internal static class CardGenerationModeHoverTipPatch
 {
-    internal const string HoverTipPrefix = "AutoAnthony.GenerationMode.";
 
     private static void Postfix(CardModel __instance, ref IEnumerable<IHoverTip> __result)
     {
@@ -32,7 +31,6 @@ internal static class CardGenerationModeHoverTipPatch
             new LocString("main_menu_ui", $"AUTO_ANTHONY_{key}_MODE_HOVER_TITLE"),
             new LocString("main_menu_ui", $"AUTO_ANTHONY_{key}_MODE_HOVER_DESCRIPTION"))
         {
-            Id = $"{HoverTipPrefix}{key}",
             ShouldOverrideTextOverflow = true
         };
 

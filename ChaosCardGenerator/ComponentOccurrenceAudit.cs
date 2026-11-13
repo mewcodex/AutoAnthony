@@ -131,15 +131,16 @@ public static class ComponentOccurrenceAudit
             (GeneratedRarity.Rare, 21)
         ],
         GeneratedCharacter.Silent => StandardSlices(12),
+        GeneratedCharacter.Fool => StandardSlices(10, 24),
         _ => StandardSlices(10)
     };
 
-    private static IReadOnlyList<(GeneratedRarity Rarity, int Count)> StandardSlices(int basicCount) =>
+    private static IReadOnlyList<(GeneratedRarity Rarity, int Count)> StandardSlices(int basicCount, int rareCount = 25) =>
     [
         (GeneratedRarity.Basic, basicCount),
         (GeneratedRarity.Common, 20),
         (GeneratedRarity.Uncommon, 35),
-        (GeneratedRarity.Rare, 25),
+        (GeneratedRarity.Rare, rareCount),
         (GeneratedRarity.Ancient, 2)
     ];
 

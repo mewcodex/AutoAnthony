@@ -1086,6 +1086,67 @@
     }
   },
   {
+    "Id": "colorless/myshinies/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "template_modifier",
+      "Variant": "gold_threshold",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "repeated_or_multiplicative"
+      ],
+      "Values": [
+        {
+          "Id": "threshold",
+          "BaseValue": 20,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "for_each_gold_threshold",
+        "Lifetime": "immediate",
+        "ThresholdSlot": "threshold",
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "colorless/myshinies/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
     "Id": "colorless/nostalgia/0",
     "Spec": {
       "SchemaVersion": 1,
@@ -1744,7 +1805,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 12,
+          "BaseValue": 10,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7208,6 +7269,5183 @@
     }
   },
   {
+    "Id": "fool/alliswell/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "sadness_generated",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/alliswell/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/anguish/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/anguish/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "damagepersadnesscreated",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_damage_anchor"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/archery/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_start",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/archery/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "aim",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/arrowstab/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 9,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/arrowstab/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "arrow_available",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "arrow_available",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/arrowstab/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "discardshoottohand",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_player_choice"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/blossomshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/blossomshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 11,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/blossomshot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "this_card_shot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "this_card_shot_arrow",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/blossomshot/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "stretchfromdamage",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_last_damage"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/blotoutthesky/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "randomshootfree",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/bounce/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "stretch",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 10,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/bounce/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "delayed_effect",
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/bounce/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "template_self_action",
+      "Variant": "r_returnthistohand",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/bowsmack/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/bowsmack/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "target_impaled",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_selected_enemy"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "target_impaled",
+        "Subject": "target",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/bowsmack/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/brace/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [
+        {
+          "Id": "count",
+          "BaseValue": 0,
+          "Source": "energy_x",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "energy_x_count",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/brace/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "aim",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/brightenup/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "count_unit_reference",
+        "status_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/brightenup/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createjoy",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chobarbs/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 7,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chobarbs/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "thorns_this_turn",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chochorus/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 12,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chochorus/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "playmelodycards",
+      "Target": "self",
+      "SourceZone": "hand",
+      "DestinationZone": "none",
+      "CardFilter": "melody_5",
+      "Flags": [
+        "api_beneficial",
+        "melody_subset_slot",
+        "requires_hand_cards"
+      ],
+      "Values": [
+        {
+          "Id": "melody_mask",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": false,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chofirm/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chofirm/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "arrow_available",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "arrow_available",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/chofirm/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/choki/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/choki/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "refundstretch",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_block_anchor"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/cholimbs/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/cholimbs/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/cholimbs/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "costifwahki",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "self_cost_reduction"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/choready/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/choready/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "aim",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/coda/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 40,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/coda/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "costpermelody",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "self_cost_reduction"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/deepstretch/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "stretch",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 7,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/deepstretch/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/defendfool/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/dislikeyou/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/dislikeyou/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "dislike_you",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "percentage_value",
+        "requires_single_target"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 50,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/divineshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/divineshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 40,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/ecstasy/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_start",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/ecstasy/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "transformsadnesstojoy",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_hand_cards"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/encore/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/encore/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/encore/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "encore",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/ennui/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_start",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/ennui/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "count_unit_reference",
+        "status_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/ennui/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/epicretrieval/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 15,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/epicretrieval/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "this_card_dislodges_arrow",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/epicretrieval/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/explosivearrows/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "arrow_impaled",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/explosivearrows/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "all",
+      "Target": "all_enemies",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "all_enemies_reference",
+        "has_numeric_literal",
+        "printed_damage_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/florescence/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "exhaustshoot",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/florescence/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createtheshot",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_exhaust_result"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 10,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/foolishshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/foolishshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 15,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/growth/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "exhaustsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_hand_cards"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/growth/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "sadness_exhausted_by_this_card",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/growth/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "stretch",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/harmonicshield/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "melody_types",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/harmonicshield/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/heavyshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/heavyshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 20,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/heavyshot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "aimmultiplier",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_arrow_damage"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/hiddenroots/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_start",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/hiddenroots/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "stretch",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/hobblingshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/hobblingshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 13,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/hobblingshot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "this_card_shot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "this_card_shot_arrow",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/hobblingshot/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "weak_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/hobblingshot/4",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "vulnerable_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/honing/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "honing",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "api_power_foundation",
+        "percentage_value"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 50,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/jest/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 14,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/jest/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "count_unit_reference",
+        "status_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kichant/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "lookchoosediscard",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_player_choice"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kihop/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 7,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kihop/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "target_impaled",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_selected_enemy"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "target_impaled",
+        "Subject": "target",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kihop/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kirest/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "delayed_effect",
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/kirest/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kirest/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "melody_wah_or_cho",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "melody_wah_or_cho",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kirest/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "retain_hand_this_turn",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "this_turn_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kiverse/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "ki_verse",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kiwhip/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/kiwhip/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "delayed_effect",
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/kiwhip/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/lockedin/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "drawshoottohand",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_player_choice"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/lostlute/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "melody_gained",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/lostlute/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "template_self_action",
+      "Variant": "cl_playtopdrawcard",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "effect_family_draw",
+        "requires_player_choice"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/lullaby/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "all_melodies_gained",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/lullaby/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 20,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/melodicshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/melodicshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 12,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/melodicshot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "extrahitspermelody",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_damage_anchor"
+      ],
+      "Values": [
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/motif/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "melody_gained",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/motif/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/mourningblow/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 10,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/mourningblow/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "transformthistosadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "api_self_card_movement",
+        "single_use_transformation"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/mythicform/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_start",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/mythicform/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "randomtarot",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/nail/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "target_impaled",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_selected_enemy"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "target_impaled",
+        "Subject": "target",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/nail/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 20,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/nail/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "weak_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/nail/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "vulnerable_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/nock/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "aim",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/punchofjoy/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 13,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/punchofjoy/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "transformsadnesstojoy",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_hand_cards"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/quickshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/quickshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 10,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/quietus/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "quietus",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/quiver/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "arrowslots",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "api_power_foundation"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rainshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rainshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 12,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rainshot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "this_card_shot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "this_card_shot_arrow",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rainshot/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "splashdamage",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "api_enemy_damage",
+        "requires_last_damage"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rapidshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rapidshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/recall/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "target_own_arrow",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_selected_enemy"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "target_own_arrow",
+        "Subject": "target",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/recall/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "dislodge",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_single_target"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/recall/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "discardtodrawtop",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_player_choice"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/repeatshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/repeatshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected_energy_x_threshold",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 15,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 0,
+          "Source": "energy_x",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rhythmstrike/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rhythmstrike/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "extrahitspermelody",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_damage_anchor"
+      ],
+      "Values": [
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rummage/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/rummage/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "count_unit_reference",
+        "status_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/serratedarrows/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "serrated_arrows",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "api_power_foundation",
+        "percentage_value"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 25,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/showoff/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "aim",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/showoff/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "enemy_death_reference",
+        "one_shot",
+        "this_turn_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_non_minion_enemy_death_this_turn",
+        "Lifetime": "this_turn_once",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/showoff/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "increaseaimrun",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "api_restricted",
+        "permanent_growth",
+        "requires_aim_anchor"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/simpleton/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_end",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/simpleton/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "playcheapest",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "count_unit_reference",
+        "requires_hand_cards"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/skyshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/skyshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 30,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/songpath/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "cho_melody_gained",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/songpath/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 5,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/sorrowfulstrike/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 13,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/sorrowfulstrike/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "count_unit_reference",
+        "status_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/steadycadence/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 10,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/steadycadence/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "melody_types",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/steadycadence/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/strikefool/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/timber/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 20,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/timber/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "fatal",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "difficult_condition_tier_2"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "fatal",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/timber/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "all",
+      "Target": "all_enemies",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "all_enemies_reference",
+        "has_numeric_literal",
+        "printed_damage_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 30,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/trickshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/trickshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 12,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/trickshot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "arrow_available",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "arrow_available",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/trickshot/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "template_self_action",
+      "Variant": "r_returnthistohand",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/tune/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "turn_end",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/tune/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "melody_ki",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "melody_ki",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/tune/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "free_card",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/uproot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "target_own_arrow",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_selected_enemy"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "target_own_arrow",
+        "Subject": "target",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/uproot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "dislodge",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_single_target"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/uproot/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "vulnerable_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/violentchord/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "wah_melody_gained",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/violentchord/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "all",
+      "Target": "all_enemies",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "all_enemies_reference",
+        "has_numeric_literal",
+        "printed_damage_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 9,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/vitriol/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "weak",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "weak_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/vitriol/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "createsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_negative",
+        "count_unit_reference",
+        "status_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahblast/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "all",
+      "Target": "all_enemies",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "all_enemies_reference",
+        "has_numeric_literal",
+        "printed_damage_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 14,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahblast/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "melody_cho_or_ki",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [],
+      "Values": [],
+      "Condition": {
+        "Kind": "melody_cho_or_ki",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahblast/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_hits",
+      "Variant": "flat_extra",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "damage_budget_effect",
+        "has_numeric_literal",
+        "static_extra_damage_hits"
+      ],
+      "Values": [
+        {
+          "Id": "extra_hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "repeat_count",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": false,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahcho/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahcho/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahchoki/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 9,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahchoki/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 9,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahchoki/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahhammer/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 9,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahhammer/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "doubleagainstimpaled",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_damage_anchor"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahki/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahki/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "delayed_effect",
+        "turn_start_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "next_turn_start",
+        "Lifetime": "next_turn",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/wahki/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahki/3",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahsweep/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "all",
+      "Target": "all_enemies",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "all_enemies_reference",
+        "has_numeric_literal",
+        "printed_damage_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahsymphony/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "all",
+      "Target": "all_enemies",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "all_enemies_reference",
+        "has_numeric_literal",
+        "printed_damage_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": false
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahsymphony/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "damagepermelodycard",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_damage_anchor"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahtouch/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 6,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wahtouch/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "vulnerable",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "apply_status_reference",
+        "has_numeric_literal",
+        "scalable_reward_wording",
+        "vulnerable_reference"
+      ],
+      "Values": [
+        {
+          "Id": "amount",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/whistlingarrows/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 3,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/whistlingarrows/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "arrow_shot_if_self_in_discard",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/whistlingarrows/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "template_self_action",
+      "Variant": "r_returnthistohand",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wrest/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "target_own_arrow",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "requires_selected_enemy"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "target_own_arrow",
+        "Subject": "target",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wrest/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "dislodge",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_single_target"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/wrest/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/yah/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "first_arrow_dislodged_each_turn",
+        "Lifetime": "combat",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/yah/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_energy",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "has_numeric_literal",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "energy",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
     "Id": "ironclad/aggression/0",
     "Spec": {
       "SchemaVersion": 1,
@@ -8976,35 +14214,21 @@
     "Id": "ironclad/expectafight/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "modify_block",
-      "Variant": "strength_scaled",
-      "Target": "self",
-      "SourceZone": "none",
+      "Opcode": "modify_cost",
+      "Variant": "reduce_until_played",
+      "Target": "hand_cards",
+      "SourceZone": "hand",
       "DestinationZone": "none",
-      "CardFilter": "any",
+      "CardFilter": "attack",
       "Flags": [
-        "block_reference",
-        "count_unit_reference",
+        "cost_wording",
         "has_numeric_literal",
-        "immediate_block_gain",
-        "positive_strength_dexterity_reference",
-        "printed_block_value",
-        "repeated_or_multiplicative",
-        "requires_block_anchor",
-        "strength_reference"
+        "requires_hand_cards"
       ],
       "Values": [
         {
-          "Id": "strength_interval",
+          "Id": "energy",
           "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": false,
-          "Explicit": true
-        },
-        {
-          "Id": "block_per_interval",
-          "BaseValue": 5,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9402,6 +14626,29 @@
   },
   {
     "Id": "ironclad/forgottenritual/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "condition",
+      "Variant": "card_exhausted_this_turn",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "difficult_condition_tier_2",
+        "this_turn_reference"
+      ],
+      "Values": [],
+      "Condition": {
+        "Kind": "card_exhausted_this_turn",
+        "Subject": "self",
+        "ValueSlot": null
+      },
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "ironclad/forgottenritual/1",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "gain_energy",
@@ -23393,8 +28640,8 @@
     "Id": "silent/expertise/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_independent_action",
-      "Variant": "i_drawwithretain",
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -23406,12 +28653,11 @@
         "has_numeric_literal",
         "leading_draw_reference",
         "legacy_direct_draw_center",
-        "scalable_reward_wording",
-        "this_turn_reference"
+        "scalable_reward_wording"
       ],
       "Values": [
         {
-          "Id": "amount",
+          "Id": "draw",
           "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
@@ -23419,6 +28665,24 @@
           "Explicit": true
         }
       ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "silent/expertise/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "apply_power",
+      "Variant": "retain_hand_this_turn",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "this_turn_reference"
+      ],
+      "Values": [],
       "Condition": null,
       "Trigger": null
     }
@@ -24195,51 +29459,21 @@
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "deal_damage",
-      "Variant": "selected",
-      "Target": "selected_enemy",
+      "Variant": "lowest_hp",
+      "Target": "lowest_hp_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "api_enemy_damage",
         "has_numeric_literal",
-        "printed_damage_value"
+        "printed_damage_value",
+        "scalable_reward_wording"
       ],
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 9,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "silent/mementomori/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "template_modifier",
-      "Variant": "m_damageperdiscardthisturn",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "damage_budget_effect",
-        "has_numeric_literal",
-        "printed_damage_value",
-        "repeated_or_multiplicative",
-        "this_turn_reference"
-      ],
-      "Values": [
-        {
-          "Id": "amount",
-          "BaseValue": 4,
+          "BaseValue": 19,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -24562,7 +29796,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 9,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -25374,7 +30608,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 2,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,

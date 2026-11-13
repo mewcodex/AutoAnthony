@@ -202,7 +202,7 @@ internal static class RefactorBaselineAudit
             : CardUpgradeGenerator.ApplyEffectsToOperations(card.Operations, card.Upgrade.Effects);
         var upgradedOperations = upgradedSourceOperations.Select((operation, operationIndex) =>
             ProjectOperation(operation, operationIndex, upgradedSourceOperations)).ToArray();
-        var positiveValue = EffectBalanceModel.EstimatedPositiveCardValue(card.Operations, paid, card.Type, card.Tags);
+        var positiveValue = EffectBalanceModel.EstimatedPositiveCardValue(card.Operations, paid, card.Type, card.Tags, card.Cost);
         var rewardFields = EffectBalanceModel.PositiveRewardFieldCount(card.Operations, paid, card.Type, card.Tags);
         var downsideMultiplier = NegativeEffectTuning.TotalMultiplier(card.Operations, card.Tags, paid, card.Type,
             card.UnifiedChaos ? null : card.Character);

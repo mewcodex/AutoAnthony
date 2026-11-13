@@ -56,10 +56,12 @@ public static class ChaosRunDefinitions
     public const int RareCount = 25;
     public const int AncientCount = 2;
     public const int ColorlessUncommonCount = 31;
-    public const int ColorlessRareCount = 21;
+    public const int ColorlessRareCount = 22;
     public const int ColorlessCount = ColorlessUncommonCount + ColorlessRareCount;
     public const int TotalCount = BasicCount + CommonCount + UncommonCount + RareCount + AncientCount;
     public const int SilentTotalCount = SilentBasicCount + CommonCount + UncommonCount + RareCount + AncientCount;
+    public const int FoolRareCount = 24;
+    public const int FoolTotalCount = BasicCount + CommonCount + UncommonCount + FoolRareCount + AncientCount;
 
     private static readonly object Gate = new();
     private static readonly SemaphoreSlim AsyncGenerationGate = new(1, 1);
@@ -111,7 +113,7 @@ public static class ChaosRunDefinitions
     internal static readonly GeneratedCharacter[] SupportedPools =
     [
         GeneratedCharacter.Ironclad, GeneratedCharacter.Silent, GeneratedCharacter.Defect,
-        GeneratedCharacter.Necrobinder, GeneratedCharacter.Regent, GeneratedCharacter.Colorless
+        GeneratedCharacter.Necrobinder, GeneratedCharacter.Regent, GeneratedCharacter.Colorless, GeneratedCharacter.Fool
     ];
 
     public static string ActiveSeed => Seeds.TryGetValue(GeneratedCharacter.Ironclad, out var seed) ? seed : string.Empty;
@@ -707,7 +709,7 @@ public static class ChaosRunDefinitions
             {
                 cards[index] = generator.Generate(generatedRarities[index]);
                 progress?.Invoke(index + 1);
-                // Repair the actual ten-card starting subset before the generator has reserved names and pool-unique
+                // Repair the complete starting subset before the generator has reserved names and pool-unique
                 // components for the other ~80 cards. Late repair could exhaust the uniqueness space and fail even
                 // though plenty of legal Basic replacements existed when this subset was first assembled.
                 if (index + 1 == poolPolicy.StartingDeckSize && enforcePoolConstraints
@@ -839,13 +841,13 @@ public static class ChaosRunDefinitions
             return GeneratedCardEffectIdentity.TryAudit(cards, out failure);
         }
 
-        // The starting deck is always the first ten generated Basic slots, including Silent's twelve-card Basic
-        // library. Re-run every support relationship over this ten-card subpool only after the whole pool passes.
+        // The starting deck is the complete Basic subset (twelve for Silent, ten for the other characters).
+        // Re-run every support relationship over that same subset only after the whole pool passes.
         // Basic producers are counted inside this local graph; the whole-pool graph retains its Common/Uncommon
         // producer rule. Failure rerolls the bounded outer candidate rather than disturbing 4/4 combat coverage.
         if (cards.Length < policy.StartingDeckSize)
         {
-            failure = "The generated pool does not contain a ten-card starting-deck subset.";
+            failure = "The generated pool does not contain the complete starting-deck subset.";
             return false;
         }
         var startingCards = cards.Take(policy.StartingDeckSize).ToArray();
@@ -884,7 +886,7 @@ public static class ChaosRunDefinitions
             .ToArray();
         var normalArt = artSources.Where(source => source.Card.Rarity != CardRarity.Ancient).ToArray();
         if (normalArt.Length == 0 || character != GeneratedCharacter.Colorless && ancientArt.Length != AncientCount)
-            throw new InvalidOperationException($"The v111 portrait pools could not be resolved for {character}: "
+            throw new InvalidOperationException($"The portrait pools could not be resolved for {character}: "
                 + $"normal={normalArt.Length}, ownAncient={ancientArt.Length}, total={artSources.Length}.");
 
         var hitFx = character == GeneratedCharacter.Silent
@@ -943,17 +945,19 @@ public static class ChaosRunDefinitions
         var usedEnglish = current.Name is null
             ? new HashSet<string>(StringComparer.Ordinal)
             : new HashSet<string>([current.Name.English], StringComparer.Ordinal);
+        var nameCatalog = ComponentApi.Resolve(new ComponentProfileRequest(current.Character,
+            _runActive ? _activeUltimateChaos : ChaosModSettings.EffectiveUltimateChaos)).NameCatalog;
         GeneratedCardName name;
         try
         {
-            name = CardNameGenerator.Generate(CharacterComponentCatalogs.Get(current.Character), current,
+            name = CardNameGenerator.Generate(nameCatalog, current,
                 nameRandom, usedChinese, usedEnglish);
         }
         catch (InvalidOperationException)
         {
             // A very small externally supplied name catalog may have no second legal combination. Identity reroll
             // must remain usable there, so fall back to the best legal name even when it equals the current one.
-            name = CardNameGenerator.Generate(CharacterComponentCatalogs.Get(current.Character), current,
+            name = CardNameGenerator.Generate(nameCatalog, current,
                 EditorIdentityRandom(current.Character, seed, signature, "name-fallback"));
         }
 
@@ -1039,7 +1043,7 @@ public static class ChaosRunDefinitions
         return Enumerable.Repeat(GeneratedRarity.Basic, BasicCountFor(character))
             .Concat(Enumerable.Repeat(GeneratedRarity.Common, CommonCount))
             .Concat(Enumerable.Repeat(GeneratedRarity.Uncommon, UncommonCount))
-            .Concat(Enumerable.Repeat(GeneratedRarity.Rare, RareCount))
+            .Concat(Enumerable.Repeat(GeneratedRarity.Rare, character == GeneratedCharacter.Fool ? FoolRareCount : RareCount))
             .Concat(Enumerable.Repeat(GeneratedRarity.Ancient, AncientCount))
             .ToArray();
     }
@@ -1484,7 +1488,7 @@ public static class ChaosRunDefinitions
         PoolGenerationPolicy policy)
     {
         if (cards.Length < policy.StartingDeckSize)
-            throw new InvalidOperationException("The generated pool does not contain a ten-card starting deck.");
+            throw new InvalidOperationException("The generated pool does not contain the complete starting deck.");
 
         RepairCoverage(cards, generator, CountsAsStartingDamage, CountsAsStartingDefense,
             policy.MinimumStartingDamage, policy.MinimumStartingDefense, policy.StartingDeckSize,
@@ -1619,6 +1623,7 @@ public static class ChaosRunDefinitions
     public static int CountFor(GeneratedCharacter character) => character switch
     {
         GeneratedCharacter.Silent => SilentTotalCount,
+        GeneratedCharacter.Fool => FoolTotalCount,
         GeneratedCharacter.Colorless => ColorlessCount,
         _ => TotalCount
     };
@@ -1760,6 +1765,7 @@ public static class ChaosRunDefinitions
         GeneratedCharacter.Defect => ModelDb.CardPool<DefectCardPool>().AllCards,
         GeneratedCharacter.Necrobinder => ModelDb.CardPool<NecrobinderCardPool>().AllCards,
         GeneratedCharacter.Regent => ModelDb.CardPool<RegentCardPool>().AllCards,
+        GeneratedCharacter.Fool => ModelDb.CardPool<FoolCardPool>().AllCards,
         GeneratedCharacter.Colorless => _originalColorlessCards
             ?? throw new InvalidOperationException("The original v111 Colorless card pool was not captured."),
         _ => throw new ArgumentOutOfRangeException(nameof(character))
@@ -1792,11 +1798,17 @@ public static class ChaosRunDefinitions
     private static void CaptureOriginalColorlessCards()
     {
         if (_originalColorlessCards is not null) return;
-        _originalColorlessCards = ModelDb.CardPool<ColorlessCardPool>().AllCards
-            .ToArray();
-        const int vanillaColorlessCount = 65;
-        if (_originalColorlessCards.Length != vanillaColorlessCount)
+        var pool = ModelDb.CardPool<ColorlessCardPool>();
+        var captured = pool.AllCards.ToArray();
+        // Check completeness against this game's native catalog, rather than a version-specific card count.
+        // Additional registered mod cards are allowed, but an early/partial cache must never become authoritative.
+        var nativeCards = (CardModel[])AccessTools.Method(typeof(ColorlessCardPool), "GenerateAllCards")
+            .Invoke(pool, null)!;
+        var capturedIds = captured.Select(card => card.Id).ToHashSet();
+        if (captured.Any(card => card is ChaosCardModel)
+            || nativeCards.Any(card => !capturedIds.Contains(card.Id)))
             throw new InvalidOperationException(
-                $"Expected {vanillaColorlessCount} complete v111 Colorless cards, found {_originalColorlessCards.Length}.");
+                $"The native Colorless pool is incomplete: expected {nativeCards.Length} native cards, found {captured.Length} entries.");
+        _originalColorlessCards = captured;
     }
 }

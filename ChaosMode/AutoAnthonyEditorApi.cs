@@ -132,7 +132,7 @@ public static class AutoAnthonyEditorApi
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(identity);
         ArgumentNullException.ThrowIfNull(identity.Name);
-        var identified = definition with { Name = identity.Name };
+        var identified = FoolMelodyNames.ApplyNameTags(definition with { Name = identity.Name });
         ChaosRunDefinitions.ValidateEditorIdentity(identified, identity);
         card.ApplyEditorDefinitionInternal(identified, identity);
     }
@@ -153,7 +153,7 @@ public static class AutoAnthonyEditorApi
             throw new ArgumentException("The definition does not belong to the requested component profile.",
                 nameof(definition));
 
-        var identified = definition with { Name = identity.Name };
+        var identified = FoolMelodyNames.ApplyNameTags(definition with { Name = identity.Name });
         if (string.Equals(profileId, ComponentProfileRequest.BuiltInId(request.Character),
                 StringComparison.Ordinal))
             ChaosRunDefinitions.ValidateEditorIdentity(identified, identity);

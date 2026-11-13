@@ -106,7 +106,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.147";
+    public const string ModVersion = "0.3.165";
     private const int SchemaVersion = 10;
     // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
     // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay
@@ -1157,7 +1157,12 @@ public static class ChaosPoolSnapshot
         {
             var hydrated = operation with { RuntimeSpec = specs[index] };
             if (hydrated.LocalizedText is not null) return hydrated;
-            if (ComponentLocalizationApi.TryGet(hydrated.LocalizationId, out var registeredLocalization))
+            // A native rework can reuse the same card/atom index for a different operation. Matching value-slot
+            // names alone is insufficient (old Expertise's Draw+Retain and new Draw both expose "draw").
+            // Keep the saved operation and rebuild its old prose instead of silently borrowing the new effect.
+            if (ComponentLocalizationApi.TryGet(hydrated.LocalizationId, out var registeredLocalization)
+                && (!CatalogRuntimeSpecRegistry.TryGet(hydrated.LocalizationId, out var currentSource)
+                    || currentSource.Opcode == specs[index].Opcode && currentSource.Variant == specs[index].Variant))
             {
                 try
                 {
@@ -1166,8 +1171,9 @@ public static class ChaosPoolSnapshot
                     // slot after derivative-value conversion. That shape is intentionally persisted in the
                     // RuntimeSpec, so fall back to compiling the saved rendered text instead of forcing the
                     // original one-card template onto it.
-                    registeredLocalization.Validate(specs[index]);
-                    var localized = registeredLocalization;
+                    var localized = DerivativeSlotCatalog.RestoreSourceCountLocalization(hydrated,
+                        registeredLocalization, specs[index]);
+                    localized.Validate(specs[index]);
                     var registeredEnglish = localized.RenderEnglish(specs[index])
                         ?? EnglishCardDescriptionRenderer.OperationText(hydrated);
                     if (hydrated.DerivativeId is not null)
@@ -1348,6 +1354,8 @@ public static class ChaosPoolSnapshot
             .ToHashSet(StringComparer.Ordinal);
         templates.UnionWith([
             "N_SELECT_HAND_CARD", "N_SELECT_HAND_ATTACK", "I:DrawAndBlockIfSkill",
+            // v113 reworked their source cards; the old executable components remain valid in saved runs.
+            "I:DrawWithRetain", "M:DamagePerDiscardThisTurn",
             "A:ProxyAtomic_Orbit", "A:ProxyAtomic_ChildOfTheStars"
         ]);
         return templates;

@@ -126,7 +126,8 @@ internal static class StructuredComponentCatalogRegistry
             ?? throw new InvalidDataException("Embedded structured component catalog is empty.");
 
         var semanticIds = entries.SelectMany(entry => entry.Atoms).Select(atom => atom.SemanticId).ToArray();
-        if (entries.Length != 481 || semanticIds.Length != 931
+        if (entries.Length != BuiltInCatalogManifest.Definitions.Values.Sum(source => source.ExpectedRecipes)
+            || semanticIds.Length < entries.Length
             || semanticIds.Any(string.IsNullOrWhiteSpace)
             || semanticIds.Any(id => id.Any(value => value > 0x7f))
             || semanticIds.Distinct(StringComparer.Ordinal).Count() != semanticIds.Length)
@@ -177,8 +178,9 @@ internal static class StructuredComponentCatalogRegistry
                 OperationLocalizedText? localizedText;
                 try
                 {
-                    if (!OperationLocalizedText.TryCompile(atom.ChineseText, atom.EnglishText, spec,
-                            out localizedText) || localizedText is null)
+                    localizedText = FoolComponentDefinitions.Localized(atom.Template);
+                    if (localizedText is null && (!OperationLocalizedText.TryCompile(atom.ChineseText, atom.EnglishText, spec,
+                            out localizedText) || localizedText is null))
                         throw new InvalidDataException("A localized value could not be mapped to a named slot.");
                 }
                 catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException)

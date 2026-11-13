@@ -53,7 +53,7 @@ internal static class NativeUpgradeStrengthModel
     /// </summary>
     internal static double MaximumPlanGain(GeneratedCard card, double sampledTarget)
     {
-        var baseValue = EffectBalanceModel.EstimatedPositiveCardValue(card.Operations);
+        var baseValue = EffectBalanceModel.EstimatedPositiveCardValue(card.Operations, card.Cost);
         // The low 0.75 target roll changes preference, not whether a card has any legal visible +1 upgrade.
         // Never push the hard ceiling below the rarity's native center.
         var targetCeiling = Math.Max(CenterValue(card.Rarity), sampledTarget * 1.50d);
@@ -86,7 +86,7 @@ internal static class NativeUpgradeStrengthModel
         CardUpgradeKind.GrantRetain => 400d,
         CardUpgradeKind.RemoveEthereal => 300d,
         CardUpgradeKind.RemoveExhaust => Math.Max(500d,
-            EffectBalanceModel.EstimatedPositiveCardValue(card.Operations) * 0.55d),
+            EffectBalanceModel.EstimatedPositiveCardValue(card.Operations, card.Cost) * 0.55d),
         CardUpgradeKind.ReduceCost => ResourceReductionGain(card, 1d),
         CardUpgradeKind.ReduceStarCost => ResourceReductionGain(card, 0.5d),
         _ => 200d

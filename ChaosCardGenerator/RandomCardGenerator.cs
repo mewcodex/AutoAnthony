@@ -41,11 +41,11 @@ public sealed class RandomCardGenerator
         _unlockComponentRoles = request.UnlockComponentRoles;
         var random = seed is { } value ? new Random(value) : Random.Shared;
         var profile = ComponentApi.Resolve(request);
-        // Ultimate Chaos unlocks effect catalogs, not identity catalogs. Names and their reserved official
-        // collisions always remain scoped to the generated card's own character/colorless pool.
+        // Use the profile's naming corpus for both fragment selection and official-name reservations. Built-in
+        // Ultimate Chaos shares all six native pools; normal and external profiles retain their selected corpus.
         var catalog = profile.NameCatalog;
         // Official names are reserved before the run begins. Generated names therefore avoid both
-        // duplicates inside this pool and accidental collisions with the source character's real cards.
+        // duplicates inside this pool and accidental collisions with real cards in the naming corpus.
         foreach (var recipe in catalog.Recipes)
         {
             _usedChineseNames.Add(recipe.ChineseTitle);
@@ -154,11 +154,11 @@ public sealed class RandomCardGenerator
 
 }
 
-public enum GeneratedCharacter { Ironclad, Silent, Defect, Necrobinder, Regent, Colorless }
+public enum GeneratedCharacter { Ironclad, Silent, Defect, Necrobinder, Regent, Colorless, Fool }
 public enum GeneratedCardType { Attack, Skill, Power }
 public enum TargetMode { SingleEnemy, Other }
 public enum GeneratedRarity { Basic, Common, Uncommon, Rare, Ancient }
-public enum CardTag { Strike, Defend, Exhaust, Innate, Retain, Sly, Ethereal, Eternal, Unplayable, OstyAttack }
+public enum CardTag { Strike, Defend, Exhaust, Innate, Retain, Sly, Ethereal, Eternal, Unplayable, OstyAttack, Wah, Cho, Ki, Shoot }
 public enum OperationScope { SingleEnemyOnly, NonTargeted, Modifier, AbilityTrigger, ConditionalTrigger, AbilityRule, Independent }
 public enum ComponentMultiplicity { Repeatable, SinglePerCard, UniquePerPool }
 // New values must be appended: pool snapshots serialize enums numerically, so reordering older members would
@@ -195,7 +195,8 @@ public sealed record GeneratorOperation(
 public sealed record GeneratedCardName(
     string Chinese,
     string English,
-    IReadOnlyList<string> SourceCardIds);
+    IReadOnlyList<string> SourceCardIds,
+    IReadOnlyList<CardTag>? MelodyTags = null);
 
 /// <summary>
 /// Localization-independent change applied when a generated card upgrades. The structural fields are the complete
@@ -350,6 +351,15 @@ public static class CardTemplateValidator
 {
     public static void Validate(GeneratedCard card, bool allowRandomizedNumericValues = false)
     {
+        if (!FoolComponentRules.HasValidShootAssembly(card.Operations))
+            throw new InvalidOperationException("A Shoot modifier requires exactly one damage effect and no other effect sentences.");
+        if (!FoolComponentRules.HasValidAnchors(card.Operations))
+            throw new InvalidOperationException("A Fool modifier or permanent growth is missing its corresponding main effect.");
+        if (!FoolComponentRules.HasValidExhaustDependencies(card.Operations, card.UnifiedChaos))
+            throw new InvalidOperationException("A Fool exhaust-result payoff must follow a compatible exhaust action in the same resolution.");
+        if (card.Tags.Contains(CardTag.Exhaust)
+            && card.Operations.Any(operation => operation.Template == "F:TransformThisToSadness"))
+            throw new InvalidOperationException("A lifecycle replacement into Sadness already consumes this card's original effect.");
         foreach (var keywordId in (card.CustomKeywords ?? [])
                      .Concat(GeneratedCardTagPolicy.AddedCustomKeywords(card.Upgrade))
                      .Concat(GeneratedCardTagPolicy.RemovedCustomKeywords(card.Upgrade)))
@@ -490,6 +500,8 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("本回合不能再抽牌之后不能连接即时或当回合抽牌效果；跨多个回合持续触发的抽牌除外。");
         if (!CardEffectRules.HasValidExhaustAllHandOrdering(card.Operations))
             throw new InvalidOperationException("消耗所有手牌后，同一次结算中不能继续使用手牌，除非先补充手牌。");
+        if (!CardEffectRules.HasValidOstyLifecycleOrdering(card.Operations))
+            throw new InvalidOperationException("同一次结算不能同时召唤和杀死奥斯提，也不能在杀死奥斯提之后令其攻击或治疗。");
         if (!CardEffectRules.HasValidEmptyPileConditions(card.Operations))
             throw new InvalidOperationException("Empty-pile conditions cannot require cards from the empty pile.");
         if (!CardEffectRules.HasValidPlayerSelectedExhaustCounts(card.Operations))
@@ -518,6 +530,9 @@ public static class CardTemplateValidator
             throw new InvalidOperationException("能力牌不能拥有消耗 keyword。");
         if (card.Type == GeneratedCardType.Power && card.Operations.Any(CardEffectRules.IsSelfCardMovementOrReplay))
             throw new InvalidOperationException("能力牌不能移动或重新打出自身；生成自身复制品除外。");
+        if (card.Type == GeneratedCardType.Power && card.Operations.Any(operation =>
+                CardEffectRules.IsPlayedSelfCostChange(operation.Template)))
+            throw new InvalidOperationException("A Power cannot change its own cost after being played.");
         if (!CardEffectRules.HasNoPlayedPowerMovementPayoffs(card.Operations))
             throw new InvalidOperationException("打出能力牌时，不能将刚打出的能力牌移回手牌或牌堆。");
         if (card.Operations.Any(operation => operation.Template == "R:PutThisOnDraw")
@@ -790,7 +805,8 @@ public static class CardTemplateValidator
             var removedCustomKeywords = GeneratedCardTagPolicy.RemovedCustomKeywords(upgrade);
             if (upgrade.Effects.Count is < 1 or > 2)
                 throw new InvalidOperationException("一张卡必须有一至两个升级效果。");
-            if (upgrade.UpgradedCost != card.Cost && upgrade.UpgradedCost != card.Cost - 1)
+            if (upgrade.UpgradedCost != CardUpgradeGenerator.UpgradedEnergyCost(card)
+                || upgrade.UpgradedCost != card.Cost && upgrade.UpgradedCost != card.Cost - 1)
                 throw new InvalidOperationException("升级只能将费用减少1。");
             if (card.Tags.Contains(CardTag.Sly)
                 && (upgrade.UpgradedCost != card.Cost
@@ -837,6 +853,15 @@ public static class CardTemplateValidator
                 throw new InvalidOperationException("同一次升级不能同时添加和移除同一个自定义关键词。 ");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceSelfDamage && effect.Delta is not (>= -4 and <= -1)))
                 throw new InvalidOperationException("自伤升级只能减少1至4点生命。");
+            if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceSelfDamage
+                    && (effect.OperationIndex is not { } index || (uint)index >= (uint)card.Operations.Count
+                        || card.Operations[index].Template != "N:HP-"
+                        || (effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(card.Operations[index]))
+                            != OperationRuntimeSpecCompiler.UpgradeValueSlot(card.Operations[index])
+                        || OperationRuntimeSpecCompiler.StaticLiteralValue(card.Operations[index],
+                            OperationRuntimeSpecCompiler.UpgradeValueSlot(card.Operations[index])!)
+                            + (effect.Delta ?? 0) < 1)))
+                throw new InvalidOperationException("Self-damage reductions must target the payment and leave at least one HP.");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.IncreaseAllX
                     && (effect.Delta is not (>= 1 and <= 4) || effect.OperationIndex is not null
                         || !CardUpgradeGenerator.ExpandEffects(card.Operations, [effect]).Any())))
@@ -853,6 +878,12 @@ public static class CardTemplateValidator
                 throw new InvalidOperationException("负面效果的数值不能在升级后增加。");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceThreshold && effect.Delta != -1))
                 throw new InvalidOperationException("费用门槛升级只能将门槛减少1。");
+            if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceThreshold
+                    && (effect.OperationIndex is not { } index || (uint)index >= (uint)card.Operations.Count
+                        || CardUpgradeGenerator.ReducibleThresholdSlot(card.Operations[index]) is not { } thresholdSlot
+                        || thresholdSlot != (effect.ValueSlotId
+                            ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(card.Operations[index])))))
+                throw new InvalidOperationException("门槛升级必须指向触发条件，不能减少抽牌、格挡等正面效果。");
             if (upgrade.Effects.Any(effect => effect.Kind == CardUpgradeKind.ReduceThreshold
                     && effect.OperationIndex is { } index
                     && index >= 0 && index < card.Operations.Count
@@ -878,6 +909,11 @@ public static class CardTemplateValidator
             || effect.Delta is not { } delta || delta < 1)
             return false;
         var operation = card.Operations[operationIndex];
+        var upgradeSlot = effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
+        if (operation.Template == "N:HP-"
+            || CardUpgradeGenerator.ReducibleThresholdSlot(operation) is { } thresholdSlot
+                && thresholdSlot == upgradeSlot)
+            return false;
         if (allowRandomizedNumericValues) return true;
         // The planner now fits native/percentage/cadence-aware deltas, which may legitimately exceed four.
         // Validate the same explicit slot and <=100% numeric domain instead of discarding those fitted cards.
@@ -917,6 +953,36 @@ public static class CardTemplateValidator
 /// </summary>
 public static class CardDescriptionRenderer
 {
+    internal static bool HasTriggerOwner(IReadOnlyList<GeneratorOperation> operations, int index) =>
+        operations[index].Parameters.TryGetValue("triggerIndex", out var owner) && owner >= 0 && owner < index
+        && operations[owner].Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger;
+
+    internal static bool TryRenderNestedClause(IReadOnlyList<GeneratorOperation> operations, int root,
+        bool chinese, out string text, Func<int, string>? renderOperation = null)
+    {
+        text = string.Empty;
+        if (operations[root].Scope is not (OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger)
+            || !Enumerable.Range(root + 1, operations.Count - root - 1).Any(index =>
+                operations[index].Parameters.GetValueOrDefault("triggerIndex", -1) == root
+                && operations[index].Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger)) return false;
+
+        string Branch(int index)
+        {
+            var operation = operations[index];
+            var head = (renderOperation?.Invoke(index)
+                ?? (chinese ? CardTextStyle.Chinese(operation) : EnglishCardDescriptionRenderer.OperationText(operation)))
+                .TrimEnd('。', '，', '；', '.', ',');
+            var children = Enumerable.Range(index + 1, operations.Count - index - 1)
+                .Where(child => operations[child].Parameters.GetValueOrDefault("triggerIndex", -1) == index)
+                .Select(Branch).ToArray();
+            if (children.Length == 0) return head;
+            var body = string.Join(chinese ? "，并且" : ", and ", children);
+            if (!chinese) return head + ", " + EnglishCardDescriptionRenderer.LowerFirst(body);
+            return JoinChineseClause(head.EndsWith("都会", StringComparison.Ordinal) ? head : head + "，", body);
+        }
+        text = Branch(root) + (chinese ? "。" : ".");
+        return true;
+    }
     private sealed record RenderedLine(string Text, bool Last);
 
     private static bool MustRenderLast(GeneratorOperation operation) =>
@@ -1090,6 +1156,19 @@ public static class CardDescriptionRenderer
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
+            if (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                && HasTriggerOwner(operations, index)) continue;
+            if (TryRenderNestedClause(operations, index, chinese: true, out var nested))
+            {
+                lines.Add(new RenderedLine(nested, MustRenderLast(operation)));
+                continue;
+            }
+            if (FoolComponentRules.IsShootModifier(operation)) continue;
+            if (CardEffectRules.IsEnemyDamage(operation) && operations.Any(FoolComponentRules.IsShootModifier))
+            {
+                lines.Add(new RenderedLine("发射一支箭矢，" + CardTextStyle.Chinese(operation), false));
+                continue;
+            }
             if (CardEffectRules.IsCurrentBlockDamageAnchor(operations, index))
                 continue;
             if (operation.Template is "N_SELECT_HAND_CARD" or "N_SELECT_HAND_ATTACK")
@@ -1485,7 +1564,8 @@ public static class GeneratorSelfTest
             || ultimateProfile.ComponentCatalog.AtomKeys.Count <= nativeProfile.ComponentCatalog.AtomKeys.Count
             || ultimateProfile.ComponentCatalog.Recipes.Count
                 != builtInUltimateRecipeCount + packageCatalog.Recipes.Count
-            || ultimateProfile.NameCatalog != nativeProfile.NameCatalog
+            || ultimateProfile.NameCatalog != CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad,
+                unlockComponentRoles: true)
             || ReferenceEquals(ultimateProfile.CreateOccurrencePolicy(), ultimateProfile.CreateOccurrencePolicy()))
             throw new InvalidOperationException("组件 API 未保持原生/究极混沌 Profile 边界或池级出率状态隔离。");
         var wraithRecipe = CharacterComponentCatalogs.Get(GeneratedCharacter.Silent).Recipes
@@ -1808,6 +1888,7 @@ public static class GeneratorSelfTest
         for (var index = 0; index < 75; index++)
             CardTemplateValidator.Validate(retryProbe.Generate());
         CardNameGenerator.ValidateCompositionRules();
+        CardNameGenerator.ValidateUltimateChaosNaming();
         CardNameGenerator.ValidateCatalog(CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad));
         CardNameGenerator.ValidateCatalog(CharacterComponentCatalogs.Get(GeneratedCharacter.Silent));
         var necrobinderNameCatalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder);
@@ -2189,7 +2270,7 @@ public static class GeneratorSelfTest
 
         var statusTemplates = DerivativeSlotCatalog.SlotTemplates
             .Where(DerivativeSlotCatalog.IsStatusProducer).ToArray();
-        if (statusTemplates.Length != 7
+        if (statusTemplates.Length != 8
             || statusTemplates.Any(template => !CardEffectRules.IsNegativeEffect(
                 new GeneratorOperation(template, OperationScope.NonTargeted, "生成状态牌。",
                     new Dictionary<string, int>())))
@@ -2201,8 +2282,8 @@ public static class GeneratorSelfTest
             throw new InvalidOperationException("状态牌槽位没有保持同角色状态牌候选及纯负面分类。");
         var ultimateStatuses = DerivativeSlotCatalog.Candidates(GeneratedCharacter.Defect, true,
             "D:CreateDazedInDiscard");
-        if (ultimateStatuses.Count != 6 || ultimateStatuses.Any(definition => !DerivativeSlotCatalog.IsStatus(definition)))
-            throw new InvalidOperationException("终极混乱的状态牌槽位没有解锁全部六种状态牌。");
+        if (ultimateStatuses.Count != 7 || ultimateStatuses.Any(definition => !DerivativeSlotCatalog.IsStatus(definition)))
+            throw new InvalidOperationException("Ultimate Chaos status slots must include all seven status derivatives.");
         foreach (var template in DerivativeSlotCatalog.SlotTemplates.Where(template =>
                      template != "R:FillHandWithDebris"))
         {
@@ -2453,7 +2534,7 @@ public static class GeneratorSelfTest
                 throw new InvalidOperationException($"终极混乱未解除 {character} 的全部组件角色锁。");
             var ultimateGenerator = new RandomCardGenerator(character, 20260822 + (int)character * 997,
                 unlockComponentRoles: true);
-            var nativeNameIds = CharacterComponentCatalogs.Get(character).Recipes
+            var ultimateNameIds = ComponentApi.Resolve(new ComponentProfileRequest(character, true)).NameCatalog.Recipes
                 .Select(recipe => recipe.Id).ToHashSet(StringComparer.Ordinal);
             // Catalog coverage is deterministic above; a small randomized pass is enough to
             // exercise construction without multiplying the already-large 10,000-card stress test.
@@ -2461,9 +2542,7 @@ public static class GeneratorSelfTest
             {
                 var generated = ultimateGenerator.Generate();
                 CardTemplateValidator.Validate(generated);
-                // Hang has a mandatory gameplay-family name even in an Ultimate pool of another color.
-                if (generated.Name?.SourceCardIds.Any(source => !nativeNameIds.Contains(source)
-                        && !(source == "Hang" && CardEffectRules.IsHangDamageFamily(generated.Operations))) != false)
+                if (generated.Name?.SourceCardIds.Any(source => !ultimateNameIds.Contains(source)) != false)
                     throw new InvalidOperationException($"Ultimate name source mismatch: {character}; "
                         + string.Join(",", generated.Name?.SourceCardIds ?? []));
             }
@@ -2471,8 +2550,8 @@ public static class GeneratorSelfTest
 
         // Ultimate Chaos is a genuine sixth statistical profile, not merely a union of
         // atom allow-lists. With the same random stream, every character must therefore
-        // receive the same shell, resource costs, values, tags and upgrade. Names intentionally use the current
-        // character's own catalog, but their isolated RNG must not perturb any later gameplay generation.
+        // receive the same shell, resource costs, values, tags and upgrade. Names use the shared native corpus,
+        // and their isolated RNG must not perturb any later gameplay generation.
         var unifiedRarities = Enum.GetValues<GeneratedRarity>();
         var unifiedSeed = 2026082107;
         var unifiedBaselineGenerator = new RandomCardGenerator(GeneratedCharacter.Ironclad, unifiedSeed, true);
@@ -3195,13 +3274,13 @@ public static class GeneratorSelfTest
             new GeneratorOperation("T:D", OperationScope.SingleEnemyOnly, "造成9点伤害。",
                 new Dictionary<string, int> { ["triggerIndex"] = 0 }, RequiresSingleTarget: true)
         };
-        if (CardEffectRules.HasAttackClassifyingDamage(conditionalDamageProbe)
+        if (!CardEffectRules.HasAttackClassifyingDamage(conditionalDamageProbe)
             || !CardEffectRules.HasAttackClassifyingDamage(
                 [.. conditionalDamageProbe, conditionalDamageProbe[1] with
                 {
                     ChineseText = "造成6点伤害。", Parameters = new Dictionary<string, int>()
                 }]))
-            throw new InvalidOperationException("仅由条件触发的伤害应归类为技能，另有直接伤害时仍应归类为攻击。");
+            throw new InvalidOperationException("Immediate conditional damage must classify a non-Power card as an Attack.");
         var randomGeneration = new GeneratorOperation("CL:AddRandomAttackToHand", OperationScope.NonTargeted,
             "将一张随机攻击牌加入手牌。", new Dictionary<string, int>());
         ExternalOperationTextRegistry.Register(randomGeneration.Template, randomGeneration.ChineseText,

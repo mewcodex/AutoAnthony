@@ -7,6 +7,28 @@ namespace ChaosCardGenerator;
 public static class CardUpgradeGenerator
 {
     private sealed record Candidate(CardUpgradeEffect Effect);
+    private static readonly ConditionalWeakTable<GeneratedCard, IReadOnlyList<GeneratorOperation>> AppliedUpgrades = new();
+
+    // Definitions are immutable. Rendering, live DynamicVars and execution must use the same applied plan,
+    // including semantic guards and numeric caps, rather than replaying raw upgrade deltas independently.
+    internal static IReadOnlyList<GeneratorOperation> GetUpgradedOperations(GeneratedCard card) =>
+        card.Upgrade is null ? card.Operations : AppliedUpgrades.GetValue(card, static source =>
+            Array.AsReadOnly(ApplyEffectsToOperations(source.Operations, source.Upgrade!.Effects)));
+
+    internal static int UpgradedEnergyCost(GeneratedCard card) => card.Cost < 0 ? card.Cost
+        : Math.Clamp(card.Upgrade?.UpgradedCost ?? card.Cost, 0, card.Cost);
+    internal static int UpgradedStarCost(GeneratedCard card) => card.StarCost < 0 || card.HasStarCostX
+        ? card.StarCost : Math.Clamp(card.Upgrade?.UpgradedStarCost ?? card.StarCost, 0, card.StarCost);
+
+    // Counts of affected cards (e.g. the next N Attacks) are rewards, not payment thresholds.
+    internal static string? ReducibleThresholdSlot(GeneratorOperation operation)
+    {
+        if (operation.Template == "R:ReturnAfterSkillsPlayed")
+            return OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
+        var trigger = OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger;
+        // Honor third-party trigger metadata too; the affected-Attack count is the built-in exception.
+        return trigger?.Kind == "next_attacks_this_turn" ? null : trigger?.ThresholdSlot;
+    }
     // This is deliberately independent of rarity: the native-shaped primary upgrade already carries the card's
     // rarity budget. The optional second numeric line is a small, stable rider worth about two ordinary Damage.
     internal const double SupplementalNumericUpgradeBudget = 200d;
@@ -52,6 +74,28 @@ public static class CardUpgradeGenerator
             var text = operation.ChineseText;
             var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
             var localizedText = operation.LocalizedText;
+            var upgradeSlot = effect.ValueSlotId ?? OperationRuntimeSpecCompiler.UpgradeValueSlot(operation);
+            var thresholdSlot = ReducibleThresholdSlot(operation);
+            var reviewedNativeValue = NativeCardDecompositionApi.HasReviewedNumericBinding(operation, upgradeSlot);
+            // Threshold reductions belong to trigger gates, not their numeric rewards. Likewise a payment
+            // reduction must never reduce a positive draw/block line in a stale or incorrectly bound plan.
+            if (effect.Kind == CardUpgradeKind.ReduceThreshold
+                    && (thresholdSlot is null || upgradeSlot != thresholdSlot)
+                || effect.Kind == CardUpgradeKind.ReduceNegativeNumber
+                    && !CardEffectRules.IsReducibleNegativeNumber(operation)
+                || effect.Kind == CardUpgradeKind.ReduceSelfDamage && operation.Template != "N:HP-")
+                continue;
+            if ((effect.Kind is CardUpgradeKind.ReduceThreshold or CardUpgradeKind.ReduceNegativeNumber
+                    or CardUpgradeKind.ReduceSelfDamage) && effect.Delta is not < 0)
+                continue;
+            if (effect.Kind == CardUpgradeKind.IncreaseNumber && effect.Delta < 0
+                && !CardEffectRules.IsReducibleNegativeNumber(operation)
+                && (thresholdSlot is null || thresholdSlot != upgradeSlot))
+                continue;
+            if (effect.Kind == CardUpgradeKind.IncreaseNumber && effect.Delta > 0
+                && !reviewedNativeValue
+                && (operation.Template == "N:HP-" || thresholdSlot is not null && thresholdSlot == upgradeSlot))
+                continue;
             if (operation.Template == "N:Discard" && effect.Kind == CardUpgradeKind.ReduceNegativeNumber)
             {
                 // Legacy plans may have reduced mandatory discard. New discard upgrades are Silent-only +1 riders;
@@ -107,11 +151,21 @@ public static class CardUpgradeGenerator
             }
             else if (effect.Kind == CardUpgradeKind.UpgradeReferencedCards)
             {
-                if (operation.Template != "I:PlayExhaustedShivsAtTarget")
+                if (operation.Template == "F:CreateTheShot")
+                {
+                    localizedText = (localizedText ?? FoolComponentDefinitions.Localized(operation.Template)
+                        ?? throw new InvalidOperationException("The Shot reference template is missing."))
+                        .WithTextSlotValue("shot", "全力射击+", "The Shot+");
+                    text = localizedText.RenderChinese(runtimeSpec);
+                }
+                else if (operation.Template != "I:PlayExhaustedShivsAtTarget")
                     throw new InvalidOperationException($"{operation.Template} cannot upgrade referenced cards.");
-                text = "将消耗牌堆中的所有小刀升级，然后对该敌人打出。";
-                const string english = "Upgrade and play all Shivs in your Exhaust Pile against that enemy.";
-                localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
+                else
+                {
+                    text = "将消耗牌堆中的所有小刀升级，然后对该敌人打出。";
+                    const string english = "Upgrade and play all Shivs in your Exhaust Pile against that enemy.";
+                    localizedText = CompileLocalizedProjection(text, english, runtimeSpec);
+                }
             }
             else if (effect.Kind == CardUpgradeKind.SelectAllCards)
             {
@@ -139,12 +193,13 @@ public static class CardUpgradeGenerator
                 // NativeCardDecompositionApi projects its additional card-level line after this pass.
             }
             else if (effect.Kind == CardUpgradeKind.IncreaseNumber
-                     && CardEffectRules.IsNonUpgradeableNumericMarker(operation))
+                     && !reviewedNativeValue && CardEffectRules.IsNonUpgradeableNumericMarker(operation))
             {
                 // Compatibility guard for snapshots generated before marker values were excluded from upgrades.
                 continue;
             }
             else if (effect.Kind == CardUpgradeKind.IncreaseNumber
+                     && effect.Delta > 0
                      && CardEffectRules.IsReducibleNegativeNumber(operation)
                      && operation.Template != "N:Discard")
             {
@@ -214,8 +269,19 @@ public static class CardUpgradeGenerator
         if (slot.Source == "fixed")
         {
             var currentValue = slot.BaseValue + slot.Offset;
+            var requestedValue = currentValue + delta;
             var updatedValue = NumericGenerationTuning.ClampUniversalFixedValue(operation, slotId,
-                currentValue + delta);
+                requestedValue);
+            // A cap limits the improvement; it must not turn +1 into a downgrade when an older/editor/Easter-egg
+            // definition already exceeds today's cap (for example Draw 12 -> Draw 10). Nor may a -1 payment
+            // upgrade become an unrelated large reduction merely because its starting value exceeds a cap.
+            updatedValue = Math.Clamp(updatedValue, Math.Min(currentValue, requestedValue),
+                Math.Max(currentValue, requestedValue));
+            if (delta < 0 && currentValue > 0
+                && (CardEffectRules.IsReducibleNegativeNumber(operation) || operation.Template == "N:HP-"
+                    || ReducibleThresholdSlot(operation) == slotId))
+                updatedValue = Math.Max(Math.Min(currentValue,
+                    operation.Template == "R:ReturnAfterSkillsPlayed" ? 2 : 1), updatedValue);
             delta = updatedValue - currentValue;
             if (!OperationRuntimeSpecCompiler.TryRenderFixedValue(operation, slotId, updatedValue,
                     out var fixedProjection))
@@ -409,6 +475,8 @@ public static class CardUpgradeGenerator
                     UpgradeRandomGenerationEnglish(EnglishCardDescriptionRenderer.OperationText(operation)));
                 candidates.Add(new(new(CardUpgradeKind.UpgradeGeneratedCards, index)));
             }
+            if (operation.Template == "F:CreateTheShot")
+                candidates.Add(new(new(CardUpgradeKind.UpgradeReferencedCards, index)));
 
             (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) keywordUpgrade = default;
             var hasKeywordUpgrade = profileId is { Length: > 0 }
@@ -802,9 +870,26 @@ public static class CardUpgradeGenerator
     }
 
     private static bool FitsUpgradeCeiling(GeneratedCard card, IReadOnlyList<Candidate> selected,
-        Candidate candidate, double maximumPlanGain) =>
-        card.Type == GeneratedCardType.Power && card.Cost >= 2 && candidate.Effect.Kind == CardUpgradeKind.ReduceCost
-        || EstimatedPlanGain(card, selected.Append(candidate).ToArray()) <= maximumPlanGain + 0.001d;
+        Candidate candidate, double maximumPlanGain)
+    {
+        var plan = selected.Append(candidate).ToArray();
+        var effects = plan.Select(item => item.Effect).ToArray();
+        var cost = card.Cost < 0 ? card.Cost
+            : Math.Max(0, card.Cost + effects.Where(effect => effect.Kind == CardUpgradeKind.ReduceCost)
+                .Sum(effect => effect.Delta ?? -1));
+        var operations = ApplyEffectsToOperations(card.Operations, effects);
+        if (!CardEffectRules.HasValidNumericSelfCostReductionAmounts(cost, operations)) return false;
+        foreach (var operation in operations)
+        foreach (var value in OperationRuntimeSpecCompiler.ExplicitFixedValueSlots(operation))
+            if (NumericGenerationTuning.UniversalFixedValueCap(operation, value.Id) is { } cap
+                && value.BaseValue + value.Offset > cap) return false;
+        if (candidate.Effect.OperationIndex is { } index
+            && (uint)index < (uint)card.Operations.Count
+            && CardEffectRules.IsSelfCostReduction(card.Operations[index])
+            && EstimatedMarginalGain(card, selected, candidate) <= 0.001d) return false;
+        return card.Type == GeneratedCardType.Power && card.Cost >= 2 && candidate.Effect.Kind == CardUpgradeKind.ReduceCost
+            || EstimatedPlanGain(card, plan) <= maximumPlanGain + 0.001d;
+    }
 
     private static Candidate FitNumericCandidateToBudget(GeneratedCard card, IReadOnlyList<Candidate> selected,
         Candidate candidate, double desiredGain)
@@ -921,8 +1006,8 @@ public static class CardUpgradeGenerator
         var afterOperations = ApplyEffectsToOperations(card.Operations, afterEffects);
         beforeOperations[operationIndex] = WithoutTriggerOwner(beforeOperations[operationIndex]);
         afterOperations[operationIndex] = WithoutTriggerOwner(afterOperations[operationIndex]);
-        return Math.Max(0d, EffectBalanceModel.EstimatedPositiveCardValue(afterOperations)
-            - EffectBalanceModel.EstimatedPositiveCardValue(beforeOperations));
+        return Math.Max(0d, EffectBalanceModel.EstimatedPositiveCardValue(afterOperations, card.Cost)
+            - EffectBalanceModel.EstimatedPositiveCardValue(beforeOperations, card.Cost));
     }
 
     private static GeneratorOperation WithoutTriggerOwner(GeneratorOperation operation)
@@ -1000,8 +1085,17 @@ public static class CardUpgradeGenerator
         var afterEffects = beforeEffects.Append(candidate.Effect).ToArray();
         var beforeOperations = ApplyEffectsToOperations(card.Operations, beforeEffects);
         var afterOperations = ApplyEffectsToOperations(card.Operations, afterEffects);
-        var operationGain = EffectBalanceModel.EstimatedPositiveCardValue(afterOperations)
-            - EffectBalanceModel.EstimatedPositiveCardValue(beforeOperations);
+        int CostAfter(IReadOnlyList<CardUpgradeEffect> effects) => card.Cost < 0 ? card.Cost
+            : Math.Max(0, card.Cost + effects.Where(effect => effect.Kind == CardUpgradeKind.ReduceCost)
+                .Sum(effect => effect.Delta ?? -1));
+        var operationGain = EffectBalanceModel.EstimatedPositiveCardValue(afterOperations, CostAfter(afterEffects))
+            - EffectBalanceModel.EstimatedPositiveCardValue(beforeOperations, CostAfter(beforeEffects));
+        if (candidate.Effect.Kind == CardUpgradeKind.ReduceCost)
+            return Math.Max(0d, NativeUpgradeStrengthModel.NonOperationGain(candidate.Effect, card) + operationGain);
+        if (candidate.Effect.OperationIndex is { } selfCostIndex
+            && (uint)selfCostIndex < (uint)card.Operations.Count
+            && CardEffectRules.IsSelfCostReduction(card.Operations[selfCostIndex]))
+            return Math.Max(0d, operationGain);
         return operationGain > 0.5d
             ? operationGain
             : NativeUpgradeStrengthModel.NonOperationGain(candidate.Effect, card);
@@ -1332,7 +1426,7 @@ public static class CardNameGenerator
             // toward an unrelated tail. Only the completed bilingual name remains unique within the generated pool.
             var first = hangSource ?? sources.Sample(random);
             var second = isStrike && hangSource is null ? first : suffixSources.Sample(random);
-            if (TryCreateUniqueName(first, second, isStrike, isHang, card.Type, preserveTwoCharacterWords,
+            if (TryCreateUniqueName(first, second, isStrike, isHang, card, preserveTwoCharacterWords,
                     usedChineseNames, usedEnglishNames, ref fallback) is { } candidate)
                 return candidate;
         }
@@ -1347,7 +1441,7 @@ public static class CardNameGenerator
         foreach (var second in isStrike && hangSource is null
                      ? [first]
                      : fallbackSuffixSources.Select(source => source.Parts))
-            if (TryCreateUniqueName(first, second, isStrike, isHang, card.Type, preserveTwoCharacterWords,
+            if (TryCreateUniqueName(first, second, isStrike, isHang, card, preserveTwoCharacterWords,
                     usedChineseNames, usedEnglishNames, ref fallback) is { } candidate)
                 return candidate;
 
@@ -1356,16 +1450,22 @@ public static class CardNameGenerator
 
     private static GeneratedCardName? TryCreateUniqueName(NameParts first, NameParts second, bool isStrike,
         bool isHang,
-        GeneratedCardType cardType, IReadOnlyDictionary<string, bool> preserveTwoCharacterWords,
+        GeneratedCard card, IReadOnlyDictionary<string, bool> preserveTwoCharacterWords,
         ISet<string>? usedChineseNames, ISet<string>? usedEnglishNames, ref GeneratedCardName? fallback)
     {
+        var cardType = card.Type;
         var chinese = isStrike
             ? cardType == GeneratedCardType.Attack
                 ? ComposeChineseStrike(first, second, preserveTwoCharacterWords)
                 : ComposeChineseSpecialStrike(first, second, preserveTwoCharacterWords)
             : ComposeChinese(first, second, preserveTwoCharacterWords);
         var english = ComposeEnglish(first, second, isStrike);
-        var candidate = new GeneratedCardName(chinese, english, new[] { first.Id, second.Id }.Distinct().ToArray());
+        var candidate = FoolMelodyNames.Compose(
+            new GeneratedCardName(chinese, english, new[] { first.Id, second.Id }.Distinct().ToArray()), card, first, second,
+            ChineseComponent(second, takeFirst: false, preserveTwoCharacterWords));
+        if (candidate is null) return null;
+        chinese = candidate.Chinese;
+        english = candidate.English;
         if (!NameFitsCardType(candidate, cardType) || !NameRespectsStrikeRule(candidate, isStrike, cardType)
             || !NameRespectsHangRule(candidate, isHang)) return null;
         fallback ??= candidate;
@@ -1497,7 +1597,10 @@ public static class CardNameGenerator
                 || string.IsNullOrWhiteSpace(name.EnglishMiddle) || name.EnglishMiddle.Contains(' '))
                 throw new InvalidOperationException($"卡名拆分不符合词块规则：{recipe.Id}。");
             var reconstructedChinese = string.Concat(name.ChineseParts);
-            if (reconstructedChinese != recipe.ChineseTitle)
+            var nativeChinese = recipe.ChineseTitle;
+            if (catalog.Character == GeneratedCharacter.Fool)
+                nativeChinese = string.Concat(nativeChinese.Where(character => !char.IsWhiteSpace(character)));
+            if (reconstructedChinese != nativeChinese)
                 throw new InvalidOperationException($"卡名拆分无法还原官方中文标题：{recipe.Id}，{reconstructedChinese} != {recipe.ChineseTitle}。");
             var containsStrikeName = name.ChineseParts.Any(part => part.Contains("打击", StringComparison.Ordinal))
                 || name.EnglishPrefix.Contains("Strike", StringComparison.OrdinalIgnoreCase)
@@ -1512,7 +1615,7 @@ public static class CardNameGenerator
                 throw new InvalidOperationException($"卡名中的“打击/Strike”必须是不可拆分的末尾词块：{recipe.Id}。");
             if (recipe.Tags.Contains(CardTag.Strike) && !containsStrikeName)
                 throw new InvalidOperationException($"打击标签牌必须提供“打击/Strike”末尾词块：{recipe.Id}。");
-            if (recipe.ChineseTitle.EnumerateRunes().Count() == 4
+            if (nativeChinese.EnumerateRunes().Count() == 4 && recipe.Id != "DislikeYou"
                 && (name.ChineseParts.Count != 2
                     || name.ChineseParts.Any(part => part.EnumerateRunes().Count() != 2)))
                 throw new InvalidOperationException(
@@ -1579,6 +1682,63 @@ public static class CardNameGenerator
 
     internal static string RelationSchema(GeneratorOperation operation) =>
         OperationRuntimeSpecCompiler.StructuralRelationKey(operation);
+
+    internal static void ValidateUltimateChaosNaming()
+    {
+        var allRecipes = Enum.GetValues<GeneratedCharacter>()
+            .SelectMany(character => CharacterComponentCatalogs.Get(character).Recipes).ToArray();
+        var allIds = allRecipes.Select(recipe => recipe.Id).ToHashSet(StringComparer.Ordinal);
+        var damage = CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad).Atoms
+            .First(atom => atom.Template == "T:D");
+        var damageOperation = new GeneratorOperation(damage.Template, damage.Scope, string.Empty,
+            new Dictionary<string, int>(), RuntimeSpec: damage.RuntimeSpec);
+        foreach (var character in Enum.GetValues<GeneratedCharacter>())
+        {
+            var native = ComponentApi.Resolve(new ComponentProfileRequest(character, false)).NameCatalog;
+            var ultimate = ComponentApi.Resolve(new ComponentProfileRequest(character, true)).NameCatalog;
+            var nativeIds = CharacterComponentCatalogs.Get(character).Recipes.Select(recipe => recipe.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            if (!nativeIds.SetEquals(native.Recipes.Select(recipe => recipe.Id))
+                || !allIds.SetEquals(ultimate.Recipes.Select(recipe => recipe.Id)))
+                throw new InvalidOperationException($"Native/Ultimate name catalog boundary failed for {character}.");
+
+            var usedChinese = allRecipes.Select(recipe => recipe.ChineseTitle).ToHashSet(StringComparer.Ordinal);
+            var usedEnglish = allRecipes.Select(recipe => recipe.EnglishTitle).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var random = new Random(20261030 + (int)character);
+            var foundForeignSource = false;
+            for (var index = 0; index < 36; index++)
+            {
+                var type = (GeneratedCardType)(index % 3);
+                var strike = index % 4 == 0;
+                var card = new GeneratedCard(1, type, TargetMode.SingleEnemy, GeneratedRarity.Common,
+                    string.Empty, strike ? [CardTag.Strike] : [], [damageOperation], Character: character);
+                var beforeChinese = usedChinese.Count;
+                var beforeEnglish = usedEnglish.Count;
+                var name = Generate(ultimate, card, random, usedChinese, usedEnglish);
+                if (usedChinese.Count != beforeChinese + 1 || usedEnglish.Count != beforeEnglish + 1
+                    || !NameFitsCardType(name, type) || !NameRespectsStrikeRule(name, strike, type)
+                    || !NameRespectsHangRule(name, isHang: false)
+                    || name.SourceCardIds.Any(id => !allIds.Contains(id)))
+                    throw new InvalidOperationException($"Ultimate name uniqueness/reserved-name rules failed for {character}.");
+                foundForeignSource |= name.SourceCardIds.Any(id => !nativeIds.Contains(id));
+            }
+            if (!foundForeignSource)
+                throw new InvalidOperationException($"Ultimate names never selected another native pool for {character}.");
+        }
+        var hangRecipe = CharacterComponentCatalogs.Get(GeneratedCharacter.Necrobinder).Recipes
+            .Single(recipe => recipe.Id == "Hang");
+        var hang = hangRecipe.Atoms.Select(atom => new GeneratorOperation(atom.Template, atom.Scope, string.Empty,
+            new Dictionary<string, int>(), RuntimeSpec: atom.RuntimeSpec)).ToArray();
+        foreach (var character in Enum.GetValues<GeneratedCharacter>())
+        {
+            var card = new GeneratedCard(1, GeneratedCardType.Attack, TargetMode.SingleEnemy, GeneratedRarity.Common,
+                string.Empty, [], hang, Character: character);
+            var name = Generate(ComponentApi.Resolve(new ComponentProfileRequest(character, true)).NameCatalog,
+                card, new Random(154 + (int)character));
+            if (!NameRespectsHangRule(name, isHang: true))
+                throw new InvalidOperationException($"Ultimate naming lost the Hang family for {character}.");
+        }
+    }
 
     internal static void ValidateCompositionRules()
     {
@@ -1815,7 +1975,7 @@ public static class CardNameGenerator
         N("ToolsOfTheTrade","必备","工具","Tools of the ","Trade",""), N("Tracking","跟","踪","Track","ing",""),
         N("Untouchable","触不可","及","Un","touchable",""), N("UpMySleeve","袖里","乾坤","Up My ","Sleeve",""),
         N("WellLaidPlans","计划","妥当","Well-Laid ","Plans",""), N("WraithForm","幽魂","形态","Wraith ","Form","")
-    }.Concat(ManualExternalNameParts.All()).ToArray();
+    }.Concat(ManualExternalNameParts.All()).Concat(ManualFoolNameParts.All()).ToArray();
 
     private static NameParts N(string id, string chineseHead, string chineseTail, string englishPrefix, string englishMiddle, string englishSuffix) =>
         new(id,

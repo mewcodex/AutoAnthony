@@ -17,10 +17,10 @@ public static class CardTextStyle
         $@"(?<amount>{PrintedValuePattern})点能量",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex NumericCostWord = new(
-        $@"(?<amount>{PrintedValuePattern})(?<icon>\{{energyPrefix:energyIcons\(1\)\}})?费(?!用)",
+        $@"(?<amount>{PrintedValuePattern})(?<icon>(?:\{{energyPrefix:energyIcons\(1\)\}})+)?费(?!用)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex CostAmount = new(
-        $@"(?<prefix>耗能(?:(?![，。！？；;\r\n]).){{0,24}}?(?:为|变为|降为|降低至|不为|大于等于|不少于|减少|增加))(?<amount>{PrintedValuePattern})(?<icon>\{{energyPrefix:energyIcons\(1\)\}})?",
+        $@"(?<prefix>耗能(?:(?![，。！？；;\r\n]).){{0,24}}?(?:为|变为|降为|降低至|不为|大于等于|不少于|减少|增加))(?<amount>{PrintedValuePattern})(?<icon>(?:\{{energyPrefix:energyIcons\(1\)\}})+)?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex DynamicPrintedValue = new(
         @"^\{(?<name>[A-Za-z0-9_]+):(?:diff|inverseDiff)\(\)\}$",
@@ -33,6 +33,7 @@ public static class CardTextStyle
         var runtimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
         var text = operation.Template switch
         {
+            "F:RefundStretch" => "重新获得被这张牌的格挡效果消耗的拉伸。",
             "C:playableIfDrawPileEmpty" => Regex.Replace(effectiveText,
                 @"^只有当(?:你的)?抽牌堆中没有牌时。?$", "只有当你的抽牌堆中没有牌时才能打出。"),
             "A:ruleRetainHand" => effectiveText.Replace("在你的回合结束时，不再丢弃你的手牌",
@@ -298,6 +299,7 @@ public static class CardTextStyle
         if (string.IsNullOrEmpty(text)) return text;
 
         var normalized = LegacyEnergyIcon.Replace(text, EnergyIcon)
+            .Replace("[E]", EnergyIcon, StringComparison.Ordinal)
             .Replace("费用", "耗能", StringComparison.Ordinal);
 
         // An amount of Energy is a resource display: 2 Energy is normally two glyphs and the built-in formatter
@@ -309,15 +311,18 @@ public static class CardTextStyle
         normalized = NumericCostWord.Replace(normalized, match =>
             match.Groups["amount"].Value + EnergyIcon);
 
-        // Cost mutations and filters likewise retain the number and add exactly one glyph. This deliberately runs
-        // after resource replacement so “gain 2 Energy” cannot be mistaken for a card-cost expression.
+        // v111 Melancholy uses repeated Energy glyphs for the amount saved. Final cost / cost filters remain
+        // numeric (costs 0[E]); only an amount added or subtracted uses the resource formatter.
         normalized = CostAmount.Replace(normalized, match =>
-            match.Groups["prefix"].Value + match.Groups["amount"].Value + EnergyIcon);
+        {
+            var prefix = match.Groups["prefix"].Value;
+            var amount = match.Groups["amount"].Value;
+            return prefix + (prefix.EndsWith("减少", StringComparison.Ordinal)
+                || prefix.EndsWith("增加", StringComparison.Ordinal)
+                    ? EnergyResource(amount, numericProperty: true) : amount + EnergyIcon);
+        });
 
-        // Legacy snapshots may already contain the glyph. Keep this pass idempotent.
-        var duplicate = EnergyIcon + EnergyIcon;
-        while (normalized.Contains(duplicate, StringComparison.Ordinal))
-            normalized = normalized.Replace(duplicate, EnergyIcon, StringComparison.Ordinal);
+        // Cost patterns consume any duplicated cost glyphs above. Repeated resource-gain glyphs must stay intact.
         return normalized;
     }
 
@@ -328,25 +333,30 @@ public static class CardTextStyle
                      $"所有0{EnergyIcon}费牌获得保留。";
         var expected = $"获得{{energyPrefix:energyIcons(2)}}。失去{{energyPrefix:energyIcons(6)}}。" +
                        $"你每花费{{energyPrefix:energyIcons(4)}}。将一张随机0{EnergyIcon}牌加入手牌。" +
-                       $"该牌的耗能变为0{EnergyIcon}。该牌的耗能减少2{EnergyIcon}。" +
+                       $"该牌的耗能变为0{EnergyIcon}。该牌的耗能减少{{energyPrefix:energyIcons(2)}}。" +
                        $"所有0{EnergyIcon}牌获得保留。";
         var actual = NormalizeRenderedChineseEnergyNotation(source);
         if (actual != expected)
             throw new InvalidOperationException($"费用图标静态文风归一失败：{actual}");
 
         var dynamicSource = "获得{Energy0:diff()}点能量。该牌的耗能增加{Cost1:diff()}。";
-        var dynamicExpected = $"获得{{Energy0:energyIcons()}}。该牌的耗能增加{{Cost1:diff()}}{EnergyIcon}。";
+        var dynamicExpected = "获得{Energy0:energyIcons()}。该牌的耗能增加{Cost1.PreviewValue:energyIcons()}。";
         var dynamicActual = NormalizeRenderedChineseEnergyNotation(dynamicSource);
         if (dynamicActual != dynamicExpected)
             throw new InvalidOperationException($"费用图标动态文风归一失败：{dynamicActual}");
         ValidateRenderedChinese(actual);
         ValidateRenderedChinese(dynamicActual);
+        if (NormalizeRenderedChineseEnergyNotation("获得[E][E]。") != $"获得{EnergyIcon}{EnergyIcon}。"
+            || NormalizeRenderedChineseEnergyNotation($"该牌的耗能减少2{EnergyIcon}[E]。") != "该牌的耗能减少{energyPrefix:energyIcons(2)}。")
+            throw new InvalidOperationException("Energy gains and printed cost glyphs must have distinct repetition rules.");
     }
 
-    private static string EnergyResource(string amount)
+    private static string EnergyResource(string amount, bool numericProperty = false)
     {
         var dynamic = DynamicPrintedValue.Match(amount);
-        if (dynamic.Success) return $"{{{dynamic.Groups["name"].Value}:energyIcons()}}";
+        // Cost-amount slots are ordinary DynamicVars. The native formatter accepts their numeric PreviewValue,
+        // but only accepts an entire DynamicVar when it is the specialized EnergyVar subtype.
+        if (dynamic.Success) return $"{{{dynamic.Groups["name"].Value}{(numericProperty ? ".PreviewValue" : "")}:energyIcons()}}";
         return amount.StartsWith('X') ? amount + EnergyIcon : $"{{energyPrefix:energyIcons({amount})}}";
     }
 

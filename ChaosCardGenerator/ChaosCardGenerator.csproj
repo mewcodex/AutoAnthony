@@ -13,6 +13,8 @@
     <EmbeddedResource Include="..\necrobinder_unit_operations.md" Link="Data\necrobinder_unit_operations.md" />
     <EmbeddedResource Include="..\regent_unit_operations.md" Link="Data\regent_unit_operations.md" />
     <EmbeddedResource Include="..\colorless_unit_operations.md" Link="Data\colorless_unit_operations.md" />
+    <EmbeddedResource Include="..\fool_unit_operations.md" Link="Data\fool_unit_operations.md" />
+    <EmbeddedResource Include="Data\fool_components.json" />
     <EmbeddedResource Include="Data\catalog_runtime_specs.json" />
     <EmbeddedResource Include="Data\catalog_recipes.json" />
     <EmbeddedResource Include="Data\native_reference_cards.json" />

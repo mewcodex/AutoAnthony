@@ -10,6 +10,25 @@ namespace ApiContractSmoke;
 
 public static class ExternalConsumer
 {
+    // Keep the v113 documentation examples bound to real public symbols, without depending on editor internals.
+    public static void CompileV113Surfaces(GeneratedCard definition, GeneratedCardName originalName,
+        ComponentAtom subsetSource, GeneratorOperation operation, OperationLocalizedText sourceLocalization)
+    {
+        IComponentCatalog fool = CharacterComponentCatalogs.Get(GeneratedCharacter.Fool);
+        _ = fool.Recipes;
+        GeneratedCardName copy = originalName with { };
+        var (chinese, english, sources, melodies) = copy;
+        _ = new GeneratedCardName(chinese, english, sources);
+        _ = new GeneratedCardName(chinese, english, sources, melodies);
+        _ = FoolMelodyNames.ApplyNameTags(definition with { Name = copy });
+        _ = FoolComponentRules.HasValidShootAssembly(definition.Operations);
+        _ = FoolMelodySubset.WithMask(subsetSource, 5);
+        _ = DerivativeSlotCatalog.RestoreSourceCountLocalization(operation, sourceLocalization,
+            OperationRuntimeSpecCompiler.GetOrCompile(operation));
+        _ = NativeCardDecompositionApi.Cards;
+        _ = NativeCardDecompositionApi.Components;
+    }
+
     public static void CompileRegistration(IComponentCatalog catalog,
         IComponentRuntimeHandler handler, IComponentHoverTipProvider tips,
         IReadOnlyList<ComponentLocalizationRegistration> localizations)

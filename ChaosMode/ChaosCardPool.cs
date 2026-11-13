@@ -68,9 +68,22 @@ public sealed class ChaosRegentCardPool : CardPoolModel
     private static CardModel Model(Type type) => ModelDb.GetById<CardModel>(ModelDb.GetId(type));
 }
 
+public sealed class ChaosFoolCardPool : CardPoolModel
+{
+    public override string Title => "fool";
+    public override string EnergyColorName => "fool";
+    public override string CardFrameMaterialPath => "card_frame_yellow";
+    public override Color DeckEntryCardColor => new("D62000");
+    public override Color EnergyOutlineColor => new("5a4411");
+    public override bool IsColorless => false;
+    protected override CardModel[] GenerateAllCards() => ChaosCardRegistry.FoolTypes
+        .Select(type => ModelDb.GetById<CardModel>(ModelDb.GetId(type))).ToArray();
+}
+
 public static class ChaosCardRegistry
 {
-    public const int Count = ChaosRunDefinitions.TotalCount * 4 + ChaosRunDefinitions.SilentTotalCount + ChaosRunDefinitions.ColorlessCount;
+    public const int Count = ChaosRunDefinitions.TotalCount * 4 + ChaosRunDefinitions.SilentTotalCount
+        + ChaosRunDefinitions.ColorlessCount + ChaosRunDefinitions.FoolTotalCount;
     public static IReadOnlyList<Type> Types { get; } = typeof(ChaosCard000).Assembly.GetTypes()
         .Where(type => !type.IsAbstract && type.BaseType == typeof(ChaosCardModel) && type.Name.StartsWith("ChaosCard", StringComparison.Ordinal))
         .OrderBy(type => type.Name, StringComparer.Ordinal)
@@ -83,6 +96,7 @@ public static class ChaosCardRegistry
     public static IReadOnlyList<Type> NecrobinderTypes { get; } = CharacterTypes(typeof(ChaosNecrobinderCardModel));
     public static IReadOnlyList<Type> RegentTypes { get; } = CharacterTypes(typeof(ChaosRegentCardModel));
     public static IReadOnlyList<Type> ColorlessTypes { get; } = CharacterTypes(typeof(ChaosColorlessCardModel));
+    public static IReadOnlyList<Type> FoolTypes { get; } = CharacterTypes(typeof(ChaosFoolCardModel));
 
     public static CardModel Canonical(int slot) => ModelDb.GetById<CardModel>(ModelDb.GetId(Types[slot]));
     public static CardModel Canonical(GeneratedCharacter character, int slot) => ModelDb.GetById<CardModel>(ModelDb.GetId(TypesFor(character)[slot]));
@@ -113,6 +127,7 @@ public static class ChaosCardRegistry
         GeneratedCharacter.Defect => DefectTypes,
         GeneratedCharacter.Necrobinder => NecrobinderTypes,
         GeneratedCharacter.Regent => RegentTypes,
+        GeneratedCharacter.Fool => FoolTypes,
         GeneratedCharacter.Colorless => ColorlessTypes,
         _ => throw new ArgumentOutOfRangeException(nameof(character))
     };

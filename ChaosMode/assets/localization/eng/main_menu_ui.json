@@ -1,7 +1,7 @@
 {
   "AUTO_ANTHONY_WHIRLPOOL_DESCRIPTION": "[gold]Enchant[/gold] a Basic card with [purple]Spiral[/purple].",
   "AUTO_ANTHONY_MOD_NAME": "Auto-Anthonyology",
-  "AUTO_ANTHONY_MOD_DESCRIPTION": "Randomly generates card effects for each run. Currently in open beta and supports all five characters.",
+  "AUTO_ANTHONY_MOD_DESCRIPTION": "Randomly generates card effects for each run. Currently in open beta and supports all six characters.",
   "AUTO_ANTHONY_SETTINGS_GROUP": "Auto-Anthonyology",
   "AUTO_ANTHONY_SETTINGS_GROUP_EXPAND": "▶ Options",
   "AUTO_ANTHONY_SETTINGS_GROUP_COLLAPSE": "▼ Options",

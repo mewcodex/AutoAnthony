@@ -30,7 +30,17 @@ public static class ComponentPresentationApi
     private static readonly object Sync = new();
     private static readonly Dictionary<(string Opcode, string Variant), IComponentHoverTipProvider> Providers = [];
     private static readonly HashSet<string> Packages = new(StringComparer.Ordinal);
-    private static bool _frozen;
+    private static volatile bool _frozen;
+    private static int _providerCount;
+
+    internal static bool HasProviders
+    {
+        get
+        {
+            if (!_frozen) { lock (Sync) _frozen = true; }
+            return _providerCount != 0;
+        }
+    }
 
     public static bool RegistrationsFrozen
     {
@@ -65,6 +75,7 @@ public static class ComponentPresentationApi
             if (!Providers.TryAdd((opcode, variant), provider))
                 throw new InvalidOperationException(
                     $"A presentation provider is already registered for '{opcode}'/'{variant}'.");
+            _providerCount = Providers.Count;
         }
     }
 
@@ -102,6 +113,7 @@ public static class ComponentPresentationApi
             Packages.Add(packageId);
             foreach (var route in values)
                 Providers.Add((route.Opcode, route.Variant), route.Provider);
+            _providerCount = Providers.Count;
         }
     }
 

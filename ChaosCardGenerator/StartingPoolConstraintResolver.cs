@@ -40,7 +40,8 @@ public static class StartingPoolConstraintResolver
             var currentDamage = cards.Count(CountsAsDamage);
             var currentDefense = cards.Count(CountsAsDefense);
             var currentHighResource = cards.Count(IsHighResourceCard);
-            var enforceRegentStarBalance = cards.Any(card => card.Character == GeneratedCharacter.Regent);
+            var enforceRegentStarBalance = cards.Any(card =>
+                card.Character == GeneratedCharacter.Regent || card.UnifiedChaos);
             var currentStarConsumers = enforceRegentStarBalance ? cards.Count(ConsumesStars) : 0;
             var currentStarProducers = enforceRegentStarBalance ? cards.Count(ProducesStars) : 0;
             var currentStarGap = currentStarConsumers - currentStarProducers;

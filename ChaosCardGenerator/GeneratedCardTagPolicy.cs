@@ -10,7 +10,8 @@ public static class GeneratedCardTagPolicy
     public static bool IsNativeKeyword(CardTag tag) => tag is CardTag.Exhaust or CardTag.Innate
         or CardTag.Retain or CardTag.Sly or CardTag.Ethereal or CardTag.Eternal or CardTag.Unplayable;
 
-    public static bool IsSemanticTag(CardTag tag) => tag is CardTag.Strike or CardTag.Defend or CardTag.OstyAttack;
+    public static bool IsSemanticTag(CardTag tag) => tag is CardTag.Strike or CardTag.Defend or CardTag.OstyAttack
+        or CardTag.Wah or CardTag.Cho or CardTag.Ki or CardTag.Shoot;
 
     /// <summary>
     /// Osty Attack is a semantic mechanic tag, not a randomly rolled keyword. Every native card whose direct
@@ -36,6 +37,8 @@ public static class GeneratedCardTagPolicy
         var normalized = tags.Distinct().ToList();
         if (IsOstyAttackCard(operations) && !normalized.Contains(CardTag.OstyAttack))
             normalized.Add(CardTag.OstyAttack);
+        if (operations.Any(operation => OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("grants_shoot_tag"))
+            && !normalized.Contains(CardTag.Shoot)) normalized.Add(CardTag.Shoot);
         return normalized;
     }
 

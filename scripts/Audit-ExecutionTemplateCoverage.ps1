@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = [System.IO.Path]::GetFullPath($SourceRoot).TrimEnd('\', '/')
 $project = [System.IO.Path]::Combine($root, 'ChaosCardGenerator', 'ChaosCardGenerator.csproj')
 $executorPath = [System.IO.Path]::Combine($root, 'ChaosMode', 'ChaosOperationExecutor.cs')
-$characters = @('Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent', 'Colorless')
+$characters = @('Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent', 'Colorless', 'Fool')
 
 $rows = [System.Collections.Generic.List[object]]::new()
 foreach ($character in $characters) {
@@ -27,6 +27,7 @@ foreach ($character in $characters) {
 }
 
 $executor = [System.IO.File]::ReadAllText($executorPath)
+$executor += [System.IO.File]::ReadAllText([System.IO.Path]::Combine($root, 'ChaosMode', 'ChaosFoolExecutor.cs'))
 $mentioned = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 foreach ($match in [System.Text.RegularExpressions.Regex]::Matches(
     $executor, '"((?:[A-Z][A-Z_]*:[A-Za-z0-9_]+)|(?:N_[A-Z0-9_]+))"')) {
@@ -44,7 +45,7 @@ foreach ($opcode in @('deal_damage', 'gain_block', 'draw_cards', 'gain_energy', 
 # Keep the variant in the key so a newly introduced create/move variant cannot pass coverage accidentally.
 $structuredRoutes = [System.Collections.Generic.HashSet[string]]::new(
     [System.StringComparer]::Ordinal)
-foreach ($route in @('create_card|random_colorless', 'move_card|selected')) {
+foreach ($route in @('create_card|random_colorless', 'move_card|selected', 'modify_cost|reduce_until_played')) {
     [void] $structuredRoutes.Add($route)
 }
 

@@ -35,6 +35,12 @@ internal static class CopyThisCardValuation
 /// </summary>
 internal static class EffectBalanceModel
 {
+    // v113 Speedster: 2 Energy Uncommon, 3 damage to all enemies per non-opening-hand draw.
+    // Preserve its former shell value after the native 2 -> 3 buff without discounting generic damage.
+    private const double MidTurnDrawFrequency = 3.2d;
+    private const double MidTurnDrawLifetimeCap = 20d / 3d;
+    // My Shinies: 200 carried Gold gives ten one-damage hits (including multi-hit adaptability).
+    private const double ExpectedCarriedGold = 200d;
     private static readonly Regex Number = new(@"\d+", RegexOptions.Compiled);
     // Fatal normally succeeds only on the finishing hit of one combat. Treat it as a rarer one-shot gate than
     // poison/vulnerable checks so its linked payoff receives a visibly larger budget without changing occurrence.
@@ -145,6 +151,7 @@ internal static class EffectBalanceModel
     internal static int EstimatedEffectValue(ComponentAtom atom)
     {
         var spec = OperationRuntimeSpecCompiler.GetOrCompile(atom);
+        if (FoolComponentDefinitions.TryEstimate(atom.Template, spec, out var foolValue)) return foolValue;
         if (ComponentValuationApi.TryEstimate(atom.Template, atom.Scope, spec, out var customValue))
             return customValue;
         if (spec.Flags.Contains(LongDurationStatusVariant.Flag))
@@ -247,6 +254,11 @@ internal static class EffectBalanceModel
         // only 1 damage. These anchors reflect an ordinary live state (roughly 12-15 Block/Poison/Doom) and reserve
         // one real card-sized payoff without imposing any runtime cap on the dynamic result.
         if (atom.Template == "N:BlockEqualAllPoison") return 1_800;
+        // Expect a Fight discounts the current hand's Attacks until played. Value roughly two partially usable
+        // one-Energy discounts; it does not become a persistent combat-wide cost rule.
+        // Expect a Fight leaves about 2,960 value after its 15 Block in the native 3-Energy shell.
+        // A full hand-wide until-played discount is worth several future payments, not one Energy.
+        if (atom.Template == "N:ReduceHandAttackCostUntilPlayed") return first * 2_800;
         if (atom.Template == "CL:GainNextTurnBlockEqualCurrent") return 1_400;
         if (atom.Template == "NCR:DoomScaledDamage") return 2_050;
         if (atom.Template == "M:value"
@@ -342,7 +354,8 @@ internal static class EffectBalanceModel
         // Accuracy affects every Shiv rather than only the first Shiv each turn. Price the printed amount instead
         // of falling through to the flat AbilityRule fallback, which ignored both its amount and repeat potential.
         if (atom.Template == "A:ruleShivBonusDamage") return first * 450;
-        if (atom.Template == "A:ruleFirstShivBonusDamage") return first * 180;
+        // Phantom Blades reduced its native bonus from 9 to 8; keep the package near its old valuation.
+        if (atom.Template == "A:ruleFirstShivBonusDamage") return first * 200;
         // Seeking Edge is a one-Energy Rare Power containing this persistent rule plus Forge 7. The Forge line is
         // worth about 700; pricing the whole native card against the current one-cost Rare Power envelope leaves
         // roughly 1,700 for turning every later 10-damage Sovereign Blade hit into an all-enemy hit. This is above
@@ -693,7 +706,8 @@ internal static class EffectBalanceModel
             "attack_played" => 1.55d,
             "skill_played" => 1.45d,
             "attack_damaged_enemy" or "attack_dealt_damage" => 1.8d,
-            "card_drawn" or "card_drawn_during_turn" => 4.8d,
+            "card_drawn" => 4.8d,
+            "card_drawn_during_turn" => MidTurnDrawFrequency,
             "block_gained" => 1.3d,
             "for_each_exhausted_card" or "for_each_exhausted_non_attack" => 0.7d,
             "card_exhausted" => 1.3d,
@@ -705,6 +719,22 @@ internal static class EffectBalanceModel
             "creature_died" => 0.3d,
             "attack_received" => 2.5d,
             "fatal" => FatalTriggerFrequency,
+            "next_non_minion_enemy_death_this_turn" => 0.10d,
+            "arrow_available" or "this_card_shot_arrow" => 0.7d,
+            "target_impaled" or "target_own_arrow" => FoolComponentDefinitions.ImpaledFrequency,
+            "melody_wah_or_ki" or "melody_wah_or_cho" or "melody_cho_or_ki" => 0.6d,
+            "melody_ki" => 0.5d,
+            "melody_types" => 1.5d,
+            "melody_gained" => 2d,
+            "wah_melody_gained" or "cho_melody_gained" => 0.6d,
+            "all_melodies_gained" => 0.2d,
+            "arrow_impaled" => 0.9d,
+            "first_arrow_dislodged_each_turn" => 0.5d,
+            "sadness_generated" or "sadness_exhausted_by_this_card" => 0.6d,
+            "energy_x_count" => spec.Values.FirstOrDefault(value => value.Id == "count") is { Source: "fixed" } xCount
+                ? Math.Max(0, xCount.BaseValue + xCount.Offset) : 3d,
+            "this_card_dislodges_arrow" => 0.5d,
+            "arrow_shot_if_self_in_discard" => 0.3d,
             "hand_empty" => 0.16d,
             "target_has_poison" => 0.55d,
             "target_has_vulnerable" => 0.62d,
@@ -759,7 +789,7 @@ internal static class EffectBalanceModel
                 or "A:whenAttackDamagesEnemy" => 1.8d,
             "A:whenCardExhausted" => 1.3d,
             "A:whenCardGenerated" => 1.1d,
-            "A:whenCardDrawnDuringTurn" => 4.8d,
+            "A:whenCardDrawnDuringTurn" => MidTurnDrawFrequency,
             "A:whenDebuffApplied" => 1.5d,
             "A:whenDoomApplied" => 1.1d,
             "A:whenEtherealDrawn" or "A:whenEtherealPlayed" => 0.7d,
@@ -774,6 +804,7 @@ internal static class EffectBalanceModel
             "D:ForEachOrb" => 3d,
             "D:ForEachEnemy" => 2d,
             "D:ForEachUniqueOrb" => 2.5d,
+            "CL:ForEachGoldThreshold" => ExpectedCarriedGold / Math.Max(1, threshold),
             // Helix Drill excludes this card's payment. Use two other Energy as the ordinary-turn baseline:
             // thresholds 1/2 therefore resolve about 2/1 times and share the generic payoff scaler.
             "D:ForEachEnergySpentThisTurn" => 2d / threshold,
@@ -877,7 +908,7 @@ internal static class EffectBalanceModel
                 or "A:whenAttackDamagesEnemy" => 1.8d,
             "A:whenCardExhausted" => 1.3d,
             "A:whenCardGenerated" => 1.1d,
-            "A:whenCardDrawnDuringTurn" => 4.8d,
+            "A:whenCardDrawnDuringTurn" => MidTurnDrawFrequency,
             "A:whenDebuffApplied" => 1.5d,
             "A:whenDoomApplied" => 1.1d,
             "A:whenEtherealDrawn" or "A:whenEtherealPlayed" => 0.7d,
@@ -895,6 +926,7 @@ internal static class EffectBalanceModel
             "D:ForEachOrb" => 3d,
             "D:ForEachEnemy" => 2d,
             "D:ForEachUniqueOrb" => 2.5d,
+            "CL:ForEachGoldThreshold" => ExpectedCarriedGold / Math.Max(1, threshold),
             "D:ForEachEnergySpentThisTurn" => 2d / threshold,
             "D:ForEachExhaustedStatus" => ExhaustedStatusTriggerFrequency,
             "D:WheneverStatusGenerated" => 0.45d,
@@ -1413,23 +1445,25 @@ internal static class EffectBalanceModel
     /// trigger frequency. The upgrade generator uses the difference between base and upgraded lists, preventing
     /// an extra-hit +1 from being treated like an ordinary printed-number +1.
     /// </summary>
-    internal static double EstimatedPositiveCardValue(IReadOnlyList<GeneratorOperation> operations)
+    internal static double EstimatedPositiveCardValue(IReadOnlyList<GeneratorOperation> operations,
+        int? baseEnergyCost = null)
     {
         var rewards = PositiveRewardOperations(operations);
         var payload = rewards
             .Where(item => !CardEffectRules.IsCopyThisCardToDiscard(item.operation)
                 || CardEffectRules.IsZeroCostCopyThisCardToDiscard(item.operation))
-            .Sum(item => EstimatedCardLevelRewardValue(item.operation, item.index, operations));
+            .Sum(item => CappedCardLevelRewardValue(item.operation, item.index, operations, baseEnergyCost));
         var ordinaryCopies = rewards.Count(item => CardEffectRules.IsCopyThisCardToDiscard(item.operation)
             && !CardEffectRules.IsZeroCostCopyThisCardToDiscard(item.operation));
         return payload * (1d + ordinaryCopies * CopyThisCardValuation.OrdinaryCopyPayloadMultiplier);
     }
 
     internal static double EstimatedPositiveCardValue(IReadOnlyList<GeneratorOperation> operations,
-        bool hasPrintedResourceCost, GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags) =>
+        bool hasPrintedResourceCost, GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags,
+        int? baseEnergyCost = null) =>
         PositiveRewardOperations(operations, hasPrintedResourceCost, cardType, tags)
             .Sum(item => ContextualCardLevelRewardValue(item.operation, item.index, operations,
-                hasPrintedResourceCost, cardType, tags))
+                hasPrintedResourceCost, cardType, tags, baseEnergyCost))
         + EstimatedPositiveKeywordValue(tags);
 
     /// <summary>
@@ -1441,9 +1475,9 @@ internal static class EffectBalanceModel
     /// </summary>
     internal static double EstimatedNetCardValue(IReadOnlyList<GeneratorOperation> operations,
         bool hasPrintedResourceCost, GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags,
-        GeneratedRarity rarity, GeneratedCharacter? character = null)
+        GeneratedRarity rarity, GeneratedCharacter? character = null, int? baseEnergyCost = null)
     {
-        var positive = EstimatedPositiveCardValue(operations, hasPrintedResourceCost, cardType, tags);
+        var positive = EstimatedPositiveCardValue(operations, hasPrintedResourceCost, cardType, tags, baseEnergyCost);
         var linearCost = NegativeEffectTuning.TotalLinearCompensationValue(operations, rarity);
         // Use the same rounded percentage that historically expanded WholeCardBudgetBounds. This makes the
         // refactor distribution-neutral while moving the complete downside calculation to the card-value side.
@@ -1459,18 +1493,19 @@ internal static class EffectBalanceModel
     /// </summary>
     internal static double EstimatedContextualOperationValueForAudit(GeneratorOperation operation,
         int operationIndex, IReadOnlyList<GeneratorOperation> operations, bool hasPrintedResourceCost,
-        GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags)
+        GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags, int? baseEnergyCost = null)
     {
         if (operation.Template is "N_SELECT_HAND_CARD" or "N_SELECT_HAND_ATTACK"
             || !CardEffectRules.IsBeneficialEffect(operation)
             || OperationRuntimeSpecCompiler.GetOrCompile(operation).Trigger?.Kind
                 != "vulnerable_enemy_damage_reduction"
+            && !CardEffectRules.IsSelfManagedStateEffect(operation)
             && IsCondition(new ComponentAtom(operation.Template, operation.Scope, string.Empty,
                 operation.RequiresSingleTarget, CardReferenceRequirement.None)))
             return 0d;
         if (CardEffectRules.IsZeroCostCopyThisCardToDiscard(operation)) return 0d;
         return ContextualCardLevelRewardValue(operation, operationIndex, operations,
-            hasPrintedResourceCost, cardType, tags);
+            hasPrintedResourceCost, cardType, tags, baseEnergyCost);
     }
 
     internal static double LinkedResolutionMultiplierForAudit(GeneratorOperation operation,
@@ -1612,7 +1647,7 @@ internal static class EffectBalanceModel
 
     private static double ContextualCardLevelRewardValue(GeneratorOperation operation, int operationIndex,
         IReadOnlyList<GeneratorOperation> operations, bool hasPrintedResourceCost,
-        GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags)
+        GeneratedCardType cardType, IReadOnlyCollection<CardTag>? tags, int? baseEnergyCost)
     {
         if (CardEffectRules.IsCopyThisCardToDiscard(operation)
             && !CardEffectRules.IsZeroCostCopyThisCardToDiscard(operation))
@@ -1622,12 +1657,18 @@ internal static class EffectBalanceModel
             var copiedPayload = PositiveRewardOperations(operations)
                 .Where(item => item.index != operationIndex
                     && !CardEffectRules.IsCopyThisCardToDiscard(item.operation))
-                .Sum(item => EstimatedCardLevelRewardValue(item.operation, item.index, operations))
+                .Sum(item => CappedCardLevelRewardValue(item.operation, item.index, operations, baseEnergyCost))
                 + EstimatedPositiveKeywordValue(tags);
             return Math.Max(0d, copiedPayload) * CopyThisCardValuation.OrdinaryCopyPayloadMultiplier;
         }
-        return EstimatedCardLevelRewardValue(operation, operationIndex, operations);
+        return CappedCardLevelRewardValue(operation, operationIndex, operations, baseEnergyCost);
     }
+
+    private static double CappedCardLevelRewardValue(GeneratorOperation operation, int operationIndex,
+        IReadOnlyList<GeneratorOperation> operations, int? baseEnergyCost) =>
+        CardEffectRules.IsSelfCostReduction(operation)
+            ? SelfCostReductionValuation.Value(operation, operationIndex, operations, baseEnergyCost)
+            : EstimatedCardLevelRewardValue(operation, operationIndex, operations);
 
     /// <summary>
     /// Applies a whole-card reward floor to Rare and Ancient cards. Every positive operation contributes to the
@@ -1699,10 +1740,42 @@ internal static class EffectBalanceModel
     private static double EstimatedCardLevelRewardValue(GeneratorOperation operation, int operationIndex,
         IReadOnlyList<GeneratorOperation> operations)
     {
+        if (CardEffectRules.IsSelfCostReduction(operation))
+            return SelfCostReductionValuation.Value(operation, operationIndex, operations, null);
         var atom = new ComponentAtom(operation.Template, operation.Scope, operation.ChineseText,
             operation.RequiresSingleTarget, CardReferenceRequirement.None)
             { RuntimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(operation) };
         var value = (double)EstimatedEffectValue(operation);
+        if (FoolComponentRules.IsShootModifier(operation)) return 0d;
+        if (CardEffectRules.IsEnemyDamage(operation) && operations.Any(FoolComponentRules.IsShootModifier))
+        {
+            // Song Bow supplies Aim 6 at battle entry. Budget a conservative five Aim per Arrow hit, then
+            // discount the complete attack for Arrow availability. Otherwise Rapid Shot's printed 3x3 looks
+            // weak and generation overfills the damage slot before adding this native scaling for free.
+            var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
+            var hits = Math.Max(1, spec.Values.FirstOrDefault(slot => slot.Id is "hits" or "repeat_count")?.BaseValue ?? 1);
+            value = (value + 500d * hits) * 0.55d;
+        }
+        if (operation.Template.StartsWith("F:", StringComparison.Ordinal))
+        {
+            var amount = Math.Max(0, OperationRuntimeSpecCompiler.PrimaryStaticLiteralValue(operation, 1));
+            var hosts = operations.Where(CardEffectRules.IsEnemyDamage).ToArray();
+            var arrowFactor = operations.Any(FoolComponentRules.IsShootModifier) ? 0.55d : 1d;
+            var hostGeometry = DamageModifierHostValueMultiplier(operation, operationIndex, operations);
+            switch (operation.Template)
+            {
+                case "F:ExtraHitsPerMelody": return amount * 1.5d * hosts.Sum(AddedHitValue) * arrowFactor;
+                case "F:DamagePerMelodyCard": return amount * 8d * 100d * hostGeometry * arrowFactor;
+                case "F:DamagePerSadnessCreated": return amount * 3d * 100d * hostGeometry * arrowFactor;
+                case "F:DoubleAgainstImpaled": return hosts.Sum(host => EstimatedEffectValue(host))
+                    * FoolComponentDefinitions.ImpaledFrequency * arrowFactor;
+                case "F:AimMultiplier": return Math.Max(0, amount - 1) * 5d
+                    * FoolComponentDefinitions.AimValue * hostGeometry * arrowFactor;
+                case "F:RefundStretch": return 5d * FoolComponentDefinitions.StretchValue;
+                case "F:StretchFromDamage": value = hosts.Sum(host => EstimatedEffectValue(host)) * 0.9d; break;
+                case "F:SplashDamage": value = hosts.Sum(host => EstimatedEffectValue(host)); break;
+            }
+        }
         // Reboot surrenders the current hand before drawing. Discount only the adjacent, equally scoped draw.
         if (operationIndex > 0 && operation.Template is "N:Draw" or "N_DRAW"
             && operations[operationIndex - 1].Template == "D:ShuffleAllUnexhaustedIntoDraw"
@@ -2328,7 +2401,8 @@ internal static class EffectBalanceModel
     {
         var kind = OperationRuntimeSpecCompiler.GetOrCompile(trigger).Trigger?.Kind;
         // These native Powers resolve far more than 4.5 times during an ordinary three-turn active lifetime.
-        if (kind is "card_played" or "card_drawn_during_turn") return 10d;
+        if (kind == "card_played") return 10d;
+        if (kind == "card_drawn_during_turn") return MidTurnDrawLifetimeCap;
         if (kind is "attack_dealt_damage" or "attack_damaged_enemy") return 6d;
         // End-of-turn Powers are normally drawn after combat begins and average fewer than three live ticks.
         if (kind == "turn_end") return 2.5d;
@@ -2435,6 +2509,9 @@ internal static class EffectBalanceModel
 
     private static bool HasContextualModifierValuation(GeneratorOperation operation)
     {
+        if (operation.Template is "F:ShootArrow" or "F:ExtraHitsPerMelody" or "F:DamagePerMelodyCard"
+            or "F:DamagePerSadnessCreated" or "F:DoubleAgainstImpaled" or "F:AimMultiplier"
+            or "F:RefundStretch") return true;
         if (CardEffectRules.IsDependencyPrefix(operation) || CardEffectRules.IsNegativeEffect(operation)) return true;
         if (operation.Template is "CL:IncreaseRollingDamage" or "M:RepeatAreaOnKill"
             or "NCR:OstyCurrentHpBonusDamage" or "NCR:OstyMaxHpBonusDamage"
@@ -2589,6 +2666,20 @@ internal static class EffectBalanceModel
             return OperationRuntimeSpecCompiler.TryReplaceFixedValue(operation, slot, amount, out var adjusted)
                 ? adjusted : throw new InvalidOperationException($"Cannot set {template}.{slot} for regression audit.");
         }
+        var midTurnDraw = CatalogOperation(regressionAtoms.First(atom => atom.Template == "A:whenCardDrawnDuringTurn"));
+        var midTurnDrawDamage = WithAmount("N:AllD", "damage", 3) with
+        {
+            Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 }
+        };
+        if (Math.Abs(EstimatedCardLevelRewardValue(midTurnDrawDamage, 1,
+                [midTurnDraw, midTurnDrawDamage]) - 3_100d) > 0.001d
+            || RelativeTriggerFrequency(midTurnDraw) != MidTurnDrawFrequency)
+            throw new InvalidOperationException("v113 Speedster must value its three-damage payoff against its own native cadence.");
+        var goldThreshold = CatalogOperation(regressionAtoms.First(atom => atom.Template == "CL:ForEachGoldThreshold"));
+        if (RelativeTriggerFrequency(goldThreshold) != 10d
+            || EstimatedEffectValue(CatalogOperation(regressionAtoms.First(atom =>
+                atom.Template == "N:ReduceHandAttackCostUntilPlayed"))) != 2_800d)
+            throw new InvalidOperationException("v113 Gold-count and hand-Attack discount anchors drifted.");
         var twoDamage = WithAmount("T:D", "damage", 2);
         var twoBlock = WithAmount("N:B", "block", 2);
         var twoPoison = WithAmount("T:Poison", "amount", 2);
@@ -3123,13 +3214,16 @@ internal static class EffectBalanceModel
             (GeneratedCharacter.Ironclad, "PerfectedStrike", 1_600d),
             (GeneratedCharacter.Ironclad, "Bully", 1_000d),
             (GeneratedCharacter.Ironclad, "AshenStrike", 1_500d),
-            (GeneratedCharacter.Silent, "MementoMori", 1_340d),
+            (GeneratedCharacter.Silent, "MementoMori", 1_900d),
             (GeneratedCharacter.Necrobinder, "PullFromBelow", 1_100d),
             (GeneratedCharacter.Regent, "LunarBlast", 900d),
             (GeneratedCharacter.Regent, "Radiate", 1705d),
             (GeneratedCharacter.Necrobinder, "Rattle", 1_660d),
             (GeneratedCharacter.Necrobinder, "DeathMarch", 2_720d),
-            (GeneratedCharacter.Ironclad, "ExpectAFight", 2_460d),
+            (GeneratedCharacter.Ironclad, "ExpectAFight", 4_600d),
+            (GeneratedCharacter.Silent, "Speedster", 3_100d),
+            (GeneratedCharacter.Silent, "PhantomBlades", 1_900d),
+            (GeneratedCharacter.Colorless, "MyShinies", 1_900d),
             (GeneratedCharacter.Colorless, "Rend", 2_000d),
             (GeneratedCharacter.Silent, "EchoingSlash", 2_317.25d),
             (GeneratedCharacter.Regent, "CrescentSpear", 1_800d),

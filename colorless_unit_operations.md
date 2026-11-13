@@ -41,7 +41,7 @@
 | 撕碎 `Rend` | 1/-/Attack/SingleEnemy/Rare | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成10点伤害。¦Deal 10 damage.⟧；⟦CL:BonusPerUniqueDebuff¦Modifier¦true¦None¦-1¦该敌人身上每有一种负面效果，就额外造成5点伤害。¦Deals 5 additional damage for each unique debuff on the enemy.⟧ |  | Rend |
 | 心神不宁 `Restlessness` | 0/-/Skill/Other/Uncommon | ⟦CL:IfHandEmpty¦ConditionalTrigger¦false¦None¦-1¦如果你的手牌为空。¦If your Hand is empty.⟧；⟦N:Draw¦NonTargeted¦false¦None¦0¦抽2张牌。¦Draw 2 cards.⟧；⟦N:E¦NonTargeted¦false¦None¦0¦获得2点能量。¦Gain 2 Energy.⟧ | Retain | Restlessness |
 | 滚石 `RollingBoulder` | 3/-/Power/Other/Rare | ⟦A:turnStart¦AbilityTrigger¦false¦None¦-1¦在你的回合开始时。¦At the start of your turn.⟧；⟦N:AllD¦NonTargeted¦false¦None¦0¦对所有敌人造成5点伤害。¦Deal 5 damage to ALL enemies.⟧；⟦CL:IncreaseRollingDamage¦Modifier¦false¦None¦0¦然后将该伤害增加5点。¦Then increase this damage by 5.⟧ |  | Rolling Boulder |
-| 箭雨 `Salvo` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成12点伤害。¦Deal 12 damage.⟧；⟦N:RetainHandThisTurn¦NonTargeted¦false¦None¦-1¦在本回合保留你的手牌。¦Retain your Hand this turn.⟧ | Retain | Salvo |
+| 箭雨 `Salvo` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成10点伤害。¦Deal 10 damage.⟧；⟦N:RetainHandThisTurn¦NonTargeted¦false¦None¦-1¦在本回合保留你的手牌。¦Retain your Hand this turn.⟧ | Retain | Salvo |
 | 潦草急就 `Scrawl` | 1/-/Skill/Other/Rare | ⟦CL:DrawToFullHand¦Independent¦false¦None¦-1¦抽牌直到抽满手牌。¦Draw cards until your Hand is full.⟧ | Exhaust | Scrawl |
 | 秘密技法 `SecretTechnique` | 0/-/Skill/Other/Rare | ⟦CL:MoveSelectedSkillDrawToHand¦Independent¦false¦None¦-1¦从抽牌堆中选择一张技能牌放入手牌。¦Put a Skill from your Draw Pile into your Hand.⟧ | Exhaust | Secret Technique |
 | 秘密武器 `SecretWeapon` | 0/-/Skill/Other/Rare | ⟦CL:MoveSelectedAttackDrawToHand¦Independent¦false¦None¦-1¦从抽牌堆中选择一张攻击牌放入手牌。¦Put an Attack from your Draw Pile into your Hand.⟧ | Exhaust | Secret Weapon |
@@ -56,3 +56,4 @@
 | 究极防御 `UltimateDefend` | 1/-/Skill/Other/Uncommon | ⟦N:B¦NonTargeted¦false¦None¦-1¦获得11点格挡。¦Gain 11 Block.⟧ | Defend | Ultimate Defend |
 | 究极打击 `UltimateStrike` | 1/-/Attack/SingleEnemy/Uncommon | ⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成14点伤害。¦Deal 14 damage.⟧ | Strike | Ultimate Strike |
 | 连射 `Volley` | X/-/Attack/Other/Uncommon | ⟦N:RandomD¦NonTargeted¦false¦None¦-1¦随机对敌人造成10点伤害X次。¦Deal 10 damage to a random enemy X times.⟧ |  | Volley |
+| 我的小钱钱 `MyShinies` | 1/-/Attack/SingleEnemy/Rare | ⟦CL:ForEachGoldThreshold¦Modifier¦false¦None¦-1¦每有20金币，¦For every 20 Gold you have,⟧；⟦T:D¦SingleEnemyOnly¦true¦None¦-1¦造成1点伤害。¦deal 1 damage.⟧ |  | My Shinies |

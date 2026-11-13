@@ -46,6 +46,10 @@ internal static class ChaosPortraitCompatibility
 
     private static DirectTextureAdapter[] _directTextureAdapters = [];
     private static bool _directAdaptersResolved;
+    private readonly record struct PortraitVisualIdentity(bool UsesSourceId, string Source, string Variant, string VariantPath);
+    // Match the process-lifetime resolved-path cache. Key by art fields rather than the definition object: editor
+    // overrides can project a new record on each query while still referring to exactly the same loaded art.
+    private static readonly ConcurrentDictionary<PortraitVisualIdentity, string> VisualKeys = new();
 
     internal const string OriginalVariantId = "$original";
     internal const string RedirectedVariantId = "$redirected";
@@ -113,9 +117,16 @@ internal static class ChaosPortraitCompatibility
             ? "id:" + definition.PortraitSourceId
             : "path:" + definition.PortraitPath;
 
-    private static string VisualKey(ChaosCardDefinition definition) => SourceKey(definition)
-        + "|variant:" + (definition.PortraitVariantId ?? "$winning")
-        + "|variantPath:" + (definition.PortraitVariantPath ?? string.Empty);
+    private static string VisualKey(ChaosCardDefinition definition)
+    {
+        var usesSourceId = !string.IsNullOrWhiteSpace(definition.PortraitSourceId);
+        var identity = new PortraitVisualIdentity(usesSourceId,
+            usesSourceId ? definition.PortraitSourceId! : definition.PortraitPath,
+            definition.PortraitVariantId ?? "$winning", definition.PortraitVariantPath ?? string.Empty);
+        return VisualKeys.GetOrAdd(identity, static source =>
+            (source.UsesSourceId ? "id:" : "path:") + source.Source
+            + "|variant:" + source.Variant + "|variantPath:" + source.VariantPath);
+    }
 
     /// <summary>Returns every currently available visual for one native source card in deterministic load order.</summary>
     internal static IReadOnlyList<PortraitVariant> GetAvailableVariants(CardModel source, string stablePath)

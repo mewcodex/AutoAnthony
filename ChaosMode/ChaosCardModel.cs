@@ -25,20 +25,28 @@ using HarmonyLib;
 
 namespace AutoAnthony;
 
-public abstract class ChaosCardModel : CardModel
+public abstract partial class ChaosCardModel : CardModel
 {
     private static readonly FieldInfo CardDynamicVarsField = AccessTools.Field(typeof(CardModel), "_dynamicVars");
     private static readonly FieldInfo CardEnergyCostField = AccessTools.Field(typeof(CardModel), "_energyCost");
     private static readonly FieldInfo CardKeywordsField = AccessTools.Field(typeof(CardModel), "_keywords");
+    private static readonly FieldInfo OutsideAddedKeywordsField = AccessTools.Field(typeof(CardModel), "_keywordsAddedFromOutside");
+    private static readonly FieldInfo OutsideRemovedKeywordsField = AccessTools.Field(typeof(CardModel), "_keywordsRemovedFromOutside");
+    private static readonly FieldInfo CardIsUpgradingField = AccessTools.Field(typeof(CardModel), "_isUpgrading");
     private static readonly FieldInfo CardBaseStarCostField = AccessTools.Field(typeof(CardModel), "_baseStarCost");
     private static readonly FieldInfo CardStarCostSetField = AccessTools.Field(typeof(CardModel), "_starCostSet");
     private int _extraDamage;
+    private int[] _operationDamageGrowth = [];
+    private GeneratedCard? _operationDamageGrowthDefinition;
+    private GeneratedCard? _dynamicVariablesDefinition;
+    private GeneratedCard? _energyCostDefinition;
+    private GeneratedCard? _starCostDefinition;
     private int _extraBlock;
     private int _resolvedSpecialXValue;
     private int _resolvedEnergyXValue;
     private int _resolvedStarXValue;
     private PileType? _postPlayExhaustMovePile;
-    private readonly Dictionary<int, int> _capturedExternalDamageBonuses = [];
+    private Dictionary<int, int> _capturedExternalDamageBonuses = [];
     private string _tinkeredDefinitionPayload = string.Empty;
     private GeneratedCard? _tinkeredDefinition;
     private string _freeformDefinitionPayload = string.Empty;
@@ -51,6 +59,30 @@ public abstract class ChaosCardModel : CardModel
     private string _editorPortraitVariantId = string.Empty;
     private string _editorPortraitVariantPath = string.Empty;
     private string _balancePoolEntryId = string.Empty;
+    private sealed class HoverTipCacheEntry
+    {
+        internal GeneratedCard? Definition;
+        internal bool Upgraded;
+        internal bool AncientFuel;
+        internal string? Language;
+        internal object? LocaleEpoch;
+        internal bool NeedsMaterialization;
+        internal IReadOnlyList<IHoverTip> Tips = [];
+    }
+    private static readonly ConditionalWeakTable<ChaosCardModel, HoverTipCacheEntry> BuiltInHoverTips = new();
+    private static readonly AccessTools.FieldRef<LocManager, Dictionary<string, LocTable>> LocaleTables =
+        AccessTools.FieldRefAccess<LocManager, Dictionary<string, LocTable>>("_tables");
+    // Store a token rather than the table dictionary: stale card entries must not retain an entire old locale.
+    private static readonly ConditionalWeakTable<Dictionary<string, LocTable>, object> LocaleEpochs = new();
+    private sealed class DeferredEnergyHoverTip : IHoverTip
+    {
+        public string Id => "AutoAnthony:deferred-energy";
+        public bool IsSmart => false;
+        public bool IsDebuff => false;
+        public bool IsInstanced => false;
+        public AbstractModel? CanonicalModel => null;
+    }
+    private static readonly IHoverTip DeferredEnergyTip = new DeferredEnergyHoverTip();
 
     protected abstract int Slot { get; }
     protected virtual GeneratedCharacter Character => GeneratedCharacter.Ironclad;
@@ -205,6 +237,83 @@ public abstract class ChaosCardModel : CardModel
         set { AssertMutable(); _editorPortraitVariantPath = value ?? string.Empty; }
     }
     [SavedProperty] public int ExtraDamage { get => _extraDamage; set { AssertMutable(); _extraDamage = value; } }
+    // Compact index/bonus pairs. Updates replace the array so native mutable clones never share writable state.
+    [SavedProperty(SerializationCondition.SaveIfNotCollectionEmptyOrNull)] public int[] OperationDamageGrowth
+    {
+        get => _operationDamageGrowth ?? [];
+        set
+        {
+            AssertMutable();
+            _operationDamageGrowth = value?.ToArray() ?? [];
+            // Saved properties restore definitions separately; bind after the entire payload is restored.
+            _operationDamageGrowthDefinition = null;
+        }
+    }
+    internal int OperationDamageBonus(int operationIndex)
+    {
+        if (operationIndex < 0) return 0;
+        var values = OperationDamageGrowth;
+        for (var offset = 0; offset + 1 < values.Length; offset += 2)
+            if (values[offset] == operationIndex) return Math.Max(0, values[offset + 1]);
+        return 0;
+    }
+    internal void IncreaseOperationDamage(int operationIndex, int amount)
+    {
+        AssertMutable();
+        RebindOperationDamageGrowth();
+        if (amount <= 0 || (uint)operationIndex >= (uint)Generated.Operations.Count
+            || !CardEffectRules.IsEnemyDamage(Generated.Operations[operationIndex])) return;
+        var values = OperationDamageGrowth;
+        for (var offset = 0; offset + 1 < values.Length; offset += 2)
+            if (values[offset] == operationIndex)
+            {
+                var copy = values.ToArray();
+                copy[offset + 1] = (int)Math.Min(int.MaxValue, (long)Math.Max(0, copy[offset + 1]) + amount);
+                _operationDamageGrowth = copy;
+                return;
+            }
+        _operationDamageGrowth = [.. values, operationIndex, amount];
+    }
+
+    private void RebindOperationDamageGrowth()
+    {
+        var definition = Generated;
+        var previous = _operationDamageGrowthDefinition;
+        if (ReferenceEquals(previous, definition)) return;
+        if (previous is not null && OperationDamageGrowth.Length > 0)
+        {
+            var remapped = new List<int>();
+            var used = new HashSet<int>();
+            var operations = definition.Operations;
+            for (var offset = 0; offset + 1 < OperationDamageGrowth.Length; offset += 2)
+            {
+                var oldIndex = OperationDamageGrowth[offset];
+                if ((uint)oldIndex >= (uint)previous.Operations.Count) continue;
+                var oldOperation = previous.Operations[oldIndex];
+                int[] Candidates(Func<GeneratorOperation, bool> matches) => Enumerable.Range(0, operations.Count)
+                    .Where(index => !used.Contains(index) && CardEffectRules.IsEnemyDamage(operations[index])
+                        && matches(operations[index])).Take(2).ToArray();
+                var candidates = Candidates(operation => ReferenceEquals(operation, oldOperation));
+                if (candidates.Length == 0)
+                    candidates = Candidates(operation => OperationRuntimeSpecCompiler.StructuralExactKey(operation)
+                        == OperationRuntimeSpecCompiler.StructuralExactKey(oldOperation));
+                if (candidates.Length == 0)
+                {
+                    var relation = OperationRuntimeSpecCompiler.StructuralRelationKey(oldOperation);
+                    if (previous.Operations.Count(operation => CardEffectRules.IsEnemyDamage(operation)
+                            && OperationRuntimeSpecCompiler.StructuralRelationKey(operation) == relation) == 1)
+                        candidates = Candidates(operation => OperationRuntimeSpecCompiler.StructuralRelationKey(operation) == relation);
+                }
+                // No surviving field, or an ambiguous replacement: do not transfer growth to an arbitrary clause.
+                if (candidates.Length != 1) continue;
+                used.Add(candidates[0]);
+                remapped.Add(candidates[0]);
+                remapped.Add(Math.Max(0, OperationDamageGrowth[offset + 1]));
+            }
+            _operationDamageGrowth = remapped.ToArray();
+        }
+        _operationDamageGrowthDefinition = definition;
+    }
     [SavedProperty] public int ExtraBlock { get => _extraBlock; set { AssertMutable(); _extraBlock = value; } }
     [SavedProperty] public int ResolvedSpecialXValue { get => _resolvedSpecialXValue; set { AssertMutable(); _resolvedSpecialXValue = value; } }
     internal int ResolvedEnergyXValue => _resolvedEnergyXValue;
@@ -232,6 +341,15 @@ public abstract class ChaosCardModel : CardModel
     {
         base.AfterDeserialized();
         RebuildCachedCardState();
+    }
+
+    protected override void DeepCloneFields()
+    {
+        // Native cloning starts with MemberwiseClone. Saved arrays and legacy captured bonuses are mutable
+        // through their public/native restoration boundaries and must belong to the new card instance.
+        _operationDamageGrowth = OperationDamageGrowth.ToArray();
+        _capturedExternalDamageBonuses = _capturedExternalDamageBonuses is { } bonuses ? new(bonuses) : [];
+        base.DeepCloneFields();
     }
 
     /// <summary>
@@ -395,6 +513,21 @@ public abstract class ChaosCardModel : CardModel
 
     private void RebuildCachedCardState()
     {
+        var outside = CaptureExternalKeywords();
+        ResetDefinitionCaches();
+        // Replacing a generated definition rebuilds the card-owned caches from its new component list. Reapply the
+        // already attached enchantment before the upgrade, matching CardModel.FromSerializable.
+        Enchantment?.ModifyCard();
+        ReplayUpgradeAndExternalKeywords(outside, replayUpgrade: IsUpgraded);
+        if (IsUpgraded) FinalizeUpgradeInternal();
+    }
+
+    private void ResetDefinitionCaches()
+    {
+        _dynamicVariablesDefinition = null;
+        _energyCostDefinition = null;
+        _starCostDefinition = null;
+        RebindOperationDamageGrowth();
         CardDynamicVarsField.SetValue(this, null);
         CardEnergyCostField.SetValue(this, null);
         CardKeywordsField.SetValue(this, null);
@@ -403,13 +536,65 @@ public abstract class ChaosCardModel : CardModel
         _ = EnergyCost;
         _ = Keywords;
         _ = BaseStarCost;
-        // Replacing a generated definition rebuilds the card-owned caches from its new component list. Reapply the
-        // already attached enchantment before the upgrade, matching CardModel.FromSerializable, so a balance rework
-        // preserves both the enchantment object and its actual keyword/value modification.
-        Enchantment?.ModifyCard();
-        if (!IsUpgraded) return;
-        OnUpgrade();
-        FinalizeUpgradeInternal();
+    }
+
+    private (CardKeyword[] Added, CardKeyword[] Removed) CaptureExternalKeywords()
+    {
+        var local = CardKeywordsField.GetValue(this) as ISet<CardKeyword>;
+        var added = OutsideAddedKeywordsField.GetValue(this) as ISet<CardKeyword>;
+        var removed = OutsideRemovedKeywordsField.GetValue(this) as ISet<CardKeyword>;
+        // An intervening native upgrade can override an earlier external request. Preserve only changes which
+        // are effective in the old local set, rather than resurrecting that earlier request during a cache refresh.
+        return (added?.Where(keyword => local is null || local.Contains(keyword)).ToArray() ?? [],
+            removed?.Where(keyword => local is null || !local.Contains(keyword)).ToArray() ?? []);
+    }
+
+    private void ReplayUpgradeAndExternalKeywords((CardKeyword[] Added, CardKeyword[] Removed) outside,
+        bool replayUpgrade)
+    {
+        var wasUpgrading = (bool)CardIsUpgradingField.GetValue(this)!;
+        CardIsUpgradingField.SetValue(this, true);
+        try
+        {
+            if (replayUpgrade) OnUpgrade();
+            // An enchantment reapplied above can supersede a previous request. Use the live provenance sets to
+            // avoid undoing that change, while restoring other external additions/removals after our own upgrade.
+            var added = OutsideAddedKeywordsField.GetValue(this) as ISet<CardKeyword>;
+            var removed = OutsideRemovedKeywordsField.GetValue(this) as ISet<CardKeyword>;
+            foreach (var keyword in outside.Added)
+                if (added?.Contains(keyword) == true) AddKeyword(keyword);
+            foreach (var keyword in outside.Removed)
+                if (removed?.Contains(keyword) == true) RemoveKeyword(keyword);
+        }
+        finally
+        {
+            CardIsUpgradingField.SetValue(this, wasUpgrading);
+        }
+    }
+
+    protected override void AfterDowngraded()
+    {
+        base.AfterDowngraded();
+        var outside = CaptureExternalKeywords();
+        // Native downgrade clones the canonical slot. Per-instance edited/rebalanced cards must instead rebuild
+        // from their own current base definition. Native code reapplies the enchantment/affliction after this hook.
+        ResetDefinitionCaches();
+        ReplayUpgradeAndExternalKeywords(outside, replayUpgrade: false);
+    }
+
+    // A mutable card may outlive a shared pool rebind or definition restore. Check the immutable definition
+    // identity, rather than inspecting localized text or allocating new variables on ordinary render/play calls.
+    internal bool RefreshDefinitionCacheIfChanged()
+    {
+        if (_dynamicVariablesDefinition is null && _energyCostDefinition is null && _starCostDefinition is null)
+            return false;
+        var definition = Generated;
+        if ((_dynamicVariablesDefinition is null || ReferenceEquals(_dynamicVariablesDefinition, definition))
+            && (_energyCostDefinition is null || ReferenceEquals(_energyCostDefinition, definition))
+            && (_starCostDefinition is null || ReferenceEquals(_starCostDefinition, definition)))
+            return false;
+        RebuildCachedCardState();
+        return true;
     }
 
     /// <summary>
@@ -428,9 +613,23 @@ public abstract class ChaosCardModel : CardModel
         RebuildCachedCardState();
     }
 
-    protected override int CanonicalEnergyCost => Math.Max(0, Generated.Cost);
+    protected override int CanonicalEnergyCost
+    {
+        get
+        {
+            _energyCostDefinition = Generated;
+            return Math.Max(0, _energyCostDefinition.Cost);
+        }
+    }
     protected override bool HasEnergyCostX => Generated.Cost < 0;
-    public override int CanonicalStarCost => Generated.StarCost;
+    public override int CanonicalStarCost
+    {
+        get
+        {
+            _starCostDefinition = Generated;
+            return _starCostDefinition.StarCost;
+        }
+    }
     public override bool HasStarCostX => Generated.HasStarCostX;
     // Generated cards live in dedicated pools that are swapped in only for chaos runs. CardModel's default Pool
     // lookup scans ModelDb.AllCardPools, whose vanilla title-screen cache intentionally does not include those
@@ -442,6 +641,7 @@ public abstract class ChaosCardModel : CardModel
         GeneratedCharacter.Defect => ModelDb.CardPool<ChaosDefectCardPool>(),
         GeneratedCharacter.Necrobinder => ModelDb.CardPool<ChaosNecrobinderCardPool>(),
         GeneratedCharacter.Regent => ModelDb.CardPool<ChaosRegentCardPool>(),
+        GeneratedCharacter.Fool => ModelDb.CardPool<ChaosFoolCardPool>(),
         GeneratedCharacter.Colorless => ModelDb.CardPool<ColorlessCardPool>(),
         _ => throw new ArgumentOutOfRangeException(nameof(Character))
     };
@@ -470,7 +670,8 @@ public abstract class ChaosCardModel : CardModel
     // Match vanilla Osty cards: warn with a red card glow when playing the card now would lose an immediate
     // Osty-dependent clause. The shared operation rule accounts for cards that first Summon and then use Osty.
     protected override bool ShouldGlowRedInternal => Owner.IsOstyMissing
-        && CardEffectRules.RequiresLivingOstyForCurrentPlay(Generated.Operations);
+        && CardEffectRules.RequiresLivingOstyForCurrentPlay(Generated.Operations)
+        || Generated.Operations.Any(FoolComponentRules.IsShootModifier) && !ArrowCmd.PlayerHasAnyArrows(Owner);
 
     public string DynamicTitle
     {
@@ -513,15 +714,64 @@ public abstract class ChaosCardModel : CardModel
     public override string PortraitPath => ChaosPortraitCompatibility.ResolvePath(EffectivePortraitDefinition);
     public override string BetaPortraitPath => PortraitPath;
     public override IEnumerable<string> AllPortraitPaths => [PortraitPath];
-    public override bool GainsBlock => Generated.Operations.Any(operation => operation.Template is "N:B" or "N_BLOCK" or "N:BlockEqualAllPoison"
-        or "CL:GainBlockEqualDamage" or "CL:GainBlockEqualCurrent" or "CL:GainNextTurnBlockEqualCurrent");
-    protected override IEnumerable<IHoverTip> ExtraHoverTips => IHoverTip.RemoveDupes(BuildExtraHoverTips());
+    public override bool GainsBlock => ChaosCardPresentationMetadata.For(Generated).GainsBlock;
+    protected override IEnumerable<IHoverTip> ExtraHoverTips
+    {
+        get
+        {
+            var builtIn = CachedBuiltInHoverTips();
+            if (!ComponentPresentationApi.HasProviders && !ComponentKeywordRuntimeApi.HasActiveAdapters(this))
+                return builtIn;
+            // Extension providers may depend on live card state. Their callbacks stay outside the cache.
+            return IHoverTip.RemoveDupes(builtIn.Concat(BuildExtensionHoverTips()));
+        }
+    }
+
+    private IEnumerable<IHoverTip> CachedBuiltInHoverTips()
+    {
+        var definition = Generated;
+        var entry = BuiltInHoverTips.GetValue(this, static _ => new HoverTipCacheEntry());
+        var upgraded = IsUpgraded;
+        var ancientFuel = ChaosRunDefinitions.AncientFuelActive;
+        var locale = LocManager.Instance;
+        var language = locale?.Language;
+        var tables = locale is null ? null : LocaleTables(locale);
+        var localeEpoch = tables is null ? null : LocaleEpochs.GetValue(tables, static _ => new object());
+        lock (entry)
+        {
+            if (!ReferenceEquals(entry.Definition, definition) || entry.Upgraded != upgraded
+                || entry.AncientFuel != ancientFuel || entry.Language != language
+                || !ReferenceEquals(entry.LocaleEpoch, localeEpoch))
+            {
+                var tips = Array.AsReadOnly(IHoverTip.RemoveDupes(BuildExtraHoverTips()).ToArray());
+                entry.Definition = definition;
+                entry.Upgraded = upgraded;
+                entry.AncientFuel = ancientFuel;
+                entry.Language = language;
+                entry.LocaleEpoch = localeEpoch;
+                entry.Tips = tips;
+                entry.NeedsMaterialization = tips.Any(tip => tip is CardHoverTip
+                    || ReferenceEquals(tip, DeferredEnergyTip));
+            }
+            return entry.NeedsMaterialization ? MaterializeHoverTips(entry.Tips) : entry.Tips;
+        }
+    }
+
+    private IEnumerable<IHoverTip> MaterializeHoverTips(IReadOnlyList<IHoverTip> prototypes)
+    {
+        foreach (var tip in prototypes)
+            // Never expose the private mutable prototype, including on the first query. Clones remain detached
+            // from combat and keep the marker needed for enchantment-aware numerical preview refresh.
+            yield return tip is CardHoverTip preview
+                ? new CardHoverTip(ChaosDerivativeResolver.CloneDetachedPreview(preview.Card))
+                : ReferenceEquals(tip, DeferredEnergyTip) ? HoverTipFactory.ForEnergy(this) : tip;
+    }
 
     private IEnumerable<IHoverTip> BuildExtraHoverTips()
     {
+        foreach (var tip in FoolHoverTips()) yield return tip;
         var operations = Generated.Operations;
-        var semanticTags = operations.SelectMany(CardEffectRules.HoverSemanticTags)
-            .ToHashSet(StringComparer.Ordinal);
+        var semanticTags = ChaosCardPresentationMetadata.For(Generated).HoverTags;
         bool HasTag(string value) => semanticTags.Contains(value);
         bool Template(string value) => operations.Any(operation => operation.Template == value);
         bool TemplateStarts(string value) => operations.Any(operation => operation.Template.StartsWith(value, StringComparison.Ordinal));
@@ -559,7 +809,8 @@ public abstract class ChaosCardModel : CardModel
             // ChaosCardModel.Pool resolves directly to the character's dedicated replacement pool. Do not borrow
             // an arbitrary component-source card here: some valid source cards are intentionally outside reward
             // pools, and EnergyIconHelper rejects those cards while building hover tips.
-            yield return HoverTipFactory.ForEnergy(this);
+            // The local character (and therefore its energy icon) may change while this definition is retained.
+            yield return DeferredEnergyTip;
         if (HasTag("fatal")) yield return HoverTipFactory.Static(StaticHoverTip.Fatal);
         if (HasTag("replay")) yield return HoverTipFactory.Static(StaticHoverTip.ReplayStatic);
         if (HasTag("transform")) yield return HoverTipFactory.Static(StaticHoverTip.Transform);
@@ -601,14 +852,18 @@ public abstract class ChaosCardModel : CardModel
         if (HasAtomicReference("sovereign_blade_reference") || TemplateStarts("R:KingsSword"))
             yield return HoverTipFactory.FromCard<SovereignBlade>();
 
+        // Atomic proxy tips are projected above from RuntimeSpec flags and typed derivative/orb slots. Do not
+        // enumerate the source card's HoverTips here: during a chaos run its vanilla reward pool may be replaced,
+        // and the base-game EnergyHoverTip rejects a source model that is temporarily outside an active pool.
+    }
+
+    private IEnumerable<IHoverTip> BuildExtensionHoverTips()
+    {
+        var operations = Generated.Operations;
         for (var index = 0; index < operations.Count; index++)
             foreach (var tip in ComponentPresentationApi.BuildHoverTips(this, index, operations[index]))
                 yield return tip;
         foreach (var tip in ComponentKeywordRuntimeApi.HoverTips(this)) yield return tip;
-
-        // Atomic proxy tips are projected above from RuntimeSpec flags and typed derivative/orb slots. Do not
-        // enumerate the source card's HoverTips here: during a chaos run its vanilla reward pool may be replaced,
-        // and the base-game EnergyHoverTip rejects a source model that is temporarily outside an active pool.
     }
 
     private bool AtomicDerivativeIsUpgraded(string referenceFlag) => IsUpgraded
@@ -622,6 +877,7 @@ public abstract class ChaosCardModel : CardModel
     {
         get
         {
+            _dynamicVariablesDefinition = Generated;
             for (var index = 0; index < Generated.Operations.Count; index++)
             {
                 var operation = Generated.Operations[index];
@@ -629,6 +885,7 @@ public abstract class ChaosCardModel : CardModel
                     yield return new ChaosCalculatedPreviewVar(ChaosStatPreview.VariableName(previewKind, index),
                         index, previewKind);
                 if (!ChaosOperationVariables.TryGetInitialValue(operation, out var value)) continue;
+                if (operation.Template == "F:Aim") value += ExtraAim;
                 var name = ChaosOperationVariables.Name(operation, index);
                 if (Generated.Type == GeneratedCardType.Power && CardEffectRules.IsEnemyDamage(operation))
                 {
@@ -640,7 +897,7 @@ public abstract class ChaosCardModel : CardModel
                         ? new ChaosOstyDamageVar(name, value,
                             ChaosOperationExecutor.DamagePropsForCardEffect(Type))
                         : new ChaosDamageVar(name, value,
-                            ChaosOperationExecutor.DamagePropsForCardEffect(Type));
+                            ChaosOperationExecutor.DamagePropsForCardEffect(Type), index);
                     continue;
                 }
                 if (operation.Template == "T:ProxyDamage_Atomic_Poke")
@@ -653,7 +910,7 @@ public abstract class ChaosCardModel : CardModel
                 if (operation.Template.StartsWith("T:ProxyDamage_", StringComparison.Ordinal)
                     || operation.Template.StartsWith("N:ProxyDamage_", StringComparison.Ordinal))
                 {
-                    yield return new ChaosDamageVar(name, value, ValueProp.Move);
+                    yield return new ChaosDamageVar(name, value, ValueProp.Move, index);
                     continue;
                 }
                 if (operation.Template is "T:D" or "T:DX" or "T:D_EnergyX"
@@ -663,19 +920,20 @@ public abstract class ChaosCardModel : CardModel
                 {
                     // Retaliation uses the ordinary damage component, but—as in the native Flame Barrier—its
                     // event damage is not modified by the card owner's Strength. Match runtime and preview values.
-                    yield return new ChaosDamageVar(name, value, ValueProp.Unpowered);
+                    yield return new ChaosDamageVar(name, value, ValueProp.Unpowered, index);
                     continue;
                 }
                 yield return operation.Template switch
                 {
-                    "T:D" or "T:DX" or "T:D_EnergyX" or "N:AllD" or "N:RandomD"
+                    "T:D" or "T:DX" or "T:D_EnergyX" or "N:AllD" or "N:RandomD" or "N:LowestHpD"
                         or "NCR:DoomScaledDamage" =>
-                        new ChaosDamageVar(name, value, ValueProp.Move),
+                        new ChaosDamageVar(name, value, ValueProp.Move
+                            | (Generated.Operations.Any(FoolComponentRules.IsShootModifier) ? ValueProp.FromArrow : (ValueProp)0), index),
                     "NCR:OstyDamage" or "NCR:OstyAllDamage" =>
                         new ChaosOstyDamageVar(name, value, ValueProp.Move),
-                    "NCR:UnpoweredDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered),
-                    "CL:RollingAllDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered),
-                    "N:RetaliateDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered),
+                    "NCR:UnpoweredDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered, index),
+                    "CL:RollingAllDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered, index),
+                    "N:RetaliateDamage" => new ChaosDamageVar(name, value, ValueProp.Unpowered, index),
                     "N:B" or "N_BLOCK" or "I:DrawAndBlockIfSkill" => new ChaosBlockVar(name, value,
                         ChaosOperationExecutor.BlockPropsForCardEffect(Type)),
                     "N:E" or "N:NextTurnEnergy" or "D:GainEnergy" or "D:NextTurnEnergy" or "NCR:GainEnergy" or "NCR:NextTurnEnergy"
@@ -703,38 +961,24 @@ public abstract class ChaosCardModel : CardModel
     // whose tags were queried on the title screen could otherwise retain the previous placeholder/run's tags and
     // fail Perfected Strike's PlayerCombatState.AllCards semantic-tag count. Resolve the generated definition on
     // every query instead, exactly as the native card counts CardTag.Strike rather than localized title text.
+    // The definition-owned projection is cached by weak reference; replacing the definition naturally changes it.
     public override IEnumerable<MegaCrit.Sts2.Core.Entities.Cards.CardTag> Tags
     {
         get
         {
-            var yieldedOstyAttack = false;
-            foreach (var tag in Generated.Tags)
-            {
-                if (!ChaosCardTagAdapter.TrySemanticTag(tag, out var gameTag)) continue;
-                // Prior built-in snapshots sampled semantic tags independently from their operations. Trust an
-                // explicit external-profile tag, but clean the obsolete built-in false positive at query time.
-                if (gameTag == MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack
-                    && DefinitionProfileId is not { Length: > 0 }
-                    && !GeneratedCardTagPolicy.IsOstyAttackCard(Generated.Operations))
-                    continue;
-                if (gameTag == MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack)
-                    yieldedOstyAttack = true;
-                yield return gameTag;
-            }
-            // Snapshots created before operation-derived semantic tags were normalized may not have serialized
-            // OstyAttack. Derive it at query time as well so continuing such a run immediately uses native count
-            // semantics without regenerating its cards.
-            if (!yieldedOstyAttack && GeneratedCardTagPolicy.IsOstyAttackCard(Generated.Operations))
-            {
-                yieldedOstyAttack = true;
-                yield return MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack;
-            }
-            foreach (var gameTag in ComponentKeywordRuntimeApi.SemanticTags(this))
-            {
-                if (gameTag == MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack && yieldedOstyAttack) continue;
-                yield return gameTag;
-            }
+            var metadata = ChaosCardPresentationMetadata.For(Generated);
+            var tags = DefinitionProfileId is { Length: > 0 } ? metadata.ExternalTags : metadata.BuiltInTags;
+            return ComponentKeywordRuntimeApi.HasActiveAdapters(this) ? WithExtensionTags(tags) : tags;
         }
+    }
+
+    private IEnumerable<MegaCrit.Sts2.Core.Entities.Cards.CardTag> WithExtensionTags(
+        IReadOnlyList<MegaCrit.Sts2.Core.Entities.Cards.CardTag> tags)
+    {
+        foreach (var tag in tags) yield return tag;
+        var hasOstyAttack = tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack);
+        foreach (var tag in ComponentKeywordRuntimeApi.SemanticTags(this))
+            if (tag != MegaCrit.Sts2.Core.Entities.Cards.CardTag.OstyAttack || !hasOstyAttack) yield return tag;
     }
 
     protected override void AddExtraArgsToDescription(LocString description)
@@ -750,6 +994,9 @@ public abstract class ChaosCardModel : CardModel
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
+        foreach (var melody in Tags.Where(tag => tag is MegaCrit.Sts2.Core.Entities.Cards.CardTag.Wah
+                     or MegaCrit.Sts2.Core.Entities.Cards.CardTag.Cho or MegaCrit.Sts2.Core.Entities.Cards.CardTag.Ki))
+            await MelodyCmd.PlayMelodyVfx(Owner.Creature, melody);
         // ResourceInfo is the synchronized payment attached to this CardPlay. Prefer it over mutable card fields on
         // remote peers; LastStarsSpent/CapturedXValue can lag one action while a multiplayer play is reconstructed.
         // Auto-played/replayed X cards intentionally spend zero, so retain the card's captured value in that case.
@@ -904,7 +1151,8 @@ public abstract class ChaosCardModel : CardModel
     }
 
     public override Task AfterDeath(PlayerChoiceContext choiceContext,
-        MegaCrit.Sts2.Core.Entities.Creatures.Creature creature, bool wasRemovalPrevented, float deathAnimLength)
+        MegaCrit.Sts2.Core.Entities.Creatures.Creature creature, CardModel? source,
+        bool wasRemovalPrevented, float deathAnimLength)
     {
         var deathCostReduction = TotalOperationAmount("NCR:CostDownWhenCreatureDies");
         if (!wasRemovalPrevented && Pile?.IsCombatPile == true && deathCostReduction > 0)
@@ -914,6 +1162,7 @@ public abstract class ChaosCardModel : CardModel
 
     public override async Task AfterCardPlayedLate(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
+        await ApplyResolvedPostPlayMove(choiceContext, cardPlay);
         var operationIndex = Generated.Operations.ToList()
             .FindIndex(op => op.Template == "NCR:ReturnFromDiscardOnHighCostPlay");
         if (operationIndex >= 0 && cardPlay.Card.Owner == Owner)
@@ -999,37 +1248,27 @@ public abstract class ChaosCardModel : CardModel
     protected override CardLocation GetResultLocationForCardPlay()
     {
         var location = base.GetResultLocationForCardPlay();
+        _requestedPostPlayPile = null;
         _postPlayExhaustMovePile = null;
-        if (location.pileType == PileType.Exhaust)
-        {
-            if (Generated.Operations.Any(operation => operation.Template == "R:ReturnThisToHand"))
-                _postPlayExhaustMovePile = PileType.Hand;
-            else if (Generated.Operations.Any(operation => operation.Template == "R:PutThisOnDraw"))
-                _postPlayExhaustMovePile = PileType.Draw;
-            // Preserve the real Exhaust event and all Exhaust synergies, then move this card from the Exhaust pile
-            // in AfterCardExhausted. This makes the printed keyword and the post-play movement both functional.
-            return location;
-        }
-        if (location.pileType != PileType.Discard) return location;
-        if (Generated.Operations.Any(operation => operation.Template == "R:ReturnThisToHand"))
+        // Native Play captures this location before OnPlay. Mourning Blow's unconditional lifecycle replacement
+        // can be declared here; conditional/delayed return operations must wait until they actually resolve.
+        if (location.pileType == PileType.Discard
+            && Generated.Operations.Any(operation => operation.Template == "F:TransformThisToSadness"))
             location.pileType = PileType.Hand;
-        else if (Generated.Operations.Any(operation => operation.Template == "R:PutThisOnDraw"))
-        {
-            location.pileType = PileType.Draw;
-            location.position = CardPilePosition.Top;
-        }
         return location;
     }
 
     protected override void OnUpgrade()
     {
+        if (RefreshDefinitionCacheIfChanged()) return;
         var upgrade = Generated.Upgrade;
         if (upgrade is null) return;
-        if (!EnergyCost.CostsX && upgrade.UpgradedCost != Generated.Cost)
-            EnergyCost.UpgradeBy(upgrade.UpgradedCost - Generated.Cost);
-        var upgradedStarCost = upgrade.UpgradedStarCost ?? Generated.StarCost;
+        var upgradedCost = CardUpgradeGenerator.UpgradedEnergyCost(Generated);
+        if (!EnergyCost.CostsX && upgradedCost != Generated.Cost)
+            EnergyCost.UpgradeBy(upgradedCost - Generated.Cost);
+        var upgradedStarCost = CardUpgradeGenerator.UpgradedStarCost(Generated);
         if (!HasStarCostX && Generated.StarCost >= 0 && upgradedStarCost != Generated.StarCost)
-            UpgradeStarCostBy(upgradedStarCost - Generated.StarCost);
+            UpgradeStarCostBy(Math.Max(-Math.Max(0, BaseStarCost), upgradedStarCost - Generated.StarCost));
         foreach (var keyword in GeneratedCardTagPolicy.AddedKeywords(upgrade))
         {
             if (ChaosCardTagAdapter.TryKeyword(keyword, out var gameKeyword)) AddKeyword(gameKeyword);
@@ -1042,22 +1281,22 @@ public abstract class ChaosCardModel : CardModel
             ComponentKeywordRuntimeApi.ApplyUpgrade(this, keywordId, added: true);
         foreach (var keywordId in GeneratedCardTagPolicy.RemovedCustomKeywords(upgrade))
             ComponentKeywordRuntimeApi.ApplyUpgrade(this, keywordId, added: false);
-        foreach (var effect in CardUpgradeGenerator.ExpandEffects(Generated.Operations, upgrade.Effects))
+        var upgradedOperations = CardUpgradeGenerator.GetUpgradedOperations(Generated);
+        for (var index = 0; index < Generated.Operations.Count; index++)
         {
-            if (effect.OperationIndex is not { } index || effect.Delta is not { } delta) continue;
-            if (effect.Kind == CardUpgradeKind.IncreaseNumber
-                && CardEffectRules.IsNonUpgradeableNumericMarker(Generated.Operations[index])) continue;
-            // X upgrades change the number of X repetitions, not the operation's ordinary numeric value.
-            if (!ChaosOperationVariables.TryGetInitialSlot(Generated.Operations[index], out var dynamicSlot)
-                || effect.ValueSlotId is { } upgradedSlot && upgradedSlot != dynamicSlot)
+            var operation = Generated.Operations[index];
+            if (!ChaosOperationVariables.TryGetInitialValue(operation, out var before)
+                || !ChaosOperationVariables.TryGetInitialValue(upgradedOperations[index], out var after)
+                || before == after)
                 continue;
-            if (DynamicVars.TryGetValue(ChaosOperationVariables.Name(Generated.Operations[index], index), out var variable))
-                variable.UpgradeValueBy(delta);
+            if (DynamicVars.TryGetValue(ChaosOperationVariables.Name(operation, index), out var variable))
+                variable.UpgradeValueBy(after - before);
         }
     }
 
     internal int OperationAmount(int operationIndex)
     {
+        RefreshDefinitionCacheIfChanged();
         var operation = Generated.Operations[operationIndex];
         if (DynamicVars.TryGetValue(ChaosOperationVariables.Name(operation, operationIndex), out var variable))
             return variable.IntValue;
@@ -1142,14 +1381,14 @@ public abstract class ChaosCardModel : CardModel
     internal static int ExternalDamageBonusIndex(int key) => -key - 1;
 }
 
-internal sealed class ChaosDamageVar(string name, decimal damage, ValueProp props) : DamageVar(name, damage, props)
+internal sealed class ChaosDamageVar(string name, decimal damage, ValueProp props, int operationIndex = -1) : DamageVar(name, damage, props)
 {
     public override void UpdateCardPreview(CardModel card, CardPreviewMode previewMode,
         MegaCrit.Sts2.Core.Entities.Creatures.Creature? target, bool runGlobalHooks)
     {
         // Combat-only permanent growth (Rampage-style effects) is stored separately so save data remains stable,
         // but it still belongs in the number shown on the card.
-        var growth = card is ChaosCardModel chaos ? chaos.ExtraDamage : 0;
+        var growth = card is ChaosCardModel chaos ? (decimal)chaos.ExtraDamage + chaos.OperationDamageBonus(operationIndex) : 0m;
         var original = BaseValue;
         BaseValue = original + growth;
         base.UpdateCardPreview(card, previewMode, target, runGlobalHooks);
@@ -1278,6 +1517,8 @@ internal static class ChaosStatPreview
         var operation = operations[index];
         kind = operation.Template switch
         {
+            "F:ExtraHitsPerMelody" => ChaosStatPreviewKind.Hits,
+            "F:DamagePerMelodyCard" or "F:DamagePerSadnessCreated" or "F:DoubleAgainstImpaled" => ChaosStatPreviewKind.Damage,
             "N:BlockEqualAllPoison" or "CL:GainBlockEqualCurrent" or "CL:GainNextTurnBlockEqualCurrent"
                 or "NCR:BlockTripleOstyMaxHp" => ChaosStatPreviewKind.Block,
             "NCR:DoomScaledDamage" or "CL:DamageEqualCardsPlayedCombat" => ChaosStatPreviewKind.Damage,
@@ -1285,7 +1526,8 @@ internal static class ChaosStatPreview
             "I:ProxyAtomic_Voltaic" => ChaosStatPreviewKind.Channels,
             _ => default
         };
-        if (operation.Template is "N:BlockEqualAllPoison" or "CL:GainBlockEqualCurrent"
+        if (operation.Template is "F:ExtraHitsPerMelody" or "F:DamagePerMelodyCard" or "F:DamagePerSadnessCreated"
+            or "F:DoubleAgainstImpaled" or "N:BlockEqualAllPoison" or "CL:GainBlockEqualCurrent"
             or "CL:GainNextTurnBlockEqualCurrent" or "NCR:BlockTripleOstyMaxHp" or "NCR:DoomScaledDamage"
             or "CL:DamageEqualCardsPlayedCombat"
             or "N:StrengthPerTargetVulnerable" or "I:ProxyAtomic_Voltaic") return true;
@@ -1321,6 +1563,18 @@ internal static class ChaosStatPreview
                 kind = ChaosStatPreviewKind.Damage;
                 return true;
             }
+        }
+
+        if (operation.Parameters.TryGetValue("triggerIndex", out var foolOwner)
+            && foolOwner >= 0 && foolOwner < index
+            && operations[foolOwner].Template is "F:ForEachMelody" or "F:ForEachEnergyX" or "F:ForEachSadnessExhausted")
+        {
+            var spec = OperationRuntimeSpecCompiler.RequireStructured(operation);
+            if (CardEffectRules.IsEnemyDamage(operation)) kind = ChaosStatPreviewKind.Hits;
+            else if (spec.Opcode == "gain_block") kind = ChaosStatPreviewKind.Block;
+            else if (spec.Opcode == "draw_cards") kind = ChaosStatPreviewKind.Cards;
+            else return false;
+            return true;
         }
 
         if (index == 0) return false;
@@ -1375,6 +1629,19 @@ internal static class ChaosStatPreview
     {
         var operation = card.Generated.Operations[index];
         var combatState = card.CombatState ?? card.Owner.Creature.CombatState;
+        if (operation.Parameters.TryGetValue("triggerIndex", out var foolOwner)
+            && foolOwner >= 0 && foolOwner < index
+            && card.Generated.Operations[foolOwner].Template is "F:ForEachMelody" or "F:ForEachEnergyX" or "F:ForEachSadnessExhausted")
+        {
+            var count = ChaosOperationExecutor.FoolRepeatPreviewCount(card, foolOwner);
+            if (kind == ChaosStatPreviewKind.Hits)
+                return count * ChaosOperationExecutor.DamageAndHits(card, card.OperationAmount(index),
+                    new ChaosExecutionState { Target = target }, damageOperationIndex: index).Hits;
+            var amount = kind == ChaosStatPreviewKind.Block
+                ? ChaosOperationExecutor.ApplyBlockModifiers(card, card.OperationAmount(index), index, target)
+                : card.OperationAmount(index);
+            return count * amount;
+        }
         switch (operation.Template)
         {
             case "N:BlockEqualAllPoison":
@@ -1565,7 +1832,7 @@ internal static class ChaosOperationVariables
             ? "Damage"
             : operation.Template switch
         {
-            "T:D" or "T:DX" or "T:D_EnergyX" or "N:AllD" or "N:RandomD" or "N:RetaliateDamage"
+            "T:D" or "T:DX" or "T:D_EnergyX" or "N:AllD" or "N:RandomD" or "N:LowestHpD" or "N:RetaliateDamage"
                 or "NCR:OstyDamage" or "NCR:OstyAllDamage" or "CL:RollingAllDamage"
                 or "D:RepeatPerEnergySpentThisTurn" => "Damage",
             "N:B" or "N_BLOCK" => "Block",
@@ -1820,6 +2087,22 @@ internal static class ChaosRuntimeDescriptionRenderer
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
+            if (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
+                && CardDescriptionRenderer.HasTriggerOwner(operations, index)) continue;
+            if (CardDescriptionRenderer.TryRenderNestedClause(operations, index, chinese, out var nested,
+                    child => Text(card, effectiveOperations, child, chinese)))
+            {
+                lines.Add(nested);
+                continue;
+            }
+            if (FoolComponentRules.IsShootModifier(operation)) continue;
+            if (CardEffectRules.IsEnemyDamage(operation) && operations.Any(FoolComponentRules.IsShootModifier)
+                && !operation.Parameters.ContainsKey("triggerIndex"))
+            {
+                var damage = Text(card, effectiveOperations, index, chinese);
+                lines.Add(chinese ? "发射一支箭矢，" + damage : "Shoot an Arrow to " + LowerFirst(damage));
+                continue;
+            }
             if (CardEffectRules.IsCurrentBlockDamageAnchor(operations, index))
                 continue;
             // Card-slot selectors drive the selection screen; the owning operation already contains the
@@ -2058,7 +2341,16 @@ internal static class ChaosRuntimeDescriptionCache
     /// </summary>
     internal static void InstallIfChanged(LocTable table, string key, string template)
     {
-        InstallAllIfChanged(table, new Dictionary<string, string> { [key] = template });
+        var installed = InstalledByTable.GetValue(table, static _ => new InstalledTemplates());
+        lock (installed)
+        {
+            if (installed.ByKey.TryGetValue(key, out var current)
+                && string.Equals(current, template, StringComparison.Ordinal)
+                && table.HasEntry(key)
+                && string.Equals(table.GetRawText(key), template, StringComparison.Ordinal)) return;
+            table.MergeWith(new Dictionary<string, string> { [key] = template });
+            installed.ByKey[key] = template;
+        }
     }
 
     /// <summary>Installs a group of generated localization values with one LocTable mutation.</summary>
@@ -2067,11 +2359,14 @@ internal static class ChaosRuntimeDescriptionCache
         var installed = InstalledByTable.GetValue(table, static _ => new InstalledTemplates());
         lock (installed)
         {
-            var changed = templates
-                .Where(pair => !installed.ByKey.TryGetValue(pair.Key, out var current)
-                    || !string.Equals(current, pair.Value, StringComparison.Ordinal))
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-            if (changed.Count == 0) return;
+            Dictionary<string, string>? changed = null;
+            foreach (var pair in templates)
+                if (!installed.ByKey.TryGetValue(pair.Key, out var current)
+                    || !string.Equals(current, pair.Value, StringComparison.Ordinal)
+                    || !table.HasEntry(pair.Key)
+                    || !string.Equals(table.GetRawText(pair.Key), pair.Value, StringComparison.Ordinal))
+                    (changed ??= new(StringComparer.Ordinal))[pair.Key] = pair.Value;
+            if (changed is null) return;
 
             table.MergeWith(changed);
             foreach (var pair in changed) installed.ByKey[pair.Key] = pair.Value;
@@ -2081,6 +2376,10 @@ internal static class ChaosRuntimeDescriptionCache
 
 internal static class ChaosTextFormatter
 {
+    private static readonly System.Text.RegularExpressions.Regex FoolTerms = new(
+        @"(?:哇|啾|叽)\s*旋律|瞄准|拉伸|扎穿|松脱|箭矢|旋律|荆棘|塔罗|发射|射击|悲伤|喜悦|\b(?:Aim|Stretch|Impaled|Dislodge|Arrows?|Melod(?:y|ies)|Tarot|Shoot|Shot|Sadness|Joy|Thorns)\b",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     public static string Format(string text, bool chinese)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
@@ -2088,7 +2387,8 @@ internal static class ChaosTextFormatter
         // from the generic keyword pass (especially derivative names such as Shiv), otherwise markup becomes nested and renders with
         // the wrong color or literal tags.
         var styledTokens = new List<string>();
-        var result = System.Text.RegularExpressions.Regex.Replace(text,
+        var result = System.Text.RegularExpressions.Regex.Replace(
+            text.Replace("[E]", "{energyPrefix:energyIcons(1)}", StringComparison.Ordinal),
             @"\[(?<style>gold|purple)\].*?\[/\k<style>\]", match =>
             {
                 styledTokens.Add(match.Value);
@@ -2104,6 +2404,7 @@ internal static class ChaosTextFormatter
             smartTokens.Add(match.Value);
             return $"\uE000{(char)(0xE100 + smartTokens.Count - 1)}\uE001";
         });
+        result = FoolTerms.Replace(result, match => "[gold]" + match.Value + "[/gold]");
         result = result
             .Replace("Block", "[gold]Block[/gold]", StringComparison.Ordinal)
             .Replace("Vulnerable", "[gold]Vulnerable[/gold]", StringComparison.Ordinal)

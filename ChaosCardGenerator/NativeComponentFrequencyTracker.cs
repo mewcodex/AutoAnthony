@@ -61,18 +61,18 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
         _unifiedChaos = unifiedChaos;
         _sourceCardsByType = catalog.Recipes.GroupBy(recipe => recipe.Type)
             .ToDictionary(group => group.Key, group => group.Count());
-        _sourceCardsByRarityType = catalog.Recipes.GroupBy(recipe => (recipe.OriginalRarity, recipe.Type))
+        _sourceCardsByRarityType = catalog.Recipes.GroupBy(recipe => (CharacterComponentCatalogs.ComponentRarity(recipe.OriginalRarity), recipe.Type))
             .ToDictionary(group => group.Key, group => group.Count());
-        _sourceCardsByRarity = catalog.Recipes.GroupBy(recipe => recipe.OriginalRarity)
+        _sourceCardsByRarity = catalog.Recipes.GroupBy(recipe => CharacterComponentCatalogs.ComponentRarity(recipe.OriginalRarity))
             .ToDictionary(group => group.Key, group => group.Count());
         _sourceOccurrencesByRarityTypeRole = catalog.Recipes
             .SelectMany(recipe => recipe.Atoms.Select((atom, atomIndex) =>
-                (recipe.OriginalRarity, recipe.Type, Role: SourceRole(recipe, atomIndex), atom.FamilyKey)))
+                (CharacterComponentCatalogs.ComponentRarity(recipe.OriginalRarity), recipe.Type, Role: SourceRole(recipe, atomIndex), atom.FamilyKey)))
             .GroupBy(item => item)
             .ToDictionary(group => group.Key, group => group.Count());
         _sourceOccurrencesByRarityRole = catalog.Recipes
             .SelectMany(recipe => recipe.Atoms.Select((atom, atomIndex) =>
-                (recipe.OriginalRarity, Role: SourceRole(recipe, atomIndex), atom.FamilyKey)))
+                (CharacterComponentCatalogs.ComponentRarity(recipe.OriginalRarity), Role: SourceRole(recipe, atomIndex), atom.FamilyKey)))
             .GroupBy(item => item)
             .ToDictionary(group => group.Key, group => group.Count());
         _sourceOccurrencesByRole = catalog.Recipes
@@ -157,7 +157,7 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
                 StringComparer.Ordinal);
         var defensePoolCorrections = catalog.Recipes.SelectMany(recipe => recipe.Atoms.Select(atom =>
                 (Family: atom.FamilyKey, Multiplier: DefenseGenerationTuning.OccurrenceMultiplier(
-                    _atomsByFamily[atom.FamilyKey], recipe.OriginalRarity, _catalogCharacter, _unifiedChaos))))
+                    _atomsByFamily[atom.FamilyKey], CharacterComponentCatalogs.ComponentRarity(recipe.OriginalRarity), _catalogCharacter, _unifiedChaos))))
             .GroupBy(item => item.Family, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Average(item => item.Multiplier),
                 StringComparer.Ordinal);
@@ -172,18 +172,18 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
             (Recipe: recipe, Atom: atom, Role: SourceRole(recipe, atomIndex)))).ToArray();
         _schemaCounts = occurrences.GroupBy(item => item.Atom.SchemaKey)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
-        _raritySchemaCounts = occurrences.GroupBy(item => (item.Recipe.OriginalRarity, item.Atom.SchemaKey))
+        _raritySchemaCounts = occurrences.GroupBy(item => (CharacterComponentCatalogs.ComponentRarity(item.Recipe.OriginalRarity), item.Atom.SchemaKey))
             .ToDictionary(group => group.Key, group => group.Count());
         _shellSchemaCounts = occurrences.GroupBy(item =>
-                (item.Recipe.OriginalRarity, item.Recipe.Type, item.Recipe.Target, item.Atom.SchemaKey))
+                (CharacterComponentCatalogs.ComponentRarity(item.Recipe.OriginalRarity), item.Recipe.Type, item.Recipe.Target, item.Atom.SchemaKey))
             .ToDictionary(group => group.Key, group => group.Count());
         _roleSchemaCounts = occurrences.GroupBy(item => (item.Role, item.Atom.SchemaKey))
             .ToDictionary(group => group.Key, group => group.Count());
         _roleRaritySchemaCounts = occurrences.GroupBy(item =>
-                (item.Role, item.Recipe.OriginalRarity, item.Atom.SchemaKey))
+                (item.Role, CharacterComponentCatalogs.ComponentRarity(item.Recipe.OriginalRarity), item.Atom.SchemaKey))
             .ToDictionary(group => group.Key, group => group.Count());
         _roleShellSchemaCounts = occurrences.GroupBy(item =>
-                (item.Role, item.Recipe.OriginalRarity, item.Recipe.Type, item.Recipe.Target,
+                (item.Role, CharacterComponentCatalogs.ComponentRarity(item.Recipe.OriginalRarity), item.Recipe.Type, item.Recipe.Target,
                     item.Atom.SchemaKey))
             .ToDictionary(group => group.Key, group => group.Count());
     }
@@ -196,6 +196,7 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
     public int SelectionWeight(GeneratedRarity rarity, GeneratedCardType type, string family,
         IReadOnlyList<GeneratorOperation> currentCard)
     {
+        rarity = CharacterComponentCatalogs.ComponentRarity(rarity);
         var role = ComponentAssemblyGenerator.SelectionRole(currentCard, type,
             _atomsByFamily.GetValueOrDefault(family) ?? []);
         var targetRate = TargetRate(rarity, type, role, family);
@@ -245,6 +246,7 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
     public int SourcePriorWeight(GeneratedRarity rarity, GeneratedCardType type, string family,
         IReadOnlyList<GeneratorOperation> currentCard)
     {
+        rarity = CharacterComponentCatalogs.ComponentRarity(rarity);
         var role = ComponentAssemblyGenerator.SelectionRole(currentCard, type,
             _atomsByFamily.GetValueOrDefault(family) ?? []);
         var rate = TargetRate(rarity, type, role, family);
@@ -273,6 +275,7 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
     public int VariantWeight(ComponentAtom atom, GeneratedRarity rarity, GeneratedCardType type,
         TargetMode target, IReadOnlyList<GeneratorOperation> currentCard)
     {
+        rarity = CharacterComponentCatalogs.ComponentRarity(rarity);
         var role = ComponentAssemblyGenerator.SelectionRole(currentCard, type, [atom]);
         var roleCount = _roleSchemaCounts.GetValueOrDefault((role, atom.SchemaKey));
         var hasNativeRole = roleCount > 0;
@@ -307,12 +310,12 @@ public sealed class NativeComponentFrequencyTracker : IComponentOccurrencePolicy
             var family = NumericTextSchema.Family(operation.Template);
             _observedPoolFamilies[family] = _observedPoolFamilies.GetValueOrDefault(family) + 1;
         }
-        var cardKey = (card.Rarity, card.Type);
+        var cardKey = (CharacterComponentCatalogs.ComponentRarity(card.Rarity), card.Type);
         _observedCardsByRarityType[cardKey] = _observedCardsByRarityType.GetValueOrDefault(cardKey) + 1;
         foreach (var item in EnumerateRoleFamilies(card.Type, card.Operations))
         {
             if (!_sourceOccurrences.ContainsKey(item.Family)) continue;
-            var key = (card.Rarity, card.Type, item.Role, item.Family);
+            var key = (CharacterComponentCatalogs.ComponentRarity(card.Rarity), card.Type, item.Role, item.Family);
             _observedOccurrencesByRarityTypeRole[key] =
                 _observedOccurrencesByRarityTypeRole.GetValueOrDefault(key) + 1;
         }

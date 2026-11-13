@@ -5,7 +5,7 @@ and external-character definition hosting are public, localization-independent i
 covered by an external-consumer compile test; built-in generation remains covered by the full generator self-test
 and a historical full-pool drift corpus.
 
-Verified against AutoAnthony **0.3.147** / STS2 **0.111.x**. API versions remain independent from the mod version;
+Verified against AutoAnthony **0.3.165** / STS2 **0.113.x**. API versions remain independent from the mod version;
 see the bilingual [API changelog](https://github.com/mewcodex/AutoAnthony/wiki/API-Changelog) for the current matrix.
 Recent runtime fixes do not require re-registering component packages. In particular:
 
@@ -18,19 +18,57 @@ Recent runtime fixes do not require re-registering component packages. In partic
 - Built-in multiplayer startup transfers the host's exact pools before starting the run. External profile owners
   still provide their own definition persistence and synchronization as described below.
 
+## v113 integration notes (0.3.158–0.3.165)
+
+The versioned registration interfaces remain unchanged. Rebuild integrations against the v113 game assemblies and
+the current `AutoAnthony.dll`. `GeneratedCharacter.Fool` was appended after Colorless; existing enum values were
+not renumbered. Enumerate available profiles/catalogs rather than assuming five characters or six total pools.
+
+`GeneratedCardName` now has a fourth optional positional member, `IReadOnlyList<CardTag>? MelodyTags = null`.
+Three-argument source calls still compile, but the constructor/deconstructor signatures changed: existing binaries
+which construct or deconstruct this record must be recompiled. Equal API version constants alone are not a promise
+of binary compatibility across a game-version migration.
+
+Melodies are structured `Wah`/`Cho`/`Ki` tags, not words parsed from a displayed name. Preserve `MelodyTags` when
+copying an identity. `AutoAnthonyEditorApi.ApplyEditorDefinition` normalizes those tags through
+`FoolMelodyNames.ApplyNameTags`; the normal shell validation boundary still applies. An external character may
+continue to support AutoAnthony alone without opting into any companion editor feature.
+
+`FoolComponentRules.HasValidShootAssembly` validates the arrow modifier: one Shoot modifier and one unlinked,
+selected-enemy damage operation, without extra effects, triggers, or modifiers. Ordinary card keywords are allowed.
+`FoolMelodySubset.WithMask(atom, mask)` selects a nonempty subset using bits 1/2/4 for Wah/Cho/Ki. Its hidden
+`melody_mask` is a semantic selector, never a random strength value or an upgrade candidate.
+
+Use `CardTinkeringApi.Analyze(card)` / `EvaluateBudget(card)` for a self-discount in context. Printed numeric
+self-reductions cannot exceed fixed base Energy, and their aggregate expected savings (including repeated
+triggers) are capped by that base cost. The current value is 700 per future Energy saved: a 2-Energy card reducing
+itself by 2 at frequency 2 is worth at most 1,400, not 2,800. Multiple self-discount components share the cap
+proportionally. Stars and immediate Energy refunds are separate; standalone atomic value lacks this shell context.
+
+Persistent definitions store their RuntimeSpecs, value-slot IDs, card names, art identity, and the small localization
+ID. Keep component identities stable across a rework. The built-in loader checks opcode/variant before reusing a
+current template for an old native card index, and restores explicit counts for originally one-card transforms.
+The old saved effect is preserved instead of borrowing a reworked component's prose. Retired generation sources
+and their saved execution support are separate concerns.
+
 ## Native-card decomposition catalog
 
-`NativeCardDecompositionApi` is a separate, read-only API for Card Tinkering-style tools. It exposes all 567 v111
-non-multiplayer reference records, 449 component contracts, and seven native keywords. The card set includes the
-five character pools, both Colorless rarities, Event cards, Statuses, Curses, Quests, derivatives, Fasten,
+`NativeCardDecompositionApi` is a separate, read-only API for companion editors and data tools. It exposes 659 v113
+non-multiplayer reference records from 651 native classes, 517 component contracts, and seven native keywords. The card set includes the
+six character pools, both Colorless rarities, Event cards, Statuses, Curses, Quests, derivatives, Fasten,
 DeprecatedCard, and nine explicit Mad Science type/rider variants.
 
 The catalog never registers cards and every record remains `ReferenceOnly=true` and
 `GenerationEligible=false`. `FindByNativeId` returns all variants for a ModelId; `Resolve` requires explicit
-template bindings when the ID is ambiguous. `TryCreateBaseDefinition` materializes the 481 reviewed
-character/Colorless recipes with executable structured operations. `TryCreateDefinition` materializes all 481 with
+template bindings when the ID is ambiguous. `TryCreateBaseDefinition` materializes the 566 reviewed
+character/Colorless recipes with executable structured operations. `TryCreateDefinition` materializes all 566 with
 their exact native upgrade actions, including repeat, on-play addition, select-all, and upgrade-before-play changes.
-The 86 lifecycle-sensitive reference extensions remain structured but non-executable until dedicated adapters exist.
+The 93 lifecycle-sensitive reference extensions remain structured but non-executable until dedicated adapters exist.
+
+v113 projections use native `HitCount`/`CalculatedHits` identities where appropriate; a separate `Repeat` may still
+describe another operation. Inspect `NativeBindings` and `ValueTransform` rather than matching numeric literals.
+A binding can have `UpgradeDelta = 0`, for example Speedster's 3 damage with an Innate-only native upgrade.
+Do not treat a present binding as proof that the field changes on upgrade.
 
 The game-side `AutoAnthonyNativeCardApi.TryResolve(CardModel, ...)` handles native ModelIds and Mad Science's saved
 type/rider state. Its preview method is side-effect free. Consumers must not replace an original card merely to
@@ -91,7 +129,7 @@ one opcode/variant execution route. Their separate source occurrences remain in 
 retains its own native frequency and numeric evidence. Ultimate Chaos retains occurrences from every contributed
 catalog for weighted fitting, then deduplicates the structural inventory.
 
-All five built-in characters and Colorless use this same path: reviewed structured Markdown -> materialized recipe
+All six built-in characters and Colorless use this same path: reviewed structured Markdown -> materialized recipe
 and RuntimeSpec JSON -> `StructuredComponentCatalogRegistry` -> `ImmutableComponentCatalog`. No built-in catalog is
 decomposed from localized card prose at runtime. Run `--catalog-ownership-audit` in the standalone generator to
 inspect recipe, occurrence, schema, and cross-role sharing counts.
@@ -179,7 +217,7 @@ tracker. `ComponentApi.Resolve(ComponentProfileRequest)` supplies one immutable 
 | --- | --- |
 | `ShellCatalog` | source shells, rarity/type/target distributions and tag/effect-count priors |
 | `ComponentCatalog` | selectable component implementation inventory |
-| `NameCatalog` | same-character name corpus; separate so Ultimate Chaos does not mix names |
+| `NameCatalog` | normal mode uses the character's corpus; built-in Ultimate Chaos uses all six characters plus Colorless; external profiles retain their supplied naming corpus |
 | `IComponentOccurrencePolicy` | family/variant source priors plus finalized-pool feedback |
 | `IComponentValuePolicy` | scalar sampling, trigger payoff scaling and semantic bounds |
 
@@ -215,7 +253,7 @@ character/profile. Registration freezes on the first `Resolve`, so catalogs cann
 between multiplayer peers. Provider IDs and all semantic/runtime identifiers must be ASCII and stable across save
 versions. `ComponentProfileRequest.ProfileId` is the external identity. `Character` is explicitly only the closest
 built-in balance/legality archetype, so any number of external profiles may reuse it without colliding. The older
-two-argument constructor still resolves the six built-in profiles.
+two-argument constructor still resolves the seven built-in profiles.
 
 `ImmutableComponentCatalog` builds all structural indexes from a reviewed native recipe list. External profiles can
 reuse `ComponentApi.CreateNativeOccurrencePolicy` and `ComponentApi.DefaultValuePolicy`, or provide either policy
@@ -315,8 +353,8 @@ every generator-side registry before committing anything, so a conflict cannot l
 Multiplicity overrides freeze
 at the same boundary; register them before the first profile is resolved.
 
-The built-in adapter maps normal pools to their native catalog and Ultimate Chaos to the same combined six-pool
-catalog used before this boundary. A historical corpus covering every character, normal/Ultimate Chaos, balanced/
+The built-in adapter maps normal pools to their native catalog and Ultimate Chaos to the combined seven-pool
+catalog (six characters plus Colorless). A historical pre-Fool corpus covering every then-supported character, normal/Ultimate Chaos, balanced/
 aggressive generation and complete pool repair is stored at
 `audits/structured_operation_refactor/0.3.5_pre_component_api.json.gz` (SHA-256
 `F722B24DC8C32108A6F6AC9378F059FBB10FE1E862DF2327A683E3D8C0C2E66A`). It is a diagnostic reference rather
@@ -351,7 +389,7 @@ An exact template+variant registration wins over a template-wide registration.
 
 ## External character adapter
 
-The owning character mod registers its normal models in the usual v111 way: concrete `CharacterModel`,
+The owning character mod registers its normal models through the native model path: concrete `CharacterModel`,
 `CardPoolModel`, `CardModel` subclasses and any token-pool additions. AutoAnthony deliberately does not patch
 `ModelDb.AllCharacters` or rewrite another mod's pool.
 
@@ -458,7 +496,7 @@ art, concrete generated-card classes or network field.
 
 ## Compatibility reference: The Watcher 0.9.25
 
-The subscribed Watcher character demonstrates the common framework-free v111 pattern: a direct `CharacterModel`, a
+The subscribed Watcher character demonstrates the common framework-free character pattern: a direct `CharacterModel`, a
 direct `CardPoolModel`, concrete `CardModel` subclasses discovered by ModelDb, `ModHelper.AddModelToPool` for token
 cards, and targeted Harmony compatibility patches. It also extends multiplayer ModelId serialization itself. The API
 therefore depends on no BaseLib/RitsuLib character abstraction and accepts stable IDs plus normal model types rather
@@ -485,7 +523,7 @@ replacement operation list, and rebuilds descriptions/upgrades without parsing r
 generator's native currency: `100` units equal one point of ordinary single-target damage.
 
 Profile-aware editors should call `GetComponentPrototypes(ComponentProfileRequest)` (or the stable-profile-ID
-overload) and `GetKeywordPrototypes`. These enumerate the resolved external profile rather than only the six
+overload) and `GetKeywordPrototypes`. These enumerate the resolved external profile rather than only the seven
 built-in catalogs, preserve ownership as `ProfileId`, and expose profile-local base/add/remove keyword permissions.
 `ComponentCategory` is explicit component metadata with a RuntimeSpec-only fallback; an editor never needs to
 classify components by Chinese or English template text. `ComponentApi.TryGetProfileRequest` resolves built-in,
@@ -518,8 +556,10 @@ edited per-card definitions; the callback is only a signal to rebuild metadata f
 
 `AutoAnthonyEditorApi` v2 is the only supported path for renaming an ordinary generated card or assigning a new
 portrait to that individual card. `RerollEditorIdentity` is side-effect free and deterministic for a fixed
-`GeneratedCard` and seed. It reuses production component relevance, cost/type/color matching, same-character name
-parts, the Strike/Form suffix rules, enabled portrait replacements, and the Random Card Art setting. Ordinary cards
+`GeneratedCard` and seed. It reuses production component relevance, cost/type/color matching, the profile's name
+catalog, the Strike/Form suffix rules, enabled portrait replacements, and the Random Card Art setting. Normal built-in
+profiles use their own names; built-in Ultimate Chaos uses all character and Colorless names. External profiles
+retain their registered naming authority. Ordinary cards
 never receive Ancient-sized art; Ancient cards use only their own character's native Ancient sources and fall back
 to the native portrait when no optional replacement is available.
 

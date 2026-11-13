@@ -38,7 +38,7 @@ harmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Logging.Logger),"GetI
 harmony.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Logging.ConsoleLogPrinter),"Print"),
     prefix:new HarmonyMethod(typeof(TestHooks),nameof(TestHooks.NoGameMutation)));
 var registration=assembly.GetType("AutoAnthony.Patches.MultiplayerPreparationLobbyConstructionPatch",true)!;
-var ctor=AccessTools.Constructor(typeof(StartRunLobby),[typeof(GameMode),typeof(INetGameService),typeof(IStartRunLobbyListener),typeof(int)]);
+var ctor=AccessTools.Constructor(typeof(StartRunLobby),[typeof(GameMode),typeof(bool),typeof(INetGameService),typeof(IStartRunLobbyListener),typeof(int)]);
 harmony.Patch(ctor,postfix:new HarmonyMethod(AccessTools.Method(registration,"Postfix")));
 harmony.Patch(AccessTools.Method(protocol,"IsClientHost"),prefix:new HarmonyMethod(typeof(TestHooks),nameof(TestHooks.KnownHost)));
 harmony.Patch(AccessTools.Method(assembly.GetType("AutoAnthony.ChaosGenerationProgressOverlay"),"Create"),
@@ -54,7 +54,7 @@ StartRunLobby Client(ulong id) {
     var service=DispatchProxy.Create<INetGameService,NetProxy>();
     var proxy=(NetProxy)(object)service;
     proxy.Id=id; proxy.Kind=NetGameType.Client; services[id]=proxy;
-    var lobby=new StartRunLobby(default,service,new Listener(),4);
+    var lobby=new StartRunLobby(default,false,service,new Listener(),4);
     Check(proxy.Handlers.ContainsKey(preparationType)&&proxy.Handlers.ContainsKey(chunkType),"Handlers missing at construction");
     var count=proxy.Handlers.Count;
     Call("RegisterLobbyHandlers",lobby);
@@ -183,7 +183,8 @@ public static class TestHooks {
     }
 }
 public class Listener : IStartRunLobbyListener {
-    public void PlayerConnected(StartRunLobbyPlayer player){} public void PlayerChanged(StartRunLobbyPlayer player,bool random){}
+    public void PlayerConnected(StartRunLobbyPlayer player){} public void PlayerChanged(StartRunLobbyPlayer player){}
+    public void GameModeChanged(){}
     public void AscensionChanged(){} public void SeedChanged(){} public void ModifiersChanged(){} public void MaxAscensionChanged(){}
     public void RemotePlayerDisconnected(StartRunLobbyPlayer player){}
     public void BeginRun(string seed,List<ActModel> acts,IReadOnlyList<ModifierModel> modifiers){}

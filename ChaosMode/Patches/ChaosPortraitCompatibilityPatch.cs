@@ -42,20 +42,24 @@ internal static class ChaosDirectPortraitCompatibilityPatch
             || !ChaosPortraitCompatibility.TryResolveDirectTexture(card.EffectivePortraitDefinition, out var texture))
             return;
 
-        Apply(PortraitRef(__instance), texture);
-        Apply(AncientPortraitRef(__instance), texture);
+        var normalChanged = Apply(PortraitRef(__instance), texture);
+        var ancientChanged = Apply(AncientPortraitRef(__instance), texture);
+        // v113 caches per-instance atlas UVs for hidden portraits. Refresh through the native setter after the
+        // final art-mod replacement, or the blur samples the old texture's atlas region.
+        if (normalChanged || ancientChanged) __instance.SetPortraitTexture(texture);
     }
 
-    private static void Apply(TextureRect? portrait, Texture2D texture)
+    private static bool Apply(TextureRect? portrait, Texture2D texture)
     {
-        if (portrait is null) return;
+        if (portrait is null) return false;
         if (ReferenceEquals(portrait.Texture, texture)
             && portrait.StretchMode == (TextureRect.StretchModeEnum)6
             && portrait.TextureFilter == CanvasItem.TextureFilterEnum.Linear)
-            return;
+            return false;
         portrait.Texture = texture;
         // Match the usual original-card replacement presentation (KeepAspectCentered and linear filtering).
         portrait.StretchMode = (TextureRect.StretchModeEnum)6;
         portrait.TextureFilter = CanvasItem.TextureFilterEnum.Linear;
+        return true;
     }
 }

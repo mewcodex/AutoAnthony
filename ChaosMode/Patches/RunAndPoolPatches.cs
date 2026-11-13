@@ -925,7 +925,7 @@ internal static class MultiplayerGenerationModePatch
 }
 
 [HarmonyPatch(typeof(StartRunLobby), MethodType.Constructor,
-    [typeof(GameMode), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)])]
+    [typeof(GameMode), typeof(bool), typeof(INetGameService), typeof(IStartRunLobbyListener), typeof(int)])]
 internal static class MultiplayerPreparationLobbyConstructionPatch
 {
     // Install at the native lobby lifecycle boundary, before any join/readiness callback can send preparation.
@@ -1219,7 +1219,7 @@ internal static class ChaosModelDbReadyPatch
         foreach (var character in new[]
                  {
                      GeneratedCharacter.Ironclad, GeneratedCharacter.Silent, GeneratedCharacter.Defect,
-                     GeneratedCharacter.Necrobinder, GeneratedCharacter.Regent
+                     GeneratedCharacter.Necrobinder, GeneratedCharacter.Regent, GeneratedCharacter.Fool
                  })
         {
             var firstAncientSlot = ChaosRunDefinitions.CountFor(character) - ChaosRunDefinitions.AncientCount;
@@ -1326,20 +1326,16 @@ internal static class ChaosModelDbReadyPatch
         var repeatAttacks = new GeneratorOperation("M:RepeatPerAttackThisTurn", OperationScope.Modifier,
             string.Empty, new Dictionary<string, int> { ["triggerIndex"] = 0 });
         if (ChaosOperationExecutor.RollingGrowthOwner([rollingTrigger, rollingDamage, detachedGrowth], 2) != 0
-            || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
-                [rollingTrigger, rollingDamage, detachedGrowth], 1, 2, 7, true) != 7
+            || ChaosOperationExecutor.RollingGrowthDamageIndex([rollingTrigger, rollingDamage, detachedGrowth], 2) != 1
             || !ChaosOperationExecutor.DamageModifierSharesResolution([rollingTrigger, rollingDamage, repeatAttacks], 2, 1)
             || ChaosOperationExecutor.DamageModifierSharesResolution(
                 [rollingTrigger, rollingDamage with { Parameters = new Dictionary<string, int>() }, repeatAttacks], 2, 1)
             || ChaosOperationExecutor.SelectionCountForEffect(new GeneratorOperation("I:ProxyAtomic_Begone",
                 OperationScope.Independent, string.Empty, new Dictionary<string, int>()), 3) != 3)
             throw new InvalidOperationException("Derivative batch selection / scoped damage growth audit failed.");
-        if (ChaosOperationExecutor.ResolveTriggeredRollingDamage(
-                rollingOperations, 1, 5, 10, isTriggered: true) != 10
-            || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
-                [rollingTrigger, rollingDamage], 1, 5, 10, isTriggered: true) != 5
-            || ChaosOperationExecutor.ResolveTriggeredRollingDamage(
-                rollingOperations, 1, 5, 10, isTriggered: false) != 5
+        if (ChaosOperationExecutor.RollingGrowthDamageIndex(rollingOperations, 2) != 1
+            || ChaosOperationExecutor.RollingGrowthOwner(rollingOperations, 2) != 0
+            || ChaosOperationExecutor.RollingGrowthDamageIndex([rollingTrigger, rollingDamage], 1) != -1
             || ChaosCompositePower.AdvanceRollingDamage(5, 5) != 10
             || ChaosCompositePower.AdvanceRollingDamage(10, 5) != 15)
             throw new InvalidOperationException("AutoAnthony Rolling Boulder accumulated-damage routing audit failed.");
@@ -1553,6 +1549,7 @@ internal static class ChaosModelDbReadyPatch
                 GeneratedCharacter.Defect => card.Pool is ChaosDefectCardPool,
                 GeneratedCharacter.Necrobinder => card.Pool is ChaosNecrobinderCardPool,
                 GeneratedCharacter.Regent => card.Pool is ChaosRegentCardPool,
+                GeneratedCharacter.Fool => card.Pool is ChaosFoolCardPool,
                 GeneratedCharacter.Colorless => card.Pool is ColorlessCardPool,
                 _ => false
             };
@@ -1567,14 +1564,14 @@ internal static class ChaosModelDbReadyPatch
             {
                 ModelDb.CardPool<IroncladCardPool>(), ModelDb.CardPool<SilentCardPool>(),
                 ModelDb.CardPool<DefectCardPool>(), ModelDb.CardPool<NecrobinderCardPool>(),
-                ModelDb.CardPool<RegentCardPool>()
+                ModelDb.CardPool<RegentCardPool>(), ModelDb.CardPool<FoolCardPool>()
             }
             .SelectMany(pool => pool.AllCards)
             .Where(card => card.Rarity == CardRarity.Ancient).ToArray();
         var eventAncients = ModelDb.CardPool<EventCardPool>().AllCards
             .Where(card => card.Rarity == CardRarity.Ancient).ToArray();
-        if (generatedAncients.Length != ChaosRunDefinitions.AncientCount * 5
-            || vanillaAncients.Length != ChaosRunDefinitions.AncientCount * 5
+        if (generatedAncients.Length != ChaosRunDefinitions.AncientCount * 6
+            || vanillaAncients.Length != ChaosRunDefinitions.AncientCount * 6
             || vanillaAncients.Any(card => ChaosCardLibraryRules.IsAncientTabCard(card, replaceCharacterAncients: true))
             || generatedAncients.Any(card => ChaosCardLibraryRules.IsAncientTabCard(card, replaceCharacterAncients: false))
             || vanillaAncients.Any(card => !ChaosCardLibraryRules.IsAncientTabCard(card, replaceCharacterAncients: false))
@@ -2210,7 +2207,8 @@ internal static class ChaosModelDbReadyPatch
             (GeneratedCharacter.Silent, ModelDb.Character<Silent>(), typeof(ChaosSilentCardPool), ChaosRunDefinitions.SilentBasicCount),
             (GeneratedCharacter.Defect, ModelDb.Character<Defect>(), typeof(ChaosDefectCardPool), ChaosRunDefinitions.BasicCount),
             (GeneratedCharacter.Necrobinder, ModelDb.Character<Necrobinder>(), typeof(ChaosNecrobinderCardPool), ChaosRunDefinitions.BasicCount),
-            (GeneratedCharacter.Regent, ModelDb.Character<Regent>(), typeof(ChaosRegentCardPool), ChaosRunDefinitions.BasicCount)
+            (GeneratedCharacter.Regent, ModelDb.Character<Regent>(), typeof(ChaosRegentCardPool), ChaosRunDefinitions.BasicCount),
+            (GeneratedCharacter.Fool, ModelDb.Character<Fool>(), typeof(ChaosFoolCardPool), ChaosRunDefinitions.BasicCount)
         };
         foreach (var entry in cases)
         {
@@ -2653,12 +2651,13 @@ internal static class SeedBeforeSingleplayerPatch
 
     private static bool Prefix(
         NGame __instance,
-        CharacterModel character,
+        Player player,
         bool shouldSave,
         IReadOnlyList<ActModel> acts,
         ref IReadOnlyList<ModifierModel> modifiers,
         string seed,
         GameMode gameMode,
+        bool isCustomGame,
         int ascensionLevel,
         DateTimeOffset? dailyTime,
         ref Task<RunState> __result)
@@ -2672,7 +2671,7 @@ internal static class SeedBeforeSingleplayerPatch
             ChaosRunDefinitions.DeactivateRun();
             return true;
         }
-        var generatedCharacter = ChaosCharacterMapping.From(character);
+        var generatedCharacter = ChaosCharacterMapping.From(player.Character);
         if (!generatedCharacter.HasValue)
         {
             SurpriseCardKnowledge.BeginNewRun();
@@ -2680,20 +2679,21 @@ internal static class SeedBeforeSingleplayerPatch
             return true;
         }
 
-        __result = StartAfterGeneration(__instance, generatedCharacter.Value, character, shouldSave, acts,
-            modifiers, seed, gameMode, ascensionLevel, dailyTime);
+        __result = StartAfterGeneration(__instance, generatedCharacter.Value, player, shouldSave, acts,
+            modifiers, seed, gameMode, isCustomGame, ascensionLevel, dailyTime);
         return false;
     }
 
     private static async Task<RunState> StartAfterGeneration(
         NGame game,
         GeneratedCharacter generatedCharacter,
-        CharacterModel character,
+        Player player,
         bool shouldSave,
         IReadOnlyList<ActModel> acts,
         IReadOnlyList<ModifierModel> modifiers,
         string seed,
         GameMode gameMode,
+        bool isCustomGame,
         int ascensionLevel,
         DateTimeOffset? dailyTime)
     {
@@ -2736,8 +2736,9 @@ internal static class SeedBeforeSingleplayerPatch
         Interlocked.Increment(ref _callingOriginal);
         try
         {
-            originalTask = game.StartNewSingleplayerRun(character, shouldSave, acts, modifiers, seed, gameMode,
-                ascensionLevel, dailyTime);
+            PreparedStartingDeck.Refresh(player);
+            originalTask = game.StartNewSingleplayerRun(player, shouldSave, acts, modifiers, seed, gameMode,
+                isCustomGame, ascensionLevel, dailyTime);
         }
         finally
         {
@@ -2758,6 +2759,7 @@ internal static class ChaosCharacterMapping
         Defect => GeneratedCharacter.Defect,
         Necrobinder => GeneratedCharacter.Necrobinder,
         Regent => GeneratedCharacter.Regent,
+        Fool => GeneratedCharacter.Fool,
         _ => null
     };
 
@@ -2767,6 +2769,7 @@ internal static class ChaosCharacterMapping
             : player.CharacterId == ModelDb.Character<Defect>().Id ? GeneratedCharacter.Defect
             : player.CharacterId == ModelDb.Character<Necrobinder>().Id ? GeneratedCharacter.Necrobinder
             : player.CharacterId == ModelDb.Character<Regent>().Id ? GeneratedCharacter.Regent
+            : player.CharacterId == ModelDb.Character<Fool>().Id ? GeneratedCharacter.Fool
             : (GeneratedCharacter?)null)
         .Where(character => character.HasValue).Select(character => character!.Value)
         .Distinct().OrderBy(character => character).ToArray();
@@ -2777,6 +2780,7 @@ internal static class ChaosCharacterMapping
             : player.Character == ModelDb.Character<Defect>().Id ? GeneratedCharacter.Defect
             : player.Character == ModelDb.Character<Necrobinder>().Id ? GeneratedCharacter.Necrobinder
             : player.Character == ModelDb.Character<Regent>().Id ? GeneratedCharacter.Regent
+            : player.Character == ModelDb.Character<Fool>().Id ? GeneratedCharacter.Fool
             : (GeneratedCharacter?)null)
         .Where(character => character.HasValue).Select(character => character!.Value)
         .Distinct().OrderBy(character => character).ToArray();
@@ -2789,6 +2793,7 @@ internal static class SeedBeforeMultiplayerPatch
 
     private static bool Prefix(
         NGame __instance,
+        List<Player> players,
         StartRunLobby lobby,
         bool shouldSave,
         IReadOnlyList<ActModel> acts,
@@ -2808,13 +2813,14 @@ internal static class SeedBeforeMultiplayerPatch
             effectiveModifiers = modifiers.Append(transportedMarker).ToArray();
             Log.Info("[AutoAnthony] Reattached the host multiplayer generation carrier at NGame run creation.");
         }
-        __result = StartAfterGeneration(__instance, lobby, shouldSave, acts, effectiveModifiers, seed, ascensionLevel,
+        __result = StartAfterGeneration(__instance, players, lobby, shouldSave, acts, effectiveModifiers, seed, ascensionLevel,
             dailyTime);
         return false;
     }
 
     private static async Task<RunState> StartAfterGeneration(
         NGame game,
+        List<Player> players,
         StartRunLobby lobby,
         bool shouldSave,
         IReadOnlyList<ActModel> acts,
@@ -2945,7 +2951,8 @@ internal static class SeedBeforeMultiplayerPatch
                 .ToArray();
             runModifiers = BalanceAdjustmentModifier.Configure(runModifiers,
                 enabled && biweeklyBalanceAdjustments).ToArray();
-            originalTask = game.StartNewMultiplayerRun(lobby, shouldSave, acts, runModifiers, seed, ascensionLevel,
+            foreach (var player in players) PreparedStartingDeck.Refresh(player);
+            originalTask = game.StartNewMultiplayerRun(players, lobby, shouldSave, acts, runModifiers, seed, ascensionLevel,
                 dailyTime);
         }
         finally
@@ -2992,6 +2999,7 @@ internal static class ColorfulPhilosophersChaosPoolPatch
         yield return ModelDb.CardPool<ChaosRegentCardPool>();
         yield return ModelDb.CardPool<ChaosSilentCardPool>();
         yield return ModelDb.CardPool<ChaosDefectCardPool>();
+        yield return ModelDb.CardPool<ChaosFoolCardPool>();
         foreach (var pool in ExternalComponentCharacterApi.GetActiveCardPools())
             yield return pool;
     }
@@ -3400,6 +3408,7 @@ internal static class CharacterPoolPatchRouting
             DefectCardPool => ModelDb.CardPool<ChaosDefectCardPool>(),
             NecrobinderCardPool => ModelDb.CardPool<ChaosNecrobinderCardPool>(),
             RegentCardPool => ModelDb.CardPool<ChaosRegentCardPool>(),
+            FoolCardPool => ModelDb.CardPool<ChaosFoolCardPool>(),
             _ => pool
         };
     }
@@ -3536,6 +3545,7 @@ internal static class ColorlessPoolContentsPatch
             ChaosDefectCardPool => GeneratedCharacter.Defect,
             ChaosNecrobinderCardPool => GeneratedCharacter.Necrobinder,
             ChaosRegentCardPool => GeneratedCharacter.Regent,
+            ChaosFoolCardPool => GeneratedCharacter.Fool,
             _ => (GeneratedCharacter?)null
         };
         if (character is null) return true;
@@ -3572,6 +3582,7 @@ internal static class ColorlessPoolContentsPatch
             GeneratedCharacter.Defect => ModelDb.CardPool<DefectCardPool>().AllCards,
             GeneratedCharacter.Necrobinder => ModelDb.CardPool<NecrobinderCardPool>().AllCards,
             GeneratedCharacter.Regent => ModelDb.CardPool<RegentCardPool>().AllCards,
+            GeneratedCharacter.Fool => ModelDb.CardPool<FoolCardPool>().AllCards,
             _ => Array.Empty<CardModel>()
         }).Where(card => card.Rarity == CardRarity.Basic
                          && card.MultiplayerConstraint != CardMultiplayerConstraint.MultiplayerOnly);
@@ -3601,6 +3612,7 @@ internal static class ChaosCardLibraryPoolPatch
     private static readonly System.Reflection.FieldInfo DefectFilterField = AccessTools.Field(typeof(NCardLibrary), "_defectFilter");
     private static readonly System.Reflection.FieldInfo NecrobinderFilterField = AccessTools.Field(typeof(NCardLibrary), "_necrobinderFilter");
     private static readonly System.Reflection.FieldInfo RegentFilterField = AccessTools.Field(typeof(NCardLibrary), "_regentFilter");
+    private static readonly System.Reflection.FieldInfo FoolFilterField = AccessTools.Field(typeof(NCardLibrary), "_foolFilter");
     private static readonly System.Reflection.FieldInfo ColorlessFilterField = AccessTools.Field(typeof(NCardLibrary), "_colorlessFilter");
     private static readonly System.Reflection.FieldInfo AncientsFilterField = AccessTools.Field(typeof(NCardLibrary), "_ancientsFilter");
 
@@ -3612,6 +3624,7 @@ internal static class ChaosCardLibraryPoolPatch
         var defectFilter = (NCardPoolFilter)DefectFilterField.GetValue(__instance)!;
         var necrobinderFilter = (NCardPoolFilter)NecrobinderFilterField.GetValue(__instance)!;
         var regentFilter = (NCardPoolFilter)RegentFilterField.GetValue(__instance)!;
+        var foolFilter = (NCardPoolFilter)FoolFilterField.GetValue(__instance)!;
         var colorlessFilter = (NCardPoolFilter)ColorlessFilterField.GetValue(__instance)!;
         var ancientsFilter = (NCardPoolFilter)AncientsFilterField.GetValue(__instance)!;
         filters[ironcladFilter] = card => MatchesCharacterPool(card, typeof(ChaosIroncladCardPool), typeof(IroncladCardPool));
@@ -3619,6 +3632,7 @@ internal static class ChaosCardLibraryPoolPatch
         filters[defectFilter] = card => MatchesCharacterPool(card, typeof(ChaosDefectCardPool), typeof(DefectCardPool));
         filters[necrobinderFilter] = card => MatchesCharacterPool(card, typeof(ChaosNecrobinderCardPool), typeof(NecrobinderCardPool));
         filters[regentFilter] = card => MatchesCharacterPool(card, typeof(ChaosRegentCardPool), typeof(RegentCardPool));
+        filters[foolFilter] = card => MatchesCharacterPool(card, typeof(ChaosFoolCardPool), typeof(FoolCardPool));
         filters[colorlessFilter] = card => ChaosRunDefinitions.IsRunActive
             ? card is ChaosColorlessCardModel
               || ChaosRunDefinitions.ActivePreserveOriginalCards && card.Pool is ColorlessCardPool
@@ -3653,12 +3667,12 @@ internal static class ChaosCardLibraryVisibilityPatch
 
     private static void Postfix(NCardLibraryGrid __instance)
     {
-        var unlocked = (HashSet<CardModel>)UnlockedCardsField.GetValue(__instance)!;
+        var unlocked = (HashSet<ModelId>)UnlockedCardsField.GetValue(__instance)!;
 
         // Generated slots do not belong to the vanilla epoch progression, and Ancient Fuel is an always-unlocked
         // easter-egg token. Do not mark them discovered: the vanilla NotSeen state and discovery history still apply.
         foreach (var card in ModelDb.AllCards.Where(ChaosCardLibraryRules.IsAlwaysUnlocked))
-            unlocked.Add(card);
+            unlocked.Add(card.Id);
     }
 }
 
@@ -3721,7 +3735,7 @@ internal static class ChaosCardLibraryRules
         if (card.Rarity != CardRarity.Ancient) return false;
         if (card is ChaosCardModel) return replaceCharacterAncients;
         var vanillaCharacterAncient = card.Pool is IroncladCardPool or SilentCardPool or DefectCardPool
-            or NecrobinderCardPool or RegentCardPool;
+            or NecrobinderCardPool or RegentCardPool or FoolCardPool;
         return !vanillaCharacterAncient || !replaceCharacterAncients;
     }
 }

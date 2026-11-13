@@ -16,7 +16,8 @@ internal static class BuiltInCatalogManifest
             [GeneratedCharacter.Defect] = new("defect_unit_operations.md", 86),
             [GeneratedCharacter.Necrobinder] = new("necrobinder_unit_operations.md", 86),
             [GeneratedCharacter.Regent] = new("regent_unit_operations.md", 86),
-            [GeneratedCharacter.Colorless] = new("colorless_unit_operations.md", 52)
+            [GeneratedCharacter.Colorless] = new("colorless_unit_operations.md", 53),
+            [GeneratedCharacter.Fool] = new("fool_unit_operations.md", 84)
         };
 
     internal static BuiltInCatalogDefinition Get(GeneratedCharacter character) =>
@@ -38,6 +39,7 @@ internal static class NativeKeywordUpgradeCatalog
         {
             var (added, removed) = (character, recipe.Id) switch
             {
+                (GeneratedCharacter.Fool, "Lullaby") => ([CardTag.Innate], Array.Empty<CardTag>()),
                 (GeneratedCharacter.Defect, "MachineLearning") => ([CardTag.Innate], Array.Empty<CardTag>()),
                 (GeneratedCharacter.Defect, "Chill" or "Fusion" or "Hologram" or "Hotfix" or "Ignition" or "Rainbow" or "Voltaic")
                     => (Array.Empty<CardTag>(), [CardTag.Exhaust]),
@@ -179,6 +181,26 @@ public static class ReviewedComponentCatalog
 
 public static class CharacterComponentCatalogs
 {
+    // v113 StartingDeck multiplicities, authored from CharacterModel.StartingDeck rather than unique pool rows.
+    // Non-Basic recipes are distinct reward choices; external/custom Basic recipes keep a neutral one-copy prior.
+    private static readonly IReadOnlyDictionary<string, int> StartingCopies = new Dictionary<string, int>(StringComparer.Ordinal)
+    {
+        ["StrikeIronclad"] = 5, ["DefendIronclad"] = 4,
+        ["StrikeSilent"] = 5, ["DefendSilent"] = 5,
+        ["StrikeDefect"] = 4, ["DefendDefect"] = 4,
+        ["StrikeNecrobinder"] = 4, ["DefendNecrobinder"] = 4,
+        ["StrikeRegent"] = 4, ["DefendRegent"] = 4,
+        ["StrikeFool"] = 5, ["DefendFool"] = 4
+    };
+
+    /// <summary>Native occurrence weight: actual starter copies for Basic recipes, one for other card choices.</summary>
+    public static int NativeOccurrenceWeight(IroncladCardRecipe recipe) =>
+        recipe.OriginalRarity == GeneratedRarity.Basic ? StartingCopies.GetValueOrDefault(recipe.Id, 1) : 1;
+
+    /// <summary>Ancient is a stronger budget, not a separate two-card component vocabulary.</summary>
+    public static GeneratedRarity ComponentRarity(GeneratedRarity rarity) =>
+        rarity == GeneratedRarity.Ancient ? GeneratedRarity.Rare : rarity;
+
     private static readonly IReadOnlyDictionary<GeneratedCharacter, Lazy<IComponentCatalog>> UnlockedCatalogs =
         Enum.GetValues<GeneratedCharacter>().ToDictionary(
             character => character,

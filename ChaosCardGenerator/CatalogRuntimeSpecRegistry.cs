@@ -21,6 +21,13 @@ internal static class CatalogRuntimeSpecRegistry
         ? spec
         : throw new InvalidDataException($"Catalog RuntimeSpec registry is missing {id}.");
 
+    internal static bool TryGet(string? id, out OperationRuntimeSpec spec)
+    {
+        if (id is not null && Specs.Value.TryGetValue(id, out spec!)) return true;
+        spec = null!;
+        return false;
+    }
+
     internal static IReadOnlyList<IroncladCardRecipe> Attach(GeneratedCharacter character,
         IReadOnlyList<IroncladCardRecipe> recipes)
     {

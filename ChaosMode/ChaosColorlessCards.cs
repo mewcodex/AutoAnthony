@@ -62,3 +62,4 @@ public sealed class ChaosColorlessCard048 : ChaosColorlessCardModel { protected 
 public sealed class ChaosColorlessCard049 : ChaosColorlessCardModel { protected override int Slot => 49; }
 public sealed class ChaosColorlessCard050 : ChaosColorlessCardModel { protected override int Slot => 50; }
 public sealed class ChaosColorlessCard051 : ChaosColorlessCardModel { protected override int Slot => 51; }
+public sealed class ChaosColorlessCard052 : ChaosColorlessCardModel { protected override int Slot => 52; }

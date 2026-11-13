@@ -27,6 +27,7 @@ $rendererFiles = [System.Collections.Generic.HashSet[string]]::new([System.Strin
     'ChaosCardGenerator/DerivativePoolConstraintResolver.cs',
     'ChaosCardGenerator/DerivativeSlotCatalog.cs',
     'ChaosCardGenerator/OrbSlotCatalog.cs',
+    'ChaosCardGenerator/FoolComponentRules.cs',
     'ChaosMode/ChaosCardModel.cs',
     'ChaosMode/ChaosCompositePower.cs',
     'ChaosMode/Patches/SurpriseModePatches.cs'
@@ -35,6 +36,7 @@ $rendererFiles = [System.Collections.Generic.HashSet[string]]::new([System.Strin
 $legacyFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 @(
     'ChaosCardGenerator/OperationRuntimeSpec.cs',
+    'ChaosCardGenerator/FoolComponentDefinitions.cs',
     'ChaosCardGenerator/RefactorBaselineAudit.cs',
     'ChaosCardGenerator/StructuredComponentCatalogRegistry.cs',
     'ChaosMode/ChaosPoolSnapshot.cs',

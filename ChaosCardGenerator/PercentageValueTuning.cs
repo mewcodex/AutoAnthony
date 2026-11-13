@@ -40,6 +40,9 @@ internal static class PercentageValueTuning
             // Lethality: 50% of an ordinary 10-Damage first Attack, repeated for about three active turns.
             // The linked trigger supplies the 3x cadence, so this atomic modifier is 500 before linkage.
             ("modify_damage", "triggered_attack_percentage", _) => 10,
+            ("apply_power", "honing", _) => 150,
+            ("apply_power", "serrated_arrows", _) => 55,
+            ("apply_power", "dislike_you", _) => 12,
             _ => 0
         };
         if (valuePerPoint <= 0) return false;
@@ -80,6 +83,7 @@ internal static class PercentageValueTuning
             ("combat_rule", "vulnerable_enemy_damage_bonus", _) => value * 0.90d,
             ("combat_rule", "weak_enemy_attack_damage_bonus", _) => value * 0.30d,
             ("modify_damage", "triggered_attack_percentage", _) => value * 0.50d,
+            ("apply_power", "serrated_arrows", _) => value * 0.40d,
             (_, _, "vulnerable_enemy_damage_reduction") => value * 0.20d,
             _ => value * 0.25d
         };
@@ -239,7 +243,10 @@ internal static class PercentageValueTuning
             "trigger|event|vulnerable_enemy_damage_reduction",
             "combat_rule|vulnerable_enemy_damage_bonus|",
             "combat_rule|weak_enemy_attack_damage_bonus|",
-            "modify_damage|triggered_attack_percentage|"
+            "modify_damage|triggered_attack_percentage|",
+            "apply_power|honing|",
+            "apply_power|serrated_arrows|",
+            "apply_power|dislike_you|"
         };
         var actualKinds = catalogAtoms.Where(IsPercentage)
             .Select(atom => PercentageKind(OperationRuntimeSpecCompiler.GetOrCompile(atom)))

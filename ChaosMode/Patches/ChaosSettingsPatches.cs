@@ -739,17 +739,17 @@ internal static class UltimateChaosHoverTipPatch
         var tip = new HoverTip(
             new LocString("main_menu_ui", titleKey),
             new LocString("main_menu_ui", descriptionKey));
-        var offset = NSettingsScreen.settingTipsOffset;
+        var position = NSettingsScreen.GetSettingTipPosition(__instance);
         for (Node? current = __instance; current is not null; current = current.GetParent())
             if (current is AutoAnthonySettingsSubmenu)
             {
                 // The dedicated page is narrower than the vanilla settings panel; leave a little more breathing
                 // room between its option column and hover cards without changing the legacy inline fallback.
-                offset += new Vector2(72f, 0f);
+                position += new Vector2(72f, 0f);
                 break;
             }
         NHoverTipSet.CreateAndShow(__instance, tip)?
-            .SetGlobalPosition(__instance.GlobalPosition + offset);
+            .SetGlobalPosition(position);
         return false;
     }
 }

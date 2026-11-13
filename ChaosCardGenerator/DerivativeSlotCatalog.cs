@@ -195,6 +195,8 @@ public static class DerivativeSlotCatalog
             new DerivativeSlotDefinition("minion_strike", GeneratedCharacter.Regent, "仆从打击", "Minion Strike", "Minion Strikes", true, true, true, true, true, true, false),
             new DerivativeSlotDefinition("minion_dive", GeneratedCharacter.Regent, "仆从俯冲", "Minion Dive Bomb", "Minion Dive Bombs", true, true, true, true, true, true, false),
             new DerivativeSlotDefinition("minion_sacrifice", GeneratedCharacter.Regent, "仆从捐躯", "Minion Sacrifice", "Minion Sacrifices", true, true, false, false, true, true, true),
+            new DerivativeSlotDefinition("joy", GeneratedCharacter.Fool, "喜悦", "Joy", "Joy", true, true, false, false, true, true, false),
+            new DerivativeSlotDefinition("sadness", GeneratedCharacter.Fool, "悲伤", "Sadness", "Sadness", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_ascenders_bane", GeneratedCharacter.Colorless, "进阶之灾", "Ascender's Bane", "Ascender's Bane", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_bad_luck", GeneratedCharacter.Colorless, "霉运", "Bad Luck", "Bad Luck", false, false, false, false, false, false, false),
             new DerivativeSlotDefinition("curse_clumsy", GeneratedCharacter.Colorless, "笨拙", "Clumsy", "Clumsy", false, false, false, false, false, false, false),
@@ -232,7 +234,8 @@ public static class DerivativeSlotCatalog
             ["minion_strike"] = 2m,
             ["minion_dive"] = 2m,
             ["minion_sacrifice"] = 1m,
-            ["sword"] = 4m
+            ["sword"] = 4m,
+            ["joy"] = 2.5m
         };
 
     // Highly derivative-specific rules (Accuracy/Fan of Knives/Sword Sage/etc.) intentionally stay atomic.
@@ -240,6 +243,9 @@ public static class DerivativeSlotCatalog
     private static readonly IReadOnlyDictionary<string, SlotSource> Sources =
         new Dictionary<string, SlotSource>(StringComparer.Ordinal)
         {
+            ["F:CreateSadness"] = new("sadness", DerivativeSlotCapability.Status, false, DerivativeSlotUsage.Produce),
+            ["F:CreateJoy"] = new("joy", DerivativeSlotCapability.Any, true, DerivativeSlotUsage.Produce),
+            ["F:TransformSadnessToJoy"] = new("joy", DerivativeSlotCapability.Any, true, DerivativeSlotUsage.Produce),
             ["I:Transform"] = new("rock", DerivativeSlotCapability.Any, true, DerivativeSlotUsage.Produce),
             ["N:CreateShiv"] = new("shiv", DerivativeSlotCapability.Any, true, DerivativeSlotUsage.Produce),
             ["N:CreateInkShiv"] = new("shiv", DerivativeSlotCapability.Any, true, DerivativeSlotUsage.Produce, "inky"),
@@ -343,7 +349,7 @@ public static class DerivativeSlotCatalog
         "I:PlayExhaustedShivsAtTarget" or "NCR:ForEachExhaustedSoul";
 
     public static bool IsStatus(DerivativeSlotDefinition definition) => definition.Id is
-        "dazed" or "wound" or "slimed" or "burn" or "void" or "debris";
+        "dazed" or "wound" or "slimed" or "burn" or "void" or "debris" or "sadness";
 
     public static bool IsCurse(DerivativeSlotDefinition definition) =>
         definition.Id.StartsWith("curse_", StringComparison.Ordinal);
@@ -565,6 +571,32 @@ public static class DerivativeSlotCatalog
         return (localized.TextSlots ?? []).Any(slot => slot.Id == "derivative")
             ? localized.WithTextSlotValue("derivative", chinese, english)
             : localized.BindTextSlot("derivative", chinese, english);
+    }
+
+    /// <summary>
+    /// A one-card producer can gain a printed count during derivative conversion or numeric tuning. Restore its
+    /// named count template from the component contract rather than relying on process-local numeric text variants.
+    /// The persisted RuntimeSpec remains authoritative for the count and its fixed/X value source.
+    /// </summary>
+    public static OperationLocalizedText RestoreSourceCountLocalization(GeneratorOperation operation,
+        OperationLocalizedText localized, OperationRuntimeSpec spec)
+    {
+        if (ImplicitFixedProducerCount(operation.Template) is null
+            || !spec.Values.Any(slot => slot.Id == "amount" && slot.Explicit)) return localized;
+        var source = Source(operation.Template)
+            ?? throw new InvalidOperationException($"Derivative slot {operation.Template} has no source definition.");
+        var slots = new[] { new OperationTextSlot("derivative", source.ChineseName,
+            SourceEnglishName(operation.Template, plural: false)) };
+        return operation.Template switch
+        {
+            "I:ProxyAtomic_Begone" => new(
+                "选择你手牌中的[[amount]]张牌，将其变化为[[derivative]]。",
+                "Choose [[amount]] cards in your Hand to Transform into [[derivative]].", slots),
+            "I:ProxyAtomic_Seance" => new(
+                "将你抽牌堆中的[[amount]]张牌变化为[[derivative]]。",
+                "Transform [[amount]] cards in your Draw Pile into [[derivative]].", slots),
+            _ => localized
+        };
     }
 
     /// <summary>

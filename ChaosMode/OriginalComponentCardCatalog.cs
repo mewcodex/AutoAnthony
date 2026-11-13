@@ -24,6 +24,7 @@ internal static class OriginalComponentCardCatalog
         GeneratedCharacter.Defect => ModelDb.CardPool<DefectCardPool>().AllCards,
         GeneratedCharacter.Necrobinder => ModelDb.CardPool<NecrobinderCardPool>().AllCards,
         GeneratedCharacter.Regent => ModelDb.CardPool<RegentCardPool>().AllCards,
+        GeneratedCharacter.Fool => ModelDb.CardPool<FoolCardPool>().AllCards,
         GeneratedCharacter.Colorless => ModelDb.All.OfType<CardModel>()
             .Where(card => ColorlessTypeNames.Contains(card.GetType().Name)),
         _ => throw new ArgumentOutOfRangeException(nameof(character))

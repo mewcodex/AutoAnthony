@@ -52,7 +52,7 @@ public static class GeneratorDistributionAudit
             hasEnergyX: false, hasStarX: false, operations);
         if (double.IsNaN(effectiveCost)) return null;
         var positive = EffectBalanceModel.EstimatedPositiveCardValue(operations,
-            energyCost != 0 || recipe.StarCost > 0, recipe.Type, recipe.Tags);
+            energyCost != 0 || recipe.StarCost > 0, recipe.Type, recipe.Tags, recipe.Cost);
         if (positive <= 0d) return null;
         var downside = CardEffectRules.NegativeEffectCompensationPercent(operations, recipe.Tags,
             energyCost != 0 || recipe.StarCost > 0, recipe.Type, character);
@@ -60,7 +60,7 @@ public static class GeneratorDistributionAudit
         var power = ComponentAssemblyGenerator.PowerOneShotBudgetFactor(operations, recipe.Type);
         var normalized = EffectBalanceModel.EstimatedNetCardValue(operations,
                 energyCost != 0 || recipe.StarCost > 0, recipe.Type, recipe.Tags,
-                recipe.OriginalRarity, character)
+                recipe.OriginalRarity, character, recipe.Cost)
             / Math.Max(1d, power);
         return (character, recipe.Id, recipe.Type, recipe.OriginalRarity,
             Math.Clamp((int)Math.Round(effectiveCost, MidpointRounding.AwayFromZero), 0, 4),

@@ -45,7 +45,7 @@ internal static class MassiveScrollChaosAvailability
 // Massive Scroll can only create vanilla Multiplayer cards. Generated-pool runs deliberately omit those cards
 // unless Preserve Original Card Pool is enabled, so use the relic's native Neow availability filter instead of
 // leaving a reward option whose candidate pool is empty.
-[HarmonyPatch(typeof(MassiveScroll), nameof(MassiveScroll.IsAllowed))]
+[HarmonyPatch(typeof(MassiveScroll), "IsAllowedInternal")]
 internal static class MassiveScrollChaosAvailabilityPatch
 {
     private static void Postfix(ref bool __result)
@@ -317,7 +317,7 @@ internal static class LeafyPoulticeChaosPatch
         var transformations = selected.Select(card => new CardTransformation(card)).ToList();
         await CardCmd.Transform(transformations, relic.Owner.PlayerRng.Transformations);
         await CreatureCmd.LoseMaxHp(new ThrowingPlayerChoiceContext(), relic.Owner.Creature,
-            relic.DynamicVars.MaxHp.BaseValue, isFromCard: false);
+            relic.DynamicVars.MaxHp.BaseValue, cardSource: null);
     }
 }
 
@@ -334,7 +334,7 @@ internal static class LargeCapsuleChaosPatch
     private static async Task ObtainRelicsAndCommons(LargeCapsule relic)
     {
         for (var index = 0; index < relic.DynamicVars["Relics"].IntValue; index++)
-            await RelicCmd.Obtain(RelicFactory.PullNextRelicFromFront(relic.Owner).ToMutable(), relic.Owner);
+            await RelicCmd.Obtain(RelicFactory.PullNextRelicForRewardFromFront(relic.Owner).ToMutable(), relic.Owner);
 
         var candidates = relic.Owner.Character.CardPool
             .GetUnlockedCards(relic.Owner.UnlockState, relic.Owner.RunState.CardMultiplayerConstraint)

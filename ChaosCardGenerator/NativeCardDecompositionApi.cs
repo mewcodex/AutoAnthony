@@ -61,7 +61,8 @@ public sealed record NativeCardUpgradeActionDescriptor(
     string? Action = null,
     JsonElement? Filter = null,
     JsonElement? From = null,
-    JsonElement? To = null);
+    JsonElement? To = null,
+    decimal? PerUpgradeLevel = null);
 
 public sealed record NativeCardUpgradeDescriptor(
     int MaxLevel,
@@ -116,7 +117,7 @@ public sealed record NativeKeywordDefinition(
     bool ReferenceOnly,
     bool GenerationEligible);
 
-/// <summary>One exact, reference-only v111 native-card recipe.</summary>
+/// <summary>One exact, reference-only native-card recipe for the catalog's recorded game version.</summary>
 public sealed record NativeCardDecomposition(
     string CatalogId,
     string NativeId,
@@ -199,7 +200,7 @@ public static class NativeCardDecompositionApi
     }
 
     /// <summary>
-    /// Rebuilds the exact base component shell for one of the 481 reviewed character/colorless recipes. The native
+    /// Rebuilds the exact base component shell for a reviewed character/colorless recipe. The native
     /// upgrade action list remains available on the descriptor and is intentionally not approximated here.
     /// </summary>
     public static bool TryCreateBaseDefinition(string catalogId, out GeneratedCard definition)
@@ -228,6 +229,13 @@ public static class NativeCardDecompositionApi
             RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom),
             LocalizedText: atom.LocalizedText,
             LocalizationId: atom.SemanticId)).ToArray();
+        for (var index = 0; index < operations.Length; index++)
+        {
+            var parameters = operations[index].Parameters.ToDictionary(pair => pair.Key, pair => pair.Value);
+            foreach (var (slotId, argument) in card.Components[index].Arguments)
+                if (argument.NativeBindings?.Count > 0) parameters["nativeUpgrade_" + slotId] = 1;
+            operations[index] = operations[index] with { Parameters = parameters };
+        }
 
         definition = OperationRuntimeSpecCompiler.Attach(new GeneratedCard(
             recipe.Cost,
@@ -246,6 +254,11 @@ public static class NativeCardDecompositionApi
             CustomKeywords: recipe.CustomKeywords));
         return true;
     }
+
+    // Only explicit source-variable bindings authorize native marker upgrades (FTL's upper play-count gate,
+    // for example). Ordinary generated cards still use the stricter generator upgrade policy.
+    internal static bool HasReviewedNumericBinding(GeneratorOperation operation, string? slotId) =>
+        slotId is not null && operation.Parameters.GetValueOrDefault("nativeUpgrade_" + slotId) == 1;
 
     /// <summary>
     /// Rebuilds the base shell and its exact native upgrade when the current generated-card upgrade contract can
@@ -485,8 +498,8 @@ public static class NativeCardDecompositionApi
             ?? throw new InvalidDataException("The native-card decomposition catalog is empty.");
         if (envelope.SchemaVersion != 2 || !envelope.ReferenceOnly || envelope.GenerationEligible)
             throw new InvalidDataException("The native-card decomposition catalog has an unsupported schema/role.");
-        if (envelope.Cards.Count != 567)
-            throw new InvalidDataException($"Expected 567 native-card recipes, found {envelope.Cards.Count}.");
+        if (envelope.Cards.Count != 659)
+            throw new InvalidDataException($"Expected 659 native-card recipes, found {envelope.Cards.Count}.");
         if (envelope.Cards.Any(card => !card.ReferenceOnly || card.GenerationEligible))
             throw new InvalidDataException("A native reference recipe was accidentally enabled for generation.");
         if (envelope.Cards.Select(card => card.CatalogId).Distinct(StringComparer.Ordinal).Count()
@@ -540,7 +553,9 @@ public static class NativeCardDecompositionApi
                 if (!string.Equals(binding.Variable, action.Variable, StringComparison.Ordinal)) continue;
                 var scaled = action.Delta.Value * binding.ValueTransform.Scale;
                 if (scaled != decimal.Truncate(scaled)) return false;
-                effects.Add(new CardUpgradeEffect(CardUpgradeKind.IncreaseNumber, operationIndex,
+                var kind = scaled < 0 && slotId == "threshold"
+                    ? CardUpgradeKind.ReduceThreshold : CardUpgradeKind.IncreaseNumber;
+                effects.Add(new CardUpgradeEffect(kind, operationIndex,
                     decimal.ToInt32(scaled), slotId));
                 found = true;
             }
@@ -581,6 +596,14 @@ public static class NativeCardDecompositionApi
     private static bool TryBindProducedCardUpgrade(GeneratedCard card,
         NativeCardUpgradeActionDescriptor action, ICollection<CardUpgradeEffect> effects)
     {
+        if (action.Card == "TheShot")
+        {
+            var shot = card.Operations.Select((operation, index) => (operation, index))
+                .Where(item => item.operation.Template == "F:CreateTheShot").ToArray();
+            if (shot.Length != 1) return false;
+            effects.Add(new CardUpgradeEffect(CardUpgradeKind.UpgradeReferencedCards, shot[0].index));
+            return true;
+        }
         if (action.Kind == "UpgradeReferencedCardsBeforePlay")
         {
             var referenced = card.Operations.Select((operation, index) => (operation, index))

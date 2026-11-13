@@ -8,10 +8,10 @@ Auto-Anthonyology is a Slay the Spire 2 card-pool randomizer inspired by The Bin
 At the start of a run, it decomposes native card designs into reusable unit operations and assembles a new card pool
 with deterministic names, art, upgrades, targeting, effects, and runtime behavior.
 
-The mod is in open beta and supports Ironclad, Silent, Defect, Necrobinder, Regent, and the two Colorless pools on
-Slay the Spire 2 `0.111.x`.
+The mod is in open beta and supports Ironclad, Silent, Defect, Necrobinder, Regent, Fool, and the two Colorless pools on
+Slay the Spire 2 `0.113.x`.
 
-Current published version: **0.3.147**. See the bilingual
+Current development build: **0.3.165**. See the bilingual
 [API and behavior changelog](https://github.com/mewcodex/AutoAnthony/wiki/API-Changelog) for integration updates.
 
 ## Highlights
@@ -25,8 +25,8 @@ Current published version: **0.3.147**. See the bilingual
 - Keeps generated operations independent from localized prose through versioned `OperationRuntimeSpec` records.
 - Provides Component API v3 for external character mods to register catalogs, occurrence/value/keyword policies,
   semantic flags, stable localization IDs, runtime handlers, hover tips, and generated-card slots.
-- Provides a read-only decomposition catalog for every non-multiplayer v111 card. Card Tinkering can optionally edit
-  all 481 ordinary native cards without replacing their pools or converting untouched cards.
+- Provides 659 read-only native-card decomposition records, including all 84 Fool pool cards. Companion editors can
+  optionally materialize all 566 reviewed character/Colorless recipes without replacing their pools or converting untouched cards.
 
 ## Installation
 
@@ -39,7 +39,7 @@ clients install those definitions rather than generating a second pool independe
 
 Requirements:
 
-- Slay the Spire 2 `0.111.x`
+- Slay the Spire 2 `0.113.x`
 - .NET 10 SDK
 - Python 3
 - PowerShell 7 or Windows PowerShell 5.1
@@ -69,6 +69,9 @@ external-character adapter.
 
 Card-editor companion mods should also read the
 [Card Tinkering and Settings API](https://github.com/mewcodex/AutoAnthony/wiki/Card-Tinkering-and-Settings-API).
+
+For the current game migration, read [v113 and Fool integration](https://github.com/mewcodex/AutoAnthony/wiki/v113-and-Fool),
+including typed melody names, native variable bindings, self-discount valuation, and rebuild requirements.
 
 The optional **Decompose Original Cards** setting displays supported original cards through the reviewed component
 renderer even before they are recombined; their native behavior remains unchanged.

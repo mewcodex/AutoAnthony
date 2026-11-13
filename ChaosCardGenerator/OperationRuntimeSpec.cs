@@ -455,7 +455,7 @@ public static class OperationRuntimeSpecCompiler
         var flags = source.Flags.ToHashSet(StringComparer.Ordinal);
         flags.ExceptWith([
             "shiv_reference", "giant_rock_reference", "soul_reference", "fuel_reference",
-            "debris_reference", "sovereign_blade_reference"
+            "debris_reference", "sovereign_blade_reference", "compact_hand_token_reference"
         ]);
         var replacement = derivativeId switch
         {
@@ -465,6 +465,7 @@ public static class OperationRuntimeSpecCompiler
             "fuel" => "fuel_reference",
             "debris" => "debris_reference",
             "sword" => "sovereign_blade_reference",
+            "joy" or "sadness" => "compact_hand_token_reference",
             _ => null
         };
         if (replacement is not null) flags.Add(replacement);
@@ -605,6 +606,11 @@ public static class OperationRuntimeSpecCompiler
 
     public static bool TryCompile(GeneratorOperation operation, out OperationRuntimeSpec? spec, out string failure)
     {
+        if (FoolComponentDefinitions.TryCompile(operation, out spec))
+        {
+            failure = string.Empty;
+            return true;
+        }
         spec = operation.Template switch
         {
             "T:Apply" or "T:TempStrengthLoss" => CompileTargetPower(operation),
@@ -632,6 +638,14 @@ public static class OperationRuntimeSpecCompiler
             "N:RetainHandThisTurn" => Spec("apply_power", "retain_hand_this_turn", "self"),
             "N:Exhaust" => CompileExhaust(operation),
             "N:AllD" or "N:RandomD" => CompileMultiDamage(operation),
+            "N:LowestHpD" => CompileTargetDamage(operation) with
+                { Variant = "lowest_hp", Target = "lowest_hp_enemy", Flags = [ComponentSemanticFlags.EnemyDamage] },
+            "N:ReduceHandAttackCostUntilPlayed" => Spec("modify_cost", "reduce_until_played", "hand_cards",
+                sourceZone: "hand", cardFilter: "attack", flags: ["requires_hand_cards"],
+                values: [ScalarValue(operation, "energy", 1)]),
+            "CL:ForEachGoldThreshold" => Spec("template_modifier", "gold_threshold", "self",
+                flags: ["repeated_or_multiplicative"], values: [ScalarValue(operation, "threshold", 20)],
+                trigger: new RuntimeTriggerSpec("for_each_gold_threshold", "immediate", "threshold")),
             "T:D" or "T:DX" or "T:D_EnergyX" => CompileTargetDamage(operation),
             "T:LoseHp" or "NCR:TargetHpLoss" => CompileEnemyHpLoss(operation),
             "CL:DamageEqualCardsPlayedCombat" => Spec("deal_damage", "cards_played_combat",
@@ -1583,6 +1597,9 @@ public static class OperationRuntimeSpecCompiler
             .Append(CharacterComponentCatalogs.Get(GeneratedCharacter.Ironclad, unlockComponentRoles: true))
             .SelectMany(catalog => catalog.Recipes)
             .SelectMany(recipe => recipe.Atoms)
+            // Fool was authored directly against structured v113 contracts and has no pre-refactor text-parser
+            // implementation to compare with. It remains covered by ValidateLocalizationIndependence.
+            .Where(atom => atom.SemanticId?.StartsWith("fool/", StringComparison.Ordinal) != true)
             .Select(atom => new GeneratorOperation(atom.Template, atom.Scope, atom.ChineseText,
                 new Dictionary<string, int>(), RequiresSingleTarget: atom.RequiresSingleTarget))
             .DistinctBy(operation => $"{operation.Template}|{operation.Scope}|{operation.ChineseText}")
@@ -1842,13 +1859,8 @@ public static class OperationRuntimeSpecCompiler
             Check("operation_choice_context", operation,
                 LegacyOperationNeedsChoiceContext(operation),
                 CardEffectRules.OperationNeedsChoiceContextBySpec(operation));
-            var legacyDamageSuppressing = operation.Template != "R:DoubleEitherXAtThreshold"
-                && (CardEffectRules.IsDelayedEffect(operation)
-                    || operation.Template == "C:untilTurnEndAttackReceived"
-                    || operation.Template.Contains(":If", StringComparison.Ordinal)
-                    || operation.Template.Contains(":if", StringComparison.Ordinal)
-                    || operation.ChineseText.StartsWith("如果", StringComparison.Ordinal)
-                    || operation.ChineseText.StartsWith("若", StringComparison.Ordinal));
+            var legacyDamageSuppressing = CardEffectRules.IsDelayedEffect(operation)
+                || operation.Template is "C:untilTurnEndAttackReceived" or "CL:DieOnUnblockedAttack";
             Check("damage_type_suppressing_condition", operation, legacyDamageSuppressing,
                 CardEffectRules.IsDamageTypeSuppressingConditionBySpec(operation));
             var legacyRandomGeneration = operation.Template is
@@ -2932,6 +2944,7 @@ public static class OperationRuntimeSpecCompiler
     private static readonly HashSet<string> FirstNumericConsumerTemplates = new(StringComparer.Ordinal)
     {
         "N:E", "N:NextTurnEnergy", "D:GainEnergy", "D:NextTurnEnergy", "NCR:GainEnergy",
+        "N:ReduceHandAttackCostUntilPlayed", "CL:ForEachGoldThreshold",
         "NCR:NextTurnEnergy", "R:GainEnergy", "R:GainStars", "D:IncreaseThisCardCost",
         "NCR:IncreaseAllCardCostsThisTurn", "CL:GainGold", "A:ProxyAtomic_Royalties",
         "R:PlaySelectedSkillMultipleTimes", "D:ChannelLightning", "D:ChannelFrost", "D:ChannelDark",
@@ -2953,11 +2966,13 @@ public static class OperationRuntimeSpecCompiler
 
     private static string PrimarySlotId(GeneratorOperation operation, int numericIndex) => operation.Template switch
     {
-        "T:D" or "T:DX" or "T:D_EnergyX" or "N:AllD" or "N:RandomD" or "N:RetaliateDamage"
+        "T:D" or "T:DX" or "T:D_EnergyX" or "N:AllD" or "N:RandomD" or "N:LowestHpD" or "N:RetaliateDamage"
             or "NCR:OstyDamage" or "NCR:OstyAllDamage" or "CL:RollingAllDamage"
             or "D:RepeatPerEnergySpentThisTurn" =>
                 numericIndex == 0 ? "damage" : "hits",
         "N:B" or "N_BLOCK" or "N:NextTurnBlock" => "block",
+        "N:ReduceHandAttackCostUntilPlayed" => "energy",
+        "CL:ForEachGoldThreshold" => "threshold",
         "N:Draw" or "N_DRAW" or "N:NextTurnDraw" => "draw",
         "N:E" or "N:NextTurnEnergy" or "D:GainEnergy" or "D:NextTurnEnergy" or "NCR:GainEnergy"
             or "NCR:NextTurnEnergy" or "R:GainEnergy" => "energy",

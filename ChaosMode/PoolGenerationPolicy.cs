@@ -34,7 +34,7 @@ internal sealed record PoolGenerationPolicy(
     internal static PoolGenerationPolicy For(GeneratedCharacter character) =>
         character == GeneratedCharacter.Colorless
             ? CharacterPool with { EnforceStartingCoverage = false, EnforceSpecialXMinimum = false }
-            : CharacterPool;
+            : CharacterPool with { StartingDeckSize = ChaosRunDefinitions.BasicCountFor(character) };
 
     internal int RollSpecialXTarget(Random random, int ordinaryXCount)
     {
@@ -51,9 +51,11 @@ internal sealed record PoolGenerationPolicy(
     internal static void Validate()
     {
         var character = For(GeneratedCharacter.Ironclad);
+        var silent = For(GeneratedCharacter.Silent);
         var colorless = For(GeneratedCharacter.Colorless);
         if (!character.EnforceStartingCoverage || !character.EnforceSpecialXMinimum
             || character.StartingDeckSize != 10
+            || silent.StartingDeckSize != ChaosRunDefinitions.SilentBasicCount
             || character.MinimumStartingDamage != 4 || character.MinimumStartingDefense != 4
             || !character.IsValidXDistribution(1, 1) || character.IsValidXDistribution(3, 1)
             || colorless.EnforceStartingCoverage || colorless.EnforceSpecialXMinimum)

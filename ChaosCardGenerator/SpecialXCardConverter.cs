@@ -106,7 +106,7 @@ public static class SpecialXCardConverter
                 "R:DoubleEitherXAtThreshold", OperationScope.Modifier, "如果X至少为4，则X翻倍。",
                 new Dictionary<string, int>())));
         var originalValue = EffectBalanceModel.EstimatedPositiveCardValue(
-            card.Operations, true, card.Type, card.Tags);
+            card.Operations, true, card.Type, card.Tags, card.Cost);
         if (originalValue <= 0d) return card;
 
         var operations = card.Operations.Append(modifier).ToList();
@@ -114,7 +114,7 @@ public static class SpecialXCardConverter
         for (var attempt = 0; attempt < 12; attempt++)
         {
             var candidateValue = EffectBalanceModel.EstimatedPositiveCardValue(
-                operations, true, card.Type, card.Tags);
+                operations, true, card.Type, card.Tags, card.Cost);
             if (candidateValue <= targetMaximum)
             {
                 var finalized = operations.ToArray();

@@ -199,6 +199,7 @@ public static class AutoAnthonyNativeCardApi
 
     private static void CopyPermanentGrowth(CardModel source, ChaosCardModel preview)
     {
+        if (source is MegaCrit.Sts2.Core.Models.Cards.ShowOff showOff) preview.ExtraAim = showOff.IncreasedAim;
         var operations = preview.Generated.Operations;
         if (operations.Any(operation => operation.Template == "D:IncreaseThisCardBlockRun"))
         {

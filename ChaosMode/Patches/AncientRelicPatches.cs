@@ -17,10 +17,10 @@ namespace AutoAnthony.Patches;
 
 internal static class ChaosAncientRelics
 {
-    private sealed record BoundDustyTomeCard(string DefinitionPayload, string PortraitPath);
+    private sealed record BoundAncientCard(ModelId CardId, string DefinitionPayload, string PortraitPath);
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DustyTome, BoundDustyTomeCard>
-        BoundDustyTomeCards = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<RelicModel, BoundAncientCard>
+        BoundAncientCards = new();
     private static readonly System.Reflection.FieldInfo ArchaicToothStarterCardField =
         AccessTools.Field(typeof(ArchaicTooth), "_serializableStarterCard");
     private static readonly System.Reflection.FieldInfo ArchaicToothAncientCardField =
@@ -29,6 +29,8 @@ internal static class ChaosAncientRelics
         AccessTools.Field(typeof(ArchaicTooth), "_extraHoverTips");
     private static readonly System.Reflection.FieldInfo DustyTomeExtraHoverTipsField =
         AccessTools.Field(typeof(DustyTome), "_extraHoverTips");
+    private static readonly System.Reflection.FieldInfo DustyTomeAncientCardField =
+        AccessTools.Field(typeof(DustyTome), "_ancientCard");
 
     internal static bool IsSupportedCharacter(Player? player) => player is not null
         && (TryCharacter(player, out var character) && ChaosRunDefinitions.IsCharacterRunActive(character)
@@ -91,6 +93,7 @@ internal static class ChaosAncientRelics
 
     internal static void BindArchaicToothCard(ArchaicTooth archaicTooth, CardModel card)
     {
+        var preview = CaptureAncientCard(archaicTooth, card);
         // Vanilla ArchaicTooth.UpdateHoverTips eagerly expands every tip on both referenced cards while Orobas is
         // still generating his relic options. Our replacement no longer transforms a starter card, so retain only
         // the generated Ancient reference and its stable card preview. Bypassing the private property setter here
@@ -100,10 +103,11 @@ internal static class ChaosAncientRelics
         // The replacement flow never reads StarterCard, so use the Ancient card itself as a non-null sentinel and
         // keep the public hover-tip surface trimmed to the single actual reward below.
         ArchaicToothStarterCardField.SetValue(archaicTooth, new SerializableCard { Id = card.Id });
-        ArchaicToothAncientCardField.SetValue(archaicTooth, new SerializableCard { Id = card.Id });
+        ArchaicToothAncientCardField.SetValue(archaicTooth, preview.IsMutable
+            ? preview.ToSerializable() : new SerializableCard { Id = card.Id });
         ArchaicToothExtraHoverTipsField.SetValue(archaicTooth,
-            new List<IHoverTip> { HoverTipFactory.FromCard(card) });
-        ((StringVar)archaicTooth.DynamicVars["AncientCard"]).StringValue = card.Title;
+            new List<IHoverTip> { HoverTipFactory.FromCard(preview) });
+        ((StringVar)archaicTooth.DynamicVars["AncientCard"]).StringValue = preview.Title;
     }
 
     internal static void BindDustyTomeCard(DustyTome dustyTome, CardModel card)
@@ -115,50 +119,131 @@ internal static class ChaosAncientRelics
         //
         // The referenced upgraded card is the useful part of this relic option. Store that preview eagerly as a
         // stable one-element array, so Darv setup never executes arbitrary generated-card tip construction.
-        BoundDustyTomeCards.Remove(dustyTome);
-        var preview = card;
+        var preview = CaptureAncientCard(dustyTome, card);
+
+        // Resolve the name from the same captured instance as the preview, never by looking up the slot again.
+        // Bypass the vanilla setter: it reads the shared canonical's title and builds a lazy secondary-tip list.
+        DustyTomeAncientCardField.SetValue(dustyTome, card.Id);
+        var tip = HoverTipFactory.FromCard(preview, upgrade: true);
+        DustyTomeExtraHoverTipsField.SetValue(dustyTome, new[] { tip });
+        ((StringVar)dustyTome.DynamicVars["AncientCard"]).StringValue = ((CardHoverTip)tip).Card.Title;
+    }
+
+    private static CardModel CaptureAncientCard(RelicModel relic, CardModel card)
+    {
+        BoundAncientCards.Remove(relic);
         if (card is ChaosCardModel generated)
         {
             // A generated slot id is stable, but its slot definition may be rebound if a stale pool is repaired
             // between event setup and relic acquisition. Freeze the exact option identity shown by Darv so the
             // upgraded card awarded later cannot silently become another generated Ancient with the same id.
-            var snapshot = new BoundDustyTomeCard(
+            var snapshot = new BoundAncientCard(card.Id,
                 ChaosCardGenerator.CardTinkeringApi.SerializeCard(generated.Generated),
                 generated.PortraitPath);
-            BoundDustyTomeCards.Add(dustyTome, snapshot);
-            var frozenPreview = (ChaosCardModel)generated.ToMutable();
-            frozenPreview.ApplyCapturedDefinition(
-                ChaosCardGenerator.CardTinkeringApi.DeserializeCard(snapshot.DefinitionPayload));
-            frozenPreview.FreeformPortraitPath = snapshot.PortraitPath;
-            preview = frozenPreview;
+            BoundAncientCards.Add(relic, snapshot);
+            return RestoreAncientCard(snapshot);
         }
-
-        dustyTome.AncientCard = card.Id;
-        DustyTomeExtraHoverTipsField.SetValue(dustyTome,
-            new IHoverTip[] { HoverTipFactory.FromCard(preview, upgrade: true) });
+        return card;
     }
 
-    internal static bool TryCreateBoundDustyTomeCard(DustyTome dustyTome, Player player,
+    private static ChaosCardModel RestoreAncientCard(BoundAncientCard snapshot)
+    {
+        var canonical = ModelDb.GetById<CardModel>(snapshot.CardId);
+        var card = (ChaosCardModel)canonical.ToMutable();
+        card.ApplyCapturedDefinition(
+            ChaosCardGenerator.CardTinkeringApi.DeserializeCard(snapshot.DefinitionPayload));
+        card.FreeformPortraitPath = snapshot.PortraitPath;
+        return card;
+    }
+
+    private static bool TryGetBoundAncientCard(RelicModel relic, out BoundAncientCard snapshot)
+    {
+        if (BoundAncientCards.TryGetValue(relic, out snapshot!)) return true;
+        // A relic clone does not retain its weak-table entry. Tooth carries a complete SerializableCard;
+        // Tome's shallow-cloned eager tip retains its frozen definition. Neither needs a new pool lookup.
+        ChaosCardModel? captured = relic switch
+        {
+            ArchaicTooth { AncientCard: { } saved } when HasCapturedDefinition(saved) =>
+                CardModel.FromSerializable(saved) as ChaosCardModel,
+            DustyTome => (DustyTomeExtraHoverTipsField.GetValue(relic) as IEnumerable<IHoverTip>)?
+                .OfType<CardHoverTip>().Select(tip => tip.Card).OfType<ChaosCardModel>()
+                .FirstOrDefault(card => card.HasFreeformDefinition),
+            _ => null
+        };
+        if (captured is null) return false;
+        snapshot = new BoundAncientCard(captured.Id, captured.FreeformDefinitionPayload,
+            captured.FreeformPortraitPath);
+        BoundAncientCards.Add(relic, snapshot);
+        return true;
+    }
+
+    private static bool HasCapturedDefinition(SerializableCard card) => card.Props?.strings?
+        .Any(property => property.name == nameof(ChaosCardModel.FreeformDefinitionPayload)
+            && !string.IsNullOrEmpty(property.value)) == true;
+
+    internal static bool TryCreateBoundAncientCard(RelicModel relic, Player player, int ancientIndex,
         out CardModel ancient)
     {
-        if (!BoundDustyTomeCards.TryGetValue(dustyTome, out var snapshot)
-            || AncientCanonical(player, 1) is not ChaosCardModel canonical)
+        if (!TryGetBoundAncientCard(relic, out var snapshot))
         {
             ancient = null!;
             return false;
+        }
+        var canonical = AncientCanonical(player, ancientIndex);
+        if (canonical.Id != snapshot.CardId)
+        {
+            ancient = null!;
+            return false;
+        }
+        // The normal case still uses a shared-pool card, so later balance adjustments keep working. A private
+        // definition is necessary only if the shared slot really changed after the option was presented.
+        if (canonical is ChaosCardModel current
+            && ChaosCardGenerator.CardTinkeringApi.SerializeCard(current.Generated) == snapshot.DefinitionPayload
+            && current.PortraitPath == snapshot.PortraitPath)
+        {
+            ancient = player.RunState.CreateCard(canonical, player);
+            return true;
         }
 
-        var captured = player.RunState.CreateCard(canonical, player) as ChaosCardModel;
-        if (captured is null)
-        {
-            ancient = null!;
-            return false;
-        }
-        captured.ApplyCapturedDefinition(
-            ChaosCardGenerator.CardTinkeringApi.DeserializeCard(snapshot.DefinitionPayload));
-        captured.FreeformPortraitPath = snapshot.PortraitPath;
+        // Install the captured definition before AfterCreated, so hooks never observe a different shared card.
+        var captured = RestoreAncientCard(snapshot);
+        player.RunState.AddCard(captured, player);
+        captured.AfterCreated();
         ancient = captured;
         return true;
+    }
+
+    internal static void SaveBoundDustyTomeCard(RelicModel relic, SerializableRelic save)
+    {
+        if (relic is not DustyTome || !TryGetBoundAncientCard(relic, out var snapshot)) return;
+        save.Props ??= new SavedProperties();
+        save.Props.strings ??= [];
+        // Reuse registered card-property IDs so the native packet serializer can encode these optional fields.
+        // DustyTome has no setters with these names; Fill ignores them, and the load postfix restores the binding.
+        save.Props.strings.RemoveAll(property => property.name is nameof(ChaosCardModel.FreeformDefinitionPayload)
+            or nameof(ChaosCardModel.FreeformPortraitPath));
+        save.Props.strings.Add(new(nameof(ChaosCardModel.FreeformDefinitionPayload), snapshot.DefinitionPayload));
+        save.Props.strings.Add(new(nameof(ChaosCardModel.FreeformPortraitPath), snapshot.PortraitPath));
+    }
+
+    internal static void RestoreBoundDustyTomeCard(SerializableRelic save, RelicModel relic)
+    {
+        if (relic is not DustyTome { AncientCard: { } id } tome) return;
+        var payload = save.Props?.strings?
+            .FirstOrDefault(property => property.name == nameof(ChaosCardModel.FreeformDefinitionPayload)).value;
+        if (string.IsNullOrEmpty(payload)) return; // Older saves contain only the shared ModelId.
+        var portrait = save.Props?.strings?
+            .FirstOrDefault(property => property.name == nameof(ChaosCardModel.FreeformPortraitPath)).value ?? string.Empty;
+        try
+        {
+            BindDustyTomeCard(tome, RestoreAncientCard(new BoundAncientCard(id, payload, portrait)));
+        }
+        catch (Exception exception)
+        {
+            // Keep the saved ModelId and the setter's current-pool binding if an older optional capture no longer
+            // parses. A stale preview must not prevent the entire run from loading.
+            Log.Warn($"[AutoAnthony] Could not restore Dusty Tome's captured Ancient card {id}: {exception.Message}");
+        }
     }
 
     internal static bool IsStoredGeneratedCard(ModelId? id) =>
@@ -200,17 +285,58 @@ internal static class ChaosAncientRelics
 [HarmonyPatch(typeof(ArchaicTooth), "UpdateHoverTips")]
 internal static class ArchaicToothSentinelHoverTipPatch
 {
-    private static void Postfix(ArchaicTooth __instance)
+    private static bool Prefix(ArchaicTooth __instance)
     {
         // On save/reconnect restore the vanilla property setters rebuild tips for both serialized cards. Equal ids
         // are our sentinel marker; collapse the duplicate back to the one Ancient reward preview without relying
         // on Owner or run state, which may not have been attached yet during deserialization.
+        // SavedProperties assigns the two card fields separately. Do not expand an incomplete generated
+        // sentinel's unrelated secondary tips between those assignments.
+        if ((__instance.StarterCard is null || __instance.AncientCard is null)
+            && (__instance.StarterCard?.Id ?? __instance.AncientCard?.Id) is { } pendingId
+            && ModelDb.GetByIdOrNull<CardModel>(pendingId) is ChaosCardModel) return false;
         if (__instance.StarterCard?.Id is not { } starterId
-            || __instance.AncientCard?.Id != starterId) return;
+            || __instance.AncientCard?.Id != starterId) return true;
         var card = CardModel.FromSerializable(__instance.AncientCard);
-        ChaosAncientRelics.ArchaicToothExtraHoverTipsField.SetValue(__instance,
-            new List<IHoverTip> { HoverTipFactory.FromCard(card) });
+        ChaosAncientRelics.BindArchaicToothCard(__instance, card);
+        return false;
     }
+}
+
+[HarmonyPatch(typeof(DustyTome), nameof(DustyTome.AncientCard), MethodType.Setter)]
+internal static class DustyTomeAncientCardBindingPatch
+{
+    private static bool Prefix(DustyTome __instance, ModelId? value)
+    {
+        if (value is not { } id || ModelDb.GetByIdOrNull<CardModel>(id) is not ChaosCardModel card) return true;
+        ChaosAncientRelics.BindDustyTomeCard(__instance, card);
+        return false;
+    }
+}
+
+[HarmonyPatch(typeof(ArchaicTooth), "AfterCloned")]
+internal static class ArchaicToothBoundCardClonePatch
+{
+    private static void Postfix(ArchaicTooth __instance)
+    {
+        // Vanilla clears this relic's tip list after cloning, even though it retains both saved card fields.
+        if (__instance.StarterCard?.Id is not { } id || __instance.AncientCard?.Id != id) return;
+        ChaosAncientRelics.BindArchaicToothCard(__instance, CardModel.FromSerializable(__instance.AncientCard));
+    }
+}
+
+[HarmonyPatch(typeof(RelicModel), nameof(RelicModel.ToSerializable))]
+internal static class DustyTomeBoundCardSavePatch
+{
+    private static void Postfix(RelicModel __instance, SerializableRelic __result) =>
+        ChaosAncientRelics.SaveBoundDustyTomeCard(__instance, __result);
+}
+
+[HarmonyPatch(typeof(RelicModel), nameof(RelicModel.FromSerializable))]
+internal static class DustyTomeBoundCardLoadPatch
+{
+    private static void Postfix(SerializableRelic save, RelicModel __result) =>
+        ChaosAncientRelics.RestoreBoundDustyTomeCard(save, __result);
 }
 
 [HarmonyPatch(typeof(RelicModel), nameof(RelicModel.FromSerializable))]
@@ -255,7 +381,8 @@ internal static class ArchaicToothObtainedPatch
         // including upgrade and enchantment transfer. The choose-one-removal replacement is only needed when that
         // designated starter card was itself replaced by a generated Basic card.
         if (!ChaosAncientRelics.ShouldOverrideArchaicTooth(player)) return true;
-        if (!ChaosAncientRelics.TryCreateStoredAncient(player, __instance.AncientCard?.Id, 0, out var ancient))
+        if (!ChaosAncientRelics.TryCreateBoundAncientCard(__instance, player, 0, out var ancient)
+            && !ChaosAncientRelics.TryCreateStoredAncient(player, __instance.AncientCard?.Id, 0, out ancient))
         {
             Log.Warn($"[AutoAnthony] Archaic Tooth's cached card did not match its actual owner {player.NetId}; rebuilding the reward from that player's active Ancient pool.");
             ancient = ChaosAncientRelics.CreateAncient(player, 0);
@@ -294,7 +421,7 @@ internal static class DustyTomeObtainedPatch
     {
         var player = __instance.Owner;
         if (!ChaosAncientRelics.ShouldOverrideDustyTome(player)) return true;
-        if (!ChaosAncientRelics.TryCreateBoundDustyTomeCard(__instance, player, out var ancient)
+        if (!ChaosAncientRelics.TryCreateBoundAncientCard(__instance, player, 1, out var ancient)
             && !ChaosAncientRelics.TryCreateStoredAncient(player, __instance.AncientCard, 1, out ancient))
         {
             Log.Warn($"[AutoAnthony] Dusty Tome's cached card did not match its actual owner {player.NetId}; rebuilding the reward from that player's active Ancient pool.");

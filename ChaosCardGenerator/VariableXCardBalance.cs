@@ -67,7 +67,7 @@ internal static class VariableXCardBalance
 
         var netValue = EffectBalanceModel.EstimatedNetCardValue(operations,
             hasPrintedResourceCost, card.Type, card.Tags, card.Rarity,
-            card.UnifiedChaos ? null : card.Character);
+            card.UnifiedChaos ? null : card.Character, card.Cost);
         return new VariableXBudgetPoint(resolvedX, effectiveCost, netValue,
             bounds.Minimum * FlexiblePaymentLowerBoundFactor, bounds.Maximum);
     }
