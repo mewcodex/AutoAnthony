@@ -16888,7 +16888,7 @@
   {
     "Character": "Fool",
     "Id": "Anguish",
-    "ChineseTitle": "\u82E6\u607C",
+    "ChineseTitle": "\u82E6\u95F7",
     "EnglishTitle": "Anguish",
     "Cost": 1,
     "StarCost": -1,
@@ -16930,7 +16930,7 @@
     "HasStarCostX": false,
     "Type": "Power",
     "Target": "Other",
-    "OriginalRarity": "Uncommon",
+    "OriginalRarity": "Rare",
     "Tags": [],
     "Atoms": [
       {
@@ -16947,8 +16947,8 @@
         "SemanticId": "fool/archery/1",
         "Template": "F:Aim",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F974\u70B9\u7784\u51C6\u3002",
-        "EnglishText": "Gain 4 Aim.",
+        "ChineseText": "\u83B7\u5F976\u70B9\u7784\u51C6\u3002",
+        "EnglishText": "Gain 6 Aim.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
@@ -16960,7 +16960,7 @@
     "Id": "ArrowStab",
     "ChineseTitle": "\u7BAD\u77E2\u6233\u51FB",
     "EnglishTitle": "Arrow Stab",
-    "Cost": 1,
+    "Cost": 2,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Attack",
@@ -16972,31 +16972,21 @@
         "SemanticId": "fool/arrowstab/0",
         "Template": "T:D",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u62109\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 9 damage.",
+        "ChineseText": "\u9020\u621013\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 13 damage.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
       },
       {
         "SemanticId": "fool/arrowstab/1",
-        "Template": "F:IfArrow",
-        "Scope": "ConditionalTrigger",
-        "ChineseText": "\u5982\u679C\u4F60\u62E5\u6709\u7BAD\u77E2\uFF0C",
-        "EnglishText": "If you have an Arrow,",
+        "Template": "F:Aim",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F976\u70B9\u7784\u51C6\u3002",
+        "EnglishText": "Gain 6 Aim.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
-      },
-      {
-        "SemanticId": "fool/arrowstab/2",
-        "Template": "F:DiscardShootToHand",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5C06\u4F60\u5F03\u724C\u5806\u4E2D\u76841\u5F20\u53D1\u5C04\u724C\u653E\u5165\u4F60\u7684\u624B\u724C\u3002",
-        "EnglishText": "Put 1 Shoot cards from your discard pile into your Hand.",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": 1
       }
     ]
   },
@@ -17101,8 +17091,8 @@
         "SemanticId": "fool/bounce/0",
         "Template": "F:Stretch",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F9710\u70B9\u62C9\u4F38\u3002",
-        "EnglishText": "Gain 10 Stretch.",
+        "ChineseText": "\u83B7\u5F978\u70B9\u62C9\u4F38\u3002",
+        "EnglishText": "Gain 8 Stretch.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17265,8 +17255,8 @@
         "SemanticId": "fool/chobarbs/0",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F977\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 7 Block.",
+        "ChineseText": "\u83B7\u5F978\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 8 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17275,8 +17265,8 @@
         "SemanticId": "fool/chobarbs/1",
         "Template": "F:TemporaryThorns",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5728\u672C\u56DE\u5408\u83B7\u5F973\u70B9\u8346\u68D8\u3002",
-        "EnglishText": "Gain 3 Thorns this turn.",
+        "ChineseText": "\u5728\u672C\u56DE\u5408\u83B7\u5F972\u70B9\u8346\u68D8\u3002",
+        "EnglishText": "Gain 2 Thorns this turn.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17302,8 +17292,8 @@
         "SemanticId": "fool/chochorus/0",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F9712\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 12 Block.",
+        "ChineseText": "\u83B7\u5F9714\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 14 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17339,8 +17329,8 @@
         "SemanticId": "fool/chofirm/0",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F976\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 6 Block.",
+        "ChineseText": "\u83B7\u5F975\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 5 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17359,8 +17349,8 @@
         "SemanticId": "fool/chofirm/2",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F976\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 6 Block.",
+        "ChineseText": "\u83B7\u5F975\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 5 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 1
@@ -17471,8 +17461,8 @@
         "SemanticId": "fool/choready/0",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F978\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 8 Block.",
+        "ChineseText": "\u83B7\u5F977\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 7 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17839,7 +17829,7 @@
     "HasStarCostX": false,
     "Type": "Power",
     "Target": "Other",
-    "OriginalRarity": "Rare",
+    "OriginalRarity": "Uncommon",
     "Tags": [],
     "Atoms": [
       {
@@ -17856,8 +17846,8 @@
         "SemanticId": "fool/explosivearrows/1",
         "Template": "N:AllD",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u62106\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 6 damage to ALL enemies.",
+        "ChineseText": "\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u62108\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 8 damage to ALL enemies.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
@@ -17869,32 +17859,20 @@
     "Id": "Florescence",
     "ChineseTitle": "\u6012\u653E",
     "EnglishTitle": "Florescence",
-    "Cost": 0,
+    "Cost": 1,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Skill",
     "Target": "Other",
     "OriginalRarity": "Rare",
-    "Tags": [
-      "Exhaust"
-    ],
+    "Tags": [],
     "Atoms": [
       {
         "SemanticId": "fool/florescence/0",
-        "Template": "F:ExhaustShoot",
+        "Template": "F:TransformHandToTheShot",
         "Scope": "NonTargeted",
-        "ChineseText": "\u6D88\u8017\u672C\u573A\u6218\u6597\u4E2D\u6240\u6709\u5C1A\u672A\u6D88\u8017\u7684\u53D1\u5C04\u724C\u3002",
-        "EnglishText": "Exhaust all of your non-Exhausted Shoot cards this combat.",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": -1
-      },
-      {
-        "SemanticId": "fool/florescence/1",
-        "Template": "F:CreateTheShot",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u5C06\u4E00\u5F20\u5168\u529B\u5C04\u51FB\u52A0\u5165\u624B\u724C\u3002\u5176\u57FA\u7840\u4F24\u5BB3\u4E3A\u521A\u624D\u6D88\u8017\u7684\u724C\u6570\u91CF\u768410\u500D\u3002",
-        "EnglishText": "Add The Shot to your Hand. Its base damage is 10 times the number of cards just Exhausted.",
+        "ChineseText": "\u5C06\u624B\u724C\u4E2D\u76841\u5F20\u724C\u53D8\u5316\u4E3A\u5168\u529B\u5C04\u51FB\u3002",
+        "EnglishText": "Transform 1 card in your Hand into The Shot.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -17953,33 +17931,23 @@
     "Atoms": [
       {
         "SemanticId": "fool/growth/0",
-        "Template": "F:ExhaustSadness",
+        "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u6D88\u8017\u4F60\u624B\u724C\u4E2D\u7684\u6240\u6709\u60B2\u4F24\u3002",
-        "EnglishText": "Exhaust all Sadness in your Hand.",
+        "ChineseText": "\u83B7\u5F978\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 8 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
       },
       {
         "SemanticId": "fool/growth/1",
-        "Template": "F:ForEachSadnessExhausted",
-        "Scope": "ConditionalTrigger",
-        "ChineseText": "\u6BCF\u6D88\u8017\u4E00\u5F20\u60B2\u4F24\uFF0C",
-        "EnglishText": "For each Sadness Exhausted,",
+        "Template": "F:TransformSadnessToCopy",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u5C06\u624B\u724C\u4E2D\u76841\u5F20\u968F\u673A\u60B2\u4F24\u53D8\u5316\u4E3A\u8FD9\u5F20\u724C\u7684\u590D\u5236\u54C1\u3002",
+        "EnglishText": "Transform 1 random Sadness in your Hand into copies of this card.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
-      },
-      {
-        "SemanticId": "fool/growth/2",
-        "Template": "F:Stretch",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F974\u70B9\u62C9\u4F38\u3002",
-        "EnglishText": "Gain 4 Stretch.",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": 1
       }
     ]
   },
@@ -17998,6 +17966,16 @@
     "Atoms": [
       {
         "SemanticId": "fool/harmonicshield/0",
+        "Template": "N:B",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u83B7\u5F974\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 4 Block.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "fool/harmonicshield/1",
         "Template": "F:ForEachMelody",
         "Scope": "ConditionalTrigger",
         "ChineseText": "\u4F60\u6BCF\u62E5\u6709\u4E00\u79CD\u65CB\u5F8B\uFF0C",
@@ -18007,14 +17985,14 @@
         "TriggerOwner": -1
       },
       {
-        "SemanticId": "fool/harmonicshield/1",
+        "SemanticId": "fool/harmonicshield/2",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F975\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 5 Block.",
+        "ChineseText": "\u83B7\u5F974\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 4 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
-        "TriggerOwner": 0
+        "TriggerOwner": 1
       }
     ]
   },
@@ -18028,7 +18006,7 @@
     "HasStarCostX": false,
     "Type": "Attack",
     "Target": "SingleEnemy",
-    "OriginalRarity": "Common",
+    "OriginalRarity": "Uncommon",
     "Tags": [
       "Shoot"
     ],
@@ -18047,8 +18025,8 @@
         "SemanticId": "fool/heavyshot/1",
         "Template": "T:D",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u621020\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 20 damage.",
+        "ChineseText": "\u9020\u621016\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 16 damage.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -18057,8 +18035,8 @@
         "SemanticId": "fool/heavyshot/2",
         "Template": "F:AimMultiplier",
         "Scope": "Modifier",
-        "ChineseText": "\u7784\u51C6\u5BF9\u8FD9\u5F20\u724C\u67092\u500D\u6548\u679C\u3002",
-        "EnglishText": "Aim has 2 times its effect on this card.",
+        "ChineseText": "\u7784\u51C6\u5BF9\u8FD9\u5F20\u724C\u67093\u500D\u6548\u679C\u3002",
+        "EnglishText": "Aim has 3 times its effect on this card.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -18184,8 +18162,8 @@
         "SemanticId": "fool/honing/0",
         "Template": "F:Honing",
         "Scope": "NonTargeted",
-        "ChineseText": "\u7BAD\u77E2\u9020\u621050%\u989D\u5916\u4F24\u5BB3\u3002",
-        "EnglishText": "Arrows deal 50% more damage.",
+        "ChineseText": "\u7BAD\u77E2\u9020\u6210100%\u989D\u5916\u4F24\u5BB3\u3002",
+        "EnglishText": "Arrows deal 100% more damage.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -18209,8 +18187,8 @@
         "SemanticId": "fool/jest/0",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F9714\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 14 Block.",
+        "ChineseText": "\u83B7\u5F9715\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 15 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -18330,8 +18308,8 @@
         "SemanticId": "fool/kirest/1",
         "Template": "N:E",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F975\u70B9\u80FD\u91CF\u3002",
-        "EnglishText": "Gain 5 Energy.",
+        "ChineseText": "\u83B7\u5F974\u70B9\u80FD\u91CF\u3002",
+        "EnglishText": "Gain 4 Energy.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
@@ -18497,7 +18475,7 @@
     "Id": "Lullaby",
     "ChineseTitle": "\u6447\u7BEE\u66F2",
     "EnglishTitle": "Lullaby",
-    "Cost": 0,
+    "Cost": 1,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Power",
@@ -18519,8 +18497,8 @@
         "SemanticId": "fool/lullaby/1",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F9720\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 20 Block.",
+        "ChineseText": "\u83B7\u5F9712\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 12 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
@@ -18584,7 +18562,7 @@
     "HasStarCostX": false,
     "Type": "Power",
     "Target": "Other",
-    "OriginalRarity": "Uncommon",
+    "OriginalRarity": "Rare",
     "Tags": [],
     "Atoms": [
       {
@@ -18655,7 +18633,9 @@
     "Type": "Power",
     "Target": "Other",
     "OriginalRarity": "Rare",
-    "Tags": [],
+    "Tags": [
+      "Ethereal"
+    ],
     "Atoms": [
       {
         "SemanticId": "fool/mythicform/0",
@@ -18761,6 +18741,53 @@
   },
   {
     "Character": "Fool",
+    "Id": "Optimism",
+    "ChineseTitle": "\u4E50\u89C2",
+    "EnglishTitle": "Optimism",
+    "Cost": 1,
+    "StarCost": -1,
+    "HasStarCostX": false,
+    "Type": "Skill",
+    "Target": "Other",
+    "OriginalRarity": "Rare",
+    "Tags": [
+      "Exhaust"
+    ],
+    "Atoms": [
+      {
+        "SemanticId": "fool/optimism/0",
+        "Template": "F:ExhaustSadness",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u6D88\u8017\u4F60\u624B\u724C\u4E2D\u7684\u6240\u6709\u60B2\u4F24\u3002",
+        "EnglishText": "Exhaust all Sadness in your Hand.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "fool/optimism/1",
+        "Template": "F:ForEachSadnessExhausted",
+        "Scope": "ConditionalTrigger",
+        "ChineseText": "\u6BCF\u6D88\u8017\u4E00\u5F20\u60B2\u4F24\uFF0C",
+        "EnglishText": "For each Sadness Exhausted,",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "fool/optimism/2",
+        "Template": "N:Draw",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u62BD1\u5F20\u724C\u3002",
+        "EnglishText": "Draw 1 card.",
+        "RequiresSingleTarget": false,
+        "CardReference": "None",
+        "TriggerOwner": 1
+      }
+    ]
+  },
+  {
+    "Character": "Fool",
     "Id": "PunchOfJoy",
     "ChineseTitle": "\u559C\u60A6\u4E4B\u62F3",
     "EnglishTitle": "Punch of Joy",
@@ -18776,8 +18803,8 @@
         "SemanticId": "fool/punchofjoy/0",
         "Template": "T:D",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u621013\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 13 damage.",
+        "ChineseText": "\u9020\u621014\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 14 damage.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -18868,7 +18895,7 @@
     "HasStarCostX": false,
     "Type": "Power",
     "Target": "Other",
-    "OriginalRarity": "Rare",
+    "OriginalRarity": "Uncommon",
     "Tags": [],
     "Atoms": [
       {
@@ -18942,83 +18969,29 @@
   },
   {
     "Character": "Fool",
-    "Id": "RapidShot",
-    "ChineseTitle": "\u8FC5\u6377\u5C04\u51FB",
-    "EnglishTitle": "Rapid Shot",
-    "Cost": 1,
-    "StarCost": -1,
-    "HasStarCostX": false,
-    "Type": "Attack",
-    "Target": "SingleEnemy",
-    "OriginalRarity": "Uncommon",
-    "Tags": [
-      "Shoot"
-    ],
-    "Atoms": [
-      {
-        "SemanticId": "fool/rapidshot/0",
-        "Template": "F:ShootArrow",
-        "Scope": "Modifier",
-        "ChineseText": "\u53D1\u5C04\u4E00\u652F\u7BAD\u77E2\uFF0C",
-        "EnglishText": "Shoot an Arrow to",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": -1
-      },
-      {
-        "SemanticId": "fool/rapidshot/1",
-        "Template": "T:D",
-        "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u62103\u70B9\u4F24\u5BB33\u6B21\u3002",
-        "EnglishText": "Deal 3 damage 3 times.",
-        "RequiresSingleTarget": true,
-        "CardReference": "None",
-        "TriggerOwner": -1
-      }
-    ]
-  },
-  {
-    "Character": "Fool",
     "Id": "Recall",
     "ChineseTitle": "\u53EC\u56DE",
     "EnglishTitle": "Recall",
-    "Cost": 1,
+    "Cost": 0,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Skill",
     "Target": "SingleEnemy",
     "OriginalRarity": "Common",
-    "Tags": [],
+    "Tags": [
+      "Exhaust",
+      "Retain"
+    ],
     "Atoms": [
       {
         "SemanticId": "fool/recall/0",
-        "Template": "F:IfOwnImpaled",
-        "Scope": "ConditionalTrigger",
-        "ChineseText": "\u5982\u679C\u76EE\u6807\u654C\u4EBA\u88AB\u4F60\u7684\u7BAD\u77E2\u624E\u7A7F\uFF0C",
-        "EnglishText": "If the target enemy is Impaled by your Arrow,",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": -1
-      },
-      {
-        "SemanticId": "fool/recall/1",
-        "Template": "F:Dislodge",
+        "Template": "F:DislodgeAll",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u4F7F\u4F60\u624E\u7A7F\u76EE\u6807\u654C\u4EBA\u7684\u6240\u6709\u7BAD\u77E2\u677E\u8131\u3002",
-        "EnglishText": "Dislodge all your Arrows from the target enemy.",
+        "ChineseText": "\u4F7F\u76EE\u6807\u654C\u4EBA\u8EAB\u4E0A\u6240\u6709\u5C5E\u4E8E\u4F60\u7684\u7BAD\u77E2\u677E\u8131\u3002",
+        "EnglishText": "Dislodge ALL of your Arrows from the target enemy.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
-        "TriggerOwner": 0
-      },
-      {
-        "SemanticId": "fool/recall/2",
-        "Template": "F:DiscardToDrawTop",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u9009\u62E9\u4F60\u5F03\u724C\u5806\u4E2D\u76841\u5F20\u724C\uFF0C\u653E\u5230\u4F60\u7684\u62BD\u724C\u5806\u9876\u3002",
-        "EnglishText": "Put 1 card from your discard pile on top of your Draw Pile.",
-        "RequiresSingleTarget": false,
-        "CardReference": "None",
-        "TriggerOwner": 0
+        "TriggerOwner": -1
       }
     ]
   },
@@ -19051,8 +19024,8 @@
         "SemanticId": "fool/repeatshot/1",
         "Template": "T:D_EnergyX",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u621015\u70B9\u4F24\u5BB3X\u6B21\u3002",
-        "EnglishText": "Deal 15 damage X times.",
+        "ChineseText": "\u9020\u621013\u70B9\u4F24\u5BB3X\u6B21\u3002",
+        "EnglishText": "Deal 13 damage X times.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -19148,8 +19121,8 @@
         "SemanticId": "fool/serratedarrows/0",
         "Template": "F:Serrated",
         "Scope": "NonTargeted",
-        "ChineseText": "\u624E\u7A7F\u7684\u654C\u4EBA\u4ECE\u4F60\u7684\u653B\u51FB\u4E2D\u53D7\u5230\u7684\u4F24\u5BB3\u589E\u52A025%\u3002",
-        "EnglishText": "Impaled enemies take 25% more damage from your Attacks.",
+        "ChineseText": "\u624E\u7A7F\u7684\u654C\u4EBA\u4ECE\u4F60\u7684\u653B\u51FB\u4E2D\u53D7\u5230\u7684\u4F24\u5BB3\u589E\u52A050%\u3002",
+        "EnglishText": "Impaled enemies take 50% more damage from your Attacks.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -19161,7 +19134,7 @@
     "Id": "ShowOff",
     "ChineseTitle": "\u70AB\u6280",
     "EnglishTitle": "Show Off",
-    "Cost": 1,
+    "Cost": 0,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Skill",
@@ -19304,8 +19277,8 @@
         "SemanticId": "fool/songpath/1",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F975\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 5 Block.",
+        "ChineseText": "\u83B7\u5F974\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 4 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
@@ -19341,8 +19314,8 @@
         "SemanticId": "fool/sorrowfulstrike/1",
         "Template": "F:CreateSadness",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5C062\u5F20\u60B2\u4F24\u52A0\u5165\u4F60\u7684\u624B\u724C\u3002",
-        "EnglishText": "Add 2 Sadness to your Hand.",
+        "ChineseText": "\u5C061\u5F20\u60B2\u4F24\u52A0\u5165\u4F60\u7684\u624B\u724C\u3002",
+        "EnglishText": "Add 1 Sadness to your Hand.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -19503,20 +19476,20 @@
       },
       {
         "SemanticId": "fool/trickshot/2",
-        "Template": "F:IfArrow",
+        "Template": "F:IfShotSucceeded",
         "Scope": "ConditionalTrigger",
-        "ChineseText": "\u5982\u679C\u4F60\u62E5\u6709\u7BAD\u77E2\uFF0C",
-        "EnglishText": "If you have an Arrow,",
+        "ChineseText": "\u5982\u679C\u8FD9\u5F20\u724C\u53D1\u5C04\u4E86\u7BAD\u77E2\uFF0C",
+        "EnglishText": "If this card shot an Arrow,",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
       },
       {
         "SemanticId": "fool/trickshot/3",
-        "Template": "R:ReturnThisToHand",
+        "Template": "N:Draw",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5C06\u8FD9\u5F20\u724C\u653E\u56DE\u4F60\u7684\u624B\u724C\u3002",
-        "EnglishText": "Return this card to your Hand.",
+        "ChineseText": "\u62BD2\u5F20\u724C\u3002",
+        "EnglishText": "Draw 2 cards.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 2
@@ -19528,7 +19501,7 @@
     "Id": "Tune",
     "ChineseTitle": "\u8C03\u97F3",
     "EnglishTitle": "Tune",
-    "Cost": 2,
+    "Cost": 1,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Power",
@@ -19538,33 +19511,60 @@
     "Atoms": [
       {
         "SemanticId": "fool/tune/0",
-        "Template": "A:turnEnd",
+        "Template": "F:OnKiGained",
         "Scope": "AbilityTrigger",
-        "ChineseText": "\u5728\u4F60\u7684\u56DE\u5408\u7ED3\u675F\u65F6\uFF0C",
-        "EnglishText": "At the end of your turn,",
+        "ChineseText": "\u6BCF\u5F53\u4F60\u83B7\u5F97\u53FD\u65CB\u5F8B\u65F6\uFF0C",
+        "EnglishText": "Whenever you gain the Ki Melody,",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
       },
       {
         "SemanticId": "fool/tune/1",
-        "Template": "F:IfKi",
-        "Scope": "ConditionalTrigger",
-        "ChineseText": "\u5982\u679C\u4F60\u62E5\u6709\u53FD\u65CB\u5F8B\uFF0C",
-        "EnglishText": "If you have the Ki Melody,",
+        "Template": "F:UpgradeRandomHand",
+        "Scope": "NonTargeted",
+        "ChineseText": "\u5347\u7EA7\u624B\u724C\u4E2D\u76841\u5F20\u968F\u673A\u724C\u3002",
+        "EnglishText": "Upgrade 1 random card in your Hand.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
-      },
+      }
+    ]
+  },
+  {
+    "Character": "Fool",
+    "Id": "TwinShot",
+    "ChineseTitle": "\u53CC\u91CD\u5C04\u51FB",
+    "EnglishTitle": "Twin Shot",
+    "Cost": 1,
+    "StarCost": -1,
+    "HasStarCostX": false,
+    "Type": "Attack",
+    "Target": "SingleEnemy",
+    "OriginalRarity": "Common",
+    "Tags": [
+      "Shoot"
+    ],
+    "Atoms": [
       {
-        "SemanticId": "fool/tune/2",
-        "Template": "F:NextCardFree",
-        "Scope": "NonTargeted",
-        "ChineseText": "\u4F60\u63A5\u4E0B\u6765\u6253\u51FA\u76841\u5F20\u724C\u8017\u80FD\u4E3A0[E]\u3002",
-        "EnglishText": "The next 1 card you play cost 0[E].",
+        "SemanticId": "fool/twinshot/0",
+        "Template": "F:ShootArrow",
+        "Scope": "Modifier",
+        "ChineseText": "\u53D1\u5C04\u4E00\u652F\u7BAD\u77E2\uFF0C",
+        "EnglishText": "Shoot an Arrow to",
         "RequiresSingleTarget": false,
         "CardReference": "None",
-        "TriggerOwner": 1
+        "TriggerOwner": -1
+      },
+      {
+        "SemanticId": "fool/twinshot/1",
+        "Template": "T:D",
+        "Scope": "SingleEnemyOnly",
+        "ChineseText": "\u9020\u62107\u70B9\u4F24\u5BB32\u6B21\u3002",
+        "EnglishText": "Deal 7 damage 2 times.",
+        "RequiresSingleTarget": true,
+        "CardReference": "None",
+        "TriggerOwner": -1
       }
     ]
   },
@@ -19573,7 +19573,7 @@
     "Id": "Uproot",
     "ChineseTitle": "\u8FDE\u6839\u62D4\u8D77",
     "EnglishTitle": "Uproot",
-    "Cost": 1,
+    "Cost": 0,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Skill",
@@ -19640,8 +19640,8 @@
         "SemanticId": "fool/violentchord/1",
         "Template": "N:AllD",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u62109\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 9 damage to ALL enemies.",
+        "ChineseText": "\u5BF9\u6240\u6709\u654C\u4EBA\u9020\u62107\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 7 damage to ALL enemies.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": 0
@@ -19675,8 +19675,8 @@
         "SemanticId": "fool/vitriol/1",
         "Template": "F:CreateSadness",
         "Scope": "NonTargeted",
-        "ChineseText": "\u5C061\u5F20\u60B2\u4F24\u52A0\u5165\u4F60\u7684\u624B\u724C\u3002",
-        "EnglishText": "Add 1 Sadness to your Hand.",
+        "ChineseText": "\u5C062\u5F20\u60B2\u4F24\u52A0\u5165\u4F60\u7684\u624B\u724C\u3002",
+        "EnglishText": "Add 2 Sadness to your Hand.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -19773,7 +19773,7 @@
     "Id": "WahChoKi",
     "ChineseTitle": "\u54C7 \u557E \u53FD",
     "EnglishTitle": "Wah Cho Ki",
-    "Cost": 1,
+    "Cost": 2,
     "StarCost": -1,
     "HasStarCostX": false,
     "Type": "Attack",
@@ -19789,8 +19789,8 @@
         "SemanticId": "fool/wahchoki/0",
         "Template": "N:B",
         "Scope": "NonTargeted",
-        "ChineseText": "\u83B7\u5F979\u70B9\u683C\u6321\u3002",
-        "EnglishText": "Gain 9 Block.",
+        "ChineseText": "\u83B7\u5F978\u70B9\u683C\u6321\u3002",
+        "EnglishText": "Gain 8 Block.",
         "RequiresSingleTarget": false,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -19799,8 +19799,8 @@
         "SemanticId": "fool/wahchoki/1",
         "Template": "T:D",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u62109\u70B9\u4F24\u5BB3\u3002",
-        "EnglishText": "Deal 9 damage.",
+        "ChineseText": "\u9020\u62108\u70B9\u4F24\u5BB3\u3002",
+        "EnglishText": "Deal 8 damage.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1
@@ -19874,8 +19874,8 @@
         "SemanticId": "fool/wahki/0",
         "Template": "T:D",
         "Scope": "SingleEnemyOnly",
-        "ChineseText": "\u9020\u62102\u70B9\u4F24\u5BB32\u6B21\u3002",
-        "EnglishText": "Deal 2 damage 2 times.",
+        "ChineseText": "\u9020\u62103\u70B9\u4F24\u5BB32\u6B21\u3002",
+        "EnglishText": "Deal 3 damage 2 times.",
         "RequiresSingleTarget": true,
         "CardReference": "None",
         "TriggerOwner": -1

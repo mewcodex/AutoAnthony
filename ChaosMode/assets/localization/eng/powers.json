@@ -2,5 +2,7 @@
   "CHAOS_COMPOSITE_POWER.title": "Chaos Effect",
   "CHAOS_COMPOSITE_POWER.description": "{description}",
   "CHAOS_TEMPORARY_FOCUS_POWER.title": "Temporary Focus",
-  "CHAOS_TEMPORARY_FOCUS_DOWN_POWER.title": "Temporary Focus Down"
+  "CHAOS_TEMPORARY_FOCUS_DOWN_POWER.title": "Temporary Focus Down",
+  "CHAOS_NEXT_CARDS_FREE_POWER.title": "Free Cards",
+  "CHAOS_NEXT_CARDS_FREE_POWER.description": "The next {Amount} cards you play cost [blue]0[/blue] {energyPrefix:energyIcons(1)}."
 }

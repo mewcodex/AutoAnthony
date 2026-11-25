@@ -26,7 +26,8 @@ public static class GeneratedCardTagPolicy
     /// <summary>
     /// Rebuilds operation-derived semantic tags for newly assembled definitions. This prevents an unrelated card
     /// from randomly receiving OstyAttack and guarantees that every generated Osty damage card participates in
-    /// native mechanics such as Squeeze. Runtime also derives this tag so old snapshots remain compatible.
+    /// native mechanics such as Squeeze. Shoot is authoritative only when an operation declares grants_shoot_tag;
+    /// it must not survive merely because a source card had it. Runtime also derives these tags for old snapshots.
     /// </summary>
     public static IReadOnlyList<CardTag> NormalizeOperationDerivedTags(IEnumerable<CardTag> tags,
         IReadOnlyList<GeneratorOperation> operations)
@@ -34,11 +35,11 @@ public static class GeneratedCardTagPolicy
         // Preserve an explicitly supplied semantic tag for an external component package. Built-in random
         // assembly never samples OstyAttack independently, so any newly generated built-in occurrence comes from
         // the operation rule below.
-        var normalized = tags.Distinct().ToList();
+        var shootsArrow = operations.Any(FoolComponentRules.IsShootModifier);
+        var normalized = tags.Where(tag => tag != CardTag.Shoot || shootsArrow).Distinct().ToList();
         if (IsOstyAttackCard(operations) && !normalized.Contains(CardTag.OstyAttack))
             normalized.Add(CardTag.OstyAttack);
-        if (operations.Any(operation => OperationRuntimeSpecCompiler.GetOrCompile(operation).Flags.Contains("grants_shoot_tag"))
-            && !normalized.Contains(CardTag.Shoot)) normalized.Add(CardTag.Shoot);
+        if (shootsArrow && !normalized.Contains(CardTag.Shoot)) normalized.Add(CardTag.Shoot);
         return normalized;
     }
 

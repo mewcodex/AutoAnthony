@@ -106,7 +106,7 @@ internal sealed record ChaosHistorySnapshotRestore(
 
 public static class ChaosPoolSnapshot
 {
-    public const string ModVersion = "0.3.165";
+    public const string ModVersion = "0.3.170";
     private const int SchemaVersion = 10;
     // Schema 1-4 predate the stable all-pool/run-mode layout. They remain readable for historical card display,
     // but resuming one as a live run now regenerates the pool instead of retaining increasingly fragile gameplay
@@ -1356,7 +1356,10 @@ public static class ChaosPoolSnapshot
             "N_SELECT_HAND_CARD", "N_SELECT_HAND_ATTACK", "I:DrawAndBlockIfSkill",
             // v113 reworked their source cards; the old executable components remain valid in saved runs.
             "I:DrawWithRetain", "M:DamagePerDiscardThisTurn",
-            "A:ProxyAtomic_Orbit", "A:ProxyAtomic_ChildOfTheStars"
+            "A:ProxyAtomic_Orbit", "A:ProxyAtomic_ChildOfTheStars",
+            // v114 removed these source effects, not their persisted generated-card contracts.
+            "F:CreateTheShot", "F:DiscardShootToHand", "F:DiscardToDrawTop",
+            "F:ExhaustShoot", "F:IfKi", "F:NextCardFree"
         ]);
         return templates;
     }

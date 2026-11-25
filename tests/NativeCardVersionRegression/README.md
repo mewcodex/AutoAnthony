@@ -15,3 +15,14 @@ Supply the DLL and a test-only JSON manifest with `has_dll=true`, `has_pck=false
 
 The plugin quits the isolated game after reporting `AA_NATIVE_COMPLETE`; it never ships in AutoAnthony's
 package. It does not simulate every combat program or multiplayer transport. The current native catalog includes Fool as well as the five older characters and Colorless.
+
+The Future of Potions check populates 54 native three-choice rewards across the six built-in generated
+character pools, checks rarity/type/upgrade consistency, and reproduces a two-candidate failure using a
+test-only sparse pool. It verifies that the event corrects its advertised type before reward creation;
+the global card factory continues to reject insufficient candidates. It does not automate potion discard
+or interaction with the reward-selection screen.
+
+The live library filter is checked with generation disabled, enabled, and preserving original cards. Generated
+Colorless models stay registered/readable for history without appearing in the native-only Colorless tab.
+Shoot-tag checks restore an old payload with a stray source tag, keep native and actual generated Shoot cards
+searchable, and verify that removing the Shoot operation also removes its runtime tag.

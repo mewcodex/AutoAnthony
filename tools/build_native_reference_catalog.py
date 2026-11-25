@@ -18,8 +18,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_GAME_SOURCE = ROOT.parent / "proj" / "113" / "MegaCrit.Sts2.Core.Models.Cards"
-DEFAULT_LOCALIZATION = ROOT.parent / "export" / "113" / "localization"
+DEFAULT_GAME_SOURCE = ROOT.parent / "proj" / "114" / "MegaCrit.Sts2.Core.Models.Cards"
+DEFAULT_LOCALIZATION = ROOT.parent / "export" / "114" / "localization"
 DATA = ROOT / "ChaosCardGenerator" / "Data"
 
 
@@ -208,7 +208,6 @@ def method_body(text: str, name: str) -> str | None:
 
 IMPLICIT_UPGRADE_RULES: dict[str, list[dict[str, Any]]] = {
     "Florescence": [{"Kind": "UpgradeProducedCard", "Card": "TheShot"}],
-    "MythicForm": [{"Kind": "UpgradeProducedCard", "Pool": "Tarot"}],
     "ShowOff": [], # Current Aim is BaseAim plus the saved IncreasedAim, in both upgrade states.
     "Armaments": [{"Kind": "ReplaceSelection", "From": {"Zone": "Hand", "Count": 1},
                     "To": {"Zone": "Hand", "Count": "All"}, "Action": "Upgrade"}],
@@ -430,8 +429,7 @@ def special_components(card: str) -> list[dict[str, Any]]:
         return []
     mapping: dict[str, list[dict[str, Any]]] = {
         "Joy": [ref("gain.energy", amount=v("Energy")), ref("draw.cards", amount=v("Cards"))],
-        "TheShot": [ref("shoot.arrow"), ref("deal.damage_per_florescence_exhausted_card",
-                      damagePerCard=v("ExtraDamage"), countSource="FlorescenceExhaustedCount",
+        "TheShot": [ref("shoot.arrow"), ref("deal.damage", damage=v("Damage"),
                       target="SelectedEnemy", hits=1)],
         "Abundance": [ref("choice.generated_cards", candidates=3, choose=1, cardType="Power", upgraded=True,
                           destination="Hand", freeDuration="Turn")],
@@ -678,6 +676,12 @@ def native_component_id(atom: dict[str, Any], spec: dict[str, Any]) -> str:
 # ambiguous occurrences.  Unambiguous bindings continue to be derived from the native source below.
 # Each tuple is (native variable, scale, offset), where componentValue = nativeValue * scale + offset.
 NATIVE_BINDING_OVERRIDES: dict[tuple[str, int, str], tuple[tuple[str, float, float], ...]] = {
+    ("HarmonicShield", 0, "block"): (("CalculationBase", 1, 0),),
+    ("HarmonicShield", 2, "block"): (("CalculationExtra", 1, 0),),
+    ("Vitriol", 0, "amount"): (("WeakPower", 1, 0),),
+    ("Vitriol", 1, "amount"): (("Cards", 1, 0),),
+    # v113.1 no longer marks Aim as upgraded; its live state still belongs to AimPower.
+    ("ShowOff", 0, "amount"): (("AimPower", 1, 0),),
     ("Speedster", 1, "damage"): (("SpeedsterPower", 1, 0),),
     ("HandOfGreed", 0, "damage"): (("Damage", 1, 0),),
     ("HandOfGreed", 2, "amount"): (("Gold", 1, 0),),
@@ -1086,7 +1090,7 @@ def build(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--game-version", default="v0.113.0")
+    parser.add_argument("--game-version", default="v0.114.0")
     parser.add_argument("--game-source", type=Path, default=DEFAULT_GAME_SOURCE)
     parser.add_argument("--localization", type=Path, default=DEFAULT_LOCALIZATION)
     parser.add_argument("--cards-output", type=Path, default=DATA / "native_reference_cards.json")

@@ -151,7 +151,7 @@ public static class CardUpgradeGenerator
             }
             else if (effect.Kind == CardUpgradeKind.UpgradeReferencedCards)
             {
-                if (operation.Template == "F:CreateTheShot")
+                if (operation.Template is "F:CreateTheShot" or "F:TransformHandToTheShot")
                 {
                     localizedText = (localizedText ?? FoolComponentDefinitions.Localized(operation.Template)
                         ?? throw new InvalidOperationException("The Shot reference template is missing."))
@@ -475,7 +475,7 @@ public static class CardUpgradeGenerator
                     UpgradeRandomGenerationEnglish(EnglishCardDescriptionRenderer.OperationText(operation)));
                 candidates.Add(new(new(CardUpgradeKind.UpgradeGeneratedCards, index)));
             }
-            if (operation.Template == "F:CreateTheShot")
+            if (operation.Template is "F:CreateTheShot" or "F:TransformHandToTheShot")
                 candidates.Add(new(new(CardUpgradeKind.UpgradeReferencedCards, index)));
 
             (IReadOnlyList<CardTag> Added, IReadOnlyList<CardTag> Removed) keywordUpgrade = default;

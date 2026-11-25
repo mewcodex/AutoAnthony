@@ -726,7 +726,7 @@ internal static class EffectBalanceModel
             "melody_ki" => 0.5d,
             "melody_types" => 1.5d,
             "melody_gained" => 2d,
-            "wah_melody_gained" or "cho_melody_gained" => 0.6d,
+            "wah_melody_gained" or "cho_melody_gained" or "ki_melody_gained" => 0.6d,
             "all_melodies_gained" => 0.2d,
             "arrow_impaled" => 0.9d,
             "first_arrow_dislodged_each_turn" => 0.5d,
@@ -1749,27 +1749,29 @@ internal static class EffectBalanceModel
         if (FoolComponentRules.IsShootModifier(operation)) return 0d;
         if (CardEffectRules.IsEnemyDamage(operation) && operations.Any(FoolComponentRules.IsShootModifier))
         {
-            // Song Bow supplies Aim 6 at battle entry. Budget a conservative five Aim per Arrow hit, then
-            // discount the complete attack for Arrow availability. Otherwise Rapid Shot's printed 3x3 looks
-            // weak and generation overfills the damage slot before adding this native scaling for free.
+            // Price only the printed first hit. Optional Aim can amplify every Arrow hit, so additional hits
+            // retain their scaling premium; the first hit must not spend budget on Aim the card never grants.
             var spec = OperationRuntimeSpecCompiler.GetOrCompile(operation);
             var hits = Math.Max(1, spec.Values.FirstOrDefault(slot => slot.Id is "hits" or "repeat_count")?.BaseValue ?? 1);
-            value = (value + 500d * hits) * 0.55d;
+            value = FoolComponentDefinitions.ArrowDamageValue(value, hits);
         }
         if (operation.Template.StartsWith("F:", StringComparison.Ordinal))
         {
             var amount = Math.Max(0, OperationRuntimeSpecCompiler.PrimaryStaticLiteralValue(operation, 1));
             var hosts = operations.Where(CardEffectRules.IsEnemyDamage).ToArray();
-            var arrowFactor = operations.Any(FoolComponentRules.IsShootModifier) ? 0.55d : 1d;
+            var shootsArrow = operations.Any(FoolComponentRules.IsShootModifier);
+            var arrowFactor = shootsArrow ? FoolComponentDefinitions.ArrowAvailabilityValueMultiplier : 1d;
             var hostGeometry = DamageModifierHostValueMultiplier(operation, operationIndex, operations);
             switch (operation.Template)
             {
-                case "F:ExtraHitsPerMelody": return amount * 1.5d * hosts.Sum(AddedHitValue) * arrowFactor;
+                case "F:ExtraHitsPerMelody": return amount * 1.5d
+                    * hosts.Sum(host => AddedHitValue(host)
+                        + (shootsArrow ? FoolComponentDefinitions.AdditionalArrowHitScalingValue : 0d)) * arrowFactor;
                 case "F:DamagePerMelodyCard": return amount * 8d * 100d * hostGeometry * arrowFactor;
                 case "F:DamagePerSadnessCreated": return amount * 3d * 100d * hostGeometry * arrowFactor;
                 case "F:DoubleAgainstImpaled": return hosts.Sum(host => EstimatedEffectValue(host))
                     * FoolComponentDefinitions.ImpaledFrequency * arrowFactor;
-                case "F:AimMultiplier": return Math.Max(0, amount - 1) * 5d
+                case "F:AimMultiplier": return Math.Max(0, amount - 1) * FoolComponentDefinitions.ExpectedAimForAdditionalArrowHits
                     * FoolComponentDefinitions.AimValue * hostGeometry * arrowFactor;
                 case "F:RefundStretch": return 5d * FoolComponentDefinitions.StretchValue;
                 case "F:StretchFromDamage": value = hosts.Sum(host => EstimatedEffectValue(host)) * 0.9d; break;

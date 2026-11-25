@@ -17,7 +17,7 @@ internal static class BuiltInCatalogManifest
             [GeneratedCharacter.Necrobinder] = new("necrobinder_unit_operations.md", 86),
             [GeneratedCharacter.Regent] = new("regent_unit_operations.md", 86),
             [GeneratedCharacter.Colorless] = new("colorless_unit_operations.md", 53),
-            [GeneratedCharacter.Fool] = new("fool_unit_operations.md", 84)
+            [GeneratedCharacter.Fool] = new("fool_unit_operations.md", 85)
         };
 
     internal static BuiltInCatalogDefinition Get(GeneratedCharacter character) =>
@@ -55,6 +55,10 @@ internal static class NativeKeywordUpgradeCatalog
                 (GeneratedCharacter.Regent, "Monologue" or "RoyalGamble") => ([CardTag.Retain], Array.Empty<CardTag>()),
                 (GeneratedCharacter.Regent, "KnowThyPlace") => (Array.Empty<CardTag>(), [CardTag.Exhaust]),
                 (GeneratedCharacter.Regent, "VoidForm") => (Array.Empty<CardTag>(), [CardTag.Ethereal]),
+
+                (GeneratedCharacter.Fool, "Quiver") => ([CardTag.Innate], Array.Empty<CardTag>()),
+                (GeneratedCharacter.Fool, "Optimism" or "Recall") => (Array.Empty<CardTag>(), [CardTag.Exhaust]),
+                (GeneratedCharacter.Fool, "MythicForm") => (Array.Empty<CardTag>(), [CardTag.Ethereal]),
 
                 (GeneratedCharacter.Colorless, "Anointed" or "GoldAxe" or "Scrawl")
                     => ([CardTag.Retain], Array.Empty<CardTag>()),

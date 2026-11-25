@@ -9,14 +9,16 @@ At the start of a run, it decomposes native card designs into reusable unit oper
 with deterministic names, art, upgrades, targeting, effects, and runtime behavior.
 
 The mod is in open beta and supports Ironclad, Silent, Defect, Necrobinder, Regent, Fool, and the two Colorless pools on
-Slay the Spire 2 `0.113.x`.
+Slay the Spire 2 `0.114.x`.
 
-Current development build: **0.3.165**. See the bilingual
+Current development build: **0.3.170**. See the bilingual
 [API and behavior changelog](https://github.com/mewcodex/AutoAnthony/wiki/API-Changelog) for integration updates.
+Download the [latest release](https://github.com/mewcodex/AutoAnthony/releases/latest), or read the
+[v114 migration notes](docs/game-v0.114-migration.md).
 
 ## Highlights
 
-- Replaces each supported pool while preserving its rarity counts and broad native distributions.
+- Replaces each supported pool using stable card slots and broad native rarity/cost distributions.
 - Stores complete structured card definitions in run snapshots for stable save/load and multiplayer behavior.
 - Offers Ultimate Chaos, balanced/aggressive values, numeric randomization, independent generated/original card-pool
   inclusion, starting-card replacement, random card art, and three Surprise display modes.
@@ -25,8 +27,8 @@ Current development build: **0.3.165**. See the bilingual
 - Keeps generated operations independent from localized prose through versioned `OperationRuntimeSpec` records.
 - Provides Component API v3 for external character mods to register catalogs, occurrence/value/keyword policies,
   semantic flags, stable localization IDs, runtime handlers, hover tips, and generated-card slots.
-- Provides 659 read-only native-card decomposition records, including all 84 Fool pool cards. Companion editors can
-  optionally materialize all 566 reviewed character/Colorless recipes without replacing their pools or converting untouched cards.
+- Provides 660 read-only native-card decomposition records, including all 85 Fool pool cards. Companion editors can
+  optionally materialize all 567 reviewed character/Colorless recipes without replacing their pools or converting untouched cards.
 
 ## Installation
 
@@ -39,7 +41,7 @@ clients install those definitions rather than generating a second pool independe
 
 Requirements:
 
-- Slay the Spire 2 `0.113.x`
+- Slay the Spire 2 `0.114.x`
 - .NET 10 SDK
 - Python 3
 - PowerShell 7 or Windows PowerShell 5.1

@@ -445,6 +445,28 @@
     "cardFilter": "any"
   },
   {
+    "template": "F:OnKiGained",
+    "chineseTemplate": "每当你获得叽旋律时，",
+    "englishTemplate": "Whenever you gain the Ki Melody,",
+    "scope": "AbilityTrigger",
+    "opcode": "trigger",
+    "variant": "event",
+    "target": "self",
+    "flags": [
+      "repeated_or_multiplicative"
+    ],
+    "values": [],
+    "condition": null,
+    "trigger": {
+      "kind": "ki_melody_gained",
+      "lifetime": "combat"
+    },
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
     "template": "F:OnAllMelodies",
     "chineseTemplate": "每当你集齐三种旋律时，",
     "englishTemplate": "Whenever you gain all three Melodies,",
@@ -1359,6 +1381,116 @@
         "offset": 0
       }
     ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:UpgradeRandomHand",
+    "chineseTemplate": "升级手牌中的[[amount]]张随机牌。",
+    "englishTemplate": "Upgrade [[amount]] random cards in your Hand.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "upgraderandomhand",
+    "target": "self",
+    "flags": [
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:TransformHandToTheShot",
+    "chineseTemplate": "将手牌中的[[amount]]张牌变化为[[shot]]。",
+    "englishTemplate": "Transform [[amount]] cards in your Hand into [[shot]].",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "transformhandtotheshot",
+    "target": "self",
+    "flags": [
+      "requires_player_choice",
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [
+      {
+        "id": "shot",
+        "chineseValue": "全力射击",
+        "englishValue": "The Shot"
+      }
+    ],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:TransformSadnessToCopy",
+    "chineseTemplate": "将手牌中的[[amount]]张随机悲伤变化为这张牌的复制品。",
+    "englishTemplate": "Transform [[amount]] random Sadness in your Hand into copies of this card.",
+    "scope": "NonTargeted",
+    "opcode": "fool_action",
+    "variant": "transformsadnesstocopy",
+    "target": "self",
+    "flags": [
+      "count_unit_reference"
+    ],
+    "values": [
+      {
+        "id": "amount",
+        "baseValue": 1,
+        "source": "fixed",
+        "upgradable": true,
+        "explicit": true,
+        "offset": 0
+      }
+    ],
+    "condition": null,
+    "trigger": null,
+    "textSlots": [],
+    "sourceZone": "none",
+    "destinationZone": "none",
+    "cardFilter": "any"
+  },
+  {
+    "template": "F:DislodgeAll",
+    "chineseTemplate": "使目标敌人身上所有属于你的箭矢松脱。",
+    "englishTemplate": "Dislodge ALL of your Arrows from the target enemy.",
+    "scope": "SingleEnemyOnly",
+    "opcode": "fool_action",
+    "variant": "dislodgeall",
+    "target": "selected_enemy",
+    "flags": [
+      "requires_selected_enemy"
+    ],
+    "values": [],
     "condition": null,
     "trigger": null,
     "textSlots": [],

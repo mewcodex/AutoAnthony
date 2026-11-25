@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 2,
-  "GameVersion": "v0.113.0",
+  "GameVersion": "v0.114.0",
   "ReferenceOnly": true,
   "GenerationEligible": false,
   "Components": [
@@ -388,56 +388,17 @@
           "SupportsNativeBindings": false
         },
         {
+          "Name": "damage",
+          "AcceptedSources": [
+            "NativeVariable"
+          ],
+          "SupportsNativeBindings": false
+        },
+        {
           "Name": "hits",
           "AcceptedSources": [
             "Literal",
             "NativeVariable"
-          ],
-          "SupportsNativeBindings": false
-        },
-        {
-          "Name": "target",
-          "AcceptedSources": [
-            "Literal"
-          ],
-          "SupportsNativeBindings": false
-        }
-      ]
-    },
-    {
-      "Id": "deal.damage_per_florescence_exhausted_card",
-      "Name": {
-        "zhHans": "Deal / Damage Per Florescence Exhausted Card",
-        "en": "Deal / Damage Per Florescence Exhausted Card"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "Kind": "deal.damage_per_florescence_exhausted_card"
-      },
-      "ExampleText": {
-        "zhHans": "",
-        "en": ""
-      },
-      "Parameters": [
-        {
-          "Name": "countSource",
-          "AcceptedSources": [
-            "Literal"
-          ],
-          "SupportsNativeBindings": false
-        },
-        {
-          "Name": "damagePerCard",
-          "AcceptedSources": [
-            "NativeVariable"
-          ],
-          "SupportsNativeBindings": false
-        },
-        {
-          "Name": "hits",
-          "AcceptedSources": [
-            "Literal"
           ],
           "SupportsNativeBindings": false
         },
@@ -946,8 +907,8 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "获得4点瞄准。",
-        "en": "Gain 4 Aim."
+        "zhHans": "获得6点瞄准。",
+        "en": "Gain 6 Aim."
       },
       "Parameters": [
         {
@@ -1287,51 +1248,6 @@
       ]
     },
     {
-      "Id": "native.apply_power.free_card.self.nontargeted.6ed0222fc5",
-      "Name": {
-        "zhHans": "Apply Power / Free Card / Self / Nontargeted / 6ed0222fc5",
-        "en": "Apply Power / Free Card / Self / Nontargeted / 6ed0222fc5"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "apply_power",
-        "Variant": "free_card",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "api_beneficial"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "你接下来打出的1张牌耗能为0[E]。",
-        "en": "The next 1 card you play cost 0[E]."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ],
-          "SupportsNativeBindings": false
-        }
-      ]
-    },
-    {
       "Id": "native.apply_power.honing.self.nontargeted.3dc8b21996",
       "Name": {
         "zhHans": "Apply Power / Honing / Self / Nontargeted / 3dc8b21996",
@@ -1365,8 +1281,8 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "箭矢造成50%额外伤害。",
-        "en": "Arrows deal 50% more damage."
+        "zhHans": "箭矢造成100%额外伤害。",
+        "en": "Arrows deal 100% more damage."
       },
       "Parameters": [
         {
@@ -1641,8 +1557,8 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "扎穿的敌人从你的攻击中受到的伤害增加25%。",
-        "en": "Impaled enemies take 25% more damage from your Attacks."
+        "zhHans": "扎穿的敌人从你的攻击中受到的伤害增加50%。",
+        "en": "Impaled enemies take 50% more damage from your Attacks."
       },
       "Parameters": [
         {
@@ -2173,8 +2089,8 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "获得10点拉伸。",
-        "en": "Gain 10 Stretch."
+        "zhHans": "获得8点拉伸。",
+        "en": "Gain 8 Stretch."
       },
       "Parameters": [
         {
@@ -2218,8 +2134,8 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "在本回合获得3点荆棘。",
-        "en": "Gain 3 Thorns this turn."
+        "zhHans": "在本回合获得2点荆棘。",
+        "en": "Gain 2 Thorns this turn."
       },
       "Parameters": [
         {
@@ -4194,37 +4110,6 @@
       "ExampleText": {
         "zhHans": "如果你拥有啾旋律或叽旋律，",
         "en": "If you have the Cho or Ki Melody,"
-      },
-      "Parameters": []
-    },
-    {
-      "Id": "native.condition.melody_ki.self.conditionaltrigger.a3529c67c8",
-      "Name": {
-        "zhHans": "Condition / Melody Ki / Self / Conditionaltrigger / A3529c67c8",
-        "en": "Condition / Melody Ki / Self / Conditionaltrigger / A3529c67c8"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "condition",
-        "Variant": "melody_ki",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [],
-        "Values": [],
-        "Condition": {
-          "Kind": "melody_ki",
-          "Subject": "self",
-          "ValueSlot": null
-        },
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "如果你拥有叽旋律，",
-        "en": "If you have the Ki Melody,"
       },
       "Parameters": []
     },
@@ -6464,8 +6349,8 @@
         "Trigger": null
       },
       "ExampleText": {
-        "zhHans": "瞄准对这张牌有2倍效果。",
-        "en": "Aim has 2 times its effect on this card."
+        "zhHans": "瞄准对这张牌有3倍效果。",
+        "en": "Aim has 3 times its effect on this card."
       },
       "Parameters": [
         {
@@ -6473,7 +6358,7 @@
           "AcceptedSources": [
             "RuntimeValue"
           ],
-          "SupportsNativeBindings": false
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6519,7 +6404,7 @@
           "AcceptedSources": [
             "RuntimeValue"
           ],
-          "SupportsNativeBindings": true
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -6702,53 +6587,7 @@
           "AcceptedSources": [
             "RuntimeValue"
           ],
-          "SupportsNativeBindings": false
-        }
-      ]
-    },
-    {
-      "Id": "native.fool_action.createtheshot.self.nontargeted.e41964dce0",
-      "Name": {
-        "zhHans": "Fool Action / Createtheshot / Self / Nontargeted / E41964dce0",
-        "en": "Fool Action / Createtheshot / Self / Nontargeted / E41964dce0"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "fool_action",
-        "Variant": "createtheshot",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "api_beneficial",
-          "requires_exhaust_result"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将一张全力射击加入手牌。其基础伤害为刚才消耗的牌数量的10倍。",
-        "en": "Add The Shot to your Hand. Its base damage is 10 times the number of cards just Exhausted."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ],
-          "SupportsNativeBindings": false
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -6843,100 +6682,6 @@
       ]
     },
     {
-      "Id": "native.fool_action.discardshoottohand.self.nontargeted.e462c37705",
-      "Name": {
-        "zhHans": "Fool Action / Discardshoottohand / Self / Nontargeted / E462c37705",
-        "en": "Fool Action / Discardshoottohand / Self / Nontargeted / E462c37705"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "fool_action",
-        "Variant": "discardshoottohand",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "api_beneficial",
-          "count_unit_reference",
-          "requires_player_choice"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "将你弃牌堆中的1张发射牌放入你的手牌。",
-        "en": "Put 1 Shoot cards from your discard pile into your Hand."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ],
-          "SupportsNativeBindings": false
-        }
-      ]
-    },
-    {
-      "Id": "native.fool_action.discardtodrawtop.self.nontargeted.e8ed7349a6",
-      "Name": {
-        "zhHans": "Fool Action / Discardtodrawtop / Self / Nontargeted / E8ed7349a6",
-        "en": "Fool Action / Discardtodrawtop / Self / Nontargeted / E8ed7349a6"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "fool_action",
-        "Variant": "discardtodrawtop",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "api_beneficial",
-          "count_unit_reference",
-          "requires_player_choice"
-        ],
-        "Values": [
-          {
-            "Id": "amount",
-            "Source": "fixed",
-            "Offset": 0,
-            "Upgradable": true,
-            "Explicit": true
-          }
-        ],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "选择你弃牌堆中的1张牌，放到你的抽牌堆顶。",
-        "en": "Put 1 card from your discard pile on top of your Draw Pile."
-      },
-      "Parameters": [
-        {
-          "Name": "amount",
-          "AcceptedSources": [
-            "RuntimeValue"
-          ],
-          "SupportsNativeBindings": false
-        }
-      ]
-    },
-    {
       "Id": "native.fool_action.dislodge.selected_enemy.singleenemyonly.6e98095db9",
       "Name": {
         "zhHans": "Fool Action / Dislodge / Selected Enemy / Singleenemyonly / 6e98095db9",
@@ -6963,6 +6708,36 @@
       "ExampleText": {
         "zhHans": "使你扎穿目标敌人的所有箭矢松脱。",
         "en": "Dislodge all your Arrows from the target enemy."
+      },
+      "Parameters": []
+    },
+    {
+      "Id": "native.fool_action.dislodgeall.selected_enemy.singleenemyonly.1a78256198",
+      "Name": {
+        "zhHans": "Fool Action / Dislodgeall / Selected Enemy / Singleenemyonly / 1a78256198",
+        "en": "Fool Action / Dislodgeall / Selected Enemy / Singleenemyonly / 1a78256198"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "fool_action",
+        "Variant": "dislodgeall",
+        "Target": "selected_enemy",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "api_beneficial",
+          "requires_selected_enemy"
+        ],
+        "Values": [],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "使目标敌人身上所有属于你的箭矢松脱。",
+        "en": "Dislodge ALL of your Arrows from the target enemy."
       },
       "Parameters": []
     },
@@ -7069,35 +6844,6 @@
       "ExampleText": {
         "zhHans": "消耗你手牌中的所有悲伤。",
         "en": "Exhaust all Sadness in your Hand."
-      },
-      "Parameters": []
-    },
-    {
-      "Id": "native.fool_action.exhaustshoot.self.nontargeted.49485dcc34",
-      "Name": {
-        "zhHans": "Fool Action / Exhaustshoot / Self / Nontargeted / 49485dcc34",
-        "en": "Fool Action / Exhaustshoot / Self / Nontargeted / 49485dcc34"
-      },
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "RuntimeContract": {
-        "SchemaVersion": 1,
-        "Opcode": "fool_action",
-        "Variant": "exhaustshoot",
-        "Target": "self",
-        "SourceZone": "none",
-        "DestinationZone": "none",
-        "CardFilter": "any",
-        "Flags": [
-          "api_negative"
-        ],
-        "Values": [],
-        "Condition": null,
-        "Trigger": null
-      },
-      "ExampleText": {
-        "zhHans": "消耗本场战斗中所有尚未消耗的发射牌。",
-        "en": "Exhaust all of your non-Exhausted Shoot cards this combat."
       },
       "Parameters": []
     },
@@ -7284,7 +7030,7 @@
           "AcceptedSources": [
             "RuntimeValue"
           ],
-          "SupportsNativeBindings": false
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -7518,6 +7264,99 @@
       "Parameters": []
     },
     {
+      "Id": "native.fool_action.transformhandtotheshot.self.nontargeted.1c0d073041",
+      "Name": {
+        "zhHans": "Fool Action / Transformhandtotheshot / Self / Nontargeted / 1c0d073041",
+        "en": "Fool Action / Transformhandtotheshot / Self / Nontargeted / 1c0d073041"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "fool_action",
+        "Variant": "transformhandtotheshot",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "api_beneficial",
+          "count_unit_reference",
+          "requires_player_choice"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "将手牌中的1张牌变化为全力射击。",
+        "en": "Transform 1 card in your Hand into The Shot."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
+      "Id": "native.fool_action.transformsadnesstocopy.self.nontargeted.f6dec63593",
+      "Name": {
+        "zhHans": "Fool Action / Transformsadnesstocopy / Self / Nontargeted / F6dec63593",
+        "en": "Fool Action / Transformsadnesstocopy / Self / Nontargeted / F6dec63593"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "fool_action",
+        "Variant": "transformsadnesstocopy",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "api_beneficial",
+          "count_unit_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "将手牌中的1张随机悲伤变化为这张牌的复制品。",
+        "en": "Transform 1 random Sadness in your Hand into copies of this card."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": false
+        }
+      ]
+    },
+    {
       "Id": "native.fool_action.transformsadnesstojoy.self.nontargeted.5a9cf541c0",
       "Name": {
         "zhHans": "Fool Action / Transformsadnesstojoy / Self / Nontargeted / 5a9cf541c0",
@@ -7560,7 +7399,7 @@
           "AcceptedSources": [
             "RuntimeValue"
           ],
-          "SupportsNativeBindings": false
+          "SupportsNativeBindings": true
         }
       ]
     },
@@ -7594,6 +7433,52 @@
         "en": "Transform this card into Sadness and return it to your Hand."
       },
       "Parameters": []
+    },
+    {
+      "Id": "native.fool_action.upgraderandomhand.self.nontargeted.e074c5cb0d",
+      "Name": {
+        "zhHans": "Fool Action / Upgraderandomhand / Self / Nontargeted / E074c5cb0d",
+        "en": "Fool Action / Upgraderandomhand / Self / Nontargeted / E074c5cb0d"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "fool_action",
+        "Variant": "upgraderandomhand",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "api_beneficial",
+          "count_unit_reference"
+        ],
+        "Values": [
+          {
+            "Id": "amount",
+            "Source": "fixed",
+            "Offset": 0,
+            "Upgradable": true,
+            "Explicit": true
+          }
+        ],
+        "Condition": null,
+        "Trigger": null
+      },
+      "ExampleText": {
+        "zhHans": "升级手牌中的1张随机牌。",
+        "en": "Upgrade 1 random card in your Hand."
+      },
+      "Parameters": [
+        {
+          "Name": "amount",
+          "AcceptedSources": [
+            "RuntimeValue"
+          ],
+          "SupportsNativeBindings": true
+        }
+      ]
     },
     {
       "Id": "native.gain_block.immediate.self.nontargeted.d986fc6495",
@@ -11845,7 +11730,7 @@
           "AcceptedSources": [
             "RuntimeValue"
           ],
-          "SupportsNativeBindings": true
+          "SupportsNativeBindings": false
         }
       ]
     },
@@ -17734,6 +17619,40 @@
       "ExampleText": {
         "zhHans": "每当你获得啾旋律时，",
         "en": "Whenever you gain the Cho Melody,"
+      },
+      "Parameters": []
+    },
+    {
+      "Id": "native.trigger.event.self.abilitytrigger.7ab7e11f5a",
+      "Name": {
+        "zhHans": "Trigger / Event / Self / Abilitytrigger / 7ab7e11f5a",
+        "en": "Trigger / Event / Self / Abilitytrigger / 7ab7e11f5a"
+      },
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "RuntimeContract": {
+        "SchemaVersion": 1,
+        "Opcode": "trigger",
+        "Variant": "event",
+        "Target": "self",
+        "SourceZone": "none",
+        "DestinationZone": "none",
+        "CardFilter": "any",
+        "Flags": [
+          "repeated_or_multiplicative"
+        ],
+        "Values": [],
+        "Condition": null,
+        "Trigger": {
+          "Kind": "ki_melody_gained",
+          "Lifetime": "combat",
+          "ThresholdSlot": null,
+          "DurationSlot": null
+        }
+      },
+      "ExampleText": {
+        "zhHans": "每当你获得叽旋律时，",
+        "en": "Whenever you gain the Ki Melody,"
       },
       "Parameters": []
     },

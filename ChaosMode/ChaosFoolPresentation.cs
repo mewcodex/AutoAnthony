@@ -41,10 +41,11 @@ public abstract partial class ChaosCardModel
         if (melodies.Contains(CardTag.Ki)) yield return HoverTipFactory.Static(StaticHoverTip.KiMelody);
         if (templates.Contains("F:RandomTarot")) yield return HoverTipFactory.Static(StaticHoverTip.Tarot);
         if (templates.Contains("F:TransformThisToSadness")
-            || templates.Contains("F:ExhaustSadness") || templates.Contains("F:OnSadnessGenerated"))
+            || templates.Contains("F:ExhaustSadness") || templates.Contains("F:OnSadnessGenerated")
+            || templates.Contains("F:TransformSadnessToCopy"))
             yield return HoverTipFactory.FromCard<Sadness>();
-        if (templates.Contains("F:CreateTheShot"))
-            yield return HoverTipFactory.FromCard<TheShot>(FoolReferenceIsUpgraded("F:CreateTheShot"));
+        if (templates.Contains("F:CreateTheShot") || templates.Contains("F:TransformHandToTheShot"))
+            yield return HoverTipFactory.FromCard<TheShot>(FoolReferenceIsUpgraded("F:CreateTheShot", "F:TransformHandToTheShot"));
     }
 
     private bool FoolReferenceIsUpgraded(params string[] templates) => IsUpgraded && Generated.Upgrade?.Effects.Any(effect =>

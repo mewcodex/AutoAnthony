@@ -21,6 +21,8 @@ unchanged. These are microbenchmarks, not rendered-frame measurements or a repro
 Checks cover:
 
 - Strike and derived Osty tags; definition replacement invalidating tags and the Block flag.
+- Stray Shoot tags from old payloads do not enter retrieval filters; actual Shoot operations derive their tag,
+  including the external profile projection.
 - Changed description templates and replacement localization tables.
 - Different portrait variant assignments producing different keys.
 - Separate mutable derivative previews on every query, upgrade invalidation and edited references.

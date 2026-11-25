@@ -2,5 +2,7 @@
   "CHAOS_COMPOSITE_POWER.title": "混沌效果",
   "CHAOS_COMPOSITE_POWER.description": "{description}",
   "CHAOS_TEMPORARY_FOCUS_POWER.title": "临时集中",
-  "CHAOS_TEMPORARY_FOCUS_DOWN_POWER.title": "临时集中降低"
+  "CHAOS_TEMPORARY_FOCUS_DOWN_POWER.title": "临时集中降低",
+  "CHAOS_NEXT_CARDS_FREE_POWER.title": "免费出牌",
+  "CHAOS_NEXT_CARDS_FREE_POWER.description": "你接下来打出的[blue]{Amount}[/blue]张牌耗能为[blue]0[/blue]{energyPrefix:energyIcons(1)}。"
 }

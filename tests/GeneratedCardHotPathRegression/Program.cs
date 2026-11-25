@@ -48,6 +48,21 @@ if (extensions)
 var definition = new GeneratedCard(1, GeneratedCardType.Attack, TargetMode.SingleEnemy, GeneratedRarity.Common,
     "", [CardTag.Strike], [Op("T:D"), Op("N:B"), Op("NCR:OstyDamage")]);
 var card = Model(definition);
+var staleShootDefinition = definition with { Tags = [CardTag.Shoot, CardTag.Strike], Operations = [Op("T:D")] };
+var restoredStaleShoot = CardTinkeringApi.DeserializeCard(CardTinkeringApi.SerializeCard(staleShootDefinition));
+Check(restoredStaleShoot.Tags.Contains(CardTag.Shoot), "fixture preserves an old snapshot's stray Shoot tag");
+var staleShootModel = Model(restoredStaleShoot);
+Check(!staleShootModel.Tags.Contains(GameTag.Shoot) && staleShootModel.Tags.Contains(GameTag.Strike),
+    "runtime filters stray Shoot without changing saved effects or other tags");
+var actualShootModel = Model(definition with { Tags = [], Operations = [Op("F:ShootArrow"), Op("T:D")] });
+Check(actualShootModel.Tags.Contains(GameTag.Shoot), "runtime derives missing Shoot from the real operation");
+var shootMatches = new[] { staleShootModel, actualShootModel }.Where(candidate => candidate.Tags.Contains(GameTag.Shoot)).ToArray();
+Check(shootMatches.Length == 1 && ReferenceEquals(shootMatches[0], actualShootModel),
+    "Shoot retrieval predicate excludes the legacy false positive");
+var metadataType = typeof(ChaosCardModel).Assembly.GetType("AutoAnthony.ChaosCardPresentationMetadata", true)!;
+var staleMetadata = AccessTools.Method(metadataType, "For").Invoke(null, [restoredStaleShoot])!;
+var externalTags = (IEnumerable<GameTag>)AccessTools.Property(metadataType, "ExternalTags").GetValue(staleMetadata)!;
+Check(!externalTags.Contains(GameTag.Shoot), "external profile projection filters the same stale Shoot tag");
 var samples = new List<(string Name, double BytesPerCall, double MicrosecondsPerCall)>();
 long consumed = 0;
 void Measure(string name, Action action, int count = 100_000)

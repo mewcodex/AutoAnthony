@@ -35,7 +35,7 @@ public sealed partial class ChaosCompositePower
     private async Task FireFoolMelodyEvents(PlayerChoiceContext context, CardPlay play)
     {
         if (!OwnedOperations().Any(operation => operation.Template is "F:OnMelodyGained" or "F:OnWahGained"
-                or "F:OnChoGained" or "F:OnAllMelodies")) return;
+                or "F:OnChoGained" or "F:OnKiGained" or "F:OnAllMelodies")) return;
         var gained = 0;
         foreach (var tag in new[] { CardTag.Wah, CardTag.Cho, CardTag.Ki })
         {

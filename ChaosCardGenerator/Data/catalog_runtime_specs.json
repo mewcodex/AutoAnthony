@@ -7416,7 +7416,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 4,
+          "BaseValue": 6,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7444,7 +7444,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 9,
+          "BaseValue": 13,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7459,41 +7459,19 @@
     "Id": "fool/arrowstab/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "condition",
-      "Variant": "arrow_available",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [],
-      "Values": [],
-      "Condition": {
-        "Kind": "arrow_available",
-        "Subject": "self",
-        "ValueSlot": null
-      },
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "fool/arrowstab/2",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "fool_action",
-      "Variant": "discardshoottohand",
+      "Opcode": "apply_power",
+      "Variant": "aim",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "api_beneficial",
-        "count_unit_reference",
-        "requires_player_choice"
+        "api_beneficial"
       ],
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 6,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7635,7 +7613,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 10,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7903,7 +7881,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 7,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7930,7 +7908,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 3,
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -7961,7 +7939,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 12,
+          "BaseValue": 14,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -8021,7 +7999,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 6,
+          "BaseValue": 5,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -8072,7 +8050,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 6,
+          "BaseValue": 5,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -8241,7 +8219,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 8,
+          "BaseValue": 7,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -8876,7 +8854,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 6,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -8900,37 +8878,20 @@
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "fool_action",
-      "Variant": "exhaustshoot",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "api_negative"
-      ],
-      "Values": [],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "fool/florescence/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "fool_action",
-      "Variant": "createtheshot",
+      "Variant": "transformhandtotheshot",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
         "api_beneficial",
-        "requires_exhaust_result"
+        "count_unit_reference",
+        "requires_player_choice"
       ],
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 10,
+          "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -8993,17 +8954,29 @@
     "Id": "fool/growth/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "fool_action",
-      "Variant": "exhaustsadness",
+      "Opcode": "gain_block",
+      "Variant": "immediate",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "api_beneficial",
-        "requires_hand_cards"
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 8,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -9012,42 +8985,20 @@
     "Id": "fool/growth/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "trigger",
-      "Variant": "event",
+      "Opcode": "fool_action",
+      "Variant": "transformsadnesstocopy",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "repeated_or_multiplicative"
-      ],
-      "Values": [],
-      "Condition": null,
-      "Trigger": {
-        "Kind": "sadness_exhausted_by_this_card",
-        "Lifetime": "immediate",
-        "ThresholdSlot": null,
-        "DurationSlot": null
-      }
-    }
-  },
-  {
-    "Id": "fool/growth/2",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "apply_power",
-      "Variant": "stretch",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "api_beneficial"
+        "api_beneficial",
+        "count_unit_reference"
       ],
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 4,
+          "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9060,6 +9011,37 @@
   },
   {
     "Id": "fool/harmonicshield/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "gain_block",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "block_reference",
+        "has_numeric_literal",
+        "immediate_block_gain",
+        "printed_block_value",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "block",
+          "BaseValue": 4,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/harmonicshield/1",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "trigger",
@@ -9082,7 +9064,7 @@
     }
   },
   {
-    "Id": "fool/harmonicshield/1",
+    "Id": "fool/harmonicshield/2",
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "gain_block",
@@ -9101,7 +9083,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 5,
+          "BaseValue": 4,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9149,7 +9131,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 20,
+          "BaseValue": 16,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9176,7 +9158,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 2,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9383,7 +9365,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 50,
+          "BaseValue": 100,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9414,7 +9396,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 14,
+          "BaseValue": 15,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9608,7 +9590,7 @@
       "Values": [
         {
           "Id": "energy",
-          "BaseValue": 5,
+          "BaseValue": 4,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -9879,7 +9861,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 20,
+          "BaseValue": 12,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -10258,6 +10240,81 @@
     }
   },
   {
+    "Id": "fool/optimism/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "fool_action",
+      "Variant": "exhaustsadness",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "api_beneficial",
+        "requires_hand_cards"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/optimism/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "trigger",
+      "Variant": "event",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": {
+        "Kind": "sadness_exhausted_by_this_card",
+        "Lifetime": "immediate",
+        "ThresholdSlot": null,
+        "DurationSlot": null
+      }
+    }
+  },
+  {
+    "Id": "fool/optimism/2",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
+      ],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
     "Id": "fool/punchofjoy/0",
     "Spec": {
       "SchemaVersion": 1,
@@ -10274,7 +10331,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 13,
+          "BaseValue": 14,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -10506,128 +10563,20 @@
     }
   },
   {
-    "Id": "fool/rapidshot/0",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "modify_damage",
-      "Variant": "shoot_arrow",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "grants_shoot_tag",
-        "requires_damage_anchor",
-        "sole_damage_sentence"
-      ],
-      "Values": [],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "fool/rapidshot/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "deal_damage",
-      "Variant": "selected",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "count_unit_reference",
-        "has_numeric_literal",
-        "printed_damage_value"
-      ],
-      "Values": [
-        {
-          "Id": "damage",
-          "BaseValue": 3,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        },
-        {
-          "Id": "hits",
-          "BaseValue": 3,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        }
-      ],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
     "Id": "fool/recall/0",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "condition",
-      "Variant": "target_own_arrow",
+      "Opcode": "fool_action",
+      "Variant": "dislodgeall",
       "Target": "selected_enemy",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
+        "api_beneficial",
         "requires_selected_enemy"
       ],
       "Values": [],
-      "Condition": {
-        "Kind": "target_own_arrow",
-        "Subject": "target",
-        "ValueSlot": null
-      },
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "fool/recall/1",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "fool_action",
-      "Variant": "dislodge",
-      "Target": "selected_enemy",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "api_beneficial",
-        "requires_single_target"
-      ],
-      "Values": [],
-      "Condition": null,
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "fool/recall/2",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "fool_action",
-      "Variant": "discardtodrawtop",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [
-        "api_beneficial",
-        "count_unit_reference",
-        "requires_player_choice"
-      ],
-      "Values": [
-        {
-          "Id": "amount",
-          "BaseValue": 1,
-          "Source": "fixed",
-          "Offset": 0,
-          "Upgradable": true,
-          "Explicit": true
-        }
-      ],
       "Condition": null,
       "Trigger": null
     }
@@ -10670,7 +10619,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 15,
+          "BaseValue": 13,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -10824,7 +10773,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 25,
+          "BaseValue": 50,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11058,7 +11007,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 5,
+          "BaseValue": 4,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11115,7 +11064,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 2,
+          "BaseValue": 1,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11379,7 +11328,7 @@
     "Spec": {
       "SchemaVersion": 1,
       "Opcode": "condition",
-      "Variant": "arrow_available",
+      "Variant": "this_card_shot_arrow",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
@@ -11387,7 +11336,7 @@
       "Flags": [],
       "Values": [],
       "Condition": {
-        "Kind": "arrow_available",
+        "Kind": "this_card_shot_arrow",
         "Subject": "self",
         "ValueSlot": null
       },
@@ -11398,16 +11347,31 @@
     "Id": "fool/trickshot/3",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "template_self_action",
-      "Variant": "r_returnthistohand",
+      "Opcode": "draw_cards",
+      "Variant": "immediate",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "count_unit_reference"
+        "count_unit_reference",
+        "draw_reference",
+        "effect_family_draw",
+        "has_numeric_literal",
+        "leading_draw_reference",
+        "legacy_direct_draw_center",
+        "scalable_reward_wording"
       ],
-      "Values": [],
+      "Values": [
+        {
+          "Id": "draw",
+          "BaseValue": 2,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
       "Condition": null,
       "Trigger": null
     }
@@ -11422,11 +11386,13 @@
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
-      "Flags": [],
+      "Flags": [
+        "repeated_or_multiplicative"
+      ],
       "Values": [],
       "Condition": null,
       "Trigger": {
-        "Kind": "turn_end",
+        "Kind": "ki_melody_gained",
         "Lifetime": "combat",
         "ThresholdSlot": null,
         "DurationSlot": null
@@ -11437,39 +11403,77 @@
     "Id": "fool/tune/1",
     "Spec": {
       "SchemaVersion": 1,
-      "Opcode": "condition",
-      "Variant": "melody_ki",
-      "Target": "self",
-      "SourceZone": "none",
-      "DestinationZone": "none",
-      "CardFilter": "any",
-      "Flags": [],
-      "Values": [],
-      "Condition": {
-        "Kind": "melody_ki",
-        "Subject": "self",
-        "ValueSlot": null
-      },
-      "Trigger": null
-    }
-  },
-  {
-    "Id": "fool/tune/2",
-    "Spec": {
-      "SchemaVersion": 1,
-      "Opcode": "apply_power",
-      "Variant": "free_card",
+      "Opcode": "fool_action",
+      "Variant": "upgraderandomhand",
       "Target": "self",
       "SourceZone": "none",
       "DestinationZone": "none",
       "CardFilter": "any",
       "Flags": [
-        "api_beneficial"
+        "api_beneficial",
+        "count_unit_reference"
       ],
       "Values": [
         {
           "Id": "amount",
           "BaseValue": 1,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        }
+      ],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/twinshot/0",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "modify_damage",
+      "Variant": "shoot_arrow",
+      "Target": "self",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "grants_shoot_tag",
+        "requires_damage_anchor",
+        "sole_damage_sentence"
+      ],
+      "Values": [],
+      "Condition": null,
+      "Trigger": null
+    }
+  },
+  {
+    "Id": "fool/twinshot/1",
+    "Spec": {
+      "SchemaVersion": 1,
+      "Opcode": "deal_damage",
+      "Variant": "selected",
+      "Target": "selected_enemy",
+      "SourceZone": "none",
+      "DestinationZone": "none",
+      "CardFilter": "any",
+      "Flags": [
+        "count_unit_reference",
+        "has_numeric_literal",
+        "printed_damage_value"
+      ],
+      "Values": [
+        {
+          "Id": "damage",
+          "BaseValue": 7,
+          "Source": "fixed",
+          "Offset": 0,
+          "Upgradable": true,
+          "Explicit": true
+        },
+        {
+          "Id": "hits",
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11593,7 +11597,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 9,
+          "BaseValue": 7,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11660,7 +11664,7 @@
       "Values": [
         {
           "Id": "amount",
-          "BaseValue": 1,
+          "BaseValue": 2,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11846,7 +11850,7 @@
       "Values": [
         {
           "Id": "block",
-          "BaseValue": 9,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11874,7 +11878,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 9,
+          "BaseValue": 8,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,
@@ -11982,7 +11986,7 @@
       "Values": [
         {
           "Id": "damage",
-          "BaseValue": 2,
+          "BaseValue": 3,
           "Source": "fixed",
           "Offset": 0,
           "Upgradable": true,

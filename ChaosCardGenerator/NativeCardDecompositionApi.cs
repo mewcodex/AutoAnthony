@@ -498,8 +498,8 @@ public static class NativeCardDecompositionApi
             ?? throw new InvalidDataException("The native-card decomposition catalog is empty.");
         if (envelope.SchemaVersion != 2 || !envelope.ReferenceOnly || envelope.GenerationEligible)
             throw new InvalidDataException("The native-card decomposition catalog has an unsupported schema/role.");
-        if (envelope.Cards.Count != 659)
-            throw new InvalidDataException($"Expected 659 native-card recipes, found {envelope.Cards.Count}.");
+        if (envelope.Cards.Count != 660)
+            throw new InvalidDataException($"Expected 660 native-card recipes, found {envelope.Cards.Count}.");
         if (envelope.Cards.Any(card => !card.ReferenceOnly || card.GenerationEligible))
             throw new InvalidDataException("A native reference recipe was accidentally enabled for generation.");
         if (envelope.Cards.Select(card => card.CatalogId).Distinct(StringComparer.Ordinal).Count()
@@ -599,7 +599,7 @@ public static class NativeCardDecompositionApi
         if (action.Card == "TheShot")
         {
             var shot = card.Operations.Select((operation, index) => (operation, index))
-                .Where(item => item.operation.Template == "F:CreateTheShot").ToArray();
+                .Where(item => item.operation.Template is "F:CreateTheShot" or "F:TransformHandToTheShot").ToArray();
             if (shot.Length != 1) return false;
             effects.Add(new CardUpgradeEffect(CardUpgradeKind.UpgradeReferencedCards, shot[0].index));
             return true;

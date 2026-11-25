@@ -13,12 +13,20 @@ using MegaCrit.Sts2.Core.Models.Characters;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Unlocks;
+using MegaCrit.Sts2.Core.Factories;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Rewards;
+using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Random;
+using MegaCrit.Sts2.Core.Entities.Potions;
+using MegaCrit.Sts2.Core.Models.Events;
 
 // Test-only engine plugin. Never load it in the real game/user profile; see README for isolation requirements.
 [ModInitializer(nameof(Init))]
 public static class NativeCardVersionRegression
 {
     private static bool _started;
+    private static CardModel[]? _potionPoolFixture;
 
     public static void Init()
     {
@@ -27,6 +35,9 @@ public static class NativeCardVersionRegression
         new Harmony("autoanthony.native-version-regression").Patch(
             AccessTools.Method(typeof(NMainMenu), nameof(NMainMenu._Ready)),
             postfix: new HarmonyMethod(typeof(NativeCardVersionRegression), nameof(MainMenuReady)));
+        new Harmony("autoanthony.potion-event-fixture").Patch(
+            AccessTools.Method(typeof(CardPoolModel), nameof(CardPoolModel.GetUnlockedCards)),
+            postfix: new HarmonyMethod(typeof(NativeCardVersionRegression), nameof(PotionPoolFixture)));
     }
 
     private static async void MainMenuReady(NMainMenu __instance)
@@ -134,6 +145,7 @@ public static class NativeCardVersionRegression
                 }
             }
             CheckGeneratedLifecycle(owner);
+            CheckShootTags(owner);
             CheckReworkedSourceSnapshot();
             await CheckV113ShivRetain(owner);
             CheckFoolDescriptions(owner);
@@ -141,6 +153,7 @@ public static class NativeCardVersionRegression
             CheckNativeStartingCopies();
             CheckPortraitBlur(owner);
             await CheckLibraryScreen(__instance);
+            CheckFutureOfPotions();
             foreach (var failure in failures) GD.PrintErr("AA_NATIVE_FAIL " + failure);
             GD.Print($"AA_NATIVE_COMPLETE cards={checkedCards}, descriptions={rendered}, failures={failures.Count}");
             tree.Quit(failures.Count == 0 ? 0 : 1);
@@ -156,6 +169,104 @@ public static class NativeCardVersionRegression
     {
         if (!condition) throw new InvalidOperationException(message);
         GD.Print("AA_V113_PASS " + message);
+    }
+
+    private static void PotionPoolFixture(CardPoolModel __instance, ref IEnumerable<CardModel> __result)
+    {
+        if (_potionPoolFixture is not null && __instance is ChaosIroncladCardPool)
+            __result = _potionPoolFixture;
+    }
+
+    private static void CheckFutureOfPotions()
+    {
+        var settings = typeof(ChaosCardModel).Assembly.GetType("AutoAnthony.ChaosModSettings", true)!;
+        AccessTools.Field(settings, "_numericBalanceOptimization").SetValue(null, true);
+        AccessTools.Field(settings, "_ultimateChaos").SetValue(null, false);
+        ChaosRunDefinitions.Activate(GeneratedCharacter.Ironclad, "AA_POTIONS_03166");
+        var potionPrototypes = new[] { PotionRarity.Common, PotionRarity.Uncommon, PotionRarity.Rare }
+            .Select(rarity => ModelDb.All.OfType<PotionModel>().First(potion => potion.Rarity == rarity)).ToArray();
+        var sourceCards = ChaosRunDefinitions.GetAllCards().SelectMany(pair => pair.Value
+            .Select(definition => ChaosCardRegistry.Canonical(pair.Key, definition.Slot))).ToArray();
+        var checkedRewards = 0;
+        foreach (var character in new CharacterModel[] { ModelDb.Character<Ironclad>(), ModelDb.Character<Silent>(),
+                     ModelDb.Character<Defect>(), ModelDb.Character<Necrobinder>(), ModelDb.Character<Regent>(),
+                     ModelDb.Character<Fool>() })
+        {
+            var owner = Player.CreateForNewRun(character, UnlockState.all, 1);
+            _ = RunState.CreateForNewRun([owner], ActModel.GetRandomList(new Rng(1, "potions"),
+                UnlockState.all, false).Select(act => act.ToMutable()).ToArray(), [], GameMode.Standard, false, 0, "AA_POTIONS_REWARD");
+            var potions = potionPrototypes.Select(prototype => prototype.ToMutable()).ToArray();
+            foreach (var potion in potions) owner.AddPotionInternal(potion);
+            var instance = (TheFutureOfPotions)ModelDb.Event<TheFutureOfPotions>().ToMutable();
+            AccessTools.Property(typeof(EventModel), "Owner").SetValue(instance, owner);
+            var types = potions.ToDictionary(potion => potion, _ => CardType.Attack);
+            AccessTools.Field(typeof(TheFutureOfPotions), "_cardTypes").SetValue(instance, types);
+            var getter = AccessTools.Property(typeof(TheFutureOfPotions), "PotionToCardType");
+            foreach (var potion in potions)
+            foreach (var requested in new[] { CardType.Attack, CardType.Skill, CardType.Power })
+            {
+                types[potion] = requested;
+                _ = getter.GetValue(instance);
+                var rarity = potion.Rarity switch { PotionRarity.Common => CardRarity.Common,
+                    PotionRarity.Uncommon => CardRarity.Uncommon, _ => CardRarity.Rare };
+                CheckPotionReward(owner, rarity, types[potion]);
+                if (potion.Rarity == PotionRarity.Common && types[potion] == CardType.Power)
+                    throw new InvalidOperationException("Common potion selected Power.");
+                checkedRewards++;
+            }
+
+            if (character is not Ironclad) continue;
+            try
+            {
+                // Reproduce the original two-candidate failure using actual generated canonical cards.
+                var attacks = sourceCards.Where(card => card.Rarity == CardRarity.Rare
+                    && card.Type == CardType.Attack).Take(2).ToArray();
+                var skills = sourceCards.Where(card => card.Rarity == CardRarity.Rare
+                    && card.Type == CardType.Skill).Take(3).ToArray();
+                if (attacks.Length != 2 || skills.Length != 3) throw new InvalidOperationException("Sparse fixture unavailable.");
+                _potionPoolFixture = owner.Character.CardPool.GetUnlockedCards(owner.UnlockState,
+                        owner.RunState.CardMultiplayerConstraint).Where(card => card.Rarity != CardRarity.Rare)
+                    .Concat(attacks).Concat(skills).ToArray();
+                var insufficient = PotionOptions(owner, CardRarity.Rare, CardType.Attack);
+                var failed = false;
+                try { _ = CardFactory.CreateForReward(owner, 3, insufficient).ToArray(); }
+                catch (InvalidOperationException error) when (error.Message.Contains("couldn't generate a valid card"))
+                { failed = true; }
+                Check(failed, "native three-choice reward reproduces the two-candidate failure without global fallback");
+                var rarePotion = potions.Single(potion => potion.Rarity == PotionRarity.Rare);
+                types[rarePotion] = CardType.Attack;
+                _ = getter.GetValue(instance);
+                Check(types[rarePotion] == CardType.Skill, "potion event changes insufficient Rare Attack to a three-card Rare Skill type");
+                CheckPotionReward(owner, CardRarity.Rare, types[rarePotion]);
+                var options = (IReadOnlyList<MegaCrit.Sts2.Core.Events.EventOption>)
+                    AccessTools.Method(typeof(TheFutureOfPotions), "GenerateInitialOptions").Invoke(instance, [])!;
+                Check(options.Any(option => option.Description.GetFormattedText().Contains("Skill", StringComparison.OrdinalIgnoreCase)),
+                    "potion event text uses the same corrected type as reward generation");
+            }
+            finally { _potionPoolFixture = null; }
+        }
+        Check(checkedRewards == 54, "54 real reward populations across all six built-in character pools");
+        ChaosRunDefinitions.DeactivateRun();
+    }
+
+    private static CardCreationOptions PotionOptions(Player owner, CardRarity rarity, CardType type) =>
+        CardCreationOptions.ForNonCombatWithUniformOdds([owner.Character.CardPool],
+                card => card.Rarity == rarity && card.Type == type)
+            .WithFlags(CardCreationFlags.NoRarityModification | CardCreationFlags.NoCardPoolModifications);
+
+    private static void CheckPotionReward(Player owner, CardRarity rarity, CardType type)
+    {
+        var reward = new CardReward(PotionOptions(owner, rarity, type), 3, owner);
+        var generated = 0;
+        reward.AfterGenerated += () => { generated++; foreach (var card in reward.Cards) CardCmd.Upgrade(card); };
+        reward.Populate();
+        var cards = reward.Cards.ToArray();
+        if (cards.Length != 3 || cards.Select(card => card.Id).Distinct().Count() != 3
+            || cards.Any(card => card.Rarity != rarity || card.Type != type || !card.IsUpgraded)
+            || generated != 1)
+            throw new InvalidOperationException("Potion reward differs from advertised rarity/type/upgrade/choice count.");
+        reward.Populate();
+        if (generated != 1) throw new InvalidOperationException("Populated potion reward generated twice.");
     }
 
     private static void CheckReworkedSourceSnapshot()
@@ -207,7 +318,20 @@ public static class NativeCardVersionRegression
         var catalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Fool);
         GeneratorOperation Op(string template, int? parent = null)
         {
-            var atom = catalog.Atoms.First(atom => atom.Template == template);
+            var atom = catalog.Atoms.FirstOrDefault(atom => atom.Template == template);
+            if (atom is null)
+            {
+                var text = template == "F:IfKi" ? "如果你拥有叽旋律，" : "你接下来打出的1张牌耗能为0[E]。";
+                if (template is not ("F:IfKi" or "F:NextCardFree"))
+                    throw new InvalidOperationException("Missing test component: " + template);
+                var localized = (OperationLocalizedText?)AccessTools.Method(typeof(ChaosCardModel).Assembly
+                    .GetType("ChaosCardGenerator.FoolComponentDefinitions", true), "Localized").Invoke(null, [template]);
+                var legacy = new GeneratorOperation(template,
+                    template == "F:IfKi" ? OperationScope.ConditionalTrigger : OperationScope.NonTargeted,
+                    text, parent is null ? new Dictionary<string, int>() : new Dictionary<string, int> { ["triggerIndex"] = parent.Value },
+                    LocalizedText: localized);
+                return legacy with { RuntimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(legacy) };
+            }
             return new(template, atom.Scope, atom.ChineseText,
                 parent is null ? new Dictionary<string, int>() : new Dictionary<string, int> { ["triggerIndex"] = parent.Value },
                 RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: atom.LocalizedText);
@@ -243,6 +367,33 @@ public static class NativeCardVersionRegression
                 && (!chinese || nested.Count(character => character == '。') == 1),
                 "nested condition has one complete runtime sentence: " + language);
         }
+    }
+
+    private static void CheckShootTags(Player owner)
+    {
+        var catalog = CharacterComponentCatalogs.Get(GeneratedCharacter.Fool);
+        var damageAtom = catalog.Recipes.Single(recipe => recipe.Id == "StrikeFool").Atoms[0];
+        var arrowAtom = catalog.Atoms.Single(atom => atom.Template == "F:ShootArrow");
+        GeneratorOperation Op(ComponentAtom atom) => new(atom.Template, atom.Scope, atom.ChineseText,
+            new Dictionary<string, int>(), RuntimeSpec: OperationRuntimeSpecCompiler.GetOrCompile(atom), LocalizedText: atom.LocalizedText);
+        var legacyDefinition = new GeneratedCard(1, GeneratedCardType.Attack, TargetMode.SingleEnemy,
+            GeneratedRarity.Common, "", [ChaosCardGenerator.CardTag.Shoot], [Op(damageAtom)], Character: GeneratedCharacter.Fool);
+        var legacy = (ChaosCardModel)ChaosCardRegistry.Canonical(GeneratedCharacter.Fool, 0).ToMutable();
+        legacy.Owner = owner;
+        legacy.FreeformDefinitionPayload = CardTinkeringApi.SerializeCard(legacyDefinition);
+        AccessTools.Method(typeof(ChaosCardModel), "AfterDeserialized").Invoke(legacy, []);
+        Check(!legacy.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shoot), "loaded generated card rejects Shoot inherited without a Shoot effect");
+        var actual = (ChaosCardModel)ChaosCardRegistry.Canonical(GeneratedCharacter.Fool, 1).ToMutable();
+        actual.Owner = owner;
+        actual.ApplyFreeformDefinition(legacyDefinition with { Tags = [], Operations = [Op(arrowAtom), Op(damageAtom)] });
+        var native = ModelDb.Card<MegaCrit.Sts2.Core.Models.Cards.QuickShot>().ToMutable();
+        native.Owner = owner;
+        Check(actual.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shoot) && native.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shoot),
+            "real generated/native Shoot cards retain their retrieval tag");
+        Check(new CardModel[] { legacy, actual, native }.Count(candidate => candidate.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shoot)) == 2,
+            "Shoot search includes exactly the real generated and native Shoot cards");
+        actual.ApplyFreeformDefinition(legacyDefinition);
+        Check(!actual.Tags.Contains(MegaCrit.Sts2.Core.Entities.Cards.CardTag.Shoot), "removing Shoot effects invalidates the derived tag projection");
     }
 
     private static void CheckLibraryVisibility()
@@ -300,8 +451,53 @@ public static class NativeCardVersionRegression
             var grid = (MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardLibraryGrid)
                 AccessTools.Field(library.GetType(), "_grid").GetValue(library)!;
             Check(grid.VisibleCards.Any(), "card encyclopedia opens and renders, visit " + repeat);
+            if (repeat == 0) CheckColorlessFilter(library);
             menu.SubmenuStack.Pop();
             await tree.ToSignal(tree.CreateTimer(.3), SceneTreeTimer.SignalName.Timeout);
+        }
+    }
+
+    private static void CheckColorlessFilter(MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardLibrary library)
+    {
+        var settings = typeof(ChaosCardModel).Assembly.GetType("AutoAnthony.ChaosModSettings", true)!;
+        var enabledField = AccessTools.Field(settings, "_enabled");
+        var activeField = AccessTools.Field(typeof(ChaosRunDefinitions), "_runActive");
+        var preserveField = AccessTools.Field(typeof(ChaosRunDefinitions), "_activePreserveOriginalCards");
+        var enabled = enabledField.GetValue(null);
+        var active = activeField.GetValue(null);
+        var preserve = preserveField.GetValue(null);
+        var filters = (Dictionary<MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardPoolFilter, Func<CardModel, bool>>)
+            AccessTools.Field(library.GetType(), "_poolFilters").GetValue(library)!;
+        var colorless = (MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary.NCardPoolFilter)
+            AccessTools.Field(library.GetType(), "_colorlessFilter").GetValue(library)!;
+        var accepts = filters[colorless];
+        var generated = ChaosCardRegistry.Canonical(GeneratedCharacter.Colorless, 0);
+        var original = ModelDb.Card<MegaCrit.Sts2.Core.Models.Cards.Finesse>();
+        try
+        {
+            enabledField.SetValue(null, false);
+            activeField.SetValue(null, false);
+            preserveField.SetValue(null, true);
+            Check(accepts(original) && !accepts(generated),
+                "disabled vanilla run excludes registered generated Colorless cards, even with stale preserve setting");
+            var savedInstance = generated.ToMutable();
+            savedInstance.Owner = Player.CreateForNewRun(ModelDb.Character<Ironclad>(), UnlockState.all, 1);
+            Check(savedInstance.GetDescriptionForPile(PileType.Deck).Length > 0,
+                "hidden generated Colorless cards remain readable for saved/history instances");
+            enabledField.SetValue(null, true);
+            activeField.SetValue(null, true);
+            preserveField.SetValue(null, false);
+            Check(!accepts(original) && accepts(generated), "generated run shows only generated Colorless cards");
+            preserveField.SetValue(null, true);
+            Check(accepts(original) && accepts(generated), "preserved run shows both Colorless sets");
+            activeField.SetValue(null, false);
+            Check(accepts(original) && !accepts(generated), "leaving generated run restores native-only Colorless filter");
+        }
+        finally
+        {
+            enabledField.SetValue(null, enabled);
+            activeField.SetValue(null, active);
+            preserveField.SetValue(null, preserve);
         }
     }
 

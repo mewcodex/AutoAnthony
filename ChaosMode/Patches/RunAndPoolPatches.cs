@@ -3012,12 +3012,35 @@ internal static class ColorfulPhilosophersChaosPoolPatch
 [HarmonyPatch(typeof(TheFutureOfPotions), "get_PotionToCardType")]
 internal static class FutureOfPotionsChaosRewardCoveragePatch
 {
+    internal const int RequiredChoices = 3;
+
+    internal static CardType? SelectAvailableType(IReadOnlyDictionary<CardType, int> counts,
+        CardType requested, bool allowPower, int minimum = RequiredChoices)
+    {
+        var allowed = allowPower
+            ? new[] { CardType.Attack, CardType.Skill, CardType.Power }
+            : new[] { CardType.Attack, CardType.Skill };
+        if (allowed.Contains(requested) && counts.GetValueOrDefault(requested) >= minimum)
+            return requested;
+        return allowed.Where(type => counts.GetValueOrDefault(type) >= minimum)
+            .Select(type => (CardType?)type).FirstOrDefault();
+    }
+
     private static void Postfix(TheFutureOfPotions __instance,
         Dictionary<PotionModel, CardType> __result)
     {
         if (!ChaosRunDefinitions.IsRunActive || __instance.Owner is not { } owner) return;
-        var poolCards = owner.Character.CardPool.GetUnlockedCards(owner.UnlockState,
-            owner.RunState.CardMultiplayerConstraint).ToArray();
+        var pool = owner.Character.CardPool;
+        var builtIn = pool is ChaosIroncladCardPool or ChaosSilentCardPool or ChaosDefectCardPool
+            or ChaosNecrobinderCardPool or ChaosRegentCardPool or ChaosFoolCardPool;
+        // Keep the pre-existing external-pool policy; external integrations are outside this focused fix.
+        var minimum = builtIn ? RequiredChoices : 1;
+        // Vanilla offers three distinct cards. The first candidate is blacklisted before selecting the next,
+        // so mere non-emptiness does not establish that this rarity/type can satisfy the event's contract.
+        var counts = pool.GetUnlockedCards(owner.UnlockState, owner.RunState.CardMultiplayerConstraint)
+            .Where(card => !builtIn || card.IsAllowedInRun(owner.RunState)).DistinctBy(card => card.Id)
+            .GroupBy(card => (card.Rarity, card.Type))
+            .ToDictionary(group => group.Key, group => group.Count());
         foreach (var potion in __result.Keys.ToArray())
         {
             var rarity = potion.Rarity switch
@@ -3027,21 +3050,20 @@ internal static class FutureOfPotionsChaosRewardCoveragePatch
                 MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Uncommon => CardRarity.Uncommon,
                 _ => CardRarity.Common
             };
-            if (poolCards.Any(card => card.Rarity == rarity && card.Type == __result[potion])) continue;
-            var allowedTypes = potion.Rarity is MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Common
-                    or MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Token
-                ? new[] { CardType.Attack, CardType.Skill }
-                : new[] { CardType.Attack, CardType.Skill, CardType.Power };
-            var fallback = allowedTypes.FirstOrDefault(type =>
-                poolCards.Any(card => card.Rarity == rarity && card.Type == type));
-            if (!poolCards.Any(card => card.Rarity == rarity && card.Type == fallback))
+            var typeCounts = counts.Where(pair => pair.Key.Rarity == rarity)
+                .ToDictionary(pair => pair.Key.Type, pair => pair.Value);
+            var allowPower = potion.Rarity is not (MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Common
+                or MegaCrit.Sts2.Core.Entities.Potions.PotionRarity.Token);
+            var fallback = SelectAvailableType(typeCounts, __result[potion], allowPower, minimum);
+            if (fallback is null)
             {
-                Log.Error($"[AutoAnthony] The Future of Potions found no {rarity} card in the active generated pool.");
+                Log.Error($"[AutoAnthony] The Future of Potions found no {rarity} type with {minimum} distinct cards in the active generated pool.");
                 continue;
             }
-            Log.Warn($"[AutoAnthony] The Future of Potions replaced unavailable {rarity} {__result[potion]} "
+            if (fallback.Value == __result[potion]) continue;
+            Log.Warn($"[AutoAnthony] The Future of Potions replaced insufficient {rarity} {__result[potion]} "
                      + $"with {fallback} for the active generated pool.");
-            __result[potion] = fallback;
+            __result[potion] = fallback.Value;
         }
     }
 }
@@ -3633,10 +3655,8 @@ internal static class ChaosCardLibraryPoolPatch
         filters[necrobinderFilter] = card => MatchesCharacterPool(card, typeof(ChaosNecrobinderCardPool), typeof(NecrobinderCardPool));
         filters[regentFilter] = card => MatchesCharacterPool(card, typeof(ChaosRegentCardPool), typeof(RegentCardPool));
         filters[foolFilter] = card => MatchesCharacterPool(card, typeof(ChaosFoolCardPool), typeof(FoolCardPool));
-        filters[colorlessFilter] = card => ChaosRunDefinitions.IsRunActive
-            ? card is ChaosColorlessCardModel
-              || ChaosRunDefinitions.ActivePreserveOriginalCards && card.Pool is ColorlessCardPool
-            : card.Pool is ColorlessCardPool;
+        filters[colorlessFilter] = card => ChaosCardLibraryRules.IsColorlessTabCard(card,
+            ChaosRunDefinitions.IsRunActive, ChaosRunDefinitions.ActivePreserveOriginalCards);
         // Hide only the ten original Ancients from the five replaced character pools. Event-pool Ancients such
         // as Apparition are not replaced by this mod and must remain visible beside the generated set.
         var useGeneratedCharacterAncients = ChaosRunDefinitions.IsRunActive
@@ -3729,6 +3749,14 @@ internal static class ChaosUnseenLibraryCardCostPatch
 internal static class ChaosCardLibraryRules
 {
     internal static bool IsAlwaysUnlocked(CardModel card) => card is ChaosCardModel or AncientFuel;
+
+    internal static bool IsColorlessTabCard(CardModel card, bool generatedRunActive, bool preserveOriginalCards)
+    {
+        // Generated Colorless cards share the native pool, unlike generated character cards.
+        // Registration keeps old saves/history readable; it must not make these cards visible in a vanilla run.
+        if (card is ChaosColorlessCardModel) return generatedRunActive;
+        return card.Pool is ColorlessCardPool && (!generatedRunActive || preserveOriginalCards);
+    }
 
     internal static bool IsAncientTabCard(CardModel card, bool replaceCharacterAncients)
     {

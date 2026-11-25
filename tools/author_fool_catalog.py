@@ -1,11 +1,11 @@
-"""Materialize the manually reviewed v113 Fool decomposition (never infer component boundaries)."""
+"""Materialize the manually reviewed v114 Fool decomposition (never infer component boundaries)."""
 from __future__ import annotations
 import json, re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT.parent / "proj/113/MegaCrit.Sts2.Core.Models.Cards"
-LOCALES = ROOT.parent / "export/113/localization"
+SOURCE = ROOT.parent / "proj/114/MegaCrit.Sts2.Core.Models.Cards"
+LOCALES = ROOT.parent / "export/114/localization"
 DEFINITIONS: dict[str, dict] = {}
 
 
@@ -60,6 +60,7 @@ for key, zh, en, kind in [
     ("OnMelodyGained","每当你获得一种旋律时，","Whenever you gain a Melody,","melody_gained"),
     ("OnWahGained","每当你获得哇旋律时，","Whenever you gain the Wah Melody,","wah_melody_gained"),
     ("OnChoGained","每当你获得啾旋律时，","Whenever you gain the Cho Melody,","cho_melody_gained"),
+    ("OnKiGained","每当你获得叽旋律时，","Whenever you gain the Ki Melody,","ki_melody_gained"),
     ("OnAllMelodies","每当你集齐三种旋律时，","Whenever you gain all three Melodies,","all_melodies_gained"),
     ("OnArrowImpaled","每当你的箭矢扎穿一名敌人时，","Whenever your Arrow Impales an enemy,","arrow_impaled"),
     ("OnFirstArrowDislodged","每回合第一次让你的箭矢松脱时，","The first time your Arrow is Dislodged each turn,","first_arrow_dislodged_each_turn")]:
@@ -98,6 +99,15 @@ define("PlayMelodyCards", "打出你手牌中的所有[[melodies]]牌。", "Play
 define("RandomTarot", "将[[amount]]张随机塔罗牌加入你的手牌。", "Add [[amount]] random Tarot cards to your Hand.", slots=(("amount",1),), flags=("count_unit_reference",))
 define("PlayCheapest", "打出你手牌中耗能最低的[[amount]]张牌。", "Play the [[amount]] lowest-cost cards in your Hand.", slots=(("amount",1),), flags=("requires_hand_cards","count_unit_reference"))
 define("NextCardFree", "你接下来打出的[[amount]]张牌耗能为0[E]。", "The next [[amount]] cards you play cost 0[E].", opcode="apply_power", variant="free_card", slots=(("amount",1),))
+
+define("UpgradeRandomHand", "升级手牌中的[[amount]]张随机牌。", "Upgrade [[amount]] random cards in your Hand.",
+       slots=(("amount",1),), flags=("count_unit_reference",))
+define("TransformHandToTheShot", "将手牌中的[[amount]]张牌变化为[[shot]]。", "Transform [[amount]] cards in your Hand into [[shot]].",
+       slots=(("amount",1),), flags=("requires_player_choice","count_unit_reference"), text_slots=(("shot","全力射击","The Shot"),))
+define("TransformSadnessToCopy", "将手牌中的[[amount]]张随机悲伤变化为这张牌的复制品。", "Transform [[amount]] random Sadness in your Hand into copies of this card.",
+       slots=(("amount",1),), flags=("count_unit_reference",))
+define("DislodgeAll", "使目标敌人身上所有属于你的箭矢松脱。", "Dislodge ALL of your Arrows from the target enemy.",
+       scope="SingleEnemyOnly", target="selected_enemy", flags=("requires_selected_enemy",))
 define("SplashDamage", "对所有其他敌人造成等量于上次造成伤害的伤害。", "Deal damage equal to the last damage dealt to all other enemies.", flags=("requires_last_damage","api_enemy_damage"))
 define("ExhaustShoot", "消耗本场战斗中所有尚未消耗的发射牌。", "Exhaust all of your non-Exhausted Shoot cards this combat.", flags=("api_negative",))
 define("CreateTheShot", "将一张[[shot]]加入手牌。其基础伤害为刚才消耗的牌数量的[[amount]]倍。", "Add [[shot]] to your Hand. Its base damage is [[amount]] times the number of cards just Exhausted.", slots=(("amount",10),), flags=("requires_exhaust_result",), text_slots=(("shot","全力射击","The Shot"),))
@@ -143,20 +153,20 @@ def return_hand(owner=-1): return g("R:ReturnThisToHand","将这张牌放回你�
 RECIPES = {
  "AllIsWell":[f("OnSadnessGenerated"),block(4,0)],
  "Anguish":[damage(6),f("DamagePerSadnessCreated",6)],
- "Archery":[start(),f("Aim",4,owner=0)],
- "ArrowStab":[damage(9),f("IfArrow"),f("DiscardShootToHand",1,owner=1)],
+ "Archery":[start(),f("Aim",6,owner=0)],
+ "ArrowStab":[damage(13),f("Aim",6)],
  "BlossomShot":[*shoot(11),f("IfShotSucceeded"),f("StretchFromDamage",owner=2)],
  "BlotOutTheSky":[f("RandomShootFree",1)],
- "Bounce":[f("Stretch",10),nextturn(),return_hand(1)],
+ "Bounce":[f("Stretch",8),nextturn(),return_hand(1)],
  "BowSmack":[damage(8),f("IfImpaled"),energy(1,1)],
  "Brace":[f("ForEachEnergyX","X"),f("Aim",8,owner=0)],
  "BrightenUp":[f("CreateSadness",2),f("CreateJoy",2)],
- "ChoBarbs":[block(7),f("TemporaryThorns",3)],
- "ChoChorus":[block(12),f("PlayMelodyCards",5)],
- "ChoFirm":[block(6),f("IfArrow"),block(6,1)],
+ "ChoBarbs":[block(8),f("TemporaryThorns",2)],
+ "ChoChorus":[block(14),f("PlayMelodyCards",5)],
+ "ChoFirm":[block(5),f("IfArrow"),block(5,1)],
  "ChoKi":[block(8),f("RefundStretch")],
  "ChoLimbs":[block(5),block(5),f("CostIfWahKi",2)],
- "ChoReady":[block(8),f("Aim",3)],
+ "ChoReady":[block(7),f("Aim",3)],
  "Coda":[damage(40),f("CostPerMelody",2)],
  "DeepStretch":[f("Stretch",7),draw(1)],
  "DefendFool":[block(5)],
@@ -166,59 +176,60 @@ RECIPES = {
  "Encore":[energy(1),draw(2),f("OnlyCardsThisTurn",1)],
  "Ennui":[start(),f("CreateSadness",1,owner=0),draw(2,0)],
  "EpicRetrieval":[damage(15),f("WhenThisDislodgesArrow"),energy(3,1)],
- "ExplosiveArrows":[f("OnArrowImpaled"),all_damage(6,0)],
- "Florescence":[f("ExhaustShoot"),f("CreateTheShot",10)],
- "Growth":[f("ExhaustSadness"),f("ForEachSadnessExhausted"),f("Stretch",4,owner=1)],
- "HarmonicShield":[f("ForEachMelody"),block(5,0)],
- "HeavyShot":[*shoot(20),f("AimMultiplier",2)],
+ "ExplosiveArrows":[f("OnArrowImpaled"),all_damage(8,0)],
+ "Florescence":[f("TransformHandToTheShot",1)],
+ "Growth":[block(8),f("TransformSadnessToCopy",1)],
+ "HarmonicShield":[block(4),f("ForEachMelody"),block(4,1)],
+ "HeavyShot":[*shoot(16),f("AimMultiplier",3)],
  "HiddenRoots":[start(),f("Stretch",3,owner=0)],
  "HobblingShot":[*shoot(13),f("IfShotSucceeded"),weak(1,2),vulnerable(1,2)],
- "Honing":[f("Honing",50)],
- "Jest":[block(14),f("CreateSadness",1)],
+ "Honing":[f("Honing",100)],
+ "Jest":[block(15),f("CreateSadness",1)],
  "KiChant":[f("LookChooseDiscard",3)],
  "KiHop":[damage(7),f("IfImpaled"),draw(2,1)],
- "KiRest":[nextturn(),energy(5,0),f("IfWahCho"),g("N:RetainHandThisTurn","本回合保留你的手牌。","Retain your Hand this turn.",owner=2)],
+ "KiRest":[nextturn(),energy(4,0),f("IfWahCho"),g("N:RetainHandThisTurn","本回合保留你的手牌。","Retain your Hand this turn.",owner=2)],
  "KiVerse":[f("MelodyReplay",1)],
  "KiWhip":[damage(5),nextturn(),energy(2,1)],
  "LockedIn":[f("DrawShootToHand",1)],
  "FoolishShot":[*shoot(15)],
  "LostLute":[f("OnMelodyGained"),g("CL:PlayTopDrawCard","打出你抽牌堆顶的牌。","Play the top card of your Draw Pile.",owner=0)],
- "Lullaby":[f("OnAllMelodies"),block(20,0)],
+ "Lullaby":[f("OnAllMelodies"),block(12,0)],
  "MelodicShot":[*shoot(12),f("ExtraHitsPerMelody",1)],
  "Motif":[f("OnMelodyGained"),draw(1,0)],
  "MourningBlow":[damage(10),f("TransformThisToSadness")],
  "MythicForm":[start(),f("RandomTarot",1,owner=0)],
  "Nail":[f("IfImpaled"),damage(20,owner=0),weak(2,0),vulnerable(2,0)],
  "Nock":[f("Aim",5)],
- "PunchOfJoy":[damage(13),f("TransformSadnessToJoy",1)],
+ "Optimism":[f("ExhaustSadness"),f("ForEachSadnessExhausted"),draw(1,1)],
+ "PunchOfJoy":[damage(14),f("TransformSadnessToJoy",1)],
  "QuickShot":[*shoot(10)],
  "Quietus":[f("Quietus",2)],
  "Quiver":[f("ArrowSlots",1)],
  "RainShot":[*shoot(12),f("IfShotSucceeded"),f("SplashDamage",owner=2)],
- "RapidShot":[*shoot(3,3)],
- "Recall":[f("IfOwnImpaled"),f("Dislodge",owner=0),f("DiscardToDrawTop",1,owner=0)],
- "RepeatShot":[*shoot(15,"X")],
+ "Recall":[f("DislodgeAll")],
+ "RepeatShot":[*shoot(13,"X")],
  "RhythmStrike":[damage(4),f("ExtraHitsPerMelody",1)],
  "Rummage":[draw(3),f("CreateSadness",1)],
- "SerratedArrows":[f("Serrated",25)],
+ "SerratedArrows":[f("Serrated",50)],
  "ShowOff":[f("Aim",5),f("UntilNonMinionDies"),f("IncreaseAimRun",2,owner=1)],
  "Simpleton":[end(),f("PlayCheapest",1,owner=0)],
  "SkyShot":[*shoot(30)],
- "SongPath":[f("OnChoGained"),block(5,0)],
- "SorrowfulStrike":[damage(13),f("CreateSadness",2)],
+ "SongPath":[f("OnChoGained"),block(4,0)],
+ "SorrowfulStrike":[damage(13),f("CreateSadness",1)],
  "SteadyCadence":[damage(10),f("ForEachMelody"),draw(1,1)],
  "StrikeFool":[damage(6)],
  "Timber":[damage(20),g("C:ifFatal","斩杀时，","On Fatal,","ConditionalTrigger"),all_damage(30,1)],
- "TrickShot":[*shoot(12),f("IfArrow"),return_hand(2)],
- "Tune":[end(),f("IfKi",owner=0),f("NextCardFree",1,owner=1)],
+ "TrickShot":[*shoot(12),f("IfShotSucceeded"),draw(2,2)],
+ "Tune":[f("OnKiGained"),f("UpgradeRandomHand",1,owner=0)],
+ "TwinShot":[*shoot(7,2)],
  "Uproot":[f("IfOwnImpaled"),f("Dislodge",owner=0),vulnerable(3,0)],
- "ViolentChord":[f("OnWahGained"),all_damage(9,0)],
- "Vitriol":[weak(2),f("CreateSadness",1)],
+ "ViolentChord":[f("OnWahGained"),all_damage(7,0)],
+ "Vitriol":[weak(2),f("CreateSadness",2)],
  "WahBlast":[all_damage(14),f("IfChoKi"),g("M:repeat","这张牌额外造成1次伤害。","This card deals damage 1 additional time.","Modifier",1)],
  "WahCho":[block(3),damage(3)],
- "WahChoKi":[block(9),damage(9),draw(1)],
+ "WahChoKi":[block(8),damage(8),draw(1)],
  "WahHammer":[damage(9),f("DoubleAgainstImpaled")],
- "WahKi":[damage(2,2),nextturn(),energy(1,1),draw(1,1)],
+ "WahKi":[damage(3,2),nextturn(),energy(1,1),draw(1,1)],
  "WahSymphony":[all_damage(6),f("DamagePerMelodyCard",4)],
  "WahSweep":[all_damage(8)],
  "WahTouch":[damage(6),vulnerable(1)],
@@ -234,7 +245,7 @@ def write():
     pool=(SOURCE.parent/'MegaCrit.Sts2.Core.Models.CardPools/FoolCardPool.cs').read_text(encoding='utf-8-sig')
     native={c for c in re.findall(r'ModelDb.Card<(\w+)>',pool) if 'MultiplayerOnly' not in (SOURCE/(c+'.cs')).read_text(encoding='utf-8-sig')}
     assert native==RECIPES.keys(), (native-RECIPES.keys(),RECIPES.keys()-native)
-    lines=['# Fool v113 reviewed unit operations', '',
+    lines=['# Fool v114 reviewed unit operations', '',
            'Manually reviewed component boundaries. Melody/Shoot tags are semantic tags, not keyword effects.', '',
            '| 原卡 | 费用/蓝星/类型/目标/稀有度 | unit operations | Keywords | 英文名 |',
            '|---|---|---|---|---|']
@@ -269,14 +280,14 @@ def write():
         lines.append(f"| {title} `{c}` | {cost}/-/{kind}/{'SingleEnemy' if target=='AnyEnemy' else 'Other'}/{rarity} | {'；'.join(encoded)} | {','.join(dict.fromkeys(tags))} | {etitle} |")
     (ROOT/'fool_unit_operations.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
     (ROOT/'ChaosCardGenerator/Data/fool_components.json').write_text(json.dumps(list(DEFINITIONS.values()),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    review = ["# 愚者组件拆解审阅清单（v0.113.0）", "",
-        "84 张非多人角色牌采用逐张离线拆解，复用既有伤害、格挡、抽牌、能量、状态与回合触发器。",
-        "下表列出 60 个愚者契约；数值均为命名槽位，并非把每个数值作为一个组件。完整原卡组合见 [拆解表](../fool_unit_operations.md)。", "",
+    review = ["# 愚者组件拆解审阅清单（v0.114.0）", "",
+        "85 张非多人角色牌采用逐张离线拆解，复用既有伤害、格挡、抽牌、能量、状态与回合触发器。",
+        "下表列出 65 个愚者契约；数值均为命名槽位，并非把每个数值作为一个组件。完整原卡组合见 [拆解表](../fool_unit_operations.md)。", "",
         "## 组合规则", "",
         "- 射击是赋予 Shoot 标签的伤害 modifier。随机牌只允许射击加一条对单伤害句，关键字不计入句数；原卡精确重建保留原卡的额外效果。",
         "- 旋律是显式 Wah/Cho/Ki 标签，名称与标签共同保存；打出手牌中的旋律牌支持三种旋律的七个非空子集。",
         "- 炫技拆成瞄准、限本回合的下一次非爪牙死亡触发、永久瞄准成长。永久奖励沿用消耗／能力要求，禁止重复触发祖先和本牌复制循环。",
-        "- 全力射击依赖同次结算中的实际消耗结果；普通模式消耗射击牌，终极混乱允许其它一次消耗多牌的组件。",
+        "- 新版怒放选择手牌变化为全力射击；旧版全力射击的消耗计数公式仍用于现有存档。",
         "- 悲伤变化在出牌结束后执行，按一次性使用加悲伤代价计价，不额外叠加消耗补偿。",
         "- 产生喜悦／悲伤及变化产物使用共用衍生物／状态槽位；旋律掩码不属于可升级的数值。",
         "- 需要伤害、格挡、瞄准或消耗结果的后续效果必须具有相应主效果；嵌套条件在事件真正触发时求值。", "",

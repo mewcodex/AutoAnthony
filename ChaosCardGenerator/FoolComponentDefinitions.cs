@@ -13,6 +13,41 @@ public static class FoolComponentDefinitions
     // Nock: five Aim on a zero-cost Common; Deep Stretch: seven Stretch plus Draw 1 at one Energy.
     internal const int AimValue = 150;
     internal const int StretchValue = 100;
+    // Balance-mode prices. A Shoot card does not supply Aim: the starter relic only supplies it once per combat,
+    // and other Ultimate Chaos characters may have none. Retain the Arrow-availability discount and the extra
+    // Aim leverage of additional hits, anchored by Rapid Shot, without charging the first hit for free Aim.
+    internal const double ArrowAvailabilityValueMultiplier = 0.55d;
+    internal const double ExpectedAimForAdditionalArrowHits = 5d;
+    internal const double AdditionalArrowHitScalingValue = ExpectedAimForAdditionalArrowHits * 100d;
+
+    internal static double ArrowDamageValue(double printedDamageValue, int hits) =>
+        (printedDamageValue + AdditionalArrowHitScalingValue * Math.Max(0, hits - 1))
+        * ArrowAvailabilityValueMultiplier;
+
+    internal static int ArrowDamageSamplingCenter(ComponentAtom host, double budget)
+    {
+        var spec = OperationRuntimeSpecCompiler.GetOrCompile(host);
+        if (!spec.Values.Any(slot => slot.Id == "damage" && slot.Source == "fixed")) return 1;
+        GeneratorOperation At(int damage) => new(host.Template, host.Scope, string.Empty,
+            new Dictionary<string, int>(), RuntimeSpec: spec with
+            {
+                Values = spec.Values.Select(slot => slot.Id == "damage"
+                    ? slot with { BaseValue = damage, Offset = 0 } : slot).ToArray()
+            });
+        var atCenter = At(1);
+        var next = At(2);
+        var rawValue = EffectBalanceModel.EstimatedEffectValue(atCenter);
+        var marginalValue = EffectBalanceModel.EstimatedEffectValue(next) - rawValue;
+        if (marginalValue <= 0) return 1;
+        var hits = Math.Max(1, spec.Values
+            .FirstOrDefault(slot => slot.Id is "hits" or "repeat_count")?.BaseValue ?? 1);
+        // Invert the same price used by whole-card checks before sampling. Otherwise ordinary Attack numbers
+        // almost always fail the Arrow floor and collapse to the same minimum during the final budget repair.
+        return Math.Max(1, (int)Math.Round(1d
+            + (budget - ArrowDamageValue(rawValue, hits)) / (marginalValue * ArrowAvailabilityValueMultiplier),
+            MidpointRounding.AwayFromZero));
+    }
+
     // Nail / Recall are the offline anchors; the same frequency prices the double-damage modifier.
     internal const double ImpaledFrequency = 0.60d;
     private sealed record Definition(string Template, string ChineseTemplate, string EnglishTemplate,
@@ -80,6 +115,9 @@ public static class FoolComponentDefinitions
             "F:CreateJoy" => amount * 1200,
             "F:CreateSadness" => amount * 450,
             "F:TransformSadnessToJoy" => amount * 1350,
+            "F:TransformSadnessToCopy" => amount * 1400,
+            "F:TransformHandToTheShot" => amount * 1300,
+            "F:UpgradeRandomHand" => amount * 650,
             "F:ExhaustSadness" => 600,
             "F:LookChooseDiscard" => 350 + amount * 115,
             "F:RandomShootFree" => amount * 1500,
@@ -87,6 +125,7 @@ public static class FoolComponentDefinitions
             "F:DrawShootToHand" => amount * 1000,
             "F:DiscardToDrawTop" => amount * 550,
             "F:Dislodge" => 1500,
+            "F:DislodgeAll" => 1900,
             "F:OnlyCardsThisTurn" => 1600,
             "F:ArrowSlots" => amount * 2600,
             "F:MelodyReplay" => amount * 1400,

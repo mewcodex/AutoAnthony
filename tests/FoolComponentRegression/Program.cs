@@ -1,4 +1,5 @@
 using ChaosCardGenerator;
+using System.Reflection;
 
 static void Require(bool condition, string message)
 {
@@ -20,6 +21,14 @@ static void MustReject(GeneratedCard card)
 
 var catalogs = Enum.GetValues<GeneratedCharacter>().Select(CharacterComponentCatalogs.Get).ToArray();
 var fool = catalogs.Single(catalog => catalog.Character == GeneratedCharacter.Fool);
+if (args.FirstOrDefault() == "--native-upgrades")
+{
+    foreach (var native in NativeCardDecompositionApi.Cards.Where(card => card.Pool == "Fool"))
+        Require(NativeCardDecompositionApi.TryCreateDefinition(native.CatalogId, out _, out var unsupported),
+            $"Fool native upgrade could not reconstruct: {native.ClassName}: {string.Join(',', unsupported)}.");
+    Console.WriteLine("PASS: all 85 native Fool definitions and their upgrades reconstruct exactly.");
+    return;
+}
 // Run before generation can populate process-local numeric text variants, just like a cold Continue action.
 foreach (var template in new[] { "I:ProxyAtomic_Begone", "I:ProxyAtomic_Seance" })
 foreach (var amount in new[] { 1, 2, 10 })
@@ -50,7 +59,7 @@ if (args.Length > 0 && args[0] == "--audit-melodies")
     MelodyDistributionAudit.Run(fool, args.Length > 1 ? int.Parse(args[1]) : 32);
     return;
 }
-Require(fool.Recipes.Count == 84, "Fool single-player recipe count drifted.");
+Require(fool.Recipes.Count == 85, "Fool single-player recipe count drifted.");
 var foolStarters = fool.Recipes.Where(recipe => recipe.OriginalRarity == GeneratedRarity.Basic).ToArray();
 Require(foolStarters.Sum(CharacterComponentCatalogs.NativeOccurrenceWeight) == 10
     && foolStarters.Where(recipe => recipe.Atoms.Any(FoolComponentRules.IsShootModifier))
@@ -110,6 +119,14 @@ foreach (var atom in catalogs.SelectMany(catalog => catalog.Atoms).Where(CardEff
 Require(restrictedCount >= 8, $"Restricted-effect coverage unexpectedly collapsed: {restrictedCount}.");
 var arrow = Operation(fool.Atoms.Single(atom => atom.Template == "F:ShootArrow"));
 var damage = Operation(fool.Recipes.Single(recipe => recipe.Id == "StrikeFool").Atoms[0]);
+var nonShootTags = GeneratedCardTagPolicy.NormalizeOperationDerivedTags([CardTag.Shoot, CardTag.Strike, CardTag.Wah], [damage]);
+Require(!nonShootTags.Contains(CardTag.Shoot) && nonShootTags.Contains(CardTag.Strike) && nonShootTags.Contains(CardTag.Wah),
+    "A source-card Shoot tag survived without an Arrow operation or removed unrelated semantic tags.");
+Require(GeneratedCardTagPolicy.NormalizeOperationDerivedTags([], [arrow, damage]).Contains(CardTag.Shoot),
+    "An actual Shoot operation lost its derived tag.");
+var customArrow = arrow with { Template = "External:ShootFixture" };
+Require(GeneratedCardTagPolicy.NormalizeOperationDerivedTags([], [customArrow, damage]).Contains(CardTag.Shoot),
+    "An externally declared grants_shoot_tag operation was ignored.");
 var refund = Operation(fool.Atoms.First(atom => atom.Template == "F:RefundStretch"));
 Require(CardTextStyle.Chinese(refund, "重新获得这张牌花费的拉伸。")
     == "重新获得被这张牌的格挡效果消耗的拉伸。", "Saved refund wording was not normalized.");
@@ -121,6 +138,36 @@ Require(CardDescriptionRenderer.Render([arrow, damage]) == "发射一支箭矢�
     "Shoot modifier was not rendered inline in Chinese.");
 Require(EnglishCardDescriptionRenderer.Render([arrow, damage]) == "Shoot an Arrow to deal 6 damage.",
     "Shoot modifier was not rendered inline in English.");
+var wholeValueMethod = typeof(ComponentAssemblyGenerator).Assembly.GetType("ChaosCardGenerator.EffectBalanceModel")!
+    .GetMethod("EstimatedPositiveCardValue", BindingFlags.Static | BindingFlags.NonPublic, [typeof(IReadOnlyList<GeneratorOperation>), typeof(int?)])!;
+double WholeValue(IReadOnlyList<GeneratorOperation> operations) => (double)wholeValueMethod.Invoke(null, [operations, null])!;
+var foolishShot = fool.Recipes.Single(recipe => recipe.Id == "FoolishShot").Atoms.Select(atom => Operation(atom)).ToArray();
+var quickShot = fool.Recipes.Single(recipe => recipe.Id == "QuickShot").Atoms.Select(atom => Operation(atom)).ToArray();
+var twinShot = fool.Recipes.Single(recipe => recipe.Id == "TwinShot").Atoms.Select(atom => Operation(atom)).ToArray();
+Require(WholeValue(foolishShot) <= 600d * 1.5d,
+    "Foolish Shot spends a Basic card's damage budget on Aim the card never grants.");
+Require(WholeValue(quickShot) is >= 375d and <= 937.5d,
+    "Quick Shot moved outside its zero-cost Common anchor.");
+Require(WholeValue(twinShot) is >= 980d and <= 1680d,
+    "Twin Shot lost the extra-hit scaling price or is being charged guaranteed Aim on its first hit.");
+Require(Math.Abs(WholeValue([damage]) - 600d) < 0.001d,
+    "Arrow calibration changed ordinary damage valuation.");
+var samplingCenterMethod = typeof(ComponentAssemblyGenerator).Assembly.GetType("ChaosCardGenerator.FoolComponentDefinitions")!
+    .GetMethod("ArrowDamageSamplingCenter", BindingFlags.Static | BindingFlags.NonPublic)!;
+var ordinaryDamageAtom = fool.Recipes.Single(recipe => recipe.Id == "StrikeFool").Atoms[0];
+var arrowCenter = (int)samplingCenterMethod.Invoke(null, [ordinaryDamageAtom, 600d])!;
+Require(OperationRuntimeSpecCompiler.TryReplaceFixedValue(damage, "damage", arrowCenter, out var sampledArrowDamage),
+    "Sampling fixture has no damage slot.");
+Require(arrowCenter > 6 && Math.Abs(WholeValue([arrow, sampledArrowDamage]) - WholeValue([damage])) <= 55d,
+    "Arrow sampling uses ordinary damage numbers and relies on floor repair instead of its own marginal price.");
+var twinHost = Array.FindIndex(twinShot, CardEffectRules.IsEnemyDamage);
+Require(OperationRuntimeSpecCompiler.TryReplaceFixedValue(twinShot[twinHost], "damage", 8, out var strongerTwin),
+    "Twin Shot fixture has no damage slot.");
+var strongerTwinOperations = twinShot.ToArray();
+strongerTwinOperations[twinHost] = strongerTwin;
+Require(Math.Abs(WholeValue(strongerTwinOperations) - WholeValue(twinShot) - 110d) < 0.001d,
+    "Multi-hit Arrow upgrades no longer price their actual two-hit marginal damage.");
+Console.WriteLine("PASS: native Foolish/Quick/Twin Shot budget anchors; ordinary damage unchanged; multi-hit upgrade marginal value.");
 var melody = fool.Atoms.Single(atom => atom.Template == "F:PlayMelodyCards");
 for (var mask = 1; mask <= 7; mask++)
 {
@@ -135,17 +182,24 @@ var generatedCount = 0;
 var tune = fool.Recipes.Single(recipe => recipe.Id == "Tune");
 var tuneOperations = tune.Atoms.Select((atom, index) => Operation(atom,
     tune.TriggerOwners[index] >= 0 ? tune.TriggerOwners[index] : null)).ToArray();
-Require(tune.TriggerOwners.SequenceEqual([-1, 0, 1]), "Tune lost its nested event/condition ownership.");
+Require(tune.TriggerOwners.SequenceEqual([-1, 0]), "Tune lost its nested event/condition ownership.");
 Require(CardDescriptionRenderer.Render(tuneOperations).Count(character => character == '。') == 1,
     "A nested conditional clause was split by a sentence boundary.");
 var florescence = fool.Recipes.Single(recipe => recipe.Id == "Florescence");
-var creation = Operation(florescence.Atoms.Last());
-Require(!FoolComponentRules.HasValidExhaustDependencies([creation], false), "Orphan The Shot creation was allowed.");
-var shootExhaust = Operation(florescence.Atoms.First());
-Require(FoolComponentRules.HasValidExhaustDependencies([shootExhaust, creation], false), "Native The Shot dependency was rejected.");
+Require(florescence.Atoms.Single().Template == "F:TransformHandToTheShot",
+    "v114 Florescence must transform a hand card rather than depend on a retired Exhaust operation.");
+GeneratorOperation Legacy(string template, string text)
+{
+    var op = new GeneratorOperation(template, OperationScope.NonTargeted, text, new Dictionary<string, int>());
+    return op with { RuntimeSpec = OperationRuntimeSpecCompiler.GetOrCompile(op) };
+}
+var creation = Legacy("F:CreateTheShot", "将一张全力射击加入手牌。其基础伤害为刚才消耗的牌数量的10倍。");
+var shootExhaust = Legacy("F:ExhaustShoot", "消耗本场战斗中所有尚未消耗的发射牌。");
+Require(!FoolComponentRules.HasValidExhaustDependencies([creation], false), "Orphan legacy The Shot creation was allowed.");
+Require(FoolComponentRules.HasValidExhaustDependencies([shootExhaust, creation], false), "Legacy The Shot dependency was rejected.");
 Require(!FoolComponentRules.HasValidExhaustDependencies([shootExhaust, creation with {
     Parameters = new Dictionary<string, int> { ["triggerIndex"] = 0 } }], false),
-    "The Shot incorrectly borrowed an Exhaust result from another resolution.");
+    "Legacy The Shot incorrectly borrowed an Exhaust result from another resolution.");
 var mourning = fool.Recipes.Single(recipe => recipe.Id == "MourningBlow");
 MustReject(new(1, GeneratedCardType.Attack, TargetMode.SingleEnemy, GeneratedRarity.Rare, "", [CardTag.Exhaust],
     mourning.Atoms.Select(atom => Operation(atom)).ToArray(), Character: GeneratedCharacter.Fool));
@@ -169,8 +223,10 @@ foreach (var character in Enum.GetValues<GeneratedCharacter>())
         }
         CardTemplateValidator.Validate(generated);
         Require(FoolComponentRules.HasValidShootAssembly(generated.Operations), "An illegal generated Shoot card escaped validation.");
+        Require(generated.Tags.Contains(CardTag.Shoot) == generated.Operations.Any(FoolComponentRules.IsShootModifier),
+            "A generated card's Shoot tag differs from its actual operations.");
         generatedCount++;
     }
 }
-Console.WriteLine($"PASS: 84 Fool recipes; split permanent Aim growth; {restrictedCount} restricted source atoms across 7 pools.");
+Console.WriteLine($"PASS: 85 Fool recipes; split permanent Aim growth; {restrictedCount} restricted source atoms across 7 pools.");
 Console.WriteLine($"PASS: arrow exclusivity/rendering, all 7 melody subsets, {generatedCount} generated cards across 7 pools.");

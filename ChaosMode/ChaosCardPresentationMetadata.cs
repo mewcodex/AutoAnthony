@@ -39,11 +39,15 @@ internal sealed class ChaosCardPresentationMetadata
             or "N:BlockEqualAllPoison" or "CL:GainBlockEqualDamage" or "CL:GainBlockEqualCurrent"
             or "CL:GainNextTurnBlockEqualCurrent");
         var isOstyAttack = GeneratedCardTagPolicy.IsOstyAttackCard(card.Operations);
+        var shootsArrow = card.Operations.Any(FoolComponentRules.IsShootModifier);
         var builtIn = new List<GameCardTag>();
         var external = new List<GameCardTag>();
         foreach (var tag in card.Tags)
         {
             if (!ChaosCardTagAdapter.TrySemanticTag(tag, out var nativeTag)) continue;
+            // Old snapshots can contain a randomly inherited Shoot tag without an Arrow operation.
+            // Filter both built-in and external projections; declared custom Shoot operations use the same flag.
+            if (nativeTag == GameCardTag.Shoot && !shootsArrow) continue;
             external.Add(nativeTag);
             if (nativeTag != GameCardTag.OstyAttack || isOstyAttack) builtIn.Add(nativeTag);
         }
@@ -52,7 +56,7 @@ internal sealed class ChaosCardPresentationMetadata
             if (!builtIn.Contains(GameCardTag.OstyAttack)) builtIn.Add(GameCardTag.OstyAttack);
             if (!external.Contains(GameCardTag.OstyAttack)) external.Add(GameCardTag.OstyAttack);
         }
-        if (card.Operations.Any(FoolComponentRules.IsShootModifier))
+        if (shootsArrow)
         {
             if (!builtIn.Contains(GameCardTag.Shoot)) builtIn.Add(GameCardTag.Shoot);
             if (!external.Contains(GameCardTag.Shoot)) external.Add(GameCardTag.Shoot);

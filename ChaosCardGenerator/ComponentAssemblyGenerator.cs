@@ -348,10 +348,10 @@ public sealed class ComponentAssemblyGenerator
                     currentEffectiveCost),
                 rarity,
                 payoffBudget,
-                componentCount,
+                wantsShoot ? 1 : componentCount,
                 operations,
                 plannedCost == 0 && starBudget == 0,
-                shell.Type);
+                shell.Type, arrowDamageHost: wantsShoot);
             atom = ResolveSlots(atom, effectiveBudget,
                 operations.LastOrDefault()?.Template == "D:ForEachEnemy", rarity, out var resolvedSlot);
             var parameters = new Dictionary<string, int>();
@@ -3450,9 +3450,8 @@ public sealed class ComponentAssemblyGenerator
         {
             if (!_keywordPolicy.AllowsBase(tag)) continue;
             if (tag == CardTag.Sly) continue;
-            // OstyAttack is derived from a direct Osty damage operation. Sampling it independently made some
-            // unrelated cards count while actual generated Osty attacks could fail to count.
-            if (tag == CardTag.OstyAttack) continue;
+            // These mechanics tags come from actual operations, never from an independent source-card tag roll.
+            if (tag is CardTag.OstyAttack or CardTag.Shoot) continue;
             if (tag == CardTag.Strike && !StrikeTagAllowed(type, _character, _unlockComponentRoles)) continue;
             if (tag == CardTag.Defend && type != GeneratedCardType.Skill) continue;
             if (tag == CardTag.Exhaust
@@ -3718,7 +3717,7 @@ public sealed class ComponentAssemblyGenerator
     /// </summary>
     private ComponentAtom InstantiateNumericSlotsStructured(ComponentAtom atom, GeneratedRarity rarity, int cost,
         int componentCount, IReadOnlyList<GeneratorOperation> previous, bool zeroResourceCost,
-        GeneratedCardType cardType, bool allowOriginalValueBranch = true)
+        GeneratedCardType cardType, bool allowOriginalValueBranch = true, bool arrowDamageHost = false)
     {
         // Helix Drill's divisor is a semantic threshold rather than a reward. Sample only the supported 1/2-Energy
         // interval; the balance model prices those outcomes as two/one resolutions from two Energy spent elsewhere.
@@ -3856,7 +3855,7 @@ public sealed class ComponentAssemblyGenerator
             else
             {
                 var center = NumericSlotCenter(atom, rarity, cost, index, original, benefitLines, previous,
-                    cardType);
+                    cardType, arrowDamageHost && numericSlot.Id == "damage");
                 var payoffScale = _valuePolicy.PayoffScalePercent(previous);
                 var compactBasicReward = rarity == GeneratedRarity.Basic
                     && _valuePolicy.IsScalableReward(atom)
@@ -3924,9 +3923,13 @@ public sealed class ComponentAssemblyGenerator
     }
 
     private int NumericSlotCenter(ComponentAtom atom, GeneratedRarity rarity, int cost, int slot, int original,
-        int benefitLines, IReadOnlyList<GeneratorOperation> previous, GeneratedCardType cardType)
+        int benefitLines, IReadOnlyList<GeneratorOperation> previous, GeneratedCardType cardType,
+        bool arrowDamageHost = false)
     {
         var center = NumericSlotCenterUnscaled(atom, rarity, cost, slot, original, cardType);
+        if (slot == 0 && arrowDamageHost)
+            center = FoolComponentDefinitions.ArrowDamageSamplingCenter(atom,
+                CalibratedWholeCardCenter(rarity, Math.Max(0, cost)));
         if (slot == 0 && EffectBalanceModel.TryBudgetDrivenNumericCenter(atom, previous,
                 CalibratedWholeCardCenter(rarity, Math.Max(0, cost)), out var budgetCenter))
             center = budgetCenter;
@@ -5067,7 +5070,8 @@ public static class CardEffectRules
     /// newly created copy retains the same reward and copy operation, allowing the card to reproduce indefinitely.
     /// </summary>
     public static bool HasNoRestrictedSelfCopyAssembly(IReadOnlyList<GeneratorOperation> operations) =>
-        !operations.Any(IsRestrictedEffect) || !operations.Any(IsCopyThisCardToDiscard);
+        !operations.Any(IsRestrictedEffect) || !operations.Any(operation =>
+            IsCopyThisCardToDiscard(operation) || operation.Template == "F:TransformSadnessToCopy");
 
     public static bool IsRepeatedTriggerOrCondition(GeneratorOperation operation) =>
         (operation.Scope is OperationScope.AbilityTrigger or OperationScope.ConditionalTrigger
@@ -6390,10 +6394,12 @@ public static class CardEffectRules
     {
         for (var index = 0; index < operations.Count; index++)
         {
-            if (!IsCopyThisCardToDiscard(operations[index])) continue;
+            if (!IsCopyThisCardToDiscard(operations[index])
+                && operations[index].Template != "F:TransformSadnessToCopy") continue;
             if (!operations.Where((_, candidateIndex) => candidateIndex != index)
                     .Any(operation => IsBeneficialEffect(operation)
                         && !IsCopyThisCardToDiscard(operation)
+                        && operation.Template != "F:TransformSadnessToCopy"
                         && !IsSelfCostChange(operation)))
                 return false;
         }

@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Extensions;
 using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
@@ -98,7 +99,12 @@ internal static partial class ChaosOperationExecutor
                     await PowerCmd.Apply<DislikeYouPower>(context, enemy, amount, owner.Creature, card);
                 return true;
             case "F:NextCardFree":
-                await PowerCmd.Apply<FreeCardPower>(context, owner.Creature, amount, owner.Creature, card); return true;
+            {
+                var free = await PowerCmd.Apply<ChaosNextCardsFreePower>(context, owner.Creature, amount,
+                    owner.Creature, card);
+                if (free is not null) Patches.ChaosPowerVisuals.Bind(free, card.Definition);
+                return true;
+            }
             case "F:ArrowSlots":
                 for (var i = 0; i < amount; i++) ArrowCmd.GainArrowSlot(owner);
                 return true;
@@ -107,6 +113,7 @@ internal static partial class ChaosOperationExecutor
                 await CreateDerivatives(card, index, operation, PileType.Hand, amount);
                 return true;
             case "F:TransformSadnessToJoy":
+            case "F:TransformSadnessToCopy":
             {
                 var sources = PileType.Hand.GetPile(owner).Cards.OfType<Sadness>().Cast<CardModel>().ToList();
                 var selected = new List<CardModel>();
@@ -118,12 +125,39 @@ internal static partial class ChaosOperationExecutor
                 if (selected.Count == 0) return true;
                 var transforms = selected.Select(source =>
                 {
-                    var joy = ChaosDerivativeResolver.Create(combat, owner, operation, DerivativeIsUpgraded(card, index));
+                    var joy = operation.Template == "F:TransformSadnessToCopy"
+                        ? combat.CloneCard(LiveCombatSourceCard(card) ?? card)
+                        : ChaosDerivativeResolver.Create(combat, owner, operation, DerivativeIsUpgraded(card, index));
                     return new CardTransformation(source, joy);
                 }).ToArray();
                 await CardCmd.Transform(transforms, null, TransformPreviewStyle(context));
                 return true;
             }
+            case "F:TransformHandToTheShot":
+            {
+                if (amount <= 0) return true;
+                var selected = await SelectFromHandIfAny(context, owner,
+                    new CardSelectorPrefs(CardSelectorPrefs.TransformSelectionPrompt, amount),
+                    candidate => candidate.IsTransformable, card);
+                var transforms = selected.Select(source =>
+                {
+                    var shot = combat.CreateCard<TheShot>(owner);
+                    if (DerivativeIsUpgraded(card, index) && shot.IsUpgradable) CardCmd.Upgrade(shot);
+                    return new CardTransformation(source, shot);
+                }).ToArray();
+                if (transforms.Length > 0) await CardCmd.Transform(transforms, null, TransformPreviewStyle(context));
+                return true;
+            }
+            case "F:UpgradeRandomHand":
+                foreach (var selected in PileType.Hand.GetPile(owner).Cards.Where(candidate => candidate.IsUpgradable)
+                             .TakeRandom(Math.Max(0, amount), owner.RunState.Rng.CombatCardSelection).ToArray())
+                    UpgradeExistingCombatCard(selected, operation.Template);
+                return true;
+            case "F:DislodgeAll":
+                if (state.Target is { IsDead: false } impaled)
+                    while (ArrowCmd.CreatureIsImpaledByPlayersArrow(impaled, owner))
+                        await ArrowCmd.DislodgeArrow(impaled, owner, context, card);
+                return true;
             case "F:ExhaustSadness":
             case "F:ExhaustShoot":
             {
@@ -147,9 +181,11 @@ internal static partial class ChaosOperationExecutor
                 var sourceIndex = FoolComponentRules.FindTheShotExhaustSource(card.Generated.Operations, index, true);
                 var count = state.ExhaustedByOperation.GetValueOrDefault(sourceIndex)?.Count ?? 0;
                 var shot = combat.CreateCard<TheShot>(owner);
-                shot.DynamicVars.ExtraDamage.BaseValue = amount;
-                if (DerivativeIsUpgraded(card, index) && shot.IsUpgradable) CardCmd.Upgrade(shot);
-                shot.BuffFromFlorescence(count);
+                // v114 replaced Florescence/The Shot. Saved generated cards still own the older count-scaled
+                // contract; materialize that damage on the new native Damage slot rather than calling removed APIs.
+                var upgraded = DerivativeIsUpgraded(card, index);
+                if (upgraded && shot.IsUpgradable) CardCmd.Upgrade(shot);
+                shot.DynamicVars.Damage.BaseValue = (amount + (upgraded ? 3 : 0)) * count;
                 await CardPileCmd.AddGeneratedCardToCombat(shot, PileType.Hand, owner);
                 return true;
             }

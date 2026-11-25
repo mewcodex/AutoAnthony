@@ -6,7 +6,7 @@ internal static class ManualFoolNameParts
     internal static IEnumerable<NameParts> All() => new[]
     {
         P("AllIsWell","万事/无忧","All Is ","Well",""),
-        P("Anguish","苦/恼","An","guish",""),
+        P("Anguish","苦/闷","An","guish",""),
         P("Archery","箭/术","Arch","ery",""),
         P("ArrowStab","箭矢/戳击","Arrow ","Stab",""),
         P("BlossomShot","绽放/射击","Blossom ","Shot",""),
@@ -59,7 +59,8 @@ internal static class ManualFoolNameParts
         P("Quietus","寂/灭","Quiet","us",""),
         P("Quiver","箭/袋","Quiv","er",""),
         P("RainShot","散雨/射击","Rain ","Shot",""),
-        P("RapidShot","迅捷/射击","Rapid ","Shot",""),
+        P("Optimism","乐/观","Optim","ism",""),
+        P("TwinShot","双重/射击","Twin ","Shot",""),
         P("Recall","召/回","Re","call",""),
         P("RepeatShot","重复/射击","Repeat ","Shot",""),
         P("RhythmStrike","节奏/打击","","Rhythm"," Strike"),

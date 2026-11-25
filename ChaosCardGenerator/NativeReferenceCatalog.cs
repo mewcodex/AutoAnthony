@@ -15,7 +15,7 @@ internal static class NativeReferenceCatalog
             ["Colorless"] = 54,
             ["Curse"] = 18,
             ["Defect"] = 86,
-            ["Fool"] = 84,
+            ["Fool"] = 85,
             ["Deprecated"] = 1,
             ["Event"] = 40,
             ["Ironclad"] = 85,
@@ -66,7 +66,7 @@ internal static class NativeReferenceCatalog
             "Unplayable is missing its official Chinese label");
 
         var cards = cardsRoot.GetProperty("Cards").EnumerateArray().ToArray();
-        Require(cards.Length == 659, $"expected 659 card records, found {cards.Length}");
+        Require(cards.Length == 660, $"expected 660 card records, found {cards.Length}");
         _ = UniqueIds(cards, "card", "CatalogId");
         var poolCounts = cards.GroupBy(item => item.GetProperty("Pool").GetString()!, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
@@ -100,12 +100,12 @@ internal static class NativeReferenceCatalog
     private static void ValidateRuntimeApi(JsonElement[] sourceCards)
     {
         var exposed = NativeCardDecompositionApi.Cards;
-        Require(NativeCardDecompositionApi.Components.Count == 517,
+        Require(NativeCardDecompositionApi.Components.Count == 515,
             "runtime API component-definition count differs from the source catalog");
         Require(NativeCardDecompositionApi.Keywords.Count == 7,
             "runtime API keyword-definition count differs from the source catalog");
         Require(exposed.Count == sourceCards.Length, "runtime API card count differs from the source catalog");
-        Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.ExecutableRecipe) == 566,
+        Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.ExecutableRecipe) == 567,
             "runtime API executable recipe count differs from the reviewed catalog");
         Require(exposed.Count(card => card.ExecutionSupport == NativeCardExecutionSupport.StructuredReference) == 93,
             "runtime API reference-extension count differs from the reviewed catalog");

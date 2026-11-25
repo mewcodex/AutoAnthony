@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 2,
-  "GameVersion": "v0.113.0",
+  "GameVersion": "v0.114.0",
   "Purpose": "Complete non-multiplayer native-card reconstruction reference",
   "ReferenceOnly": true,
   "GenerationEligible": false,
@@ -3469,8 +3469,8 @@
         "en": "My Shinies"
       },
       "DescriptionTemplate": {
-        "zhHans": "你每有{Gold:diff()}[gold]金币[/gold]，造成一次{Damage:diff()}点伤害。{InCombat:\n（命中{CalculatedHits:diff()}次）|}",
-        "en": "Deal {Damage:diff()} damage for every {Gold:diff()} [gold]Gold[/gold] you have.{InCombat:\n(Hits {CalculatedHits:diff()} {CalculatedHits:plural:time|times})|}"
+        "zhHans": "造成{Damage:diff()}点伤害。你每拥有{Gold:diff()}[gold]金币[/gold]，就额外命中一次。{InCombat:\n（命中{CalculatedHits:diff()}次）|}",
+        "en": "Deal {Damage:diff()} damage. Hits an additional time for every {Gold:diff()} [gold]Gold[/gold] you have.{InCombat:\n(Hits {CalculatedHits:diff()} {CalculatedHits:plural:time|times})|}"
       },
       "Base": {
         "EnergyCost": 1,
@@ -3486,21 +3486,21 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 1,
+            "BaseValue": 2,
             "BaseExpression": null,
             "Calculated": false
           },
           {
             "Id": "CalculationBase",
             "Kind": "CalculationBase",
-            "BaseValue": 0,
+            "BaseValue": 1,
             "BaseExpression": null,
             "Calculated": false
           },
           {
             "Id": "Gold",
             "Kind": "Gold",
-            "BaseValue": 20,
+            "BaseValue": 25,
             "BaseExpression": null,
             "Calculated": false
           },
@@ -3525,17 +3525,17 @@
         "Actions": [
           {
             "Kind": "ChangeVariable",
-            "Variable": "Gold",
-            "Delta": -10
+            "Variable": "Damage",
+            "Delta": 1
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Damage": 1,
-            "CalculationBase": 0,
-            "Gold": 10,
+            "Damage": 3,
+            "CalculationBase": 1,
+            "Gold": 25,
             "CalculationExtra": 1,
             "CalculatedHits": null
           },
@@ -3555,18 +3555,7 @@
               "ValueSource": "fixed",
               "BaseValue": 20,
               "Offset": 0,
-              "Upgradable": true,
-              "NativeBindings": [
-                {
-                  "Variable": "Gold",
-                  "BaseValue": 20,
-                  "UpgradeDelta": -10,
-                  "ValueTransform": {
-                    "Scale": 1,
-                    "Offset": 0
-                  }
-                }
-              ]
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -26524,14 +26513,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "AllIsWellPower",
-            "Delta": 1
+            "Delta": 2
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "AllIsWellPower": 5
+            "AllIsWellPower": 6
           },
           "Keywords": []
         }
@@ -26586,7 +26575,7 @@
                 {
                   "Variable": "AllIsWellPower",
                   "BaseValue": 4,
-                  "UpgradeDelta": 1,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -26640,7 +26629,7 @@
       "GenerationEligible": false,
       "ShouldShowInLibrary": true,
       "Title": {
-        "zhHans": "苦恼",
+        "zhHans": "苦闷",
         "en": "Anguish"
       },
       "DescriptionTemplate": {
@@ -26844,14 +26833,14 @@
         "StarCostX": false,
         "Type": "Power",
         "Target": "Self",
-        "Rarity": "Uncommon",
+        "Rarity": "Rare",
         "Keywords": [],
         "Tags": [],
         "Variables": [
           {
             "Id": "AimPower",
             "Kind": "Power",
-            "BaseValue": 4,
+            "BaseValue": 6,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -26863,14 +26852,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "AimPower",
-            "Delta": 1
+            "Delta": 2
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "AimPower": 5
+            "AimPower": 8
           },
           "Keywords": []
         }
@@ -26918,14 +26907,14 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 4,
+              "BaseValue": 6,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "AimPower",
-                  "BaseValue": 4,
-                  "UpgradeDelta": 1,
+                  "BaseValue": 6,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -26948,7 +26937,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 4,
+                "BaseValue": 6,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -26959,8 +26948,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得4点瞄准。",
-            "en": "Gain 4 Aim."
+            "zhHans": "获得6点瞄准。",
+            "en": "Gain 6 Aim."
           }
         }
       ]
@@ -26979,11 +26968,11 @@
         "en": "Arrow Stab"
       },
       "DescriptionTemplate": {
-        "zhHans": "造成{Damage:diff()}点伤害。\n如果你拥有[gold]箭矢[/gold]，则将你[gold]弃牌堆[/gold]中一张可以[gold]发射[/gold]的牌放入你的[gold]手牌[/gold]。",
-        "en": "Deal {Damage:diff()} damage.\nIf you have an [gold]Arrow[/gold], put a card that can [gold]Shoot[/gold] from your [gold]Discard Pile[/gold] into your [gold]Hand[/gold]."
+        "zhHans": "造成{Damage:diff()}点伤害。\n获得{AimPower:diff()}点[gold]瞄准[/gold]。",
+        "en": "Deal {Damage:diff()} damage.\nGain {AimPower:diff()} [gold]Aim[/gold]."
       },
       "Base": {
-        "EnergyCost": 1,
+        "EnergyCost": 2,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
@@ -26996,7 +26985,14 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 9,
+            "BaseValue": 13,
+            "BaseExpression": null,
+            "Calculated": false
+          },
+          {
+            "Id": "AimPower",
+            "Kind": "Power",
+            "BaseValue": 6,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -27007,15 +27003,21 @@
         "Actions": [
           {
             "Kind": "ChangeVariable",
+            "Variable": "AimPower",
+            "Delta": 2
+          },
+          {
+            "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 3
+            "Delta": 2
           }
         ],
         "Result": {
-          "EnergyCost": 1,
+          "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "Damage": 12
+            "Damage": 15,
+            "AimPower": 8
           },
           "Keywords": []
         }
@@ -27031,14 +27033,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 9,
+              "BaseValue": 13,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Damage",
-                  "BaseValue": 9,
-                  "UpgradeDelta": 3,
+                  "BaseValue": 13,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -27062,7 +27064,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 9,
+                "BaseValue": 13,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -27073,71 +27075,51 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "造成9点伤害。",
-            "en": "Deal 9 damage."
+            "zhHans": "造成13点伤害。",
+            "en": "Deal 13 damage."
           }
         },
         {
-          "ComponentId": "native.condition.arrow_available.self.conditionaltrigger.90fa196ae5",
+          "ComponentId": "native.apply_power.aim.self.nontargeted.f07c88318b",
           "SemanticId": "fool/arrowstab/1",
           "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "condition",
-            "Variant": "arrow_available",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [],
-            "Values": [],
-            "Condition": {
-              "Kind": "arrow_available",
-              "Subject": "self",
-              "ValueSlot": null
-            },
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "如果你拥有箭矢，",
-            "en": "If you have an Arrow,"
-          }
-        },
-        {
-          "ComponentId": "native.fool_action.discardshoottohand.self.nontargeted.e462c37705",
-          "SemanticId": "fool/arrowstab/2",
-          "TriggerOwner": 1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
           "Arguments": {
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 1,
+              "BaseValue": 6,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "AimPower",
+                  "BaseValue": 6,
+                  "UpgradeDelta": 2,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
             "SchemaVersion": 1,
-            "Opcode": "fool_action",
-            "Variant": "discardshoottohand",
+            "Opcode": "apply_power",
+            "Variant": "aim",
             "Target": "self",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "api_beneficial",
-              "count_unit_reference",
-              "requires_player_choice"
+              "api_beneficial"
             ],
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 1,
+                "BaseValue": 6,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -27148,8 +27130,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将你弃牌堆中的1张发射牌放入你的手牌。",
-            "en": "Put 1 Shoot cards from your discard pile into your Hand."
+            "zhHans": "获得6点瞄准。",
+            "en": "Gain 6 Aim."
           }
         }
       ]
@@ -27483,7 +27465,7 @@
           {
             "Id": "StretchPower",
             "Kind": "Power",
-            "BaseValue": 10,
+            "BaseValue": 8,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -27502,7 +27484,7 @@
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "StretchPower": 13
+            "StretchPower": 11
           },
           "Keywords": []
         }
@@ -27518,13 +27500,13 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 10,
+              "BaseValue": 8,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "StretchPower",
-                  "BaseValue": 10,
+                  "BaseValue": 8,
                   "UpgradeDelta": 3,
                   "ValueTransform": {
                     "Scale": 1,
@@ -27548,7 +27530,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 10,
+                "BaseValue": 8,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -27559,8 +27541,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得10点拉伸。",
-            "en": "Gain 10 Stretch."
+            "zhHans": "获得8点拉伸。",
+            "en": "Gain 8 Stretch."
           }
         },
         {
@@ -28191,14 +28173,14 @@
           {
             "Id": "Block",
             "Kind": "Block",
-            "BaseValue": 7,
+            "BaseValue": 8,
             "BaseExpression": null,
             "Calculated": false
           },
           {
             "Id": "ChoBarbsPower",
             "Kind": "Power",
-            "BaseValue": 3,
+            "BaseValue": 2,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -28222,8 +28204,8 @@
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Block": 9,
-            "ChoBarbsPower": 4
+            "Block": 10,
+            "ChoBarbsPower": 3
           },
           "Keywords": []
         }
@@ -28239,13 +28221,13 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 7,
+              "BaseValue": 8,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 7,
+                  "BaseValue": 8,
                   "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
@@ -28273,7 +28255,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 7,
+                "BaseValue": 8,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -28284,8 +28266,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得7点格挡。",
-            "en": "Gain 7 Block."
+            "zhHans": "获得8点格挡。",
+            "en": "Gain 8 Block."
           }
         },
         {
@@ -28298,13 +28280,13 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 3,
+              "BaseValue": 2,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "ChoBarbsPower",
-                  "BaseValue": 3,
+                  "BaseValue": 2,
                   "UpgradeDelta": 1,
                   "ValueTransform": {
                     "Scale": 1,
@@ -28328,7 +28310,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 3,
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -28339,8 +28321,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "在本回合获得3点荆棘。",
-            "en": "Gain 3 Thorns this turn."
+            "zhHans": "在本回合获得2点荆棘。",
+            "en": "Gain 2 Thorns this turn."
           }
         }
       ]
@@ -28378,7 +28360,7 @@
           {
             "Id": "Block",
             "Kind": "Block",
-            "BaseValue": 12,
+            "BaseValue": 14,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -28390,14 +28372,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Block",
-            "Delta": 3
+            "Delta": 4
           }
         ],
         "Result": {
           "EnergyCost": 3,
           "StarCost": -1,
           "Variables": {
-            "Block": 15
+            "Block": 18
           },
           "Keywords": []
         }
@@ -28413,14 +28395,14 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 12,
+              "BaseValue": 14,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 12,
-                  "UpgradeDelta": 3,
+                  "BaseValue": 14,
+                  "UpgradeDelta": 4,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -28447,7 +28429,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 12,
+                "BaseValue": 14,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -28458,8 +28440,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得12点格挡。",
-            "en": "Gain 12 Block."
+            "zhHans": "获得14点格挡。",
+            "en": "Gain 14 Block."
           }
         },
         {
@@ -28524,7 +28506,7 @@
         "en": "Cho Firm"
       },
       "DescriptionTemplate": {
-        "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。\n如果你有[gold]箭矢[/gold]，在额外获得一次[gold]格挡[/gold]。",
+        "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。\n如果你拥有[gold]箭矢[/gold]，再额外获得一次[gold]格挡[/gold]。",
         "en": "Gain {Block:diff()} [gold]Block[/gold].\nIf you have an [gold]Arrow[/gold], gain [gold]Block[/gold] an additional time."
       },
       "Base": {
@@ -28543,7 +28525,7 @@
           {
             "Id": "Block",
             "Kind": "Block",
-            "BaseValue": 6,
+            "BaseValue": 5,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -28562,7 +28544,7 @@
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Block": 8
+            "Block": 7
           },
           "Keywords": []
         }
@@ -28578,13 +28560,13 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 6,
+              "BaseValue": 5,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 6,
+                  "BaseValue": 5,
                   "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
@@ -28612,7 +28594,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 6,
+                "BaseValue": 5,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -28623,8 +28605,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得6点格挡。",
-            "en": "Gain 6 Block."
+            "zhHans": "获得5点格挡。",
+            "en": "Gain 5 Block."
           }
         },
         {
@@ -28666,13 +28648,13 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 6,
+              "BaseValue": 5,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 6,
+                  "BaseValue": 5,
                   "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
@@ -28700,7 +28682,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 6,
+                "BaseValue": 5,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -28711,8 +28693,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得6点格挡。",
-            "en": "Gain 6 Block."
+            "zhHans": "获得5点格挡。",
+            "en": "Gain 5 Block."
           }
         }
       ]
@@ -29119,7 +29101,7 @@
           {
             "Id": "Block",
             "Kind": "Block",
-            "BaseValue": 8,
+            "BaseValue": 7,
             "BaseExpression": null,
             "Calculated": false
           },
@@ -29138,20 +29120,20 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "AimPower",
-            "Delta": 2
+            "Delta": 1
           },
           {
             "Kind": "ChangeVariable",
             "Variable": "Block",
-            "Delta": 3
+            "Delta": 2
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Block": 11,
-            "AimPower": 5
+            "Block": 9,
+            "AimPower": 4
           },
           "Keywords": []
         }
@@ -29167,14 +29149,14 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 8,
+              "BaseValue": 7,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 8,
-                  "UpgradeDelta": 3,
+                  "BaseValue": 7,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -29201,7 +29183,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 8,
+                "BaseValue": 7,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -29212,8 +29194,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得8点格挡。",
-            "en": "Gain 8 Block."
+            "zhHans": "获得7点格挡。",
+            "en": "Gain 7 Block."
           }
         },
         {
@@ -29233,7 +29215,7 @@
                 {
                   "Variable": "AimPower",
                   "BaseValue": 3,
-                  "UpgradeDelta": 2,
+                  "UpgradeDelta": 1,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -29287,7 +29269,7 @@
         "en": "Coda"
       },
       "DescriptionTemplate": {
-        "zhHans": "造成{Damage:diff()}点伤害。\n你拥有的每种[gold]旋律[/gold]使这张牌的{energyPrefix:energyIcons(1)}耗能减少2。",
+        "zhHans": "造成{Damage:diff()}点伤害。\n你拥有的每种[gold]旋律[/gold]会使这张牌的耗能减少2{energyPrefix:energyIcons(1)}。",
         "en": "Deal {Damage:diff()} damage.\nCosts 2 less {energyPrefix:energyIcons(1)} for each [gold]Melody[/gold] you have."
       },
       "Base": {
@@ -30204,7 +30186,7 @@
       },
       "DescriptionTemplate": {
         "zhHans": "获得{Energy:energyIcons()}。\n抽{Cards:diff()}张牌。\n你在本回合只能再打出{EncorePower:diff()}张牌。",
-        "en": "Gain {Energy:energyIcons()}.\nDraw {Cards:diff()} cards.\nYou can only play {EncorePower:diff()} more {EncorePower:plural:card|cards} this turn."
+        "en": "Gain {Energy:energyIcons()}.\nDraw {Cards:diff()} {Cards:plural:card|cards}.\nYou can only play {EncorePower:diff()} more {EncorePower:plural:card|cards} this turn."
       },
       "Base": {
         "EnergyCost": 0,
@@ -30849,14 +30831,14 @@
         "StarCostX": false,
         "Type": "Power",
         "Target": "Self",
-        "Rarity": "Rare",
+        "Rarity": "Uncommon",
         "Keywords": [],
         "Tags": [],
         "Variables": [
           {
             "Id": "ExplosiveArrowsPower",
             "Kind": "Power",
-            "BaseValue": 6,
+            "BaseValue": 8,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -30868,14 +30850,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "ExplosiveArrowsPower",
-            "Delta": 2
+            "Delta": 3
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "ExplosiveArrowsPower": 8
+            "ExplosiveArrowsPower": 11
           },
           "Keywords": []
         }
@@ -30923,14 +30905,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 6,
+              "BaseValue": 8,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "ExplosiveArrowsPower",
-                  "BaseValue": 6,
-                  "UpgradeDelta": 2,
+                  "BaseValue": 8,
+                  "UpgradeDelta": 3,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -30963,7 +30945,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 6,
+                "BaseValue": 8,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -30982,8 +30964,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "对所有敌人造成6点伤害。",
-            "en": "Deal 6 damage to ALL enemies."
+            "zhHans": "对所有敌人造成8点伤害。",
+            "en": "Deal 8 damage to ALL enemies."
           }
         }
       ]
@@ -31002,20 +30984,18 @@
         "en": "Florescence"
       },
       "DescriptionTemplate": {
-        "zhHans": "[gold]消耗[/gold]你的所有[gold]发射[/gold]牌，生成[gold]{IfUpgraded:show:全力射击+|全力射击}[/gold].",
-        "en": "[gold]Exhaust[/gold] ALL of your cards that [gold]Shoot[/gold] and create [gold]{IfUpgraded:show:The Shot+|The Shot}[/gold]."
+        "zhHans": "选择你[gold]手牌[/gold]中的一张牌，将其[gold]变化[/gold]为[gold]{IfUpgraded:show:全力射击+|全力射击}[/gold]。",
+        "en": "Choose a card in your [gold]Hand[/gold] to [gold]Transform[/gold] into [gold]{IfUpgraded:show:The Shot+|The Shot}[/gold]."
       },
       "Base": {
-        "EnergyCost": 0,
+        "EnergyCost": 1,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
         "Type": "Skill",
         "Target": "Self",
         "Rarity": "Rare",
-        "Keywords": [
-          "Exhaust"
-        ],
+        "Keywords": [],
         "Tags": [],
         "Variables": []
       },
@@ -31028,45 +31008,16 @@
           }
         ],
         "Result": {
-          "EnergyCost": 0,
+          "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {},
-          "Keywords": [
-            "Exhaust"
-          ]
+          "Keywords": []
         }
       },
       "Components": [
         {
-          "ComponentId": "native.fool_action.exhaustshoot.self.nontargeted.49485dcc34",
+          "ComponentId": "native.fool_action.transformhandtotheshot.self.nontargeted.1c0d073041",
           "SemanticId": "fool/florescence/0",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "fool_action",
-            "Variant": "exhaustshoot",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "api_negative"
-            ],
-            "Values": [],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "消耗本场战斗中所有尚未消耗的发射牌。",
-            "en": "Exhaust all of your non-Exhausted Shoot cards this combat."
-          }
-        },
-        {
-          "ComponentId": "native.fool_action.createtheshot.self.nontargeted.e41964dce0",
-          "SemanticId": "fool/florescence/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -31074,7 +31025,7 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 10,
+              "BaseValue": 1,
               "Offset": 0,
               "Upgradable": true
             }
@@ -31082,19 +31033,20 @@
           "RuntimeSpec": {
             "SchemaVersion": 1,
             "Opcode": "fool_action",
-            "Variant": "createtheshot",
+            "Variant": "transformhandtotheshot",
             "Target": "self",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
               "api_beneficial",
-              "requires_exhaust_result"
+              "count_unit_reference",
+              "requires_player_choice"
             ],
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 10,
+                "BaseValue": 1,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -31105,8 +31057,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将一张全力射击加入手牌。其基础伤害为刚才消耗的牌数量的10倍。",
-            "en": "Add The Shot to your Hand. Its base damage is 10 times the number of cards just Exhausted."
+            "zhHans": "将手牌中的1张牌变化为全力射击。",
+            "en": "Transform 1 card in your Hand into The Shot."
           }
         }
       ]
@@ -31270,8 +31222,8 @@
         "en": "Growth"
       },
       "DescriptionTemplate": {
-        "zhHans": "[gold]消耗[/gold]你[gold]手牌[/gold]中的所有[gold]悲伤[/gold]。\n每张被[gold]消耗[/gold]的牌获得{CalculationExtra:diff()}点[gold]拉伸[/gold]。{InCombat:\n（获得{CalculatedStretch:diff()}点[gold]拉伸[/gold]）|}",
-        "en": "[gold]Exhaust[/gold] ALL [gold]Sadness[/gold] in your [gold]Hand[/gold].\nGain {CalculationExtra:diff()} [gold]Stretch[/gold] for each card [gold]Exhausted[/gold].{InCombat:\n(Gains {CalculatedStretch:diff()} [gold]Stretch[/gold])|}"
+        "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。\n将你[gold]手牌[/gold]中的一张随机[gold]悲伤[/gold][gold]变化[/gold]为这张牌。",
+        "en": "Gain {Block:diff()} [gold]Block[/gold].\n[gold]Transform[/gold] 1 random [gold]Sadness[/gold] in your [gold]Hand[/gold] into a copy of this card."
       },
       "Base": {
         "EnergyCost": 1,
@@ -31285,25 +31237,11 @@
         "Tags": [],
         "Variables": [
           {
-            "Id": "CalculationBase",
-            "Kind": "CalculationBase",
-            "BaseValue": 0,
+            "Id": "Block",
+            "Kind": "Block",
+            "BaseValue": 8,
             "BaseExpression": null,
             "Calculated": false
-          },
-          {
-            "Id": "CalculationExtra",
-            "Kind": "CalculationExtra",
-            "BaseValue": 4,
-            "BaseExpression": null,
-            "Calculated": false
-          },
-          {
-            "Id": "CalculatedStretch",
-            "Kind": "Calculated",
-            "BaseValue": null,
-            "BaseExpression": "",
-            "Calculated": true
           }
         ]
       },
@@ -31312,100 +31250,38 @@
         "Actions": [
           {
             "Kind": "ChangeVariable",
-            "Variable": "CalculationExtra",
-            "Delta": 2
+            "Variable": "Block",
+            "Delta": 3
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "CalculationBase": 0,
-            "CalculationExtra": 6,
-            "CalculatedStretch": null
+            "Block": 11
           },
           "Keywords": []
         }
       },
       "Components": [
         {
-          "ComponentId": "native.fool_action.exhaustsadness.self.nontargeted.3e8173c096",
+          "ComponentId": "native.gain_block.immediate.self.nontargeted.d986fc6495",
           "SemanticId": "fool/growth/0",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "fool_action",
-            "Variant": "exhaustsadness",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "api_beneficial",
-              "requires_hand_cards"
-            ],
-            "Values": [],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "消耗你手牌中的所有悲伤。",
-            "en": "Exhaust all Sadness in your Hand."
-          }
-        },
-        {
-          "ComponentId": "native.trigger.event.self.conditionaltrigger.12f116b810",
-          "SemanticId": "fool/growth/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "trigger",
-            "Variant": "event",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "repeated_or_multiplicative"
-            ],
-            "Values": [],
-            "Condition": null,
-            "Trigger": {
-              "Kind": "sadness_exhausted_by_this_card",
-              "Lifetime": "immediate",
-              "ThresholdSlot": null,
-              "DurationSlot": null
-            }
-          },
-          "Text": {
-            "zhHans": "每消耗一张悲伤，",
-            "en": "For each Sadness Exhausted,"
-          }
-        },
-        {
-          "ComponentId": "native.apply_power.stretch.self.nontargeted.7f6360d157",
-          "SemanticId": "fool/growth/2",
-          "TriggerOwner": 1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
           "Arguments": {
-            "amount": {
+            "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 4,
+              "BaseValue": 8,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
-                  "Variable": "CalculationExtra",
-                  "BaseValue": 4,
-                  "UpgradeDelta": 2,
+                  "Variable": "Block",
+                  "BaseValue": 8,
+                  "UpgradeDelta": 3,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -31416,19 +31292,23 @@
           },
           "RuntimeSpec": {
             "SchemaVersion": 1,
-            "Opcode": "apply_power",
-            "Variant": "stretch",
+            "Opcode": "gain_block",
+            "Variant": "immediate",
             "Target": "self",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "api_beneficial"
+              "block_reference",
+              "has_numeric_literal",
+              "immediate_block_gain",
+              "printed_block_value",
+              "scalable_reward_wording"
             ],
             "Values": [
               {
-                "Id": "amount",
-                "BaseValue": 4,
+                "Id": "block",
+                "BaseValue": 8,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -31439,8 +31319,53 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得4点拉伸。",
-            "en": "Gain 4 Stretch."
+            "zhHans": "获得8点格挡。",
+            "en": "Gain 8 Block."
+          }
+        },
+        {
+          "ComponentId": "native.fool_action.transformsadnesstocopy.self.nontargeted.f6dec63593",
+          "SemanticId": "fool/growth/1",
+          "TriggerOwner": -1,
+          "CardReference": "None",
+          "RequiresSingleTarget": false,
+          "Arguments": {
+            "amount": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 1,
+              "Offset": 0,
+              "Upgradable": true
+            }
+          },
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "fool_action",
+            "Variant": "transformsadnesstocopy",
+            "Target": "self",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "api_beneficial",
+              "count_unit_reference"
+            ],
+            "Values": [
+              {
+                "Id": "amount",
+                "BaseValue": 1,
+                "Source": "fixed",
+                "Offset": 0,
+                "Upgradable": true,
+                "Explicit": true
+              }
+            ],
+            "Condition": null,
+            "Trigger": null
+          },
+          "Text": {
+            "zhHans": "将手牌中的1张随机悲伤变化为这张牌的复制品。",
+            "en": "Transform 1 random Sadness in your Hand into copies of this card."
           }
         }
       ]
@@ -31459,8 +31384,8 @@
         "en": "Harmonic Shield"
       },
       "DescriptionTemplate": {
-        "zhHans": "获得{CalculationExtra:diff()}×你所拥有的[gold]旋律[/gold]种类数点[gold]格挡[/gold]。{InCombat:\n（获得{CalculatedBlock:diff()}点[gold]格挡[/gold]）|}",
-        "en": "Gain {CalculationExtra:diff()} [gold]Block[/gold] for each [gold]Melody[/gold] you have.{InCombat:\n(Gain {CalculatedBlock:diff()} [gold]Block[/gold])|}"
+        "zhHans": "获得{CalculatedBlock:diff()}点[gold]格挡[/gold]）。\n你每有一种[gold]旋律[/gold]，额外获得{CalculationExtra:diff()}点[gold]格挡[/gold]。",
+        "en": "Gain {CalculatedBlock:diff()} [gold]Block[/gold].\nGain {CalculationExtra:diff()} additional [gold]Block[/gold] for each [gold]Melody[/gold] you have."
       },
       "Base": {
         "EnergyCost": 1,
@@ -31476,14 +31401,14 @@
           {
             "Id": "CalculationBase",
             "Kind": "CalculationBase",
-            "BaseValue": 0,
+            "BaseValue": 4,
             "BaseExpression": null,
             "Calculated": false
           },
           {
             "Id": "CalculationExtra",
             "Kind": "CalculationExtra",
-            "BaseValue": 5,
+            "BaseValue": 4,
             "BaseExpression": null,
             "Calculated": false
           },
@@ -31501,6 +31426,11 @@
         "Actions": [
           {
             "Kind": "ChangeVariable",
+            "Variable": "CalculationBase",
+            "Delta": 2
+          },
+          {
+            "Kind": "ChangeVariable",
             "Variable": "CalculationExtra",
             "Delta": 2
           }
@@ -31509,8 +31439,8 @@
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "CalculationBase": 0,
-            "CalculationExtra": 7,
+            "CalculationBase": 6,
+            "CalculationExtra": 6,
             "CalculatedBlock": null
           },
           "Keywords": []
@@ -31518,8 +31448,67 @@
       },
       "Components": [
         {
-          "ComponentId": "native.trigger.event.self.conditionaltrigger.5f20fbc9a8",
+          "ComponentId": "native.gain_block.immediate.self.nontargeted.d986fc6495",
           "SemanticId": "fool/harmonicshield/0",
+          "TriggerOwner": -1,
+          "CardReference": "None",
+          "RequiresSingleTarget": false,
+          "Arguments": {
+            "block": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 4,
+              "Offset": 0,
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "CalculationBase",
+                  "BaseValue": 4,
+                  "UpgradeDelta": 2,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
+            }
+          },
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "gain_block",
+            "Variant": "immediate",
+            "Target": "self",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "block_reference",
+              "has_numeric_literal",
+              "immediate_block_gain",
+              "printed_block_value",
+              "scalable_reward_wording"
+            ],
+            "Values": [
+              {
+                "Id": "block",
+                "BaseValue": 4,
+                "Source": "fixed",
+                "Offset": 0,
+                "Upgradable": true,
+                "Explicit": true
+              }
+            ],
+            "Condition": null,
+            "Trigger": null
+          },
+          "Text": {
+            "zhHans": "获得4点格挡。",
+            "en": "Gain 4 Block."
+          }
+        },
+        {
+          "ComponentId": "native.trigger.event.self.conditionaltrigger.5f20fbc9a8",
+          "SemanticId": "fool/harmonicshield/1",
           "TriggerOwner": -1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
@@ -31551,21 +31540,21 @@
         },
         {
           "ComponentId": "native.gain_block.immediate.self.nontargeted.d986fc6495",
-          "SemanticId": "fool/harmonicshield/1",
-          "TriggerOwner": 0,
+          "SemanticId": "fool/harmonicshield/2",
+          "TriggerOwner": 1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
           "Arguments": {
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 5,
+              "BaseValue": 4,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "CalculationExtra",
-                  "BaseValue": 5,
+                  "BaseValue": 4,
                   "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
@@ -31593,7 +31582,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 5,
+                "BaseValue": 4,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -31604,8 +31593,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得5点格挡。",
-            "en": "Gain 5 Block."
+            "zhHans": "获得4点格挡。",
+            "en": "Gain 4 Block."
           }
         }
       ]
@@ -31634,7 +31623,7 @@
         "StarCostX": false,
         "Type": "Attack",
         "Target": "AnyEnemy",
-        "Rarity": "Common",
+        "Rarity": "Uncommon",
         "Keywords": [],
         "Tags": [
           "Shoot"
@@ -31643,14 +31632,14 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 20,
+            "BaseValue": 16,
             "BaseExpression": null,
             "Calculated": false
           },
           {
             "Id": "AimMultiplier",
             "Kind": "Dynamic",
-            "BaseValue": 2,
+            "BaseValue": 3,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -31661,16 +31650,21 @@
         "Actions": [
           {
             "Kind": "ChangeVariable",
+            "Variable": "AimMultiplier",
+            "Delta": 1
+          },
+          {
+            "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 5
+            "Delta": 1
           }
         ],
         "Result": {
           "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "Damage": 25,
-            "AimMultiplier": 2
+            "Damage": 17,
+            "AimMultiplier": 4
           },
           "Keywords": []
         }
@@ -31715,14 +31709,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 20,
+              "BaseValue": 16,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Damage",
-                  "BaseValue": 20,
-                  "UpgradeDelta": 5,
+                  "BaseValue": 16,
+                  "UpgradeDelta": 1,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -31746,7 +31740,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 20,
+                "BaseValue": 16,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -31757,8 +31751,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "造成20点伤害。",
-            "en": "Deal 20 damage."
+            "zhHans": "造成16点伤害。",
+            "en": "Deal 16 damage."
           }
         },
         {
@@ -31771,9 +31765,20 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 2,
+              "BaseValue": 3,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "AimMultiplier",
+                  "BaseValue": 3,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
@@ -31790,7 +31795,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 2,
+                "BaseValue": 3,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -31801,8 +31806,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "瞄准对这张牌有2倍效果。",
-            "en": "Aim has 2 times its effect on this card."
+            "zhHans": "瞄准对这张牌有3倍效果。",
+            "en": "Aim has 3 times its effect on this card."
           }
         }
       ]
@@ -32269,8 +32274,8 @@
         "en": "Honing"
       },
       "DescriptionTemplate": {
-        "zhHans": "[gold]箭矢[/gold]造成{HoningPower:diff()}%额外伤害。",
-        "en": "[gold]Arrows[/gold] deal {HoningPower:diff()}% additional damage."
+        "zhHans": "[gold]箭矢[/gold]造成双倍伤害。",
+        "en": "[gold]Arrows[/gold] deal double damage."
       },
       "Base": {
         "EnergyCost": 3,
@@ -32286,7 +32291,7 @@
           {
             "Id": "HoningPower",
             "Kind": "Power",
-            "BaseValue": 50,
+            "BaseValue": 100,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -32304,7 +32309,7 @@
           "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "HoningPower": 50
+            "HoningPower": 100
           },
           "Keywords": []
         }
@@ -32320,7 +32325,7 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 50,
+              "BaseValue": 100,
               "Offset": 0,
               "Upgradable": true
             }
@@ -32341,7 +32346,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 50,
+                "BaseValue": 100,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -32352,8 +32357,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "箭矢造成50%额外伤害。",
-            "en": "Arrows deal 50% more damage."
+            "zhHans": "箭矢造成100%额外伤害。",
+            "en": "Arrows deal 100% more damage."
           }
         }
       ]
@@ -32389,7 +32394,7 @@
           {
             "Id": "Block",
             "Kind": "Block",
-            "BaseValue": 14,
+            "BaseValue": 15,
             "BaseExpression": null,
             "Calculated": false
           },
@@ -32415,7 +32420,7 @@
           "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "Block": 18,
+            "Block": 19,
             "Cards": 1
           },
           "Keywords": []
@@ -32432,13 +32437,13 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 14,
+              "BaseValue": 15,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 14,
+                  "BaseValue": 15,
                   "UpgradeDelta": 4,
                   "ValueTransform": {
                     "Scale": 1,
@@ -32466,7 +32471,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 14,
+                "BaseValue": 15,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -32477,8 +32482,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得14点格挡。",
-            "en": "Gain 14 Block."
+            "zhHans": "获得15点格挡。",
+            "en": "Gain 15 Block."
           }
         },
         {
@@ -32900,7 +32905,7 @@
           {
             "Id": "Energy",
             "Kind": "Energy",
-            "BaseValue": 5,
+            "BaseValue": 4,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -32919,7 +32924,7 @@
           "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "Energy": 6
+            "Energy": 5
           },
           "Keywords": []
         }
@@ -32969,13 +32974,13 @@
             "energy": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 5,
+              "BaseValue": 4,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Energy",
-                  "BaseValue": 5,
+                  "BaseValue": 4,
                   "UpgradeDelta": 1,
                   "ValueTransform": {
                     "Scale": 1,
@@ -33000,7 +33005,7 @@
             "Values": [
               {
                 "Id": "energy",
-                "BaseValue": 5,
+                "BaseValue": 4,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -33011,8 +33016,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得5点能量。",
-            "en": "Gain 5 Energy."
+            "zhHans": "获得4点能量。",
+            "en": "Gain 4 Energy."
           }
         },
         {
@@ -33087,8 +33092,8 @@
         "en": "Ki Verse"
       },
       "DescriptionTemplate": {
-        "zhHans": "本回合你打出的下{KiVersePower:choose(1):一|{:diff()}}张“哇”、“啾”或“叽”牌会被额外打出一次。",
-        "en": "The next{KiVersePower:plural:| {:diff()}} “Wah”, “Cho”, or “Ki” {KiVersePower:plural:card|cards} you play this turn {KiVersePower:plural:is|are} played an additional time."
+        "zhHans": "本回合你打出的下{KiVersePower:choose(1):一|{:diff()}}张“哇”或“啾”牌会被额外打出一次。",
+        "en": "The next{KiVersePower:plural:| {:diff()}} “Wah” or “Cho” {KiVersePower:plural:card|cards} you play this turn {KiVersePower:plural:is|are} played an additional time."
       },
       "Base": {
         "EnergyCost": 1,
@@ -33631,11 +33636,11 @@
         "en": "Lullaby"
       },
       "DescriptionTemplate": {
-        "zhHans": "当你获得每一种[gold]旋律[/gold]时，获得{LullabyPower:diff()}点[gold]格挡[/gold]。",
+        "zhHans": "当你获得所有[gold]旋律[/gold]时，获得{LullabyPower:diff()}点[gold]格挡[/gold]。",
         "en": "When you gain every [gold]Melody[/gold], gain {LullabyPower:diff()} [gold]Block[/gold]."
       },
       "Base": {
-        "EnergyCost": 0,
+        "EnergyCost": 1,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
@@ -33648,7 +33653,7 @@
           {
             "Id": "LullabyPower",
             "Kind": "Power",
-            "BaseValue": 20,
+            "BaseValue": 12,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -33658,19 +33663,18 @@
         "MaxLevel": 1,
         "Actions": [
           {
-            "Kind": "AddKeyword",
-            "Keyword": "Innate"
+            "Kind": "ChangeVariable",
+            "Variable": "LullabyPower",
+            "Delta": 4
           }
         ],
         "Result": {
-          "EnergyCost": 0,
+          "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "LullabyPower": 20
+            "LullabyPower": 16
           },
-          "Keywords": [
-            "Innate"
-          ]
+          "Keywords": []
         }
       },
       "Components": [
@@ -33716,9 +33720,20 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 20,
+              "BaseValue": 12,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "LullabyPower",
+                  "BaseValue": 12,
+                  "UpgradeDelta": 4,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
@@ -33739,7 +33754,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 20,
+                "BaseValue": 12,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -33750,8 +33765,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得20点格挡。",
-            "en": "Gain 20 Block."
+            "zhHans": "获得12点格挡。",
+            "en": "Gain 12 Block."
           }
         }
       ]
@@ -33822,18 +33837,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 1
-          },
-          {
-            "Kind": "ChangeEnergyCost",
-            "Delta": -1
+            "Delta": 2
           }
         ],
         "Result": {
-          "EnergyCost": 0,
+          "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Damage": 13,
+            "Damage": 14,
             "CalculationBase": 1,
             "CalculationExtra": 1,
             "CalculatedHits": null
@@ -33888,7 +33899,7 @@
                 {
                   "Variable": "Damage",
                   "BaseValue": 12,
-                  "UpgradeDelta": 1,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -33997,7 +34008,7 @@
         "StarCostX": false,
         "Type": "Power",
         "Target": "Self",
-        "Rarity": "Uncommon",
+        "Rarity": "Rare",
         "Keywords": [],
         "Tags": [],
         "Variables": [
@@ -34269,8 +34280,8 @@
         "en": "Mythic Form"
       },
       "DescriptionTemplate": {
-        "zhHans": "在你的回合开始时，将一张随机{IfUpgraded:show:升级过的|}[gold]塔罗牌[/gold]加入你的[gold]手牌[/gold]。",
-        "en": "At the start of your turn, add a random{IfUpgraded:show: Upgraded|} [gold]Tarot[/gold] card into your [gold]Hand[/gold]."
+        "zhHans": "在你的回合开始时，将一张随机[gold]塔罗牌[/gold]加入你的[gold]手牌[/gold]。",
+        "en": "At the start of your turn, add a random [gold]Tarot[/gold] card into your [gold]Hand[/gold]."
       },
       "Base": {
         "EnergyCost": 3,
@@ -34280,7 +34291,9 @@
         "Type": "Power",
         "Target": "Self",
         "Rarity": "Rare",
-        "Keywords": [],
+        "Keywords": [
+          "Ethereal"
+        ],
         "Tags": [],
         "Variables": []
       },
@@ -34288,8 +34301,8 @@
         "MaxLevel": 1,
         "Actions": [
           {
-            "Kind": "UpgradeProducedCard",
-            "Pool": "Tarot"
+            "Kind": "RemoveKeyword",
+            "Keyword": "Ethereal"
           }
         ],
         "Result": {
@@ -34394,7 +34407,7 @@
       },
       "DescriptionTemplate": {
         "zhHans": "如果敌人处于[gold]扎穿[/gold]状态，则造成{Damage:diff()}点伤害并给予{Power:diff()}层[gold]虚弱[/gold]和[gold]易伤[/gold]。",
-        "en": "If the enemy is [gold]Impaled[/gold], Deal {Damage:diff()} damage and apply {Power:diff()} [gold]Weak[/gold] and [gold]Vulnerable[/gold]."
+        "en": "If the enemy is [gold]Impaled[/gold], deal {Damage:diff()} damage and apply {Power:diff()} [gold]Weak[/gold] and [gold]Vulnerable[/gold]."
       },
       "Base": {
         "EnergyCost": 2,
@@ -34767,6 +34780,165 @@
       ]
     },
     {
+      "CatalogId": "native/fool/optimism",
+      "NativeId": "OPTIMISM",
+      "ClassName": "Optimism",
+      "Pool": "Fool",
+      "SourceKind": "GeneratorCatalog",
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "ShouldShowInLibrary": true,
+      "Title": {
+        "zhHans": "乐观",
+        "en": "Optimism"
+      },
+      "DescriptionTemplate": {
+        "zhHans": "[gold]消耗[/gold]你[gold]手牌[/gold]中的所有[gold]悲伤[/gold]。\n每如此[gold]消耗[/gold]一张牌，抽1张牌。",
+        "en": "[gold]Exhaust[/gold] ALL [gold]Sadness[/gold] in your [gold]Hand[/gold].\nDraw 1 card for each card [gold]Exhausted[/gold]."
+      },
+      "Base": {
+        "EnergyCost": 1,
+        "EnergyCostX": false,
+        "StarCost": -1,
+        "StarCostX": false,
+        "Type": "Skill",
+        "Target": "Self",
+        "Rarity": "Rare",
+        "Keywords": [
+          "Exhaust"
+        ],
+        "Tags": [],
+        "Variables": []
+      },
+      "Upgrade": {
+        "MaxLevel": 1,
+        "Actions": [
+          {
+            "Kind": "RemoveKeyword",
+            "Keyword": "Exhaust"
+          }
+        ],
+        "Result": {
+          "EnergyCost": 1,
+          "StarCost": -1,
+          "Variables": {},
+          "Keywords": []
+        }
+      },
+      "Components": [
+        {
+          "ComponentId": "native.fool_action.exhaustsadness.self.nontargeted.3e8173c096",
+          "SemanticId": "fool/optimism/0",
+          "TriggerOwner": -1,
+          "CardReference": "None",
+          "RequiresSingleTarget": false,
+          "Arguments": {},
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "fool_action",
+            "Variant": "exhaustsadness",
+            "Target": "self",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "api_beneficial",
+              "requires_hand_cards"
+            ],
+            "Values": [],
+            "Condition": null,
+            "Trigger": null
+          },
+          "Text": {
+            "zhHans": "消耗你手牌中的所有悲伤。",
+            "en": "Exhaust all Sadness in your Hand."
+          }
+        },
+        {
+          "ComponentId": "native.trigger.event.self.conditionaltrigger.12f116b810",
+          "SemanticId": "fool/optimism/1",
+          "TriggerOwner": -1,
+          "CardReference": "None",
+          "RequiresSingleTarget": false,
+          "Arguments": {},
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "trigger",
+            "Variant": "event",
+            "Target": "self",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "repeated_or_multiplicative"
+            ],
+            "Values": [],
+            "Condition": null,
+            "Trigger": {
+              "Kind": "sadness_exhausted_by_this_card",
+              "Lifetime": "immediate",
+              "ThresholdSlot": null,
+              "DurationSlot": null
+            }
+          },
+          "Text": {
+            "zhHans": "每消耗一张悲伤，",
+            "en": "For each Sadness Exhausted,"
+          }
+        },
+        {
+          "ComponentId": "native.draw_cards.immediate.self.nontargeted.2c102225d9",
+          "SemanticId": "fool/optimism/2",
+          "TriggerOwner": 1,
+          "CardReference": "None",
+          "RequiresSingleTarget": false,
+          "Arguments": {
+            "draw": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 1,
+              "Offset": 0,
+              "Upgradable": true
+            }
+          },
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "draw_cards",
+            "Variant": "immediate",
+            "Target": "self",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "count_unit_reference",
+              "draw_reference",
+              "effect_family_draw",
+              "has_numeric_literal",
+              "leading_draw_reference",
+              "legacy_direct_draw_center",
+              "scalable_reward_wording"
+            ],
+            "Values": [
+              {
+                "Id": "draw",
+                "BaseValue": 1,
+                "Source": "fixed",
+                "Offset": 0,
+                "Upgradable": true,
+                "Explicit": true
+              }
+            ],
+            "Condition": null,
+            "Trigger": null
+          },
+          "Text": {
+            "zhHans": "抽1张牌。",
+            "en": "Draw 1 card."
+          }
+        }
+      ]
+    },
+    {
       "CatalogId": "native/fool/punch_of_joy",
       "NativeId": "PUNCH_OF_JOY",
       "ClassName": "PunchOfJoy",
@@ -34780,8 +34952,8 @@
         "en": "Punch of Joy"
       },
       "DescriptionTemplate": {
-        "zhHans": "造成{Damage:diff()}点伤害。\n将你[gold]手牌[/gold]中的1张随机[gold]悲伤[/gold][gold]变化[/gold]为[gold]喜悦[/gold]。",
-        "en": "Deal {Damage:diff()} damage.\n[gold]Transform[/gold] 1 random [gold]Sadness[/gold] in your [gold]Hand[/gold] into [gold]Joy[/gold]."
+        "zhHans": "造成{Damage:diff()}点伤害。\n将你[gold]手牌[/gold]中的{Cards:diff()} 张随机[gold]悲伤[/gold][gold]变化[/gold]为[gold]喜悦[/gold]。",
+        "en": "Deal {Damage:diff()} damage.\n[gold]Transform[/gold] {Cards:diff()} random [gold]Sadness[/gold] in your [gold]Hand[/gold] into [gold]Joy[/gold]."
       },
       "Base": {
         "EnergyCost": 2,
@@ -34797,7 +34969,14 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 13,
+            "BaseValue": 14,
+            "BaseExpression": null,
+            "Calculated": false
+          },
+          {
+            "Id": "Cards",
+            "Kind": "Cards",
+            "BaseValue": 1,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -34809,14 +34988,20 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 4
+            "Delta": 2
+          },
+          {
+            "Kind": "ChangeVariable",
+            "Variable": "Cards",
+            "Delta": 1
           }
         ],
         "Result": {
           "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "Damage": 17
+            "Damage": 16,
+            "Cards": 2
           },
           "Keywords": []
         }
@@ -34832,14 +35017,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 13,
+              "BaseValue": 14,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Damage",
-                  "BaseValue": 13,
-                  "UpgradeDelta": 4,
+                  "BaseValue": 14,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -34863,7 +35048,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 13,
+                "BaseValue": 14,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -34874,8 +35059,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "造成13点伤害。",
-            "en": "Deal 13 damage."
+            "zhHans": "造成14点伤害。",
+            "en": "Deal 14 damage."
           }
         },
         {
@@ -34890,7 +35075,18 @@
               "ValueSource": "fixed",
               "BaseValue": 1,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Cards",
+                  "BaseValue": 1,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
@@ -35085,8 +35281,8 @@
         "en": "Quietus"
       },
       "DescriptionTemplate": {
-        "zhHans": "本回合，你的下一次[gold]射击[/gold]造成{IfUpgraded:show:三倍|两倍}伤害，但[gold]箭矢[/gold]会被摧毁。",
-        "en": "This turn, your next [gold]Shot[/gold] deals {IfUpgraded:show:triple|double} damage but the [gold]Arrow[/gold] is destroyed."
+        "zhHans": "本回合，你的下一次[gold]射击[/gold]造成{IfUpgraded:show:三倍|两倍}伤害。",
+        "en": "This turn, your next [gold]Shot[/gold] deals {IfUpgraded:show:triple|double} damage."
       },
       "Base": {
         "EnergyCost": 1,
@@ -35212,7 +35408,7 @@
         "StarCostX": false,
         "Type": "Power",
         "Target": "Self",
-        "Rarity": "Rare",
+        "Rarity": "Uncommon",
         "Keywords": [],
         "Tags": [],
         "Variables": [
@@ -35229,18 +35425,19 @@
         "MaxLevel": 1,
         "Actions": [
           {
-            "Kind": "ChangeVariable",
-            "Variable": "Repeat",
-            "Delta": 1
+            "Kind": "AddKeyword",
+            "Keyword": "Innate"
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Repeat": 2
+            "Repeat": 1
           },
-          "Keywords": []
+          "Keywords": [
+            "Innate"
+          ]
         }
       },
       "Components": [
@@ -35256,18 +35453,7 @@
               "ValueSource": "fixed",
               "BaseValue": 1,
               "Offset": 0,
-              "Upgradable": true,
-              "NativeBindings": [
-                {
-                  "Variable": "Repeat",
-                  "BaseValue": 1,
-                  "UpgradeDelta": 1,
-                  "ValueTransform": {
-                    "Scale": 1,
-                    "Offset": 0
-                  }
-                }
-              ]
+              "Upgradable": true
             }
           },
           "RuntimeSpec": {
@@ -35506,175 +35692,6 @@
       ]
     },
     {
-      "CatalogId": "native/fool/rapid_shot",
-      "NativeId": "RAPID_SHOT",
-      "ClassName": "RapidShot",
-      "Pool": "Fool",
-      "SourceKind": "GeneratorCatalog",
-      "ReferenceOnly": true,
-      "GenerationEligible": false,
-      "ShouldShowInLibrary": true,
-      "Title": {
-        "zhHans": "迅捷射击",
-        "en": "Rapid Shot"
-      },
-      "DescriptionTemplate": {
-        "zhHans": "[gold]发射[/gold]一支[gold]箭矢[/gold]造成{Damage:diff()}点伤害{HitCount:diff()}次。",
-        "en": "[gold]Shoot[/gold] an [gold]Arrow[/gold] to deal {Damage:diff()} damage {HitCount:diff()} times."
-      },
-      "Base": {
-        "EnergyCost": 1,
-        "EnergyCostX": false,
-        "StarCost": -1,
-        "StarCostX": false,
-        "Type": "Attack",
-        "Target": "AnyEnemy",
-        "Rarity": "Uncommon",
-        "Keywords": [],
-        "Tags": [
-          "Shoot"
-        ],
-        "Variables": [
-          {
-            "Id": "Damage",
-            "Kind": "Damage",
-            "BaseValue": 3,
-            "BaseExpression": null,
-            "Calculated": false
-          },
-          {
-            "Id": "HitCount",
-            "Kind": "HitCount",
-            "BaseValue": 3,
-            "BaseExpression": null,
-            "Calculated": false
-          }
-        ]
-      },
-      "Upgrade": {
-        "MaxLevel": 1,
-        "Actions": [
-          {
-            "Kind": "ChangeVariable",
-            "Variable": "HitCount",
-            "Delta": 1
-          }
-        ],
-        "Result": {
-          "EnergyCost": 1,
-          "StarCost": -1,
-          "Variables": {
-            "Damage": 3,
-            "HitCount": 4
-          },
-          "Keywords": []
-        }
-      },
-      "Components": [
-        {
-          "ComponentId": "native.modify_damage.shoot_arrow.self.modifier.62b8ec4bfd",
-          "SemanticId": "fool/rapidshot/0",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "modify_damage",
-            "Variant": "shoot_arrow",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "grants_shoot_tag",
-              "requires_damage_anchor",
-              "sole_damage_sentence"
-            ],
-            "Values": [],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "发射一支箭矢，",
-            "en": "Shoot an Arrow to"
-          }
-        },
-        {
-          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.00e37819a4",
-          "SemanticId": "fool/rapidshot/1",
-          "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": true,
-          "Arguments": {
-            "damage": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 3,
-              "Offset": 0,
-              "Upgradable": true
-            },
-            "hits": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 3,
-              "Offset": 0,
-              "Upgradable": true,
-              "NativeBindings": [
-                {
-                  "Variable": "HitCount",
-                  "BaseValue": 3,
-                  "UpgradeDelta": 1,
-                  "ValueTransform": {
-                    "Scale": 1,
-                    "Offset": 0
-                  }
-                }
-              ]
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "deal_damage",
-            "Variant": "selected",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "count_unit_reference",
-              "has_numeric_literal",
-              "printed_damage_value"
-            ],
-            "Values": [
-              {
-                "Id": "damage",
-                "BaseValue": 3,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": true,
-                "Explicit": true
-              },
-              {
-                "Id": "hits",
-                "BaseValue": 3,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": true,
-                "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "造成3点伤害3次。",
-            "en": "Deal 3 damage 3 times."
-          }
-        }
-      ]
-    },
-    {
       "CatalogId": "native/fool/recall",
       "NativeId": "RECALL",
       "ClassName": "Recall",
@@ -35688,18 +35705,21 @@
         "en": "Recall"
       },
       "DescriptionTemplate": {
-        "zhHans": "如果敌人处于[gold]扎穿[/gold]状态，则使箭矢[gold]松脱[/gold]并将你[gold]弃牌堆[/gold]中的一张牌放到你的[gold]抽牌堆[/gold]顶。",
-        "en": "If the enemy is [gold]Impaled[/gold], [gold]Dislodge[/gold] and put a card from your [gold]Discard Pile[/gold] on top of your [gold]Draw Pile[/gold]."
+        "zhHans": "如果敌人处于[gold]扎穿[/gold]状态，则使箭矢[gold]松脱[/gold]。",
+        "en": "If the enemy is [gold]Impaled[/gold], [gold]Dislodge[/gold]."
       },
       "Base": {
-        "EnergyCost": 1,
+        "EnergyCost": 0,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
         "Type": "Skill",
         "Target": "AnyEnemy",
         "Rarity": "Common",
-        "Keywords": [],
+        "Keywords": [
+          "Exhaust",
+          "Retain"
+        ],
         "Tags": [],
         "Variables": []
       },
@@ -35707,121 +35727,46 @@
         "MaxLevel": 1,
         "Actions": [
           {
-            "Kind": "ChangeEnergyCost",
-            "Delta": -1
+            "Kind": "RemoveKeyword",
+            "Keyword": "Exhaust"
           }
         ],
         "Result": {
           "EnergyCost": 0,
           "StarCost": -1,
           "Variables": {},
-          "Keywords": []
+          "Keywords": [
+            "Retain"
+          ]
         }
       },
       "Components": [
         {
-          "ComponentId": "native.condition.target_own_arrow.selected_enemy.conditionaltrigger.966a549dc9",
+          "ComponentId": "native.fool_action.dislodgeall.selected_enemy.singleenemyonly.1a78256198",
           "SemanticId": "fool/recall/0",
           "TriggerOwner": -1,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "condition",
-            "Variant": "target_own_arrow",
-            "Target": "selected_enemy",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "requires_selected_enemy"
-            ],
-            "Values": [],
-            "Condition": {
-              "Kind": "target_own_arrow",
-              "Subject": "target",
-              "ValueSlot": null
-            },
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "如果目标敌人被你的箭矢扎穿，",
-            "en": "If the target enemy is Impaled by your Arrow,"
-          }
-        },
-        {
-          "ComponentId": "native.fool_action.dislodge.selected_enemy.singleenemyonly.6e98095db9",
-          "SemanticId": "fool/recall/1",
-          "TriggerOwner": 0,
           "CardReference": "None",
           "RequiresSingleTarget": true,
           "Arguments": {},
           "RuntimeSpec": {
             "SchemaVersion": 1,
             "Opcode": "fool_action",
-            "Variant": "dislodge",
+            "Variant": "dislodgeall",
             "Target": "selected_enemy",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
               "api_beneficial",
-              "requires_single_target"
+              "requires_selected_enemy"
             ],
             "Values": [],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "使你扎穿目标敌人的所有箭矢松脱。",
-            "en": "Dislodge all your Arrows from the target enemy."
-          }
-        },
-        {
-          "ComponentId": "native.fool_action.discardtodrawtop.self.nontargeted.e8ed7349a6",
-          "SemanticId": "fool/recall/2",
-          "TriggerOwner": 0,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {
-            "amount": {
-              "Source": "RuntimeValue",
-              "ValueSource": "fixed",
-              "BaseValue": 1,
-              "Offset": 0,
-              "Upgradable": true
-            }
-          },
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "fool_action",
-            "Variant": "discardtodrawtop",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [
-              "api_beneficial",
-              "count_unit_reference",
-              "requires_player_choice"
-            ],
-            "Values": [
-              {
-                "Id": "amount",
-                "BaseValue": 1,
-                "Source": "fixed",
-                "Offset": 0,
-                "Upgradable": true,
-                "Explicit": true
-              }
-            ],
-            "Condition": null,
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "选择你弃牌堆中的1张牌，放到你的抽牌堆顶。",
-            "en": "Put 1 card from your discard pile on top of your Draw Pile."
+            "zhHans": "使目标敌人身上所有属于你的箭矢松脱。",
+            "en": "Dislodge ALL of your Arrows from the target enemy."
           }
         }
       ]
@@ -35859,7 +35804,7 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 15,
+            "BaseValue": 13,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -35871,14 +35816,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 5
+            "Delta": 3
           }
         ],
         "Result": {
           "EnergyCost": 0,
           "StarCost": -1,
           "Variables": {
-            "Damage": 20
+            "Damage": 16
           },
           "Keywords": []
         }
@@ -35923,14 +35868,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 15,
+              "BaseValue": 13,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Damage",
-                  "BaseValue": 15,
-                  "UpgradeDelta": 5,
+                  "BaseValue": 13,
+                  "UpgradeDelta": 3,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -35962,7 +35907,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 15,
+                "BaseValue": 13,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -35981,8 +35926,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "造成15点伤害X次。",
-            "en": "Deal 15 damage X times."
+            "zhHans": "造成13点伤害X次。",
+            "en": "Deal 13 damage X times."
           }
         }
       ]
@@ -36367,7 +36312,7 @@
           {
             "Id": "SerratedArrowsPower",
             "Kind": "Power",
-            "BaseValue": 25,
+            "BaseValue": 50,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -36386,7 +36331,7 @@
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "SerratedArrowsPower": 50
+            "SerratedArrowsPower": 75
           },
           "Keywords": []
         }
@@ -36402,13 +36347,13 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 25,
+              "BaseValue": 50,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "SerratedArrowsPower",
-                  "BaseValue": 25,
+                  "BaseValue": 50,
                   "UpgradeDelta": 25,
                   "ValueTransform": {
                     "Scale": 1,
@@ -36434,7 +36379,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 25,
+                "BaseValue": 50,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -36445,8 +36390,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "扎穿的敌人从你的攻击中受到的伤害增加25%。",
-            "en": "Impaled enemies take 25% more damage from your Attacks."
+            "zhHans": "扎穿的敌人从你的攻击中受到的伤害增加50%。",
+            "en": "Impaled enemies take 50% more damage from your Attacks."
           }
         }
       ]
@@ -36469,7 +36414,7 @@
         "en": "Gain {AimPower:diff()} [gold]Aim[/gold].\nIf a non-minion enemy dies this turn, permanently increase this card's [gold]Aim[/gold] by {ShowOffPower:diff()}."
       },
       "Base": {
-        "EnergyCost": 1,
+        "EnergyCost": 0,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
@@ -36511,15 +36456,10 @@
             "Kind": "ChangeVariable",
             "Variable": "ShowOffPower",
             "Delta": 1
-          },
-          {
-            "Kind": "ChangeVariable",
-            "Variable": "AimPower",
-            "Delta": 0
           }
         ],
         "Result": {
-          "EnergyCost": 1,
+          "EnergyCost": 0,
           "StarCost": -1,
           "Variables": {
             "BaseAim": 5,
@@ -36722,15 +36662,16 @@
         "MaxLevel": 1,
         "Actions": [
           {
-            "Kind": "ChangeEnergyCost",
-            "Delta": -1
+            "Kind": "ChangeVariable",
+            "Variable": "SimpletonPower",
+            "Delta": 1
           }
         ],
         "Result": {
-          "EnergyCost": 1,
+          "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "SimpletonPower": 1
+            "SimpletonPower": 2
           },
           "Keywords": []
         }
@@ -36778,7 +36719,18 @@
               "ValueSource": "fixed",
               "BaseValue": 1,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "SimpletonPower",
+                  "BaseValue": 1,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
@@ -36996,7 +36948,7 @@
           {
             "Id": "SongPathPower",
             "Kind": "Power",
-            "BaseValue": 5,
+            "BaseValue": 4,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -37015,7 +36967,7 @@
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "SongPathPower": 7
+            "SongPathPower": 6
           },
           "Keywords": []
         }
@@ -37063,13 +37015,13 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 5,
+              "BaseValue": 4,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "SongPathPower",
-                  "BaseValue": 5,
+                  "BaseValue": 4,
                   "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
@@ -37097,7 +37049,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 5,
+                "BaseValue": 4,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -37108,8 +37060,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得5点格挡。",
-            "en": "Gain 5 Block."
+            "zhHans": "获得4点格挡。",
+            "en": "Gain 4 Block."
           }
         }
       ]
@@ -37128,7 +37080,7 @@
         "en": "Sorrowful Strike"
       },
       "DescriptionTemplate": {
-        "zhHans": "造成{Damage:diff()}点伤害。\n在你的[gold]手牌[/gold]中加入{Cards:diff()}张[gold]悲伤[/gold]。",
+        "zhHans": "",
         "en": "Deal {Damage:diff()} damage.\nAdd {Cards:diff()} [gold]Sadness[/gold] into your [gold]Hand[/gold]."
       },
       "Base": {
@@ -37154,7 +37106,7 @@
           {
             "Id": "Cards",
             "Kind": "Cards",
-            "BaseValue": 2,
+            "BaseValue": 1,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -37174,7 +37126,7 @@
           "StarCost": -1,
           "Variables": {
             "Damage": 17,
-            "Cards": 2
+            "Cards": 1
           },
           "Keywords": []
         }
@@ -37246,7 +37198,7 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 2,
+              "BaseValue": 1,
               "Offset": 0,
               "Upgradable": true
             }
@@ -37267,7 +37219,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 2,
+                "BaseValue": 1,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -37278,8 +37230,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将2张悲伤加入你的手牌。",
-            "en": "Add 2 Sadness to your Hand."
+            "zhHans": "将1张悲伤加入你的手牌。",
+            "en": "Add 1 Sadness to your Hand."
           }
         }
       ]
@@ -37865,8 +37817,8 @@
         "en": "Trick Shot"
       },
       "DescriptionTemplate": {
-        "zhHans": "[gold]发射[/gold]一支[gold]箭矢[/gold]造成{Damage:diff()}点伤害并将这张牌返回你的[gold]手牌[/gold]。",
-        "en": "[gold]Shoot[/gold] an [gold]Arrow[/gold] to deal {Damage:diff()} damage and return this card to your [gold]Hand[/gold]."
+        "zhHans": "[gold]发射[/gold]一支[gold]箭矢[/gold]造成{Damage:diff()}点伤害并抽{Cards:diff()}张牌。",
+        "en": "[gold]Shoot[/gold] an [gold]Arrow[/gold] to deal {Damage:diff()} damage and draw {Cards:diff()} {Cards:plural:card|cards}."
       },
       "Base": {
         "EnergyCost": 1,
@@ -37887,6 +37839,13 @@
             "BaseValue": 12,
             "BaseExpression": null,
             "Calculated": false
+          },
+          {
+            "Id": "Cards",
+            "Kind": "Cards",
+            "BaseValue": 2,
+            "BaseExpression": null,
+            "Calculated": false
           }
         ]
       },
@@ -37896,14 +37855,20 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 3
+            "Delta": 2
+          },
+          {
+            "Kind": "ChangeVariable",
+            "Variable": "Cards",
+            "Delta": 1
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Damage": 15
+            "Damage": 14,
+            "Cards": 3
           },
           "Keywords": []
         }
@@ -37955,7 +37920,7 @@
                 {
                   "Variable": "Damage",
                   "BaseValue": 12,
-                  "UpgradeDelta": 3,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -37995,7 +37960,7 @@
           }
         },
         {
-          "ComponentId": "native.condition.arrow_available.self.conditionaltrigger.90fa196ae5",
+          "ComponentId": "native.condition.this_card_shot_arrow.self.conditionaltrigger.34790ed223",
           "SemanticId": "fool/trickshot/2",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -38004,7 +37969,7 @@
           "RuntimeSpec": {
             "SchemaVersion": 1,
             "Opcode": "condition",
-            "Variant": "arrow_available",
+            "Variant": "this_card_shot_arrow",
             "Target": "self",
             "SourceZone": "none",
             "DestinationZone": "none",
@@ -38012,42 +37977,76 @@
             "Flags": [],
             "Values": [],
             "Condition": {
-              "Kind": "arrow_available",
+              "Kind": "this_card_shot_arrow",
               "Subject": "self",
               "ValueSlot": null
             },
             "Trigger": null
           },
           "Text": {
-            "zhHans": "如果你拥有箭矢，",
-            "en": "If you have an Arrow,"
+            "zhHans": "如果这张牌发射了箭矢，",
+            "en": "If this card shot an Arrow,"
           }
         },
         {
-          "ComponentId": "native.template_self_action.r_returnthistohand.self.nontargeted.0a23031169",
+          "ComponentId": "native.draw_cards.immediate.self.nontargeted.2c102225d9",
           "SemanticId": "fool/trickshot/3",
           "TriggerOwner": 2,
           "CardReference": "None",
           "RequiresSingleTarget": false,
-          "Arguments": {},
+          "Arguments": {
+            "draw": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Cards",
+                  "BaseValue": 2,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
+            }
+          },
           "RuntimeSpec": {
             "SchemaVersion": 1,
-            "Opcode": "template_self_action",
-            "Variant": "r_returnthistohand",
+            "Opcode": "draw_cards",
+            "Variant": "immediate",
             "Target": "self",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "count_unit_reference"
+              "count_unit_reference",
+              "draw_reference",
+              "effect_family_draw",
+              "has_numeric_literal",
+              "leading_draw_reference",
+              "legacy_direct_draw_center",
+              "scalable_reward_wording"
             ],
-            "Values": [],
+            "Values": [
+              {
+                "Id": "draw",
+                "BaseValue": 2,
+                "Source": "fixed",
+                "Offset": 0,
+                "Upgradable": true,
+                "Explicit": true
+              }
+            ],
             "Condition": null,
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将这张牌放回你的手牌。",
-            "en": "Return this card to your Hand."
+            "zhHans": "抽2张牌。",
+            "en": "Draw 2 cards."
           }
         }
       ]
@@ -38066,11 +38065,11 @@
         "en": "Tune"
       },
       "DescriptionTemplate": {
-        "zhHans": "在你的回合结束时，如果你拥有[gold]叽 旋律[/gold]，则你下一张打出的牌{energyPrefix:energyIcons(1)}耗能为0。",
-        "en": "At the end of your turn, if you have a [gold]Ki Melody[/gold], the next card you play costs 0 {energyPrefix:energyIcons(1)}."
+        "zhHans": "每当你获得[gold]叽 旋律[/gold]时，[gold]升级[/gold]你[gold]手牌[/gold]中的随机{Cards:choose(1):一张|{:diff()}张}牌。",
+        "en": "Whenever you gain a [gold]Ki Melody[/gold], [gold]Upgrade[/gold] {Cards:choose(1):a|{:diff()}} random {Cards:plural:card|cards} in your [gold]Hand[/gold]."
       },
       "Base": {
-        "EnergyCost": 2,
+        "EnergyCost": 1,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
@@ -38081,8 +38080,8 @@
         "Tags": [],
         "Variables": [
           {
-            "Id": "Energy",
-            "Kind": "Energy",
+            "Id": "Cards",
+            "Kind": "Cards",
             "BaseValue": 1,
             "BaseExpression": null,
             "Calculated": false
@@ -38093,22 +38092,23 @@
         "MaxLevel": 1,
         "Actions": [
           {
-            "Kind": "ChangeEnergyCost",
-            "Delta": -1
+            "Kind": "ChangeVariable",
+            "Variable": "Cards",
+            "Delta": 1
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Energy": 1
+            "Cards": 2
           },
           "Keywords": []
         }
       },
       "Components": [
         {
-          "ComponentId": "native.trigger.event.self.abilitytrigger.1238e891f0",
+          "ComponentId": "native.trigger.event.self.abilitytrigger.7ab7e11f5a",
           "SemanticId": "fool/tune/0",
           "TriggerOwner": -1,
           "CardReference": "None",
@@ -38122,54 +38122,27 @@
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
-            "Flags": [],
+            "Flags": [
+              "repeated_or_multiplicative"
+            ],
             "Values": [],
             "Condition": null,
             "Trigger": {
-              "Kind": "turn_end",
+              "Kind": "ki_melody_gained",
               "Lifetime": "combat",
               "ThresholdSlot": null,
               "DurationSlot": null
             }
           },
           "Text": {
-            "zhHans": "在你的回合结束时，",
-            "en": "At the end of your turn,"
+            "zhHans": "每当你获得叽旋律时，",
+            "en": "Whenever you gain the Ki Melody,"
           }
         },
         {
-          "ComponentId": "native.condition.melody_ki.self.conditionaltrigger.a3529c67c8",
+          "ComponentId": "native.fool_action.upgraderandomhand.self.nontargeted.e074c5cb0d",
           "SemanticId": "fool/tune/1",
           "TriggerOwner": 0,
-          "CardReference": "None",
-          "RequiresSingleTarget": false,
-          "Arguments": {},
-          "RuntimeSpec": {
-            "SchemaVersion": 1,
-            "Opcode": "condition",
-            "Variant": "melody_ki",
-            "Target": "self",
-            "SourceZone": "none",
-            "DestinationZone": "none",
-            "CardFilter": "any",
-            "Flags": [],
-            "Values": [],
-            "Condition": {
-              "Kind": "melody_ki",
-              "Subject": "self",
-              "ValueSlot": null
-            },
-            "Trigger": null
-          },
-          "Text": {
-            "zhHans": "如果你拥有叽旋律，",
-            "en": "If you have the Ki Melody,"
-          }
-        },
-        {
-          "ComponentId": "native.apply_power.free_card.self.nontargeted.6ed0222fc5",
-          "SemanticId": "fool/tune/2",
-          "TriggerOwner": 1,
           "CardReference": "None",
           "RequiresSingleTarget": false,
           "Arguments": {
@@ -38178,19 +38151,31 @@
               "ValueSource": "fixed",
               "BaseValue": 1,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Cards",
+                  "BaseValue": 1,
+                  "UpgradeDelta": 1,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
             "SchemaVersion": 1,
-            "Opcode": "apply_power",
-            "Variant": "free_card",
+            "Opcode": "fool_action",
+            "Variant": "upgraderandomhand",
             "Target": "self",
             "SourceZone": "none",
             "DestinationZone": "none",
             "CardFilter": "any",
             "Flags": [
-              "api_beneficial"
+              "api_beneficial",
+              "count_unit_reference"
             ],
             "Values": [
               {
@@ -38206,8 +38191,177 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "你接下来打出的1张牌耗能为0[E]。",
-            "en": "The next 1 card you play cost 0[E]."
+            "zhHans": "升级手牌中的1张随机牌。",
+            "en": "Upgrade 1 random card in your Hand."
+          }
+        }
+      ]
+    },
+    {
+      "CatalogId": "native/fool/twin_shot",
+      "NativeId": "TWIN_SHOT",
+      "ClassName": "TwinShot",
+      "Pool": "Fool",
+      "SourceKind": "GeneratorCatalog",
+      "ReferenceOnly": true,
+      "GenerationEligible": false,
+      "ShouldShowInLibrary": true,
+      "Title": {
+        "zhHans": "双重射击",
+        "en": "Twin Shot"
+      },
+      "DescriptionTemplate": {
+        "zhHans": "[gold]发射[/gold]一支[gold]箭矢[/gold]造成{Damage:diff()}点伤害两次。",
+        "en": "[gold]Shoot[/gold] an [gold]Arrow[/gold] to deal {Damage:diff()} damage twice."
+      },
+      "Base": {
+        "EnergyCost": 1,
+        "EnergyCostX": false,
+        "StarCost": -1,
+        "StarCostX": false,
+        "Type": "Attack",
+        "Target": "AnyEnemy",
+        "Rarity": "Common",
+        "Keywords": [],
+        "Tags": [
+          "Shoot"
+        ],
+        "Variables": [
+          {
+            "Id": "Damage",
+            "Kind": "Damage",
+            "BaseValue": 7,
+            "BaseExpression": null,
+            "Calculated": false
+          },
+          {
+            "Id": "HitCount",
+            "Kind": "HitCount",
+            "BaseValue": 2,
+            "BaseExpression": null,
+            "Calculated": false
+          }
+        ]
+      },
+      "Upgrade": {
+        "MaxLevel": 1,
+        "Actions": [
+          {
+            "Kind": "ChangeVariable",
+            "Variable": "Damage",
+            "Delta": 3
+          }
+        ],
+        "Result": {
+          "EnergyCost": 1,
+          "StarCost": -1,
+          "Variables": {
+            "Damage": 10,
+            "HitCount": 2
+          },
+          "Keywords": []
+        }
+      },
+      "Components": [
+        {
+          "ComponentId": "native.modify_damage.shoot_arrow.self.modifier.62b8ec4bfd",
+          "SemanticId": "fool/twinshot/0",
+          "TriggerOwner": -1,
+          "CardReference": "None",
+          "RequiresSingleTarget": false,
+          "Arguments": {},
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "modify_damage",
+            "Variant": "shoot_arrow",
+            "Target": "self",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "grants_shoot_tag",
+              "requires_damage_anchor",
+              "sole_damage_sentence"
+            ],
+            "Values": [],
+            "Condition": null,
+            "Trigger": null
+          },
+          "Text": {
+            "zhHans": "发射一支箭矢，",
+            "en": "Shoot an Arrow to"
+          }
+        },
+        {
+          "ComponentId": "native.deal_damage.selected.selected_enemy.singleenemyonly.00e37819a4",
+          "SemanticId": "fool/twinshot/1",
+          "TriggerOwner": -1,
+          "CardReference": "None",
+          "RequiresSingleTarget": true,
+          "Arguments": {
+            "damage": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 7,
+              "Offset": 0,
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Damage",
+                  "BaseValue": 7,
+                  "UpgradeDelta": 3,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
+            },
+            "hits": {
+              "Source": "RuntimeValue",
+              "ValueSource": "fixed",
+              "BaseValue": 2,
+              "Offset": 0,
+              "Upgradable": true
+            }
+          },
+          "RuntimeSpec": {
+            "SchemaVersion": 1,
+            "Opcode": "deal_damage",
+            "Variant": "selected",
+            "Target": "selected_enemy",
+            "SourceZone": "none",
+            "DestinationZone": "none",
+            "CardFilter": "any",
+            "Flags": [
+              "count_unit_reference",
+              "has_numeric_literal",
+              "printed_damage_value"
+            ],
+            "Values": [
+              {
+                "Id": "damage",
+                "BaseValue": 7,
+                "Source": "fixed",
+                "Offset": 0,
+                "Upgradable": true,
+                "Explicit": true
+              },
+              {
+                "Id": "hits",
+                "BaseValue": 2,
+                "Source": "fixed",
+                "Offset": 0,
+                "Upgradable": true,
+                "Explicit": true
+              }
+            ],
+            "Condition": null,
+            "Trigger": null
+          },
+          "Text": {
+            "zhHans": "造成7点伤害2次。",
+            "en": "Deal 7 damage 2 times."
           }
         }
       ]
@@ -38230,7 +38384,7 @@
         "en": "If the enemy is [gold]Impaled[/gold], [gold]Dislodge[/gold] and apply {VulnerablePower:diff()} [gold]Vulnerable[/gold]."
       },
       "Base": {
-        "EnergyCost": 1,
+        "EnergyCost": 0,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
@@ -38259,7 +38413,7 @@
           }
         ],
         "Result": {
-          "EnergyCost": 1,
+          "EnergyCost": 0,
           "StarCost": -1,
           "Variables": {
             "VulnerablePower": 4
@@ -38418,7 +38572,7 @@
           {
             "Id": "ViolentChordPower",
             "Kind": "Power",
-            "BaseValue": 9,
+            "BaseValue": 7,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -38430,14 +38584,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "ViolentChordPower",
-            "Delta": 3
+            "Delta": 2
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "ViolentChordPower": 12
+            "ViolentChordPower": 9
           },
           "Keywords": []
         }
@@ -38485,14 +38639,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 9,
+              "BaseValue": 7,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "ViolentChordPower",
-                  "BaseValue": 9,
-                  "UpgradeDelta": 3,
+                  "BaseValue": 7,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -38525,7 +38679,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 9,
+                "BaseValue": 7,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -38544,8 +38698,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "对所有敌人造成9点伤害。",
-            "en": "Deal 9 damage to ALL enemies."
+            "zhHans": "对所有敌人造成7点伤害。",
+            "en": "Deal 7 damage to ALL enemies."
           }
         }
       ]
@@ -38564,8 +38718,8 @@
         "en": "Vitriol"
       },
       "DescriptionTemplate": {
-        "zhHans": "给予{WeakPower:diff()}层[gold]虚弱[/gold]。\n将一张[gold]悲伤[/gold]加入你的[gold]手牌[/gold]。",
-        "en": "Apply {WeakPower:diff()} [gold]Weak[/gold].\nAdd a [gold]Sadness[/gold] into your [gold]Hand[/gold]."
+        "zhHans": "给予{WeakPower:diff()}层[gold]虚弱[/gold]。\n将{Cards:diff()}张[gold]悲伤[/gold]加入你的[gold]手牌[/gold]。",
+        "en": "Apply {WeakPower:diff()} [gold]Weak[/gold].\nAdd {Cards:diff()} [gold]Sadness[/gold] into your [gold]Hand[/gold]."
       },
       "Base": {
         "EnergyCost": 0,
@@ -38581,6 +38735,13 @@
           {
             "Id": "WeakPower",
             "Kind": "Power",
+            "BaseValue": 2,
+            "BaseExpression": null,
+            "Calculated": false
+          },
+          {
+            "Id": "Cards",
+            "Kind": "Cards",
             "BaseValue": 2,
             "BaseExpression": null,
             "Calculated": false
@@ -38600,7 +38761,8 @@
           "EnergyCost": 0,
           "StarCost": -1,
           "Variables": {
-            "WeakPower": 3
+            "WeakPower": 3,
+            "Cards": 2
           },
           "Keywords": []
         }
@@ -38674,9 +38836,20 @@
             "amount": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 1,
+              "BaseValue": 2,
               "Offset": 0,
-              "Upgradable": true
+              "Upgradable": true,
+              "NativeBindings": [
+                {
+                  "Variable": "Cards",
+                  "BaseValue": 2,
+                  "UpgradeDelta": 0,
+                  "ValueTransform": {
+                    "Scale": 1,
+                    "Offset": 0
+                  }
+                }
+              ]
             }
           },
           "RuntimeSpec": {
@@ -38695,7 +38868,7 @@
             "Values": [
               {
                 "Id": "amount",
-                "BaseValue": 1,
+                "BaseValue": 2,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -38706,8 +38879,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "将1张悲伤加入你的手牌。",
-            "en": "Add 1 Sadness to your Hand."
+            "zhHans": "将2张悲伤加入你的手牌。",
+            "en": "Add 2 Sadness to your Hand."
           }
         }
       ]
@@ -39139,11 +39312,11 @@
         "en": "Wah Cho Ki"
       },
       "DescriptionTemplate": {
-        "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。\n造成{Damage:diff()}点伤害。\n抽{Cards:diff()}张牌。",
-        "en": "Gain {Block:diff()} [gold]Block[/gold].\nDeal {Damage:diff()} damage.\nDraw {Cards:diff()} {Cards:plural:card|cards}."
+        "zhHans": "造成{Damage:diff()}点伤害。\n获得{Block:diff()}点[gold]格挡[/gold]。\n抽{Cards:diff()}张牌。",
+        "en": "Deal {Damage:diff()} damage.\nGain {Block:diff()} [gold]Block[/gold].\nDraw {Cards:diff()} {Cards:plural:card|cards}."
       },
       "Base": {
-        "EnergyCost": 1,
+        "EnergyCost": 2,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
@@ -39160,14 +39333,14 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 9,
+            "BaseValue": 8,
             "BaseExpression": null,
             "Calculated": false
           },
           {
             "Id": "Block",
             "Kind": "Block",
-            "BaseValue": 9,
+            "BaseValue": 8,
             "BaseExpression": null,
             "Calculated": false
           },
@@ -39186,12 +39359,12 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 3
+            "Delta": 2
           },
           {
             "Kind": "ChangeVariable",
             "Variable": "Block",
-            "Delta": 3
+            "Delta": 2
           },
           {
             "Kind": "ChangeVariable",
@@ -39200,11 +39373,11 @@
           }
         ],
         "Result": {
-          "EnergyCost": 1,
+          "EnergyCost": 2,
           "StarCost": -1,
           "Variables": {
-            "Damage": 12,
-            "Block": 12,
+            "Damage": 10,
+            "Block": 10,
             "Cards": 2
           },
           "Keywords": []
@@ -39221,14 +39394,14 @@
             "block": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 9,
+              "BaseValue": 8,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Block",
-                  "BaseValue": 9,
-                  "UpgradeDelta": 3,
+                  "BaseValue": 8,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -39255,7 +39428,7 @@
             "Values": [
               {
                 "Id": "block",
-                "BaseValue": 9,
+                "BaseValue": 8,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -39266,8 +39439,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "获得9点格挡。",
-            "en": "Gain 9 Block."
+            "zhHans": "获得8点格挡。",
+            "en": "Gain 8 Block."
           }
         },
         {
@@ -39280,14 +39453,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 9,
+              "BaseValue": 8,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Damage",
-                  "BaseValue": 9,
-                  "UpgradeDelta": 3,
+                  "BaseValue": 8,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -39311,7 +39484,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 9,
+                "BaseValue": 8,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -39322,8 +39495,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "造成9点伤害。",
-            "en": "Deal 9 damage."
+            "zhHans": "造成8点伤害。",
+            "en": "Deal 8 damage."
           }
         },
         {
@@ -39434,14 +39607,14 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 3
+            "Delta": 2
           }
         ],
         "Result": {
           "EnergyCost": 1,
           "StarCost": -1,
           "Variables": {
-            "Damage": 12
+            "Damage": 11
           },
           "Keywords": []
         }
@@ -39464,7 +39637,7 @@
                 {
                   "Variable": "Damage",
                   "BaseValue": 9,
-                  "UpgradeDelta": 3,
+                  "UpgradeDelta": 2,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -39546,8 +39719,8 @@
         "en": "Wah Ki"
       },
       "DescriptionTemplate": {
-        "zhHans": "造成{Damage:diff()}点伤害{HitCount:diff()}次。\n下回合获得{Energy:energyIcons()}并抽{Cards:diff()}张牌。",
-        "en": "Deal {Damage:diff()} damage {HitCount:diff()} {HitCount:plural:time|times}.\nNext turn, gain {Energy:energyIcons()} and draw {Cards:diff()} {Cards:plural:card|cards}."
+        "zhHans": "造成{Damage:diff()}点伤害{HitCount:diff()}次。\n将你[gold]弃牌堆[/gold]中的一张牌放到你的[gold]抽牌堆[/gold]顶。",
+        "en": "Deal {Damage:diff()} damage {HitCount:diff()} {HitCount:plural:time|times}.\nPut a card from your [gold]Discard Pile[/gold] on top of your [gold]Draw Pile[/gold]."
       },
       "Base": {
         "EnergyCost": 1,
@@ -39566,7 +39739,7 @@
           {
             "Id": "Damage",
             "Kind": "Damage",
-            "BaseValue": 2,
+            "BaseValue": 3,
             "BaseExpression": null,
             "Calculated": false
           },
@@ -39574,20 +39747,6 @@
             "Id": "HitCount",
             "Kind": "HitCount",
             "BaseValue": 2,
-            "BaseExpression": null,
-            "Calculated": false
-          },
-          {
-            "Id": "Cards",
-            "Kind": "Cards",
-            "BaseValue": 1,
-            "BaseExpression": null,
-            "Calculated": false
-          },
-          {
-            "Id": "Energy",
-            "Kind": "Energy",
-            "BaseValue": 1,
             "BaseExpression": null,
             "Calculated": false
           }
@@ -39599,7 +39758,7 @@
           {
             "Kind": "ChangeVariable",
             "Variable": "Damage",
-            "Delta": 2
+            "Delta": 1
           }
         ],
         "Result": {
@@ -39607,9 +39766,7 @@
           "StarCost": -1,
           "Variables": {
             "Damage": 4,
-            "HitCount": 2,
-            "Cards": 1,
-            "Energy": 1
+            "HitCount": 2
           },
           "Keywords": []
         }
@@ -39625,14 +39782,14 @@
             "damage": {
               "Source": "RuntimeValue",
               "ValueSource": "fixed",
-              "BaseValue": 2,
+              "BaseValue": 3,
               "Offset": 0,
               "Upgradable": true,
               "NativeBindings": [
                 {
                   "Variable": "Damage",
-                  "BaseValue": 2,
-                  "UpgradeDelta": 2,
+                  "BaseValue": 3,
+                  "UpgradeDelta": 1,
                   "ValueTransform": {
                     "Scale": 1,
                     "Offset": 0
@@ -39664,7 +39821,7 @@
             "Values": [
               {
                 "Id": "damage",
-                "BaseValue": 2,
+                "BaseValue": 3,
                 "Source": "fixed",
                 "Offset": 0,
                 "Upgradable": true,
@@ -39683,8 +39840,8 @@
             "Trigger": null
           },
           "Text": {
-            "zhHans": "造成2点伤害2次。",
-            "en": "Deal 2 damage 2 times."
+            "zhHans": "造成3点伤害2次。",
+            "en": "Deal 3 damage 2 times."
           }
         },
         {
@@ -39965,8 +40122,8 @@
         "en": "Wah Symphony"
       },
       "DescriptionTemplate": {
-        "zhHans": "对所有敌人造成{CalculatedDamage:diff()}点伤害。\n你的每一张有“哇”、“啾”或“叽”的牌，使造成的伤害增加{ExtraDamage:diff()}点。",
-        "en": "Deal {CalculatedDamage:diff()} damage to ALL enemies.\nDeals {ExtraDamage:diff()} additional damage for ALL your cards containing “Wah”, “Cho”, or “Ki”."
+        "zhHans": "对所有敌人造成{CalculatedDamage:diff()}点伤害。\n你的每一张有“啾”或“叽”的牌，使造成的伤害增加{ExtraDamage:diff()}点。",
+        "en": "Deal {CalculatedDamage:diff()} damage to ALL enemies.\nDeals {ExtraDamage:diff()} additional damage for ALL your cards containing “Cho” or “Ki”."
       },
       "Base": {
         "EnergyCost": 2,
@@ -40699,7 +40856,7 @@
         "en": "Yah!"
       },
       "DescriptionTemplate": {
-        "zhHans": "你第一次让[gold]箭矢[/gold][gold]松脱[/gold]时，获得{Energy:energyIcons()}。",
+        "zhHans": "你每回合第一次让[gold]箭矢[/gold][gold]松脱[/gold]时，获得{Energy:energyIcons()}。",
         "en": "The first time you [gold]Dislodge[/gold] an [gold]Arrow[/gold] each turn, gain {Energy:energyIcons()}."
       },
       "Base": {
@@ -45677,7 +45834,7 @@
         "en": "Expect a Fight"
       },
       "DescriptionTemplate": {
-        "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。\n你[gold]手牌[/gold]中的攻击牌在被打出前{Energy:diff()}耗能减少{energyPrefix:energyIcons(1)}。",
+        "zhHans": "获得{Block:diff()}点[gold]格挡[/gold]。\n你[gold]手牌[/gold]中的攻击牌在被打出前耗能减少{Energy:diff()}{energyPrefix:energyIcons(1)}。",
         "en": "Gain {Block:diff()} [gold]Block[/gold].\nAttacks in your [gold]Hand[/gold] cost {Energy:diff()} less {energyPrefix:energyIcons(1)} until played."
       },
       "Base": {
@@ -97534,42 +97691,30 @@
         "en": "The Shot"
       },
       "DescriptionTemplate": {
-        "zhHans": "[gold]发射[/gold]一支[gold]箭矢[/gold]造成{ExtraDamage:diff()}×被[gold]怒放[/gold][gold]消耗[/gold]的牌数点伤害。{InCombat:\n（造成{CalculatedDamage:diff()}点伤害）|}",
-        "en": "[gold]Shoot[/gold] an [gold]Arrow[/gold] to deal {ExtraDamage:diff()} damage for each card [gold]Exhausted[/gold] by [gold]Florescence[/gold].{InCombat:\n(Deals {CalculatedDamage:diff()} damage)|}"
+        "zhHans": "[gold]发射[/gold]一支[gold]箭矢[/gold]造成{Damage:diff()}点伤害。",
+        "en": "[gold]Shoot[/gold] an [gold]Arrow[/gold] to deal {Damage:diff()} damage."
       },
       "Base": {
-        "EnergyCost": 1,
+        "EnergyCost": 0,
         "EnergyCostX": false,
         "StarCost": -1,
         "StarCostX": false,
         "Type": "Attack",
         "Target": "AnyEnemy",
         "Rarity": "Token",
-        "Keywords": [],
+        "Keywords": [
+          "Exhaust"
+        ],
         "Tags": [
           "Shoot"
         ],
         "Variables": [
           {
-            "Id": "CalculationBase",
-            "Kind": "CalculationBase",
-            "BaseValue": 0,
+            "Id": "Damage",
+            "Kind": "Damage",
+            "BaseValue": 20,
             "BaseExpression": null,
             "Calculated": false
-          },
-          {
-            "Id": "ExtraDamage",
-            "Kind": "ExtraDamage",
-            "BaseValue": 10,
-            "BaseExpression": null,
-            "Calculated": false
-          },
-          {
-            "Id": "CalculatedDamage",
-            "Kind": "CalculatedDamage",
-            "BaseValue": null,
-            "BaseExpression": "ValueProp.Move | ValueProp.FromArrow",
-            "Calculated": true
           }
         ]
       },
@@ -97578,19 +97723,19 @@
         "Actions": [
           {
             "Kind": "ChangeVariable",
-            "Variable": "ExtraDamage",
-            "Delta": 3
+            "Variable": "Damage",
+            "Delta": 5
           }
         ],
         "Result": {
-          "EnergyCost": 1,
+          "EnergyCost": 0,
           "StarCost": -1,
           "Variables": {
-            "CalculationBase": 0,
-            "ExtraDamage": 13,
-            "CalculatedDamage": null
+            "Damage": 25
           },
-          "Keywords": []
+          "Keywords": [
+            "Exhaust"
+          ]
         }
       },
       "Components": [
@@ -97600,16 +97745,12 @@
           "Arguments": {}
         },
         {
-          "ComponentId": "deal.damage_per_florescence_exhausted_card",
+          "ComponentId": "deal.damage",
           "TriggerOwner": -1,
           "Arguments": {
-            "damagePerCard": {
+            "damage": {
               "Source": "NativeVariable",
-              "Id": "ExtraDamage"
-            },
-            "countSource": {
-              "Source": "Literal",
-              "Value": "FlorescenceExhaustedCount"
+              "Id": "Damage"
             },
             "target": {
               "Source": "Literal",
